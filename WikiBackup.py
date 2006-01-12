@@ -10,7 +10,6 @@ Current state:
 TODO:
 * detect handle error conditions ;)
 * lock files / looping
-* use date-based subdirectories
 * generate HTML pages with status and navigable links
 * generate file checksums
 * symlink files to a stable directory on completion
@@ -33,6 +32,7 @@ runner.run()
 """
 
 import os
+import time
 
 def dbList(filename):
 	infile = open(filename)
@@ -65,6 +65,8 @@ class Runner(object):
 		self.dbpassword = dbpassword
 		self.wikidir = wikidir
 		self.php = php
+		self.db = None
+		self.date = None
 	
 	"""Public methods for the manager script..."""
 	
@@ -73,23 +75,30 @@ class Runner(object):
 		self.debug("Starting dump...")
 		for db in self.dblist:
 			self.db = db
+			self.date = self.today()
 			self.doBackup()
 		self.debug("Done!")
 	
 	"""Public methods for dumps to use..."""
 	
-	def privatePath(self, filename=""):
-		"""Take a given filename in the private dump dir for the selected database."""
-		return os.path.join(self.private, self.db, filename)
+	def privateDir(self):
+		return self.buildDir(self.private)
 	
-	def publicPath(self, filename=""):
+	def publicDir(self):
+		if self.db in self.privatelist:
+			return self.privateDir()
+		else:
+			return self.buildDir(self.public)
+	
+	def privatePath(self, filename):
+		"""Take a given filename in the private dump dir for the selected database."""
+		return self.buildPath(self.privateDir(), filename)
+	
+	def publicPath(self, filename):
 		"""Take a given filename in the public dump dir for the selected database.
 		If this database is marked as private, will use the private dir instead.
 		"""
-		if self.db in self.privatelist:
-			return self.privatePath(filename)
-		else:
-			return os.path.join(self.public, self.db, filename)
+		return self.buildPath(self.publicDir(), filename)
 	
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo', but if you pass '-p' it prompts. Sigh."""
@@ -128,7 +137,7 @@ class Runner(object):
 		return os.system(command)
 	
 	def debug(self, stuff):
-		print stuff
+		print "%s: %s %s" % (self.prettyTime(), self.db, stuff)
 	
 	# auto-set
 	#OutputDir=$PublicDir/$DirLang
@@ -138,19 +147,31 @@ class Runner(object):
 	
 	#GlobalLog=/var/backup/public/backup.log
 	
+	def buildDir(self, base):
+		return os.path.join(base, self.db, self.date)
+	
+	def buildPath(self, base, filename):
+		return os.path.join(base, "%s-%s-%s" % (self.db, self.date, filename))
+	
+	def today(self):
+		return time.strftime("%Y%m%d", time.gmtime())
+	
+	def prettyTime(self):
+		return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+	
 	def makeDir(self, dir):
 		if os.path.exists(dir):
 			self.debug("Checkdir dir %s ..." % dir)
 		else:
 			self.debug("Creating %s ..." % dir)
-			os.mkdir(dir)
+			os.makedirs(dir)
 
 	def doBackup(self):
 		self.makeDir(self.public)
-		self.makeDir(self.publicPath())
+		self.makeDir(self.publicDir())
 		
 		self.makeDir(self.private)
-		self.makeDir(self.privatePath())
+		self.makeDir(self.privateDir())
 		
 		self.status("Starting backup of %s" % self.db)
 		self.lock()
@@ -176,14 +197,15 @@ class Runner(object):
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "Text blob storage. May be compressed, etc."), // ?
 			
+			TitleDump("List of page titles"),
+			
 			XmlStub("First-pass for page XML data dumps"),
 			XmlDump("full", "All pages with complete page edit history (very large!)"),
 			XmlDump("current", "All pages, current versions only"),
 			XmlDump("articles", "Articles, templates, image descriptions, and main meta-pages (recommended)"),
 			
-			TitleDump("List of page titles"),
+			AbstractDump("Extracted page abstracts for Yahoo"),
 			
-			# YahooDump(),
 			];
 		
 		for item in items:
@@ -313,12 +335,22 @@ class XmlDump(Dump):
 		self._desc = desc
 	
 	def run(self, runner):
-		xmlbz2 = runner.publicPath("pages_" + self._subset + ".xml.bz2")
-		xml7z = runner.publicPath("pages_" + self._subset + ".xml.7z")
+		xmlbz2 = runner.publicPath("pages-" + self._subset + ".xml.bz2")
+		xml7z = runner.publicPath("pages-" + self._subset + ".xml.7z")
 		
 		# Clear prior 7zip attempts; 7zip will try to append an existing archive
 		if os.path.exists(xml7z):
 			os.remove(xml7z)
+		
+		filters = "--output=bzip2:%s --output=7zip:%s" % shellEscape((
+			xmlbz2,
+			xml7z))
+		command = self._buildCommand(runner)
+		
+		return runner.runCommand(command + " " + filters)
+	
+	def _buildCommand(self, runner):
+		"""Build the command line for the dump, minus output and filter options"""
 		
 		# Page and revision data pulled from this skeleton dump...
 		stub = runner.privatePath("stub-%s.xml.gz" % self._subset),
@@ -332,27 +364,45 @@ class XmlDump(Dump):
 			prefetch = "--prefetch=bzip2:%s" % (source)
 		else:
 			runner.status("... building %s XML dump, no text prefetch..." % self._subset)
-			prefetch = ""
+			prefetch = None
 		
-		dumpCommand = "%s -q %s/maintenance/dumpTextPass.php %s %s --output=bzip2:%s --output=7zip:%s" % shellEscape((
+		dumpCommand = "%s -q %s/maintenance/dumpTextPass.php %s %s" % shellEscape((
 			runner.php,
 			runner.wikidir,
 			runner.db,
-			prefetch,
-			xmlbz2,
-			xml7z))
+			prefetch))
 		command = stubCommand + " | " + dumpCommand
-		
-		return runner.runCommand(command)
+		return command
 	
 	def _findPreviousDump(self, runner):
 		return "/tmp/fake/foo"
 
+class AbstractDump(Dump):
+	"""XML dump for Yahoo!'s Active Abstracts thingy"""
+	
+	def run(self, runner):
+		command = """
+%s -q %s/maintenance/dumpBackup.php %s \
+  --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
+  --current \
+  --output=gzip:%s \
+    --filter=namespace:NS_MAIN \
+    --filter=noredirect \
+    --filter=abstract
+""" % shellEscape((
+			runner.php,
+			runner.wikidir,
+			runner.db,
+			runner.wikidir,
+			runner.publicPath("abstract.xml.gz")))
+		runner.runCommand(command)
+	
+	
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
 	def run(self, runner):
 		return runner.saveSql("select page_title from page where page_namespace=0;",
-			runner.publicPath("all_titles_in_ns0.gz"))
+			runner.publicPath("all-titles-in-ns0.gz"))
 
 
 class Checksums(Dump):
@@ -364,6 +414,6 @@ class Checksums(Dump):
 		command = "md5sum " + \
 			runner.publicPath("*.xml.*") + " " + \
 			runner.publicPath("*.sql.gz") + " " + \
-			runner.publicPath("all_titles_in_ns0.gz")
+			runner.publicPath("all-titles-in-ns0.gz")
 		return runner.saveCommand(command, runner.publicPath("md5sums.txt"))
 
