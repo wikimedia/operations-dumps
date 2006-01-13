@@ -10,9 +10,8 @@ Current state:
 TODO:
 * detect handle error conditions ;)
 * lock files / looping
-* generate HTML pages with status and navigable links
+* generate HTML pages with status and navigable links (part-done)
 * generate file checksums
-* symlink files to a stable directory on completion
 * make upload tarballs?
 * detect low disk space and either call for help or automatically clear old files
 
@@ -66,6 +65,12 @@ def _prettySize(size, quanta):
 	else:
 		return _prettySize(size / 1024.0, quanta[1:])
 
+def today():
+	return time.strftime("%Y%m%d", time.gmtime())
+
+def prettyTime():
+	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+
 class Runner(object):
 	def __init__(self, public, private, dblist, privatelist, dbserver, dbuser, dbpassword, wikidir, php="php", webroot=""):
 		self.public = public
@@ -88,39 +93,53 @@ class Runner(object):
 		self.debug("Starting dump...")
 		for db in self.dblist:
 			self.db = db
-			self.date = self.today()
+			self.date = today()
 			self.doBackup()
 		self.debug("Done!")
 	
 	"""Public methods for dumps to use..."""
 	
+	def publicBase(self):
+		"""Return the base directory tree to put public files into.
+		If a private wiki is selected, all files will go into the private dir.
+		"""
+		if self.db in self.privatelist:
+			return self.private
+		else:
+			return self.public
+	
 	def privateDir(self):
-		return self.buildDir(self.private)
+		return self.buildDir(self.private, self.date)
 	
 	def publicDir(self):
-		if self.db in self.privatelist:
-			return self.privateDir()
-		else:
-			return self.buildDir(self.public)
+		return self.buildDir(self.publicBase(), self.date)
+	
+	def latestDir(self):
+		return self.buildDir(self.publicBase(), "latest")
 	
 	def webDir(self):
 		"""Get the relative URL path for thingies
 		FIXME: may fail on non-Unix systems. HAHAHAHA
 		"""
-		return self.buildDir(self.webroot)
+		return self.buildDir(self.webroot, self.date)
+	
 	
 	def privatePath(self, filename):
 		"""Take a given filename in the private dump dir for the selected database."""
-		return self.buildPath(self.privateDir(), filename)
+		return self.buildPath(self.privateDir(), self.date, filename)
 	
 	def publicPath(self, filename):
 		"""Take a given filename in the public dump dir for the selected database.
 		If this database is marked as private, will use the private dir instead.
 		"""
-		return self.buildPath(self.publicDir(), filename)
+		return self.buildPath(self.publicDir(), self.date, filename)
+	
+	def latestPath(self, filename):
+		return self.buildPath(self.latestDir(), "latest", filename)
 	
 	def webPath(self, filename):
-		return self.buildPath(self.webDir(), filename)
+		return self.buildPath(self.webDir(), self.date, filename)
+	
 	
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo', but if you pass '-p' it prompts. Sigh."""
@@ -159,7 +178,7 @@ class Runner(object):
 		return os.system(command)
 	
 	def debug(self, stuff):
-		print "%s: %s %s" % (self.prettyTime(), self.db, stuff)
+		print "%s: %s %s" % (prettyTime(), self.db, stuff)
 	
 	# auto-set
 	#OutputDir=$PublicDir/$DirLang
@@ -169,17 +188,11 @@ class Runner(object):
 	
 	#GlobalLog=/var/backup/public/backup.log
 	
-	def buildDir(self, base):
-		return os.path.join(base, self.db, self.date)
+	def buildDir(self, base, version):
+		return os.path.join(base, self.db, version)
 	
-	def buildPath(self, base, filename):
-		return os.path.join(base, "%s-%s-%s" % (self.db, self.date, filename))
-	
-	def today(self):
-		return time.strftime("%Y%m%d", time.gmtime())
-	
-	def prettyTime(self):
-		return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+	def buildPath(self, base, version, filename):
+		return os.path.join(base, "%s-%s-%s" % (self.db, version, filename))
 	
 	def makeDir(self, dir):
 		if os.path.exists(dir):
@@ -233,7 +246,7 @@ class Runner(object):
 			self.saveStatus(items)
 
 		self.checksums(files)
-		self.completeDump()
+		self.completeDump(files)
 
 		self.unlock()
 		self.statusComplete()
@@ -323,8 +336,23 @@ class Runner(object):
 	def checksums(self, files):
 		self.debug("If this script were finished, it would be checksumming files here")
 	
-	def completeDump(self):
+	def completeDump(self, files):
 		self.debug("If this script were finished, it would be adding symlinks or something")
+		self.makeDir(self.latestDir())
+		for file in files:
+			self.saveSymlink(file)
+	
+	def saveSymlink(self, file):
+		real = self.publicPath(file)
+		link = self.latestPath(file)
+		if os.path.exists(link):
+			if os.path.islink(link):
+				self.debug("Removing old symlink %s")
+				os.remove(link)
+			else:
+				raise "what the hell dude, %s is not a symlink" % link
+		self.debug("Adding symlink %s -> %s" % (link, real))
+		os.symlink(real, link)
 
 class Dump(object):
 	def __init__(self, desc):
