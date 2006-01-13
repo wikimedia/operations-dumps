@@ -27,7 +27,8 @@ runner = WikiBackup.Runner(
 	dbuser="root",
 	dbpassword="",
 	wikidir="/opt/web/pages/head",
-	php="/opt/php51/bin/php")
+	php="/opt/php51/bin/php"
+	webroot="/dumps")
 runner.run()
 """
 
@@ -54,8 +55,19 @@ def shellEscape(param):
 	else:
 		return tuple([shellEscape(x) for x in param])
 
+def prettySize(size):
+	"""Return a string with an attractively formatted file size."""
+	quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
+	return _prettySize(size, quanta)
+
+def _prettySize(size, quanta):
+	if size < 1024 or len(quanta) == 1:
+		return quanta[0] % size
+	else:
+		return _prettySize(size / 1024.0, quanta[1:])
+
 class Runner(object):
-	def __init__(self, public, private, dblist, privatelist, dbserver, dbuser, dbpassword, wikidir, php="php"):
+	def __init__(self, public, private, dblist, privatelist, dbserver, dbuser, dbpassword, wikidir, php="php", webroot=""):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -65,6 +77,7 @@ class Runner(object):
 		self.dbpassword = dbpassword
 		self.wikidir = wikidir
 		self.php = php
+		self.webroot = webroot
 		self.db = None
 		self.date = None
 	
@@ -90,6 +103,12 @@ class Runner(object):
 		else:
 			return self.buildDir(self.public)
 	
+	def webDir(self):
+		"""Get the relative URL path for thingies
+		FIXME: may fail on non-Unix systems. HAHAHAHA
+		"""
+		return self.buildDir(self.webroot)
+	
 	def privatePath(self, filename):
 		"""Take a given filename in the private dump dir for the selected database."""
 		return self.buildPath(self.privateDir(), filename)
@@ -99,6 +118,9 @@ class Runner(object):
 		If this database is marked as private, will use the private dir instead.
 		"""
 		return self.buildPath(self.publicDir(), filename)
+	
+	def webPath(self, filename):
+		return self.buildPath(self.webDir(), filename)
 	
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo', but if you pass '-p' it prompts. Sigh."""
@@ -167,10 +189,7 @@ class Runner(object):
 			os.makedirs(dir)
 
 	def doBackup(self):
-		self.makeDir(self.public)
 		self.makeDir(self.publicDir())
-		
-		self.makeDir(self.private)
 		self.makeDir(self.privateDir())
 		
 		self.status("Starting backup of %s" % self.db)
@@ -204,18 +223,57 @@ class Runner(object):
 			XmlDump("current", "All pages, current versions only"),
 			XmlDump("articles", "Articles, templates, image descriptions, and main meta-pages (recommended)"),
 			
-			AbstractDump("Extracted page abstracts for Yahoo"),
-			
-			];
+			AbstractDump("Extracted page abstracts for Yahoo")]
 		
+		files = self.listFilesFor(items)
+		
+		self.reportStatus(items)
 		for item in items:
 			item.run(self)
+			self.saveStatus(items)
 
-		self.checksums()
+		self.checksums(files)
 		self.completeDump()
 
 		self.unlock()
 		self.statusComplete()
+	
+	def listFilesFor(self, items):
+		files = []
+		for item in items:
+			for file in item.listFiles(self):
+				files.append(file)
+		return files
+	
+	def saveStatus(self, items):
+		html = self.reportStatus(items)
+		index = os.path.join(self.publicDir(), "index.html")
+		file = open(index, "wt")
+		file.write(html)
+		file.close()
+	
+	def reportStatus(self, items):
+		html = "\n".join([self.reportItem(item) for item in items])
+		return html
+	
+	def reportItem(self, item):
+		html = "<li>(STATUS) %s:" % item.description()
+		files = item.listFiles(self)
+		if files:
+			html += "<ul>"
+			html += "\n".join([self.reportFile(file) for file in files])
+			html += "</ul>"
+		html += "</li>"
+		return html
+	
+	def reportFile(self, file):
+		filepath = self.publicPath(file)
+		if os.path.exists(filepath):
+			size = prettySize(os.path.getsize(filepath))
+			webpath = self.webPath(file)
+			return "<li><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
+		else:
+			return "<li>%s</li>" % file
 	
 	def lockFile(self):
 		return self.publicPath("lock")
@@ -262,7 +320,7 @@ class Runner(object):
 		#  echo $DatabaseName `dateStamp` SUCCESS: "done." | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug("SUCCESS: done.")
 	
-	def checksums(self):
+	def checksums(self, files):
 		self.debug("If this script were finished, it would be checksumming files here")
 	
 	def completeDump(self):
@@ -274,29 +332,49 @@ class Dump(object):
 	
 	def description(self):
 		return self._desc
-
-class PublicTable(Dump):
-	def __init__(self, table, descr):
-		self._table = table
-		self._descr = descr
 	
-	def _path(self, runner, filename):
-		return runner.publicPath(filename)
+	def listFiles(self, runner):
+		"""Return a list of filenames which should be exported and checksummed"""
+		return []
 	
 	def run(self, runner):
-		path = self._path(runner, self._table + ".sql.gz")
-		return runner.saveTable(self._table, path)
+		"""Actually do something!"""
+		pass
+
+class PublicTable(Dump):
+	"""Dump of a table using MySQL's mysqldump utility."""
+	
+	def __init__(self, table, desc):
+		self._table = table
+		self._desc = desc
+	
+	def _file(self):
+		return self._table + ".sql.gz"
+	
+	def _path(self, runner):
+		return runner.publicPath(self._file())
+	
+	def run(self, runner):
+		return runner.saveTable(self._table, self._path(runner))
+	
+	def listFiles(self, runner):
+		return [self._file()]
 
 class PrivateTable(PublicTable):
-	def __init__(self, table, descr):
+	"""Hidden table dumps for private data."""
+	def __init__(self, table, desc):
 		self._table = table
-		self._descr = descr
+		self._desc = desc
 	
 	def description(self):
 		return self._desc + " (private)"
 	
-	def _path(self, runner, filename):
-		return runner.privatePath(filename)
+	def _path(self, runner):
+		return runner.privatePath(self._file())
+	
+	def listFiles(self, runner):
+		"""Private table won't have public files to list."""
+		return []
 
 
 class XmlStub(Dump):
@@ -334,9 +412,15 @@ class XmlDump(Dump):
 		self._subset = subset
 		self._desc = desc
 	
+	def _file(self, ext):
+		return "pages-" + self._subset + ".xml." + ext
+	
+	def _path(self, runner, ext):
+		return runner.publicPath(self._file(ext))
+	
 	def run(self, runner):
-		xmlbz2 = runner.publicPath("pages-" + self._subset + ".xml.bz2")
-		xml7z = runner.publicPath("pages-" + self._subset + ".xml.7z")
+		xmlbz2 = self._path(runner, "bz2")
+		xml7z = self._path(runner, "7z")
 		
 		# Clear prior 7zip attempts; 7zip will try to append an existing archive
 		if os.path.exists(xml7z):
@@ -376,6 +460,10 @@ class XmlDump(Dump):
 	
 	def _findPreviousDump(self, runner):
 		return "/tmp/fake/foo"
+	
+	def listFiles(self, runner):
+		return [self._file("bz2"), self._file("7z")]
+
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
@@ -397,12 +485,18 @@ class AbstractDump(Dump):
 			runner.publicPath("abstract.xml.gz")))
 		runner.runCommand(command)
 	
+	def listFiles(self, runner):
+		return ["abstract.xml.gz"]
+	
 	
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
 	def run(self, runner):
 		return runner.saveSql("select page_title from page where page_namespace=0;",
 			runner.publicPath("all-titles-in-ns0.gz"))
+	
+	def listFiles(self, runner):
+		return ["all-titles-in-ns0.gz"]
 
 
 class Checksums(Dump):
