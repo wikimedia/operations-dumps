@@ -180,14 +180,6 @@ class Runner(object):
 	def debug(self, stuff):
 		print "%s: %s %s" % (prettyTime(), self.db, stuff)
 	
-	# auto-set
-	#OutputDir=$PublicDir/$DirLang
-	#StatusLog=$OutputDir/backup.log
-	#StatusLockFile=$OutputDir/backup.lock
-	#StatusDoneFile=$OutputDir/backup.done
-	
-	#GlobalLog=/var/backup/public/backup.log
-	
 	def buildDir(self, base, version):
 		return os.path.join(base, self.db, version)
 	
@@ -240,9 +232,13 @@ class Runner(object):
 		
 		files = self.listFilesFor(items)
 		
-		self.reportStatus(items)
 		for item in items:
-			item.run(self)
+			item.start(self)
+			self.saveStatus(items)
+			try:
+				item.dump(self)
+			except Exception, ex:
+				self.debug("*** exception! " + str(ex))
 			self.saveStatus(items)
 
 		self.checksums(files)
@@ -259,6 +255,7 @@ class Runner(object):
 		return files
 	
 	def saveStatus(self, items):
+		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
 		html = self.reportStatus(items)
 		index = os.path.join(self.publicDir(), "index.html")
 		file = open(index, "wt")
@@ -270,7 +267,7 @@ class Runner(object):
 		return html
 	
 	def reportItem(self, item):
-		html = "<li>(STATUS) %s:" % item.description()
+		html = "<li>%s %s %s:" % (item.updated, item.status, item.description())
 		files = item.listFiles(self)
 		if files:
 			html += "<ul>"
@@ -357,13 +354,32 @@ class Runner(object):
 class Dump(object):
 	def __init__(self, desc):
 		self._desc = desc
+		self.updated = ""
+		self.status = "waiting"
 	
 	def description(self):
 		return self._desc
 	
+	def setStatus(self, status):
+		self.status = status
+		self.updated = prettyTime()
+	
 	def listFiles(self, runner):
 		"""Return a list of filenames which should be exported and checksummed"""
 		return []
+	
+	def start(self, runner):
+		"""Set the 'in progress' flag so we can output status."""
+		self.setStatus("in progress")
+	
+	def dump(self, runner):
+		"""Attempt to run the operation, updating progress/status info."""
+		try:
+			self.run(runner)
+		except Exception, ex:
+			self.setStatus("failed")
+			raise ex
+		self.setStatus("done")
 	
 	def run(self, runner):
 		"""Actually do something!"""
@@ -373,8 +389,8 @@ class PublicTable(Dump):
 	"""Dump of a table using MySQL's mysqldump utility."""
 	
 	def __init__(self, table, desc):
+		Dump.__init__(self, desc)
 		self._table = table
-		self._desc = desc
 	
 	def _file(self):
 		return self._table + ".sql.gz"
@@ -390,9 +406,6 @@ class PublicTable(Dump):
 
 class PrivateTable(PublicTable):
 	"""Hidden table dumps for private data."""
-	def __init__(self, table, desc):
-		self._table = table
-		self._desc = desc
 	
 	def description(self):
 		return self._desc + " (private)"
@@ -437,8 +450,8 @@ class XmlStub(Dump):
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
 	def __init__(self, subset, desc):
+		Dump.__init__(self, desc)
 		self._subset = subset
-		self._desc = desc
 	
 	def _file(self, ext):
 		return "pages-" + self._subset + ".xml." + ext
