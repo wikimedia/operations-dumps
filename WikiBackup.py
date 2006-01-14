@@ -71,6 +71,9 @@ def today():
 def prettyTime():
 	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
+class BackupError(Exception):
+	pass
+
 class Runner(object):
 	def __init__(self, public, private, dblist, privatelist, dbserver, dbuser, dbpassword, wikidir, php="php", webroot=""):
 		self.public = public
@@ -173,9 +176,15 @@ class Runner(object):
 		return self.runCommand(command + " > " + shellEscape(outfile))
 	
 	def runCommand(self, command):
-		"""Shell out; output is assumed to be saved usefully somehow."""
+		"""Shell out; output is assumed to be saved usefully somehow.
+		Nonzero return code from the shell will raise a BackupError.
+		"""
 		self.debug("runCommand: " + command)
-		return os.system(command)
+		retval = os.system(command)
+		#print "***** BINGBING retval is '%s' ********" % retval
+		if retval:
+			raise BackupError("nonzero return code from '%s'" % command)
+		return retval
 	
 	def debug(self, stuff):
 		print "%s: %s %s" % (prettyTime(), self.db, stuff)
@@ -344,10 +353,10 @@ class Runner(object):
 		link = self.latestPath(file)
 		if os.path.exists(link):
 			if os.path.islink(link):
-				self.debug("Removing old symlink %s")
+				self.debug("Removing old symlink %s" % link)
 				os.remove(link)
 			else:
-				raise "what the hell dude, %s is not a symlink" % link
+				raise BackupError("What the hell dude, %s is not a symlink" % link)
 		self.debug("Adding symlink %s -> %s" % (link, real))
 		os.symlink(real, link)
 
@@ -479,7 +488,7 @@ class XmlDump(Dump):
 		
 		# Page and revision data pulled from this skeleton dump...
 		stub = runner.privatePath("stub-%s.xml.gz" % self._subset),
-		stubCommand = "gzip -dc %s" % stub
+		stubOption = "--stub=gzip:%s" % stub
 
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
@@ -491,12 +500,13 @@ class XmlDump(Dump):
 			runner.status("... building %s XML dump, no text prefetch..." % self._subset)
 			prefetch = None
 		
-		dumpCommand = "%s -q %s/maintenance/dumpTextPass.php %s %s" % shellEscape((
+		dumpCommand = "%s -q %s/maintenance/dumpTextPass.php %s %s %s" % shellEscape((
 			runner.php,
 			runner.wikidir,
 			runner.db,
+			stubOption,
 			prefetch))
-		command = stubCommand + " | " + dumpCommand
+		command = dumpCommand
 		return command
 	
 	def _findPreviousDump(self, runner):
@@ -551,4 +561,3 @@ class Checksums(Dump):
 			runner.publicPath("*.sql.gz") + " " + \
 			runner.publicPath("all-titles-in-ns0.gz")
 		return runner.saveCommand(command, runner.publicPath("md5sums.txt"))
-
