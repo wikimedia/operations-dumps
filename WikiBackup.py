@@ -163,7 +163,7 @@ class Runner(object):
 			self.passwordOption(),
 			self.db,
 			table))
-		return self.saveCommand(command, outfile)
+		return self.saveCommand(command, outfile, pipe=True)
 	
 	def saveSql(self, query, outfile):
 		"""Pass some SQL commands to the server for this DB and save output to a file."""
@@ -173,16 +173,18 @@ class Runner(object):
 			self.dbuser,
 			self.passwordOption(),
 			self.db))
-		return self.saveCommand(command, outfile)
+		return self.saveCommand(command, outfile, pipe=True)
 	
-	def saveCommand(self, command, outfile):
+	def saveCommand(self, command, outfile, pipe=False):
 		"""Shell out and redirect output to a given file."""
-		return self.runCommand(command + " > " + shellEscape(outfile))
+		return self.runCommand(command + " > " + shellEscape(outfile), pipe)
 	
-	def runCommand(self, command):
+	def runCommand(self, command, pipe=False):
 		"""Shell out; output is assumed to be saved usefully somehow.
 		Nonzero return code from the shell will raise a BackupError.
 		"""
+		if pipe:
+			command += "; exit $PIPESTATUS"
 		self.debug("runCommand: " + command)
 		retval = os.system(command)
 		#print "***** BINGBING retval is '%s' ********" % retval
