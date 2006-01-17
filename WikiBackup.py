@@ -153,7 +153,7 @@ class Runner(object):
 		if self.dbpassword == "":
 			return None
 		else:
-			return "-p" + shellEscape(self.dbpassword)
+			return "-p" + self.dbpassword
 	
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
