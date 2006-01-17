@@ -7,8 +7,26 @@
 	<title>%(db)s dump progress on %(date)s</title>
 	<style type="text/css">
 		html, body {
-			background-color: white;
+			background-color: #eee;
 			color: black;
+		}
+		li {
+			background-color: #f4f4f4;
+			list-style-type: none;
+		}
+		li li {
+			background-color: white;
+		}
+		li ul {
+			margin-top: 4px;
+			margin-bottom: 8px;
+		}
+		.updates {
+			font: monospace;
+			font-size: smaller;
+		}
+		.status {
+			font-weight: bold;
 		}
 		.in-progress {
 			font-weight: bold;
@@ -26,7 +44,9 @@
 <body>
 	<h1>%(db)s dump progress on %(date)s</h1>
 	
-	%(body)s
+	<ul>
+		%(items)s
+	</ul>
 
 </body>
 </html>

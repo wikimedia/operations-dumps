@@ -276,28 +276,28 @@ class Runner(object):
 		file.close()
 	
 	def reportStatus(self, items):
-		html = "\n".join([self.reportItem(item) for item in items])
+		statusItems = [self.reportItem(item) for item in items]
+		statusItems.reverse()
+		html = "\n".join(statusItems)
 		return self.readTemplate("report.html") % {
 			"db": self.db,
 			"date": self.date,
-			"body": html}
+			"items": html}
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.template, name)
-		#try:
 		file = open(template, "r")
 		text = file.read()
 		file.close()
 		return text
-		#except:
-		#	return ""
 	
 	def reportItem(self, item):
 		html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status, item.updated, item.status, item.description())
 		files = item.listFiles(self)
 		if files:
+			listItems = [self.reportFile(file) for file in files]
 			html += "<ul>"
-			html += "\n".join([self.reportFile(file) for file in files])
+			html += "\n".join(listItems)
 			html += "</ul>"
 		html += "</li>"
 		return html
