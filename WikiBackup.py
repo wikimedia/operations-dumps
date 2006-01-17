@@ -75,7 +75,8 @@ class BackupError(Exception):
 	pass
 
 class Runner(object):
-	def __init__(self, public, private, dblist, privatelist, dbserver, dbuser, dbpassword, wikidir, php="php", webroot=""):
+	def __init__(self, public, private, dblist, privatelist, dbserver,
+			dbuser, dbpassword, wikidir, php="php", webroot=""):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -233,9 +234,9 @@ class Runner(object):
 			TitleDump("List of page titles"),
 			
 			XmlStub("First-pass for page XML data dumps"),
-			XmlDump("full", "All pages with complete page edit history (very large!)"),
-			XmlDump("current", "All pages, current versions only"),
 			XmlDump("articles", "Articles, templates, image descriptions, and main meta-pages (recommended)"),
+			XmlDump("current", "All pages, current versions only"),
+			BigXmlDump("full", "All pages with complete page edit history (very large!)"),
 			
 			AbstractDump("Extracted page abstracts for Yahoo")]
 		
@@ -469,21 +470,16 @@ class XmlDump(Dump):
 		return runner.publicPath(self._file(ext))
 	
 	def run(self, runner):
-		xmlbz2 = self._path(runner, "bz2")
-		xml7z = self._path(runner, "7z")
-		
-		# Clear prior 7zip attempts; 7zip will try to append an existing archive
-		if os.path.exists(xml7z):
-			os.remove(xml7z)
-		
-		filters = "--output=bzip2:%s --output=7zip:%s" % shellEscape((
-			xmlbz2,
-			xml7z))
-		command = self._buildCommand(runner)
-		
+		filters = self.buildFilters(runner)
+		command = self.buildCommand(runner)
 		return runner.runCommand(command + " " + filters)
 	
-	def _buildCommand(self, runner):
+	def buildFilters(self, runner):
+		"""Construct the output filter options for dumpTextPass.php"""
+		xmlbz2 = self._path(runner, "bz2")
+		return "--output=bzip2:%s" % shellEscape(xmlbz2)
+		
+	def buildCommand(self, runner):
 		"""Build the command line for the dump, minus output and filter options"""
 		
 		# Page and revision data pulled from this skeleton dump...
@@ -513,8 +509,26 @@ class XmlDump(Dump):
 		return "/tmp/fake/foo"
 	
 	def listFiles(self, runner):
-		return [self._file("bz2"), self._file("7z")]
+		return [self._file("bz2")]
 
+class BigXmlDump(XmlDump):
+	"""XML page dump for something larger, where a 7-Zip compressed copy
+	could save 75% of download time for some users."""
+	
+	def buildFilters(self, runner):
+		xml7z = self._path(runner, "7z")
+		
+		# Clear prior 7zip attempts; 7zip will try to append an existing archive
+		if os.path.exists(xml7z):
+			os.remove(xml7z)
+		
+		filters = XmlDump.buildFilters(self, runner)
+		return filters + " --output=7zip:%s" % shellEscape(xml7z)
+	
+	def listFiles(self, runner):
+		files = XmlDump.listFiles(self, runner)
+		files.append(self._file("7z"))
+		return files
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
