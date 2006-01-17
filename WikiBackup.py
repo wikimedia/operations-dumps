@@ -32,6 +32,7 @@ runner.run()
 """
 
 import os
+import sys
 import time
 
 def dbList(filename):
@@ -76,7 +77,8 @@ class BackupError(Exception):
 
 class Runner(object):
 	def __init__(self, public, private, dblist, privatelist, dbserver,
-			dbuser, dbpassword, wikidir, php="php", webroot=""):
+			dbuser, dbpassword, wikidir, php="php", webroot="",
+			template=os.path.dirname(os.path.realpath(sys.modules[__module__].__file__))):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -87,6 +89,7 @@ class Runner(object):
 		self.wikidir = wikidir
 		self.php = php
 		self.webroot = webroot
+		self.template = template
 		self.db = None
 		self.date = None
 	
@@ -274,10 +277,23 @@ class Runner(object):
 	
 	def reportStatus(self, items):
 		html = "\n".join([self.reportItem(item) for item in items])
-		return html
+		return self.readTemplate("report.html") % {
+			"db": self.db,
+			"date": self.date,
+			"body": html}
+	
+	def readTemplate(self, name):
+		template = os.path.join(self.template, name)
+		#try:
+		file = open(template, "r")
+		text = file.read()
+		file.close()
+		return text
+		#except:
+		#	return ""
 	
 	def reportItem(self, item):
-		html = "<li>%s %s %s:" % (item.updated, item.status, item.description())
+		html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status, item.updated, item.status, item.description())
 		files = item.listFiles(self)
 		if files:
 			html += "<ul>"
@@ -291,9 +307,9 @@ class Runner(object):
 		if os.path.exists(filepath):
 			size = prettySize(os.path.getsize(filepath))
 			webpath = self.webPath(file)
-			return "<li><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
+			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
 		else:
-			return "<li>%s</li>" % file
+			return "<li class='missing'>%s</li>" % file
 	
 	def lockFile(self):
 		return self.publicPath("lock")
@@ -380,7 +396,7 @@ class Dump(object):
 	
 	def start(self, runner):
 		"""Set the 'in progress' flag so we can output status."""
-		self.setStatus("in progress")
+		self.setStatus("in-progress")
 	
 	def dump(self, runner):
 		"""Attempt to run the operation, updating progress/status info."""
