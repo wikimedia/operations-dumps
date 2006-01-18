@@ -124,12 +124,6 @@ class Runner(object):
 	def latestDir(self):
 		return self.buildDir(self.publicBase(), "latest")
 	
-	def webDir(self):
-		"""Get the relative URL path for thingies
-		FIXME: may fail on non-Unix systems. HAHAHAHA
-		"""
-		return self.buildDir(self.webroot, self.date)
-	
 	
 	def privatePath(self, filename):
 		"""Take a given filename in the private dump dir for the selected database."""
@@ -145,7 +139,7 @@ class Runner(object):
 		return self.buildPath(self.latestDir(), "latest", filename)
 	
 	def webPath(self, filename):
-		return self.buildPath(self.webDir(), self.date, filename)
+		return self.buildPath(".", self.date, filename)
 	
 	
 	def passwordOption(self):
@@ -370,7 +364,7 @@ class Runner(object):
 	def saveSymlink(self, file):
 		real = self.publicPath(file)
 		link = self.latestPath(file)
-		if os.path.exists(link):
+		if os.path.exists(link) or os.path.islink(link):
 			if os.path.islink(link):
 				self.debug("Removing old symlink %s" % link)
 				os.remove(link)
