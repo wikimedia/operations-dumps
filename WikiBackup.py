@@ -237,11 +237,11 @@ class Runner(object):
 			AbstractDump("Extracted page abstracts for Yahoo"),
 			
 			XmlStub("First-pass for page XML data dumps"),
-			BigXmlDump("full",
+			BigXmlDump("meta-history",
 				"All pages with complete page edit history",
 				"These dumps can be *very* large, uncompressing up to 20-100 times the archive download size. " +
 				"Suitable for archival and statistical use, most mirror sites won't want or need this."),
-			XmlDump("current",
+			XmlDump("meta-current",
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
 			XmlDump("articles",
@@ -500,8 +500,8 @@ class XmlStub(Dump):
 			runner.php,
 			runner.wikidir,
 			runner.db,
-			runner.privatePath("stub-full.xml.gz"),
-			runner.privatePath("stub-current.xml.gz"),
+			runner.privatePath("stub-meta-history.xml.gz"),
+			runner.privatePath("stub-meta-current.xml.gz"),
 			runner.privatePath("stub-articles.xml.gz")))
 		runner.runCommand(command)
 
