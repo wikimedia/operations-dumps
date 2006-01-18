@@ -31,6 +31,8 @@
 		}
 		.status {
 			font-weight: bold;
+			padding-left: 1em;
+			padding-right: 1em;
 		}
 		.in-progress {
 			font-weight: bold;
@@ -47,6 +49,10 @@
 
 <body>
 	<h1>%(db)s dump progress on %(date)s</h1>
+	
+	<div class="status">
+		%(status)s
+	</div>
 	
 	<ul>
 		%(items)s

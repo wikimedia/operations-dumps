@@ -92,6 +92,7 @@ class Runner(object):
 		self.template = template
 		self.db = None
 		self.date = None
+		self.failcount = 0
 	
 	"""Public methods for the manager script..."""
 	
@@ -101,6 +102,7 @@ class Runner(object):
 		for db in self.dblist:
 			self.db = db
 			self.date = today()
+			self.failcount = 0
 			self.doBackup()
 		self.debug("Done!")
 	
@@ -255,7 +257,10 @@ class Runner(object):
 				item.dump(self)
 			except Exception, ex:
 				self.debug("*** exception! " + str(ex))
-			self.saveStatus(items)
+			if item.status == "failed":
+				self.failcount += 1
+
+		self.saveStatus(items, done=True)
 
 		self.checksums(files)
 		self.completeDump(files)
@@ -270,22 +275,39 @@ class Runner(object):
 				files.append(file)
 		return files
 	
-	def saveStatus(self, items):
+	def saveStatus(self, items, done=False):
 		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
-		html = self.reportStatus(items)
+		html = self.reportStatus(items, done)
 		index = os.path.join(self.publicDir(), "index.html")
 		file = open(index, "wt")
 		file.write(html)
 		file.close()
 	
-	def reportStatus(self, items):
+	def reportStatus(self, items, done=False):
 		statusItems = [self.reportItem(item) for item in items]
 		statusItems.reverse()
 		html = "\n".join(statusItems)
 		return self.readTemplate("report.html") % {
 			"db": self.db,
 			"date": self.date,
+			"status": self.reportStatusLine(done),
 			"items": html}
+	
+	def reportStatusLine(self, done=False):
+		if done:
+			classes = "done"
+			text = "Dump complete"
+		else:
+			classes = "in-progress"
+			text = "Dump in progress"
+		if self.failcount > 0:
+			classes += " failed"
+			if self.failcount == 1:
+				ess = ""
+			else:
+				ess = "s"
+			text += ", %d item%s failed" % (self.failcount, ess)
+		return "<span class='%s'>%s</span>" % (classes, text)
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.template, name)
