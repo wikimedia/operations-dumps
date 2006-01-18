@@ -232,12 +232,19 @@ class Runner(object):
 			
 			TitleDump("List of page titles"),
 			
-			XmlStub("First-pass for page XML data dumps"),
-			XmlDump("articles", "Articles, templates, image descriptions, and main meta-pages (recommended)"),
-			XmlDump("current", "All pages, current versions only"),
-			BigXmlDump("full", "All pages with complete page edit history (very large!)"),
+			AbstractDump("Extracted page abstracts for Yahoo"),
 			
-			AbstractDump("Extracted page abstracts for Yahoo")]
+			XmlStub("First-pass for page XML data dumps"),
+			BigXmlDump("full",
+				"All pages with complete page edit history",
+				"These dumps can be *very* large, uncompressing up to 20-100 times the archive download size. " +
+				"Suitable for archival and statistical use, most mirror sites won't want or need this."),
+			XmlDump("current",
+				"All pages, current versions only.",
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
+			XmlDump("articles",
+				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.")]
 		
 		files = self.listFilesFor(items)
 		
@@ -293,6 +300,9 @@ class Runner(object):
 		if files:
 			listItems = [self.reportFile(file) for file in files]
 			html += "<ul>"
+			detail = item.detail()
+			if detail:
+				html += "<li class='detail'>%s</li>\n" % detail
 			html += "\n".join(listItems)
 			html += "</ul>"
 		html += "</li>"
@@ -381,6 +391,10 @@ class Dump(object):
 	
 	def description(self):
 		return self._desc
+	
+	def detail(self):
+		"""Optionally return additional text to appear under the heading."""
+		return None
 	
 	def setStatus(self, status):
 		self.status = status
@@ -471,10 +485,15 @@ class XmlStub(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, desc):
+	def __init__(self, subset, desc, detail):
 		Dump.__init__(self, desc)
 		self._subset = subset
+		self._detail = detail
 	
+	def detail(self):
+		"""Optionally return additional text to appear under the heading."""
+		return self._detail
+
 	def _file(self, ext):
 		return "pages-" + self._subset + ".xml." + ext
 	
