@@ -212,7 +212,6 @@ class Runner(object):
 		self.lock()
 		
 		items = [PrivateTable("user", "User account data."),
-			PrivateTable("user_groups", "User group assignments."),
 			PrivateTable("watchlist", "Users' watchlist settings."),
 			PrivateTable("ipblocks", "Data for blocks of IP addresses, ranges, and users."),
 			PrivateTable("archive", "Deleted page and revision data."),
@@ -227,6 +226,7 @@ class Runner(object):
 			PublicTable("templatelinks", "Wiki template inclusion link records."),
 			PublicTable("interwiki", "Set of defined interwiki prefixes and links for this wiki."),
 			PublicTable("logging", "Data for various events (deletions, uploads, etc)."),
+			PublicTable("user_groups", "User group assignments."),
 			
 			PublicTable("page", "Base per-page data (id, title, restrictions, etc)."),
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
