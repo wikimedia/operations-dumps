@@ -93,6 +93,7 @@ class Runner(object):
 		self.db = None
 		self.date = None
 		self.failcount = 0
+		self.progressReports = ""
 	
 	"""Public methods for the manager script..."""
 	
@@ -282,7 +283,40 @@ class Runner(object):
 		file = open(index, "wt")
 		file.write(html)
 		file.close()
+		
+		html = self.reportIndex(items, done)
+		index = os.path.join(self.public, "index.html")
+		file = open(index, "wt")
+		file.write(html)
+		file.close()
 	
+	def reportIndex(self, items, done=False):
+		"""Put together the list of dumped databases as it goes..."""
+		currentReport = self.reportDatabase(items, done)
+		html = currentReport + self.progressReports
+		if done:
+			# Save this one for later...
+			self.progressReports = "\n".join((currentReport, self.progressReports))
+		return self.readTemplate("progress.html") % {
+			"status": "in progress",
+			"items": html}
+	
+	def reportDatabase(self, items, done=False):
+		"""Put together a brief status summary and link for the current database."""
+		status = self.reportStatusLine(done)
+		html = "<li>%s <a href=\"%s/%s\">%s</a>: %s</li>\n" % (
+			prettyTime(),
+			self.db,
+			self.date,
+			self.db,
+			status)
+		
+		activeItems = [x for x in items if x.status == "in-progress"]
+		if activeItems:
+			return html + "<ul>" + "\n".join([self.reportItem(x) for x in activeItems]) + "</ul>"
+		else:
+			return html
+		
 	def reportStatus(self, items, done=False):
 		statusItems = [self.reportItem(item) for item in items]
 		statusItems.reverse()
