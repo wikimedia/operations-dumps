@@ -634,7 +634,7 @@ class XmlDump(Dump):
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
 		source = self._findPreviousDump(runner)
-		if os.path.exists(source):
+		if source and os.path.exists(source):
 			runner.status("... building %s XML dump, with text prefetch from %s..." % (self._subset, source))
 			prefetch = "--prefetch=bzip2:%s" % (source)
 		else:
@@ -651,7 +651,28 @@ class XmlDump(Dump):
 		return command
 	
 	def _findPreviousDump(self, runner):
-		return "/tmp/fake/foo"
+		"""The previously-linked previous successful dump."""
+		bzfile = self._file("bz2")
+		current = os.path.realpath(runner.publicPath(bzfile))
+		dumps = runner.dumpDirs(runner.db)
+		dumps.sort()
+		dumps.reverse()
+		for date in dumps:
+			base = os.path.join(runner.publicBase(), runner.db, date)
+			old = runner.buildPath(base, date, bzfile)
+			print old
+			if os.path.exists(old):
+				size = os.path.getsize(old)
+				if size < 70000:
+					runner.debug("small %d-byte prefetch dump at %s, skipping" % (size, old))
+					continue
+				if os.path.realpath(old) == current:
+					runner.debug("skipping current dump for prefetch %s" % old)
+					continue
+				runner.debug("Prefetchable %s" % old)
+				return old
+		runner.debug("Could not locate a prefetchable dump.")
+		return None
 	
 	def listFiles(self, runner):
 		return [self._file("bz2")]
