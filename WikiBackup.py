@@ -32,6 +32,7 @@ runner.run()
 """
 
 import os
+import re
 import sys
 import time
 
@@ -72,10 +73,23 @@ def today():
 def prettyTime():
 	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
+def dumpFile(filename, text):
+	"""Dump a string to a file."""
+	file = open(filename, "wt")
+	file.write(text)
+	file.close()
+
+def readFile(filename):
+	file = open(filename, "r")
+	text = file.read()
+	file.close()
+	return text
+
 class BackupError(Exception):
 	pass
 
 class Runner(object):
+	
 	def __init__(self, public, private, dblist, privatelist, dbserver,
 			dbuser, dbpassword, wikidir, php="php", webroot="",
 			template=os.path.dirname(os.path.realpath(sys.modules[__module__].__file__))):
@@ -93,7 +107,6 @@ class Runner(object):
 		self.db = None
 		self.date = None
 		self.failcount = 0
-		self.progressReports = ""
 	
 	"""Public methods for the manager script..."""
 	
@@ -105,6 +118,7 @@ class Runner(object):
 			self.date = today()
 			self.failcount = 0
 			self.doBackup()
+		self.saveIndex(done=True)
 		self.debug("Done!")
 	
 	"""Public methods for dumps to use..."""
@@ -204,7 +218,7 @@ class Runner(object):
 		else:
 			self.debug("Creating %s ..." % dir)
 			os.makedirs(dir)
-
+	
 	def doBackup(self):
 		self.makeDir(self.publicDir())
 		self.makeDir(self.privateDir())
@@ -254,6 +268,7 @@ class Runner(object):
 		for item in items:
 			item.start(self)
 			self.saveStatus(items)
+			self.saveIndex()
 			try:
 				item.dump(self)
 			except Exception, ex:
@@ -262,6 +277,7 @@ class Runner(object):
 				self.failcount += 1
 
 		self.saveStatus(items, done=True)
+		self.saveIndex()
 
 		self.checksums(files)
 		self.completeDump(files)
@@ -280,26 +296,71 @@ class Runner(object):
 		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
 		html = self.reportStatus(items, done)
 		index = os.path.join(self.publicDir(), "index.html")
-		file = open(index, "wt")
-		file.write(html)
-		file.close()
+		dumpFile(index, html)
 		
-		html = self.reportIndex(items, done)
-		index = os.path.join(self.public, "index.html")
-		file = open(index, "wt")
-		file.write(html)
-		file.close()
+		# Short line for report extraction
+		html = self.reportDatabase(items, done)
+		index = os.path.join(self.publicDir(), "status.html")
+		dumpFile(index, html)
 	
-	def reportIndex(self, items, done=False):
+	def saveIndex(self, done=False):
+		html = self.reportIndex(done)
+		index = os.path.join(self.public, "index.html")
+		dumpFile(index, html)
+	
+	def reportIndex(self, done=False):
 		"""Put together the list of dumped databases as it goes..."""
-		currentReport = self.reportDatabase(items, done)
-		html = currentReport + self.progressReports
 		if done:
-			# Save this one for later...
-			self.progressReports = "\n".join((currentReport, self.progressReports))
+			status = "Dump process is idle."
+		else:
+			status = "Dumps are in progress..."
+		html = "\n".join(self.progressReports())
 		return self.readTemplate("progress.html") % {
-			"status": "in progress",
+			"status": status,
 			"items": html}
+	
+	def progressReports(self):
+		status = {}
+		for db in self.dblist:
+			item = self.readProgress(db)
+			if item:
+				status[db] = item
+		# sorted by name...
+		return [status[db] for db in self.dblist if db in status]
+	
+	def readProgress(self, db):
+		dir = self.latestDump(db)
+		if dir:
+			status = os.path.join(self.public, db, dir, "status.html")
+			try:
+				return readFile(status)
+			except:
+				return "<li>%s missing status record</li>" % db
+		else:
+			self.debug("No dump dir for %s?" % db)
+			return None
+	
+	def latestDump(self, db, index=-1):
+		"""Find the last (or slightly less than last) dump for a db."""
+		dirs = self.dumpDirs(db)
+		if dirs:
+			return dirs[index]
+		else:
+			return None
+	
+	def dumpDirs(self, db):
+		"""List all dump directories for the given database."""
+		base = os.path.join(self.public, db)
+		digits = re.compile(r"^\d{4}\d{2}\d{2}$")
+		dates = []
+		try:
+			for dir in os.listdir(base):
+				if digits.match(dir):
+					dates.append(dir)
+		except OSError:
+			return []
+		dates.sort()
+		return dates
 	
 	def reportDatabase(self, items, done=False):
 		"""Put together a brief status summary and link for the current database."""
@@ -316,7 +377,7 @@ class Runner(object):
 			return html + "<ul>" + "\n".join([self.reportItem(x) for x in activeItems]) + "</ul>"
 		else:
 			return html
-		
+	
 	def reportStatus(self, items, done=False):
 		statusItems = [self.reportItem(item) for item in items]
 		statusItems.reverse()
@@ -345,10 +406,7 @@ class Runner(object):
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.template, name)
-		file = open(template, "r")
-		text = file.read()
-		file.close()
-		return text
+		return readFile(template)
 	
 	def reportItem(self, item):
 		html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status, item.updated, item.status, item.description())
@@ -378,7 +436,7 @@ class Runner(object):
 	
 	def doneFile(self):
 		return self.publicPath("done")
-
+	
 	def lock(self):
 		self.status("Creating lock file.")
 		lockfile = self.lockFile()
@@ -394,26 +452,26 @@ class Runner(object):
 			# failure? let it die
 			pass
 		#####date -u > $StatusLockFile
-
+	
 	def unlock(self):
 		self.status("Marking complete.")
 		######date -u > $StatusDoneFile
-
+	
 	def dateStamp(self):
 		#date -u --iso-8601=seconds
 		pass
-
+	
 	def status(self, message):
 		#echo $DatabaseName `dateStamp` OK: "$1" | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug(message)
-
+	
 	def statusError(self, message):
 		#  echo $DatabaseName `dateStamp` ABORT: "$1" | tee -a $StatusLog | tee -a $GlobalLog
 		#  echo "Backup of $DatabaseName failed at: $1" | \
 		#	mail -s "Wikimedia backup error on $DatabaseName" $AbortEmail
 		#  exit -1
 		self.debug(message)
-
+	
 	def statusComplete(self):
 		#  echo $DatabaseName `dateStamp` SUCCESS: "done." | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug("SUCCESS: done.")
@@ -549,7 +607,7 @@ class XmlDump(Dump):
 	def detail(self):
 		"""Optionally return additional text to appear under the heading."""
 		return self._detail
-
+	
 	def _file(self, ext):
 		return "pages-" + self._subset + ".xml." + ext
 	
@@ -565,14 +623,14 @@ class XmlDump(Dump):
 		"""Construct the output filter options for dumpTextPass.php"""
 		xmlbz2 = self._path(runner, "bz2")
 		return "--output=bzip2:%s" % shellEscape(xmlbz2)
-		
+	
 	def buildCommand(self, runner):
 		"""Build the command line for the dump, minus output and filter options"""
 		
 		# Page and revision data pulled from this skeleton dump...
 		stub = runner.privatePath("stub-%s.xml.gz" % self._subset),
 		stubOption = "--stub=gzip:%s" % stub
-
+		
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
 		source = self._findPreviousDump(runner)
@@ -639,7 +697,7 @@ class AbstractDump(Dump):
 	
 	def listFiles(self, runner):
 		return ["abstract.xml.gz"]
-	
+
 	
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""

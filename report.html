@@ -10,6 +10,9 @@
 			background-color: #eee;
 			color: black;
 		}
+		.siteinfo {
+			text-align: center;
+		}
 		li {
 			background-color: #f4f4f4;
 			list-style-type: none;
@@ -50,10 +53,14 @@
 <body>
 	<h1>%(db)s dump progress on %(date)s</h1>
 	
-	<p>
+	<p class="siteinfo">
+		This is the Wikimedia dump service.
+		Please read the <a href='../../legal.html'>copyrights</a> information.
 		See <a href="http://meta.wikimedia.org/wiki/Data_dumps">Meta:Data dumps</a>
-		for some documentation on the provided data formats.
+		for documentation on the provided data formats.
 	</p>
+	
+	<p>All databases <a href="../../index.html">by date</a> or <a href="../../list.html">by name</a>.</p>
 	
 	<div class="status">
 		%(status)s
