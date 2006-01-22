@@ -123,11 +123,13 @@ class Runner(object):
 	
 	"""Public methods for dumps to use..."""
 	
-	def publicBase(self):
+	def publicBase(self, db=None):
 		"""Return the base directory tree to put public files into.
 		If a private wiki is selected, all files will go into the private dir.
 		"""
-		if self.db in self.privatelist:
+		if db is None:
+			db = self.db # use the db being processed currently
+		if db in self.privatelist:
 			return self.private
 		else:
 			return self.public
@@ -252,16 +254,16 @@ class Runner(object):
 			AbstractDump("Extracted page abstracts for Yahoo"),
 			
 			XmlStub("First-pass for page XML data dumps"),
-			BigXmlDump("meta-history",
-				"All pages with complete page edit history",
-				"These dumps can be *very* large, uncompressing up to 20-100 times the archive download size. " +
-				"Suitable for archival and statistical use, most mirror sites won't want or need this."),
+			XmlDump("articles",
+				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
+				"This contains current versions of article content, and is the archive most mirror sites will probably want."),
 			XmlDump("meta-current",
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
-			XmlDump("articles",
-				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want.")]
+			BigXmlDump("meta-history",
+				"All pages with complete page edit history",
+				"These dumps can be *very* large, uncompressing up to 20-100 times the archive download size. " +
+				"Suitable for archival and statistical use, most mirror sites won't want or need this.")]
 		
 		files = self.listFilesFor(items)
 		
@@ -331,7 +333,7 @@ class Runner(object):
 	def readProgress(self, db):
 		dir = self.latestDump(db)
 		if dir:
-			status = os.path.join(self.public, db, dir, "status.html")
+			status = os.path.join(self.publicBase(db), db, dir, "status.html")
 			try:
 				return readFile(status)
 			except:
@@ -350,7 +352,7 @@ class Runner(object):
 	
 	def dumpDirs(self, db):
 		"""List all dump directories for the given database."""
-		base = os.path.join(self.public, db)
+		base = os.path.join(self.publicBase(db), db)
 		digits = re.compile(r"^\d{4}\d{2}\d{2}$")
 		dates = []
 		try:
@@ -365,12 +367,11 @@ class Runner(object):
 	def reportDatabase(self, items, done=False):
 		"""Put together a brief status summary and link for the current database."""
 		status = self.reportStatusLine(done)
-		html = "<li>%s <a href=\"%s/%s\">%s</a>: %s</li>\n" % (
-			prettyTime(),
-			self.db,
-			self.date,
-			self.db,
-			status)
+		if self.db in self.privatelist:
+			link = "%s (private data)" % self.db
+		else:
+			link = "<a href=\"%s/%s\">%s</a>" % (self.db, self.date, self.db)
+		html = "<li>%s %s: %s</li>\n" % (prettyTime(), link, status)
 		
 		activeItems = [x for x in items if x.status == "in-progress"]
 		if activeItems:
@@ -658,7 +659,7 @@ class XmlDump(Dump):
 		dumps.sort()
 		dumps.reverse()
 		for date in dumps:
-			base = os.path.join(runner.publicBase(), runner.db, date)
+			base = os.path.join(runner.publicBase(runner.db), runner.db, date)
 			old = runner.buildPath(base, date, bzfile)
 			print old
 			if os.path.exists(old):
