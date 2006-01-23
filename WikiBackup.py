@@ -413,7 +413,7 @@ class Runner(object):
 		html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status, item.updated, item.status, item.description())
 		files = item.listFiles(self)
 		if files:
-			listItems = [self.reportFile(file) for file in files]
+			listItems = [self.reportFile(file, item.status) for file in files]
 			html += "<ul>"
 			detail = item.detail()
 			if detail:
@@ -423,9 +423,9 @@ class Runner(object):
 		html += "</li>"
 		return html
 	
-	def reportFile(self, file):
+	def reportFile(self, file, status):
 		filepath = self.publicPath(file)
-		if os.path.exists(filepath):
+		if status == "done" and os.path.exists(filepath):
 			size = prettySize(os.path.getsize(filepath))
 			webpath = self.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
