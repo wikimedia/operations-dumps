@@ -36,6 +36,9 @@ import re
 import sys
 import time
 
+from os.path import dirname, exists, getsize, join, realpath
+
+dirname
 def dbList(filename):
 	infile = open(filename)
 	dbs = []
@@ -85,6 +88,29 @@ def readFile(filename):
 	file.close()
 	return text
 
+def splitPath(path):
+	# For some reason, os.path.split only does one level.
+	parts = []
+	(path, file) = os.path.split(path)
+	if not file:
+		# Probably a final slash
+		(path, file) = os.path.split(path)
+	while file:
+		parts.insert(0, file)
+		(path, file) = os.path.split(path)
+	return parts
+	
+def relativePath(path, base):
+	"""Return a relative path to 'path' from the directory 'base'."""
+	path = splitPath(path)
+	base = splitPath(base)
+	while base and path[0] == base[0]:
+		path.pop(0)
+		base.pop(0)
+	for prefix in base:
+		path.insert(0, "..")
+	return os.path.join(*path)
+
 class BackupError(Exception):
 	pass
 
@@ -92,7 +118,7 @@ class Runner(object):
 	
 	def __init__(self, public, private, dblist, privatelist, dbserver,
 			dbuser, dbpassword, wikidir, php="php", webroot="",
-			template=os.path.dirname(os.path.realpath(sys.modules[__module__].__file__))):
+			template=dirname(realpath(sys.modules[__module__].__file__))):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -209,13 +235,13 @@ class Runner(object):
 		print "%s: %s %s" % (prettyTime(), self.db, stuff)
 	
 	def buildDir(self, base, version):
-		return os.path.join(base, self.db, version)
+		return join(base, self.db, version)
 	
 	def buildPath(self, base, version, filename):
-		return os.path.join(base, "%s-%s-%s" % (self.db, version, filename))
+		return join(base, "%s-%s-%s" % (self.db, version, filename))
 	
 	def makeDir(self, dir):
-		if os.path.exists(dir):
+		if exists(dir):
 			self.debug("Checkdir dir %s ..." % dir)
 		else:
 			self.debug("Creating %s ..." % dir)
@@ -297,17 +323,17 @@ class Runner(object):
 	def saveStatus(self, items, done=False):
 		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
 		html = self.reportStatus(items, done)
-		index = os.path.join(self.publicDir(), "index.html")
+		index = join(self.publicDir(), "index.html")
 		dumpFile(index, html)
 		
 		# Short line for report extraction
 		html = self.reportDatabase(items, done)
-		index = os.path.join(self.publicDir(), "status.html")
+		index = join(self.publicDir(), "status.html")
 		dumpFile(index, html)
 	
 	def saveIndex(self, done=False):
 		html = self.reportIndex(done)
-		index = os.path.join(self.public, "index.html")
+		index = join(self.public, "index.html")
 		dumpFile(index, html)
 	
 	def reportIndex(self, done=False):
@@ -333,7 +359,7 @@ class Runner(object):
 	def readProgress(self, db):
 		dir = self.latestDump(db)
 		if dir:
-			status = os.path.join(self.publicBase(db), db, dir, "status.html")
+			status = join(self.publicBase(db), db, dir, "status.html")
 			try:
 				return readFile(status)
 			except:
@@ -352,7 +378,7 @@ class Runner(object):
 	
 	def dumpDirs(self, db):
 		"""List all dump directories for the given database."""
-		base = os.path.join(self.publicBase(db), db)
+		base = join(self.publicBase(db), db)
 		digits = re.compile(r"^\d{4}\d{2}\d{2}$")
 		dates = []
 		try:
@@ -406,7 +432,7 @@ class Runner(object):
 		return "<span class='%s'>%s</span>" % (classes, text)
 	
 	def readTemplate(self, name):
-		template = os.path.join(self.template, name)
+		template = join(self.template, name)
 		return readFile(template)
 	
 	def reportItem(self, item):
@@ -425,8 +451,8 @@ class Runner(object):
 	
 	def reportFile(self, file, status):
 		filepath = self.publicPath(file)
-		if status == "done" and os.path.exists(filepath):
-			size = prettySize(os.path.getsize(filepath))
+		if status == "done" and exists(filepath):
+			size = prettySize(getsize(filepath))
 			webpath = self.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
 		else:
@@ -442,9 +468,9 @@ class Runner(object):
 		self.status("Creating lock file.")
 		lockfile = self.lockFile()
 		donefile = self.doneFile()
-		if os.path.exists(lockfile):
+		if exists(lockfile):
 			raise BackupError("Lock file %s already exists" % lockfile)
-		if os.path.exists(donefile):
+		if exists(donefile):
 			self.status("Removing completion marker %s" % donefile)
 			os.remove(donefile)
 		try:
@@ -489,14 +515,15 @@ class Runner(object):
 	def saveSymlink(self, file):
 		real = self.publicPath(file)
 		link = self.latestPath(file)
-		if os.path.exists(link) or os.path.islink(link):
+		if exists(link) or os.path.islink(link):
 			if os.path.islink(link):
 				self.debug("Removing old symlink %s" % link)
 				os.remove(link)
 			else:
 				raise BackupError("What the hell dude, %s is not a symlink" % link)
-		self.debug("Adding symlink %s -> %s" % (link, real))
-		os.symlink(real, link)
+		relative = relativePath(real, dirname(link))
+		self.debug("Adding symlink %s -> %s" % (link, relative))
+		os.symlink(relative, link)
 
 class Dump(object):
 	def __init__(self, desc):
@@ -635,7 +662,7 @@ class XmlDump(Dump):
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
 		source = self._findPreviousDump(runner)
-		if source and os.path.exists(source):
+		if source and exists(source):
 			runner.status("... building %s XML dump, with text prefetch from %s..." % (self._subset, source))
 			prefetch = "--prefetch=bzip2:%s" % (source)
 		else:
@@ -654,20 +681,20 @@ class XmlDump(Dump):
 	def _findPreviousDump(self, runner):
 		"""The previously-linked previous successful dump."""
 		bzfile = self._file("bz2")
-		current = os.path.realpath(runner.publicPath(bzfile))
+		current = realpath(runner.publicPath(bzfile))
 		dumps = runner.dumpDirs(runner.db)
 		dumps.sort()
 		dumps.reverse()
 		for date in dumps:
-			base = os.path.join(runner.publicBase(runner.db), runner.db, date)
+			base = join(runner.publicBase(runner.db), runner.db, date)
 			old = runner.buildPath(base, date, bzfile)
 			print old
-			if os.path.exists(old):
-				size = os.path.getsize(old)
+			if exists(old):
+				size = getsize(old)
 				if size < 70000:
 					runner.debug("small %d-byte prefetch dump at %s, skipping" % (size, old))
 					continue
-				if os.path.realpath(old) == current:
+				if realpath(old) == current:
 					runner.debug("skipping current dump for prefetch %s" % old)
 					continue
 				runner.debug("Prefetchable %s" % old)
@@ -686,7 +713,7 @@ class BigXmlDump(XmlDump):
 		xml7z = self._path(runner, "7z")
 		
 		# Clear prior 7zip attempts; 7zip will try to append an existing archive
-		if os.path.exists(xml7z):
+		if exists(xml7z):
 			os.remove(xml7z)
 		
 		filters = XmlDump.buildFilters(self, runner)
@@ -705,7 +732,7 @@ class AbstractDump(Dump):
 %s -q %s/maintenance/dumpBackup.php %s \
   --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
   --current \
-  --output=gzip:%s \
+  --output=file:%s \
     --filter=namespace:NS_MAIN \
     --filter=noredirect \
     --filter=abstract
@@ -714,11 +741,11 @@ class AbstractDump(Dump):
 			runner.wikidir,
 			runner.db,
 			runner.wikidir,
-			runner.publicPath("abstract.xml.gz")))
+			runner.publicPath("abstract.xml")))
 		runner.runCommand(command)
 	
 	def listFiles(self, runner):
-		return ["abstract.xml.gz"]
+		return ["abstract.xml"]
 
 	
 class TitleDump(Dump):
