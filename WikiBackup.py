@@ -645,7 +645,12 @@ class XmlDump(Dump):
 	def run(self, runner):
 		filters = self.buildFilters(runner)
 		command = self.buildCommand(runner)
-		return runner.runCommand(command + " " + filters)
+		eta = self.buildEta(runner)
+		return runner.runCommand(command + " " + filters + " " + eta)
+	
+	def buildEta(self, runner):
+		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
+		return "--current"
 	
 	def buildFilters(self, runner):
 		"""Construct the output filter options for dumpTextPass.php"""
@@ -708,6 +713,10 @@ class XmlDump(Dump):
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
 	could save 75% of download time for some users."""
+	
+	def buildEta(self, runner):
+		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
+		return "--full"
 	
 	def buildFilters(self, runner):
 		xml7z = self._path(runner, "7z")
