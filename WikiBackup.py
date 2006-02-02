@@ -76,6 +76,10 @@ def today():
 def prettyTime():
 	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
+def prettyDate(key):
+	"Prettify a MediaWiki date key"
+	return "-".join((key[0:4], key[4:6], key[6:8]))
+
 def dumpFile(filename, text):
 	"""Dump a string to a file."""
 	file = open(filename, "wt")
@@ -406,6 +410,7 @@ class Runner(object):
 			return html
 	
 	def reportStatus(self, items, done=False):
+		"""Put together a status page for this database, with all its component dumps."""
 		statusItems = [self.reportItem(item) for item in items]
 		statusItems.reverse()
 		html = "\n".join(statusItems)
@@ -413,7 +418,17 @@ class Runner(object):
 			"db": self.db,
 			"date": self.date,
 			"status": self.reportStatusLine(done),
+			"previous": self.reportPreviousDump(),
 			"items": html}
+	
+	def reportPreviousDump(self):
+		"""Produce a link to the previous dump, if any"""
+		try:
+			raw = self.latestDump(self.db, -2)
+		except:
+			return "No prior dumps of this database stored.";
+		date = prettyDate(raw)
+		return "<a href=\"../%s/\">Last dumped on %s</a>" % (raw, date)
 	
 	def reportStatusLine(self, done=False):
 		if done:
