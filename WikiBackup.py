@@ -122,7 +122,8 @@ class Runner(object):
 	
 	def __init__(self, public, private, dblist, privatelist, dbserver,
 			dbuser, dbpassword, wikidir, php="php", webroot="",
-			template=dirname(realpath(sys.modules[__module__].__file__))):
+			template=dirname(realpath(sys.modules[__module__].__file__)),
+			tmp="/tmp"):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -134,6 +135,7 @@ class Runner(object):
 		self.php = php
 		self.webroot = webroot
 		self.template = template
+		self.tmp = tmp
 		self.db = None
 		self.date = None
 		self.failcount = 0
@@ -187,6 +189,10 @@ class Runner(object):
 		If this database is marked as private, will use the private dir instead.
 		"""
 		return self.buildPath(self.publicDir(), self.date, filename)
+	
+	def tmpPath(self, filename):
+		"""Return a filename in the temporary directory based on the given name."""
+		return join(self.tmp, self.db + "-tmp-" + filename)
 	
 	def latestPath(self, filename):
 		return self.buildPath(self.latestDir(), "latest", filename)
@@ -624,6 +630,12 @@ class XmlStub(Dump):
 		return "creating split stub dumps..."
 	
 	def run(self, runner):
+		history = runner.tmpPath("stub-meta-history.xml.gz")
+		current = runner.tmpPath("stub-meta-current.xml.gz")
+		articles = runner.tmpPath("stub-articles.xml.gz")
+		for filename in (history, current, articles):
+			if exists(filename):
+				remove(filename)
 		command = """
 %s -q %s/maintenance/dumpBackup.php %s \
   --full \
@@ -639,9 +651,9 @@ class XmlStub(Dump):
 			runner.php,
 			runner.wikidir,
 			runner.db,
-			runner.privatePath("stub-meta-history.xml.gz"),
-			runner.privatePath("stub-meta-current.xml.gz"),
-			runner.privatePath("stub-articles.xml.gz")))
+			history,
+			current,
+			articles))
 		runner.runCommand(command)
 
 class XmlDump(Dump):
@@ -680,7 +692,7 @@ class XmlDump(Dump):
 		"""Build the command line for the dump, minus output and filter options"""
 		
 		# Page and revision data pulled from this skeleton dump...
-		stub = runner.privatePath("stub-%s.xml.gz" % self._subset),
+		stub = runner.tmpPath("stub-%s.xml.gz" % self._subset),
 		stubOption = "--stub=gzip:%s" % stub
 		
 		# Try to pull text from the previous run; most stuff hasn't changed
