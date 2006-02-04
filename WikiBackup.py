@@ -32,13 +32,13 @@ runner.run()
 """
 
 import os
+import popen2
 import re
 import sys
 import time
 
 from os.path import dirname, exists, getsize, join, realpath
 
-dirname
 def dbList(filename):
 	infile = open(filename)
 	dbs = []
@@ -232,18 +232,37 @@ class Runner(object):
 		"""Shell out and redirect output to a given file."""
 		return self.runCommand(command + " > " + shellEscape(outfile), pipe)
 	
-	def runCommand(self, command, pipe=False):
+	def runCommand(self, command, pipe=False, callback=None):
 		"""Shell out; output is assumed to be saved usefully somehow.
 		Nonzero return code from the shell will raise a BackupError.
+		If a callback function is passed, it will receive lines of
+		output from the call.
 		"""
 		if pipe:
 			command += "; exit $PIPESTATUS"
 		self.debug("runCommand: " + command)
-		retval = os.system(command)
+		if callback:
+			retval = self.runAndReport(command, callback)
+		else:
+			retval = os.system(command)
 		#print "***** BINGBING retval is '%s' ********" % retval
 		if retval:
 			raise BackupError("nonzero return code from '%s'" % command)
 		return retval
+	
+	def runAndReport(self, command, callback):
+		"""Shell out to a command, and feed output lines to the callback function.
+		Returns the exit code from the program once complete.
+		stdout and stderr will be combined into a single stream.
+		"""
+		proc = popen2.Popen4(command, 64)
+		#for line in proc.fromchild:
+		#	callback(self, line)
+		line = proc.fromchild.readline()
+		while line:
+			callback(self, line)
+			line = proc.fromchild.readline()
+		return proc.wait()
 	
 	def debug(self, stuff):
 		print "%s: %s %s" % (prettyTime(), self.db, stuff)
@@ -268,7 +287,7 @@ class Runner(object):
 		self.status("Starting backup of %s" % self.db)
 		self.lock()
 		
-		items = [PrivateTable("user", "User account data."),
+		self.items = [PrivateTable("user", "User account data."),
 			PrivateTable("watchlist", "Users' watchlist settings."),
 			PrivateTable("ipblocks", "Data for blocks of IP addresses, ranges, and users."),
 			PrivateTable("archive", "Deleted page and revision data."),
@@ -305,12 +324,11 @@ class Runner(object):
 				"These dumps can be *very* large, uncompressing up to 20-100 times the archive download size. " +
 				"Suitable for archival and statistical use, most mirror sites won't want or need this.")]
 		
-		files = self.listFilesFor(items)
+		files = self.listFilesFor(self.items)
 		
-		for item in items:
+		for item in self.items:
 			item.start(self)
-			self.saveStatus(items)
-			self.saveIndex()
+			self.updateStatusFiles()
 			try:
 				item.dump(self)
 			except Exception, ex:
@@ -318,8 +336,7 @@ class Runner(object):
 			if item.status == "failed":
 				self.failcount += 1
 
-		self.saveStatus(items, done=True)
-		self.saveIndex()
+		self.updateStatusFiles(done=True)
 
 		self.checksums(files)
 		self.completeDump(files)
@@ -333,6 +350,10 @@ class Runner(object):
 			for file in item.listFiles(self):
 				files.append(file)
 		return files
+	
+	def updateStatusFiles(self, done=False):
+		self.saveStatus(self.items, done)
+		self.saveIndex()
 	
 	def saveStatus(self, items, done=False):
 		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
@@ -461,7 +482,10 @@ class Runner(object):
 		return readFile(template)
 	
 	def reportItem(self, item):
+		"""Return an HTML fragment with info on the progress of this item."""
 		html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status, item.updated, item.status, item.description())
+		if item.progress:
+			html += "<div class='progress'>%s</div>\n" % item.progress
 		files = item.listFiles(self)
 		if files:
 			listItems = [self.reportFile(file, item.status) for file in files]
@@ -555,6 +579,7 @@ class Dump(object):
 		self._desc = desc
 		self.updated = ""
 		self.status = "waiting"
+		self.progress = ""
 	
 	def description(self):
 		return self._desc
@@ -587,6 +612,13 @@ class Dump(object):
 	def run(self, runner):
 		"""Actually do something!"""
 		pass
+	
+	def progressCallback(self, runner, line):
+		"""Receive a status line from a shellout and update the status files."""
+		# pass through...
+		sys.stderr.write(line)
+		self.progress = line.strip()
+		runner.updateStatusFiles()
 
 class PublicTable(Dump):
 	"""Dump of a table using MySQL's mysqldump utility."""
@@ -635,7 +667,7 @@ class XmlStub(Dump):
 		articles = runner.tmpPath("stub-articles.xml.gz")
 		for filename in (history, current, articles):
 			if exists(filename):
-				remove(filename)
+				os.remove(filename)
 		command = """
 %s -q %s/maintenance/dumpBackup.php %s \
   --full \
@@ -654,7 +686,7 @@ class XmlStub(Dump):
 			history,
 			current,
 			articles))
-		runner.runCommand(command)
+		runner.runCommand(command, callback=self.progressCallback)
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
@@ -677,7 +709,8 @@ class XmlDump(Dump):
 		filters = self.buildFilters(runner)
 		command = self.buildCommand(runner)
 		eta = self.buildEta(runner)
-		return runner.runCommand(command + " " + filters + " " + eta)
+		return runner.runCommand(command + " " + filters + " " + eta,
+			callback=self.progressCallback)
 	
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
@@ -782,7 +815,7 @@ class AbstractDump(Dump):
 			runner.db,
 			runner.wikidir,
 			runner.publicPath("abstract.xml")))
-		runner.runCommand(command)
+		runner.runCommand(command, callback=self.progressCallback)
 	
 	def listFiles(self, runner):
 		return ["abstract.xml"]
