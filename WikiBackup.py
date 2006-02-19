@@ -142,13 +142,15 @@ class Runner(object):
 	
 	"""Public methods for the manager script..."""
 	
-	def run(self, subset=[]):
+	def run(self, subset=[], skip=[]):
 		"""Iterate through the list of wikis and dump them!"""
 		self.debug("Starting dump...")
 		if subset:
 			runset = subset
 		else:
 			runset = self.dblist
+		if skip:
+			runset = [x for x in runset if x not in skip]
 		for db in runset:
 			self.db = db
 			self.date = today()
