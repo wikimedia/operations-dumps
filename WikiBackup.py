@@ -675,6 +675,7 @@ class XmlStub(Dump):
   --full \
   --stub \
   --report=10000 \
+  --server=%s \
   --output=gzip:%s \
   --output=gzip:%s \
 	--filter=latest \
@@ -686,6 +687,7 @@ class XmlStub(Dump):
 			runner.php,
 			runner.wikidir,
 			runner.db,
+			runner.dbserver,
 			history,
 			current,
 			articles))
@@ -741,12 +743,13 @@ class XmlDump(Dump):
 			runner.status("... building %s XML dump, no text prefetch..." % self._subset)
 			prefetch = None
 		
-		dumpCommand = "%s -q %s/maintenance/dumpTextPass.php %s %s %s --report=1000" % shellEscape((
+		dumpCommand = "%s -q %s/maintenance/dumpTextPass.php %s %s %s --report=1000 --server=%s " % shellEscape((
 			runner.php,
 			runner.wikidir,
 			runner.db,
 			stubOption,
-			prefetch))
+			prefetch,
+			runner.dbserver))
 		command = dumpCommand
 		return command
 	
@@ -809,6 +812,7 @@ class AbstractDump(Dump):
   --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
   --current \
   --report=1000 \
+  --server=%s \
   --output=file:%s \
     --filter=namespace:NS_MAIN \
     --filter=noredirect \
@@ -818,6 +822,7 @@ class AbstractDump(Dump):
 			runner.wikidir,
 			runner.db,
 			runner.wikidir,
+			runner.dbserver,
 			runner.publicPath("abstract.xml")))
 		runner.runCommand(command, callback=self.progressCallback)
 	
