@@ -302,6 +302,8 @@ class Runner(object):
 			PublicTable("categorylinks", "Wiki category membership link records."),
 			PublicTable("imagelinks", "Wiki image usage records."),
 			PublicTable("templatelinks", "Wiki template inclusion link records."),
+			PublicTable("externallinks", "Wiki external URL link records."),
+			PublicTable("langlinks", "Wiki interlanguage link records."),
 			PublicTable("interwiki", "Set of defined interwiki prefixes and links for this wiki."),
 			PublicTable("logging", "Data for various events (deletions, uploads, etc)."),
 			PublicTable("user_groups", "User group assignments."),
