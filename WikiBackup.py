@@ -26,14 +26,18 @@ runner = WikiBackup.Runner(
 	dbuser="root",
 	dbpassword="",
 	wikidir="/opt/web/pages/head",
-	php="/opt/php51/bin/php"
-	webroot="/dumps")
+	php="/opt/php51/bin/php",
+	webroot="http://dumps.example.com/dumps",
+	adminmail="root@localhost",
+	mailfrom="root@localhost")
 runner.run()
 """
 
+import email.MIMEText
 import os
 import popen2
 import re
+import smtplib
 import sys
 import time
 
@@ -115,6 +119,21 @@ def relativePath(path, base):
 		path.insert(0, "..")
 	return os.path.join(*path)
 
+def quickMail(mailserver, fromaddr, toaddr, subject, body):
+	"""Send out a quickie email."""
+	message = email.MIMEText.MIMEText(body)
+	message["Subject"] = subject
+	message["From"] = fromaddr
+	message["To"] = toaddr
+	
+	try:
+		server = smtplib.SMTP(mailserver)
+		server.sendmail(fromaddr, [toaddr], message)
+		server.close()
+	except:
+		print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
+		print message
+
 class BackupError(Exception):
 	pass
 
@@ -123,7 +142,8 @@ class Runner(object):
 	def __init__(self, public, private, dblist, privatelist, dbserver,
 			dbuser, dbpassword, wikidir, php="php", webroot="",
 			template=dirname(realpath(sys.modules[__module__].__file__)),
-			tmp="/tmp"):
+			tmp="/tmp", adminmail=None, mailfrom="root@localhost",
+			mailserver="localhost"):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -136,6 +156,9 @@ class Runner(object):
 		self.webroot = webroot
 		self.template = template
 		self.tmp = tmp
+		self.adminmail = adminmail
+		self.mailfrom = mailfrom
+		self.mailserver = mailserver
 		self.db = None
 		self.date = None
 		self.failcount = 0
@@ -338,6 +361,9 @@ class Runner(object):
 			except Exception, ex:
 				self.debug("*** exception! " + str(ex))
 			if item.status == "failed":
+				if self.failcount < 1:
+					# Email the site administrator just once per database
+					self.reportFailure()
 				self.failcount += 1
 
 		self.updateStatusFiles(done=True)
@@ -347,6 +373,16 @@ class Runner(object):
 
 		self.unlock()
 		self.statusComplete()
+	
+	def reportFailure(self):
+		if self.adminmail:
+			subject = "Dump failure for " + self.db
+			message = self.readTemplate("errormail.txt") % {
+				"db": self.db,
+				"date": self.date,
+				"time": prettyTime(),
+				"url": self.webroot + "/" + self.db + "/" + self.date + "/"}
+			quickMail(self.mailserver, self.mailfrom, self.adminmail, subject, message)
 	
 	def listFilesFor(self, items):
 		files = []
@@ -453,17 +489,23 @@ class Runner(object):
 			"db": self.db,
 			"date": self.date,
 			"status": self.reportStatusLine(done),
-			"previous": self.reportPreviousDump(),
+			"previous": self.reportPreviousDump(done),
 			"items": html}
 	
-	def reportPreviousDump(self):
+	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
 		try:
 			raw = self.latestDump(self.db, -2)
 		except:
 			return "No prior dumps of this database stored.";
 		date = prettyDate(raw)
-		return "<a href=\"../%s/\">Last dumped on %s</a>" % (raw, date)
+		if done:
+			prefix = ""
+			message = "Last dumped on"
+		else:
+			prefix = "This dump is in progress; see also the "
+			message = "previous dump from"
+		return "%s<a href=\"../%s/\">%s %s</a>" % (prefix, raw, message, date)
 	
 	def reportStatusLine(self, done=False):
 		if done:
