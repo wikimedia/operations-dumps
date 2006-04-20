@@ -8,10 +8,7 @@ Current state:
 * Seems to dump basic files correctly on my test system.
 
 TODO:
-* detect handle error conditions ;)
 * lock files / looping
-* generate HTML pages with status and navigable links (part-done)
-* generate file checksums
 * make upload tarballs?
 * detect low disk space and either call for help or automatically clear old files
 
@@ -34,6 +31,7 @@ runner.run()
 """
 
 import email.MIMEText
+import md5
 import os
 import popen2
 import re
@@ -133,6 +131,20 @@ def quickMail(mailserver, fromaddr, toaddr, subject, body):
 	except:
 		print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
 		print message
+
+def md5File(filename):
+	summer = md5.new()
+	infile = file(filename, "rb")
+	bufsize = 4192 * 32
+	buffer = infile.read(bufsize)
+	while buffer:
+		summer.update(buffer)
+		buffer = infile.read(bufsize)
+	infile.close()
+	return summer.hexdigest()
+
+def md5FileLine(filename):
+	return "%s  %s\n" % (md5File(filename), os.path.basename(filename))
 
 class BackupError(Exception):
 	pass
@@ -352,6 +364,7 @@ class Runner(object):
 				"Suitable for archival and statistical use, most mirror sites won't want or need this.")]
 		
 		files = self.listFilesFor(self.items)
+		self.prepareChecksums()
 		
 		for item in self.items:
 			item.start(self)
@@ -365,10 +378,11 @@ class Runner(object):
 					# Email the site administrator just once per database
 					self.reportFailure()
 				self.failcount += 1
+			else:
+				self.checksums(item.listFiles(self))
 
 		self.updateStatusFiles(done=True)
 
-		self.checksums(files)
 		self.completeDump(files)
 
 		self.unlock()
@@ -490,7 +504,8 @@ class Runner(object):
 			"date": self.date,
 			"status": self.reportStatusLine(done),
 			"previous": self.reportPreviousDump(done),
-			"items": html}
+			"items": html,
+			"checksum": self.webPath("md5sums.txt")}
 	
 	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
@@ -587,25 +602,34 @@ class Runner(object):
 		#echo $DatabaseName `dateStamp` OK: "$1" | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug(message)
 	
-	def statusError(self, message):
-		#  echo $DatabaseName `dateStamp` ABORT: "$1" | tee -a $StatusLog | tee -a $GlobalLog
-		#  echo "Backup of $DatabaseName failed at: $1" | \
-		#	mail -s "Wikimedia backup error on $DatabaseName" $AbortEmail
-		#  exit -1
-		self.debug(message)
-	
 	def statusComplete(self):
 		#  echo $DatabaseName `dateStamp` SUCCESS: "done." | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug("SUCCESS: done.")
 	
+	def prepareChecksums(self):
+		"""Create the md5 checksum file at the start of the run.
+		This will overwrite a previous run's output, if any."""
+		output = file(self.publicPath("md5sums.txt"), "w")
+	
 	def checksums(self, files):
-		self.debug("If this script were finished, it would be checksumming files here")
+		"""Run checksums for a set of output files, and append to the list."""
+		output = file(self.publicPath("md5sums.txt"), "a")
+		for filename in files:
+			self.saveChecksum(filename, output)
+		output.close()
+	
+	def saveChecksum(self, file, output):
+		self.debug("Checksumming %s" % file)
+		path = self.publicPath(file)
+		if os.path.exists(path):
+			checksum = md5FileLine(path)
+			output.write(checksum)
 	
 	def completeDump(self, files):
-		self.debug("If this script were finished, it would be adding symlinks or something")
 		self.makeDir(self.latestDir())
 		for file in files:
 			self.saveSymlink(file)
+		self.saveSymlink("md5sums.txt")
 	
 	def saveSymlink(self, file):
 		real = self.publicPath(file)

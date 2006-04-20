@@ -34,6 +34,8 @@
 		}
 		.status {
 			font-weight: bold;
+		}
+		.status, .checksum {
 			padding-left: 1em;
 			padding-right: 1em;
 		}
@@ -67,13 +69,18 @@
 	
 	<p>See <a href="../../">all databases list</a>.</p>
 	
-	<div class="previous">
+	<p class="previous">
 		%(previous)s
-	</div>
+	</p>
 	
-	<div class="status">
+	<p class="status">
 		%(status)s
-	</div>
+	</p>
+	
+	<p class="checksum">
+		Verify downloaded files against the <a href="%(checksum)s">MD5 checksums</a>
+		to check for corrupted files.
+	</p>
 	
 	<ul>
 		%(items)s
