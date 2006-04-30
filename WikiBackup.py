@@ -126,7 +126,7 @@ def quickMail(mailserver, fromaddr, toaddr, subject, body):
 	
 	try:
 		server = smtplib.SMTP(mailserver)
-		server.sendmail(fromaddr, [toaddr], message)
+		server.sendmail(fromaddr, toaddr, message.as_string())
 		server.close()
 	except:
 		print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
