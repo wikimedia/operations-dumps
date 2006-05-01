@@ -383,7 +383,8 @@ class Runner(object):
 
 		self.updateStatusFiles(done=True)
 
-		self.completeDump(files)
+		if self.failcount < 1:
+			self.completeDump(files)
 
 		self.unlock()
 		self.statusComplete()
