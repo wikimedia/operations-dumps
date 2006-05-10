@@ -51,6 +51,22 @@ def dbList(filename):
 	infile.close()
 	return dbs
 
+def rotateList(stuff, start):
+	"""If the given item is in the list, return a rotated copy of the list
+	which starts at that item and wraps around. If not in the list, returns
+	a copy of the original list."""
+	out = []
+	split = 0
+	for i in range(0, len(stuff)):
+		if start == stuff[i]:
+			split = i
+			break
+	for i in range(split, len(stuff)):
+		out.append(stuff[i])
+	for i in range(0, split):
+		out.append(stuff[i])
+	return out
+
 def shellEscape(param):
 	"""Escape a string parameter, or set of strings, for the shell."""
 	if isinstance(param, basestring):
@@ -177,7 +193,7 @@ class Runner(object):
 	
 	"""Public methods for the manager script..."""
 	
-	def run(self, subset=[], skip=[]):
+	def run(self, subset=[], skip=[], start=""):
 		"""Iterate through the list of wikis and dump them!"""
 		self.debug("Starting dump...")
 		if subset:
@@ -186,6 +202,8 @@ class Runner(object):
 			runset = self.dblist
 		if skip:
 			runset = [x for x in runset if x not in skip]
+		if start:
+			runset = rotateList(runset, start)
 		for db in runset:
 			self.db = db
 			self.date = today()
