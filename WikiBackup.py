@@ -826,7 +826,7 @@ class XmlDump(Dump):
 		source = self._findPreviousDump(runner)
 		if source and exists(source):
 			runner.status("... building %s XML dump, with text prefetch from %s..." % (self._subset, source))
-			prefetch = "--prefetch=bzip2:%s" % (source)
+			prefetch = "--prefetch=7zip:%s" % (source)
 		else:
 			runner.status("... building %s XML dump, no text prefetch..." % self._subset)
 			prefetch = None
@@ -848,15 +848,23 @@ class XmlDump(Dump):
 		return command
 	
 	def _findPreviousDump(self, runner):
-		"""The previously-linked previous successful dump."""
-		bzfile = self._file("bz2")
-		current = realpath(runner.publicPath(bzfile))
+		"""The previously-linked previous (hopefully) successful dump."""
+		for extension in ("7z", "bz2"):
+			dump = self._findPreviousDumpExt(runner, extension)
+			if dump:
+				return dump
+		return None
+	
+	def _findPreviousDumpExt(self, runner, extension):
+		"""The previously-linked previous successful dump with a given extension."""
+		dumpfile = self._file(extension)
+		current = realpath(runner.publicPath(dumpfile))
 		dumps = runner.dumpDirs(runner.db)
 		dumps.sort()
 		dumps.reverse()
 		for date in dumps:
 			base = join(runner.publicBase(runner.db), runner.db, date)
-			old = runner.buildPath(base, date, bzfile)
+			old = runner.buildPath(base, date, dumpfile)
 			print old
 			if exists(old):
 				size = getsize(old)
