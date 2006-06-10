@@ -24,6 +24,8 @@ runner = WikiBackup.Runner(
 	dbpassword="",
 	wikidir="/opt/web/pages/head",
 	php="/opt/php51/bin/php",
+	bzip2="/usr/local/bin/dbzip",
+	sevenzip="/sw/bin/7za",
 	webroot="http://dumps.example.com/dumps",
 	adminmail="root@localhost",
 	mailfrom="root@localhost")
@@ -171,7 +173,7 @@ class Runner(object):
 			dbuser, dbpassword, wikidir, php="php", webroot="",
 			template=dirname(realpath(sys.modules[__module__].__file__)),
 			tmp="/tmp", adminmail=None, mailfrom="root@localhost",
-			mailserver="localhost"):
+			mailserver="localhost", bzip2="bzip2", sevenzip="7za"):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -187,6 +189,9 @@ class Runner(object):
 		self.adminmail = adminmail
 		self.mailfrom = mailfrom
 		self.mailserver = mailserver
+		self.bzip2 = bzip2
+		self.sevenzip = sevenzip
+		
 		self.db = None
 		self.date = None
 		self.failcount = 0
@@ -377,8 +382,12 @@ class Runner(object):
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
 			BigXmlDump("meta-history",
-				"All pages with complete page edit history",
-				"These dumps can be *very* large, uncompressing up to 20-100 times the archive download size. " +
+				"All pages with complete page edit history (.bz2)",
+				"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
+				"Suitable for archival and statistical use, most mirror sites won't want or need this."),
+			XmlRecompressDump("meta-history",
+				"All pages with complete edit history (.7z)",
+				"These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
 				"Suitable for archival and statistical use, most mirror sites won't want or need this.")]
 		
 		files = self.listFilesFor(self.items)
@@ -881,21 +890,43 @@ class BigXmlDump(XmlDump):
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
 		return "--full"
+
+class XmlRecompressDump(Dump):
+	"""Take a .bz2 and recompress it as 7-Zip."""
 	
-	def buildFilters(self, runner):
+	def __init__(self, subset, desc, detail):
+		Dump.__init__(self, desc)
+		self._subset = subset
+		self._detail = detail
+	
+	def detail(self):
+		"""Optionally return additional text to appear under the heading."""
+		return self._detail
+	
+	def _file(self, ext):
+		return "pages-" + self._subset + ".xml." + ext
+	
+	def _path(self, runner, ext):
+		return runner.publicPath(self._file(ext))
+	
+	def run(self, runner):
+		xmlbz2 = self._path(runner, "bz2")
 		xml7z = self._path(runner, "7z")
 		
 		# Clear prior 7zip attempts; 7zip will try to append an existing archive
 		if exists(xml7z):
 			os.remove(xml7z)
 		
-		filters = XmlDump.buildFilters(self, runner)
-		return filters + " --output=7zip:%s" % shellEscape(xml7z)
+		command = "%s -dc < %s | %s a -si %s" % shellEscape((
+			runner.bzip2,
+			xmlbz2,
+			runner.sevenzip,
+			xml7z));
+		return runner.runCommand(command, callback=self.progressCallback)
+		
 	
 	def listFiles(self, runner):
-		files = XmlDump.listFiles(self, runner)
-		files.append(self._file("7z"))
-		return files
+		return [self._file("7z")]
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
