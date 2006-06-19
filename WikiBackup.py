@@ -757,12 +757,20 @@ class XmlStub(Dump):
 	full files for the public."""
 	
 	def description(self):
-		return "creating split stub dumps..."
+		return "Creating split stub dumps..."
+	
+	def detail(self):
+		return "These files contain no page text, only revision metadata."
+	
+	def listFiles(self, runner):
+		return ["stub-meta-history.xml.gz",
+			"stub-meta-current.xml.gz",
+			"stub-articles.xml.gz"]
 	
 	def run(self, runner):
-		history = runner.tmpPath("stub-meta-history.xml.gz")
-		current = runner.tmpPath("stub-meta-current.xml.gz")
-		articles = runner.tmpPath("stub-articles.xml.gz")
+		history = runner.publicPath("stub-meta-history.xml.gz")
+		current = runner.publicPath("stub-meta-current.xml.gz")
+		articles = runner.publicPath("stub-articles.xml.gz")
 		for filename in (history, current, articles):
 			if exists(filename):
 				os.remove(filename)
@@ -827,7 +835,7 @@ class XmlDump(Dump):
 		"""Build the command line for the dump, minus output and filter options"""
 		
 		# Page and revision data pulled from this skeleton dump...
-		stub = runner.tmpPath("stub-%s.xml.gz" % self._subset),
+		stub = runner.publicPath("stub-%s.xml.gz" % self._subset),
 		stubOption = "--stub=gzip:%s" % stub
 		
 		# Try to pull text from the previous run; most stuff hasn't changed
