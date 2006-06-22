@@ -381,6 +381,7 @@ class Runner(object):
 			XmlDump("meta-current",
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
+			SearchIndex("Updating search index"),
 			BigXmlDump("meta-history",
 				"All pages with complete page edit history (.bz2)",
 				"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
@@ -412,7 +413,7 @@ class Runner(object):
 
 		if self.failcount < 1:
 			self.completeDump(files)
-
+		
 		self.unlock()
 		self.statusComplete()
 	
@@ -985,3 +986,14 @@ class Checksums(Dump):
 			runner.publicPath("*.sql.gz") + " " + \
 			runner.publicPath("all-titles-in-ns0.gz")
 		return runner.saveCommand(command, runner.publicPath("md5sums.txt"))
+
+class SearchIndex(Dump):
+	def run(self, runner):
+		lockfile = "/tmp/search-build-" + runner.db
+		command = "touch %s && MWSearchTool --import=%s %s && rm -f %s" % \
+			shellEscape((
+				lockfile,
+				runner.publicPath("pages-meta-current.xml.bz2"),
+				runner.db,
+				lockfile))
+		return runner.runCommand(command, callback=self.progressCallback)
