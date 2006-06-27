@@ -830,7 +830,7 @@ class XmlDump(Dump):
 	def buildFilters(self, runner):
 		"""Construct the output filter options for dumpTextPass.php"""
 		xmlbz2 = self._path(runner, "bz2")
-		return "--output=bzip2:%s" % shellEscape(xmlbz2)
+		return "--output=dbzip2:%s" % shellEscape(xmlbz2)
 	
 	def buildCommand(self, runner):
 		"""Build the command line for the dump, minus output and filter options"""
