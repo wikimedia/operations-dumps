@@ -381,7 +381,7 @@ class Runner(object):
 			XmlDump("meta-current",
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
-			SearchIndex("Updating search index"),
+			#SearchIndex("Updating search index"),
 			BigXmlDump("meta-history",
 				"All pages with complete page edit history (.bz2)",
 				"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
