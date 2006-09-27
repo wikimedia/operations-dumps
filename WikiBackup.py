@@ -195,6 +195,7 @@ class Runner(object):
 		self.db = None
 		self.date = None
 		self.failcount = 0
+		self.lastFailed = False
 	
 	"""Public methods for the manager script..."""
 	
@@ -406,8 +407,10 @@ class Runner(object):
 					# Email the site administrator just once per database
 					self.reportFailure()
 				self.failcount += 1
+				self.lastFailed = True
 			else:
 				self.checksums(item.listFiles(self))
+				self.lastFailed = False
 
 		self.updateStatusFiles(done=True)
 
@@ -919,6 +922,9 @@ class XmlRecompressDump(Dump):
 		return runner.publicPath(self._file(ext))
 	
 	def run(self, runner):
+		if runner.lastFailed:
+			raise BackupError("bz2 dump incomplete, not recompressing")
+		
 		xmlbz2 = self._path(runner, "bz2")
 		xml7z = self._path(runner, "7z")
 		
@@ -933,7 +939,6 @@ class XmlRecompressDump(Dump):
 			xml7z));
 		return runner.runCommand(command, callback=self.progressCallback)
 		
-	
 	def listFiles(self, runner):
 		return [self._file("7z")]
 
