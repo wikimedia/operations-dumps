@@ -169,8 +169,8 @@ class BackupError(Exception):
 
 class Runner(object):
 	
-	def __init__(self, public, private, dblist, privatelist, dbserver,
-			dbuser, dbpassword, wikidir, php="php", webroot="",
+	def __init__(self, public, private, dblist, privatelist, dbserver=None,
+			dbuser="", dbpassword="", wikidir="", php="php", webroot="",
 			template=dirname(realpath(sys.modules[__module__].__file__)),
 			tmp="/tmp", adminmail=None, mailfrom="root@localhost",
 			mailserver="localhost", bzip2="bzip2", sevenzip="7za"):
@@ -178,7 +178,8 @@ class Runner(object):
 		self.private = private
 		self.dblist = dblist
 		self.privatelist = privatelist
-		self.dbserver = dbserver
+		self.dbserverOverride = dbserver
+		self.dbserver = None
 		self.dbuser = dbuser
 		self.dbpassword = dbpassword
 		self.wikidir = wikidir
@@ -325,6 +326,17 @@ class Runner(object):
 			line = proc.fromchild.readline()
 		return proc.wait()
 	
+	def runAndReturn(self, command):
+		"""Run a command and return the output as a string.
+		Raises BackupError on non-zero return code."""
+		proc = popen2.Popen4(command, 64)
+		output = proc.fromchild.read()
+		retval = proc.wait()
+		if retval:
+			raise BackupError("Non-zero return code from '%s'" % command)
+		else:
+			return output
+	
 	def debug(self, stuff):
 		print "%s: %s %s" % (prettyTime(), self.db, stuff)
 	
@@ -341,12 +353,24 @@ class Runner(object):
 			self.debug("Creating %s ..." % dir)
 			os.makedirs(dir)
 	
+	def selectDatabaseServer(self):
+		if self.dbserverOverride:
+			self.dbserver = self.dbserverOverride
+		else:
+			self.dbserver = self.defaultServer()
+	
+	def defaultServer(self):
+		command = "%s -q %s/maintenance/getSlaveServer.php %s" % shellEscape((
+			self.php, self.wikidir, self.db))
+		return self.runAndReturn(command).strip()
+	
 	def doBackup(self):
 		self.makeDir(self.publicDir())
 		self.makeDir(self.privateDir())
 		
 		self.status("Starting backup of %s" % self.db)
 		self.lock()
+		self.selectDatabaseServer()
 		
 		self.items = [PrivateTable("user", "User account data."),
 			PrivateTable("watchlist", "Users' watchlist settings."),
