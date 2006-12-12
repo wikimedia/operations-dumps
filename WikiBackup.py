@@ -478,7 +478,7 @@ class Runner(object):
 	
 	def saveIndex(self, done=False):
 		html = self.reportIndex(done)
-		index = join(self.public, "index.html")
+		index = join(self.public, "backup-index.html")
 		dumpFile(index, html)
 	
 	def reportIndex(self, done=False):
