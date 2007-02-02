@@ -391,7 +391,8 @@ class Runner(object):
 			PublicTable("logging", "Data for various events (deletions, uploads, etc)."),
 			PublicTable("user_groups", "User group assignments."),
 			
-			PublicTable("page", "Base per-page data (id, title, restrictions, etc)."),
+			PublicTable("page", "Base per-page data (id, title, old restrictions, etc)."),
+			PublicTable("page_restrictions", "Newer per-page restrictions table."),
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "Text blob storage. May be compressed, etc."), // ?
 			
