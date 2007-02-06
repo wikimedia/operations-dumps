@@ -26,7 +26,7 @@ def migrateDatabase(workDir, archDir):
 	
 	dates = migratableSubdirs(workDir)
 	if not dates:
-		print "%s has nothing ready to migrate, skipped"
+		print "%s has nothing ready to migrate, skipped" % workDir
 		return
 	
 	for date in dates:
