@@ -978,22 +978,46 @@ class AbstractDump(Dump):
   --report=1000 \
   --force-normal \
   --server=%s \
-  --output=file:%s \
+""" % shellEscape((
+				runner.php,
+				runner.wikidir,
+				runner.db,
+				runner.wikidir,
+				runner.dbserver))
+		for variant in self._variants(runner):
+			command = command + """  --output=file:%s \
     --filter=namespace:NS_MAIN \
     --filter=noredirect \
-    --filter=abstract
+    --filter=abstract%s \
 """ % shellEscape((
-			runner.php,
-			runner.wikidir,
-			runner.db,
-			runner.wikidir,
-			runner.dbserver,
-			runner.publicPath("abstract.xml")))
+				runner.publicPath(self._variantFile(variant)),
+				self._variantOption(variant)))
+		command = command + "\n"
 		runner.runCommand(command, callback=self.progressCallback)
 	
+	def _variants(self, runner):
+		# If the database name looks like it's marked as Chinese language,
+		# return a list including Simplified and Traditional versions, so
+		# we can build separate files normalized to each orthography.
+		if runner.db[0:2] == "zh" and runner.db[2:3] != "_":
+			return ("", "zh-cn", "zh-tw")
+		else:
+			return ("",)
+	
+	def _variantOption(self, variant):
+		if variant == "":
+			return ""
+		else:
+			return ":variant=%s" % variant
+	
+	def _variantFile(self, variant):
+		if variant == "":
+			return "abstract.xml"
+		else:
+			return "abstract-%s.xml" % variant
+	
 	def listFiles(self, runner):
-		return ["abstract.xml"]
-
+		return [self._variantFile(x) for x in self._variants(runner)]
 	
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
