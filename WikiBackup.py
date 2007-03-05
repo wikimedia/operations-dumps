@@ -395,6 +395,7 @@ class Runner(object):
 			PublicTable("page_restrictions", "Newer per-page restrictions table."),
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "Text blob storage. May be compressed, etc."), // ?
+			PublicTable("redirect", "Redirect list"),
 			
 			TitleDump("List of page titles"),
 			
