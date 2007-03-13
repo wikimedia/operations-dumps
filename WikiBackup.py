@@ -173,7 +173,8 @@ class Runner(object):
 			dbuser="", dbpassword="", wikidir="", php="php", webroot="",
 			template=dirname(realpath(sys.modules[__module__].__file__)),
 			tmp="/tmp", adminmail=None, mailfrom="root@localhost",
-			mailserver="localhost", bzip2="bzip2", sevenzip="7za"):
+			mailserver="localhost", bzip2="bzip2", sevenzip="7za",
+			normalization=None):
 		self.public = public
 		self.private = private
 		self.dblist = dblist
@@ -192,6 +193,10 @@ class Runner(object):
 		self.mailserver = mailserver
 		self.bzip2 = bzip2
 		self.sevenzip = sevenzip
+		if normalization:
+			self.normalization = "--force-normal"
+		else:
+			self.normalization = ""
 		
 		self.db = None
 		self.date = None
@@ -809,7 +814,7 @@ class XmlStub(Dump):
   --full \
   --stub \
   --report=10000 \
-  --force-normal \
+  %s \
   --server=%s \
   --output=gzip:%s \
   --output=gzip:%s \
@@ -822,6 +827,7 @@ class XmlStub(Dump):
 			runner.php,
 			runner.wikidir,
 			runner.db,
+			runner.normalization,
 			runner.dbserver,
 			history,
 			current,
@@ -882,7 +888,7 @@ class XmlDump(Dump):
 %s -q %s/maintenance/dumpTextPass.php %s \
   %s \
   %s \
-  --force-normal \
+  %s \
   --report=1000 \
   --server=%s""" % shellEscape((
 			runner.php,
@@ -890,6 +896,7 @@ class XmlDump(Dump):
 			runner.db,
 			stubOption,
 			prefetch,
+			runner.normalization,
 			runner.dbserver))
 		command = dumpCommand
 		return command
@@ -977,13 +984,14 @@ class AbstractDump(Dump):
   --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
   --current \
   --report=1000 \
-  --force-normal \
+  %s \
   --server=%s \
 """ % shellEscape((
 				runner.php,
 				runner.wikidir,
 				runner.db,
 				runner.wikidir,
+				runner.normalization,
 				runner.dbserver))
 		for variant in self._variants(runner):
 			command = command + """  --output=file:%s \
