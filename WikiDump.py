@@ -38,14 +38,15 @@ class Config(object):
 			"dblist": "",
 			"privatelist": "",
 			"dir": "",
-			#"dump": {
+			#"output": {
 			"public": "/dumps/public",
 			"private": "/dumps/private",
+			"webroot": "http://localhost/dumps",
+			"index": "index.html",
+			"templatedir": home,
 			#"reporting": {
 			"adminmail": "root@localhost",
 			"mailfrom": "root@localhost",
-			"webroot": "http://localhost/dumps",
-			"templatedir": home,
 			#"database": {
 			"user": "root",
 			"password": "",
@@ -62,13 +63,14 @@ class Config(object):
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
 		self.wikiDir = conf.get("wiki", "dir")
 		
-		self.publicDir = conf.get("dump", "public")
-		self.privateDir = conf.get("dump", "private")
-		
+		self.publicDir = conf.get("output", "public")
+		self.privateDir = conf.get("output", "private")
+		self.webRoot = conf.get("reporting", "webroot")
+		self.index = conf.get("reporting", "index")
 		self.templateDir = conf.get("reporting", "templateDir")
+		
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
-		self.webRoot = conf.get("reporting", "webroot")
 		
 		self.dbUser = conf.get("database", "user")
 		self.dbPassword = conf.get("database", "password")

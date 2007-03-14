@@ -1,10 +1,11 @@
 # Wiki dump-generation monitor
 
+import os
 import WikiDump
 
 config = WikiDump.Config()
 
-def updateIndex():
+def generateIndex():
 	running = False
 	states = []
 	
@@ -18,11 +19,15 @@ def updateIndex():
 	else:
 		status = "Dump process is idle."
 	
-	output = config.readTemplate("progress.html") % {
+	return config.readTemplate("progress.html") % {
 		"status": status,
 		"items": "\n".join(states)}
 	
-	print output
+def updateIndex():
+	outputFileName = os.path.join(config.publicDir, config.index)
+	outputFile = open(outputFileName, "w")
+	outputFile.write(generateIndex())
+	outputFile.close()
 
 if __name__ == "__main__":
 	updateIndex()
