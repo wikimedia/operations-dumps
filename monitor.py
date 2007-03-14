@@ -11,6 +11,11 @@ def generateIndex():
 	
 	for dbName in config.dbList:
 		wiki = WikiDump.Wiki(config, dbName)
+		if wiki.isStale():
+			print dbName + " is stale"
+			wiki.cleanupStaleLock()
+		if wiki.isLocked():
+			print dbName + " is locked"
 		running = running or wiki.isLocked()
 		states.append(wiki.statusLine())
 	
