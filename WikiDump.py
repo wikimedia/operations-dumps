@@ -1,6 +1,8 @@
 import ConfigParser
+import email
 import os
 import re
+import smtplib
 import sys
 import time
 
@@ -79,6 +81,7 @@ class Config(object):
 			"dblist": "",
 			"privatelist": "",
 			"dir": "",
+			"forcenormal": "0",
 			#"output": {
 			"public": "/dumps/public",
 			"private": "/dumps/private",
@@ -105,6 +108,7 @@ class Config(object):
 		self.dbList = dbList(conf.get("wiki", "dblist"))
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
 		self.wikiDir = conf.get("wiki", "dir")
+		self.forceNormal = conf.getint("wiki", "forceNormal")
 		
 		self.publicDir = conf.get("output", "public")
 		self.privateDir = conf.get("output", "private")
@@ -129,7 +133,7 @@ class Config(object):
 		template = os.path.join(self.templateDir, name)
 		return readFile(template)
 	
-	def mail(subject, body):
+	def mail(self, subject, body):
 		"""Send out a quickie email."""
 		message = email.MIMEText.MIMEText(body)
 		message["Subject"] = subject
@@ -149,6 +153,7 @@ class Wiki(object):
 	def __init__(self, config, dbName):
 		self.config = config
 		self.dbName = dbName
+		self.date = None
 	
 	def isPrivate(self):
 		return self.dbName in self.config.privateList
@@ -195,13 +200,20 @@ class Wiki(object):
 	def unlock(self):
 		os.remove(self.lockFile())
 	
+	def setDate(self, date):
+		self.date = date
+	
 	def cleanupStaleLock(self):
 		date = self.latestDump()
 		if date:
-			self.date = date
+			self.setDate(date)
 			self.writeStatus(self.reportStatusLine(
 				"<span class=\"failed\">dump aborted</span>"))
 		self.unlock()
+	
+	def writeIndex(self, html):
+		index = os.path.join(self.publicDir(), self.date, "index.html")
+		dumpFile(index, html)
 	
 	def writeStatus(self, message):
 		index = os.path.join(self.publicDir(), self.date, "status.html")
