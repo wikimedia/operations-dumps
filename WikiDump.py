@@ -4,7 +4,10 @@ import re
 import sys
 import time
 
-def atomicOpen(filename, mode='w'):
+def fileAge(filename):
+	return time.time() - os.stat(filename).st_mtime
+
+def atomicCreate(filename, mode='w'):
 	"""Create a file, aborting if it already exists..."""
 	fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
 	return os.fdopen(fd, mode)
@@ -85,6 +88,7 @@ class Config(object):
 			#"reporting": {
 			"adminmail": "root@localhost",
 			"mailfrom": "root@localhost",
+			"smtpserver": "localhost",
 			"staleage": "3600",
 			#"database": {
 			"user": "root",
@@ -110,6 +114,7 @@ class Config(object):
 		
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
+		self.smtpServer = conf.get("reporting", "smtpserver")
 		self.staleAge = conf.getint("reporting", "staleAge")
 		
 		self.dbUser = conf.get("database", "user")
@@ -123,6 +128,22 @@ class Config(object):
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
 		return readFile(template)
+	
+	def mail(subject, body):
+		"""Send out a quickie email."""
+		message = email.MIMEText.MIMEText(body)
+		message["Subject"] = subject
+		message["From"] = self.mailFrom
+		message["To"] = self.adminMail
+
+		try:
+			server = smtplib.SMTP(self.smtpServer)
+			server.sendmail(self.mailFrom, self.adminMail, message.as_string())
+			server.close()
+		except:
+			print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
+			print message
+
 
 class Wiki(object):
 	def __init__(self, config, dbName):
@@ -159,13 +180,17 @@ class Wiki(object):
 	# Actions!
 	
 	def lock(self):
-		try:
-			f = atomicCreate(self.lockFile(), "wt")
-			f.write("%s.%d" % (os.getenv("HOSTNAME"), os.getpid()))
-			f.close()
-			return True
-		except:
-			return False
+		if not os.path.isdir(self.privateDir()):
+			try:
+				os.mkdir(self.privateDir())
+			except e:
+				# Maybe it was just created (race condition)?
+				if not os.path.isdir(self.privateDir()):
+					raise e
+		f = atomicCreate(self.lockFile(), "w")
+		f.write("%s.%d" % (os.getenv("HOSTNAME"), os.getpid()))
+		f.close()
+		return True
 	
 	def unlock(self):
 		os.remove(self.lockFile())
@@ -236,7 +261,7 @@ class Wiki(object):
 		return os.path.join(self.privateDir(), "lock")
 	
 	def lockAge(self):
-		return time.time() - os.stat(self.lockFile()).st_mtime
+		return fileAge(self.lockFile())
 
 
 
