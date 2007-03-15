@@ -4,6 +4,7 @@ import os
 import re
 import smtplib
 import sys
+import threading
 import time
 
 def fileAge(filename):
@@ -154,6 +155,7 @@ class Wiki(object):
 		self.config = config
 		self.dbName = dbName
 		self.date = None
+		self.watchdog = None
 	
 	def isPrivate(self):
 		return self.dbName in self.config.privateList
@@ -195,9 +197,15 @@ class Wiki(object):
 		f = atomicCreate(self.lockFile(), "w")
 		f.write("%s.%d" % (os.getenv("HOSTNAME"), os.getpid()))
 		f.close()
+		
+		self.watchdog = LockWatchdog(self.lockFile())
+		self.watchdog.start()
 		return True
 	
 	def unlock(self):
+		if self.watchdog:
+			self.watchdog.stopWatching()
+			self.watchdog = None
 		os.remove(self.lockFile())
 	
 	def setDate(self, date):
@@ -275,7 +283,33 @@ class Wiki(object):
 	def lockAge(self):
 		return fileAge(self.lockFile())
 
-
+class LockWatchdog(threading.Thread):
+	def __init__(self, lockfile):
+		threading.Thread.__init__(self)
+		self.lockfile = lockfile
+		self.trigger = threading.Event()
+		self.finished = threading.Event()
+	
+	def stopWatching(self):
+		"""Run me outside..."""
+		# Ask the thread to stop...
+		self.trigger.set()
+		
+		# Then wait for it, to ensure that the lock file
+		# doesn't get touched again after we delete it on
+		# the main thread.
+		self.finished.wait(10)
+	
+	def run(self):
+		while not self.trigger.isSet():
+			print "********** TOUCHING!"
+			self.touchLock()
+			self.trigger.wait(1)
+		self.finished.set()
+	
+	def touchLock(self):
+		"""Run me inside..."""
+		os.utime(self.lockfile)
 
 if __name__ == "__main__":
 	config = Config()

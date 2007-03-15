@@ -837,16 +837,17 @@ def findAndLockNextWiki(config):
 	
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
-		try:
-			wiki.lock()
-			return wiki
-		except:
-			print "Couldn't lock %s, someone else must have got it..." % db
-			continue
+		#try:
+		wiki.lock()
+		return wiki
+		#except:
+		#	print "Couldn't lock %s, someone else must have got it..." % db
+		#	continue
 	return None
 			
 if __name__ == "__main__":
 	config = WikiDump.Config()
+	
 	wiki = findAndLockNextWiki(config)
 	if wiki:
 		runner = Runner(wiki)
