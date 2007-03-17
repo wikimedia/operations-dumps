@@ -1,0 +1,58 @@
+This is the script for generating data dumps for Wikimedia's public wikis.
+
+== Architecture ==
+
+As of March 2007, the architecture has been split into two parts:
+
+=== Worker ===
+
+Each dump machine runs a worker process which continuously generates dumps.
+At each iteration, the set of wikis is ordered by last dump date, and the
+least-recently-touched wiki is selected.
+
+Workers are kept from stomping on each other by creating a lock file in
+the private dump directory. To aid in administration, the lock file contains
+the hostname and process ID of the worker process holding the lock.
+
+Lock files are touched every 10 seconds while the process runs, and removed
+at the end.
+
+On each iteration, the script and configuration are reloaded, so additions
+to the database list or dump code will be made available without manually
+restarting things.
+
+
+=== Monitor ===
+
+One master machine runs the monitor process, which periodically sweeps all
+wikis for their current status. This accomplishes two tasks:
+
+* The index page is updated with a summary of dump states
+* Aborted dumps are detected and cleaned up
+
+A lock file that has not been touched in some time is detected as stale,
+indicating that the worker process holding the lock has died. The status
+for that dump can then be updated from running to stopped, and the lock
+file is removed so that the wiki will get redumped later.
+
+
+== Code files ==
+
+worker.py
+- Runs a dump for the least-recently dumped wiki in the stack.
+
+monitor.py
+- Generates the site-wide index summary and removes stale locks.
+
+WikiDump.py
+- Shared classes and functions
+
+
+== Configuration ==
+
+Configuration is done with an INI-style configuration file wikidump.conf.
+Configuration files in the script directory, /etc, and $HOME are used
+if available, in that order.
+
+FIXME: add a sample file
+
