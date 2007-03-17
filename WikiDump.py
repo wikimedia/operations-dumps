@@ -284,6 +284,8 @@ class Wiki(object):
 		return fileAge(self.lockFile())
 
 class LockWatchdog(threading.Thread):
+	"""Touch the given file every 10 seconds until asked to stop."""
+	
 	def __init__(self, lockfile):
 		threading.Thread.__init__(self)
 		self.lockfile = lockfile
@@ -299,17 +301,18 @@ class LockWatchdog(threading.Thread):
 		# doesn't get touched again after we delete it on
 		# the main thread.
 		self.finished.wait(10)
+		self.finished.clear()
 	
 	def run(self):
 		while not self.trigger.isSet():
-			print "********** TOUCHING!"
 			self.touchLock()
-			self.trigger.wait(1)
+			self.trigger.wait(10)
+		self.trigger.clear()
 		self.finished.set()
 	
 	def touchLock(self):
 		"""Run me inside..."""
-		os.utime(self.lockfile)
+		os.utime(self.lockfile, None)
 
 if __name__ == "__main__":
 	config = Config()
