@@ -797,18 +797,6 @@ class TitleDump(Dump):
 		return ["all-titles-in-ns0.gz"]
 
 
-class Checksums(Dump):
-	def description(self):
-		return "calculating MD5 hashes"
-	
-	def run(self, runner):
-		# FIXME: run checksums only on the master server?
-		command = "md5sum " + \
-			runner.publicPath("*.xml.*") + " " + \
-			runner.publicPath("*.sql.gz") + " " + \
-			runner.publicPath("all-titles-in-ns0.gz")
-		return runner.saveCommand(command, runner.publicPath("md5sums.txt"))
-
 def findNextWikis(config):
 	"""Sort available wikis in reverse order of last dump."""
 	available = []
