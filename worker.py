@@ -186,6 +186,9 @@ class Runner(object):
 		self.makeDir(join(self.wiki.publicDir(), self.date))
 		self.makeDir(join(self.wiki.privateDir(), self.date))
 		
+		self.status("Cleaning up old dumps for %s" % self.dbName)
+		self.cleanOldDumps()
+		
 		self.status("Starting backup of %s" % self.dbName)
 		self.selectDatabaseServer()
 		
@@ -260,6 +263,18 @@ class Runner(object):
 			self.completeDump(files)
 		
 		self.statusComplete()
+	
+	def cleanOldDumps(self):
+		# Keep the last two
+		old = self.wiki.dumpDirs()[:-2]
+		if old:
+			for dump in old:
+				self.status("Purging old dump %s for %s")
+				base = os.path.join(self.wiki.publicDir(), dump)
+				command = "rm -rf %s" % shellEscape(base)
+				self.runCommand(command)
+		else:
+			self.status("No old dumps to purge.")
 	
 	def reportFailure(self):
 		if self.config.adminMail:
@@ -336,10 +351,10 @@ class Runner(object):
 	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
 		try:
-			raw = self.wiki.latestDump(self.dbName, -2)
+			raw = self.wiki.latestDump(-2)
 		except:
-			return "No prior dumps of this database stored.";
-		date = prettyDate(raw)
+			return "No prior dumps of this database stored."
+		date = WikiDump.prettyDate(raw)
 		if done:
 			prefix = ""
 			message = "Last dumped on"
