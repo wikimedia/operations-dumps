@@ -1,0 +1,9 @@
+#!/bin/bash
+
+WIKIDUMP_BASE=`dirname "$0"`
+
+while true; do
+	python $WIKIDUMP_BASE/worker.py
+	echo "sleeping"
+	sleep 30
+done
