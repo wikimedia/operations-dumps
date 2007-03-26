@@ -48,6 +48,9 @@ def md5File(filename):
 def md5FileLine(filename):
 	return "%s  %s\n" % (md5File(filename), os.path.basename(filename))
 
+def xmlEscape(text):
+	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 class BackupError(Exception):
 	pass
 
@@ -254,7 +257,8 @@ class Runner(object):
 				self.failCount += 1
 				self.lastFailed = True
 			else:
-				self.checksums(item.listFiles(self))
+				for f in item.listFiles(self):
+					self.saveFeed(f)
 				self.lastFailed = False
 
 		self.updateStatusFiles(done=True)
@@ -480,6 +484,22 @@ class Runner(object):
 		relative = relativePath(real, dirname(link))
 		self.debug("Adding symlink %s -> %s" % (link, relative))
 		os.symlink(relative, link)
+	
+	def saveFeed(self, file):
+		self.makeDir(join(self.wiki.publicDir(), 'latest'))
+		webPath = "%s%s/%s/" % (self.config.webRoot, self.dbName, self.date)
+		fileName = "%s-%s-%s" % (self.dbName, self.date, file)
+		filePath = webPath + fileName
+		rssText = self.config.readTemplate("feed.xml") % {
+			"chantitle": file,
+			"chanlink": webPath,
+			"chandesc": "Wikimedia dump updates for %s" % self.dbName,
+			"title": webPath,
+			"link": webPath,
+			"description": xmlEscape("<a href=\"%s\">%s</a>" % (filePath, fileName)),
+			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
+		rssPath = self.latestPath(file + "-rss.xml")
+		WikiDump.dumpFile(rssPath, rssText)
 
 class Dump(object):
 	def __init__(self, desc):
