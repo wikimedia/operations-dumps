@@ -70,7 +70,7 @@ class Runner(object):
 		if self.config.dbPassword == "":
 			return None
 		else:
-			return "-p" + self.dbPassword
+			return "-p" + self.config.dbPassword
 	
 	def forceNormalOption(self):
 		if self.config.forceNormal:
