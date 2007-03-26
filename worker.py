@@ -487,7 +487,7 @@ class Runner(object):
 	
 	def saveFeed(self, file):
 		self.makeDir(join(self.wiki.publicDir(), 'latest'))
-		webPath = "%s%s/%s/" % (self.config.webRoot, self.dbName, self.date)
+		webPath = "%s/%s/%s/" % (self.config.webRoot, self.dbName, self.date)
 		fileName = "%s-%s-%s" % (self.dbName, self.date, file)
 		filePath = webPath + fileName
 		rssText = self.config.readTemplate("feed.xml") % {
