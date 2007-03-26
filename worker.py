@@ -269,7 +269,7 @@ class Runner(object):
 		old = self.wiki.dumpDirs()[:-(self.config.keep)]
 		if old:
 			for dump in old:
-				self.status("Purging old dump %s for %s" % (dump, self.db))
+				self.status("Purging old dump %s for %s" % (dump, self.dbName))
 				base = os.path.join(self.wiki.publicDir(), dump)
 				command = "rm -rf %s" % shellEscape(base)
 				self.runCommand(command)
