@@ -115,9 +115,9 @@ class Config(object):
 		
 		self.publicDir = conf.get("output", "public")
 		self.privateDir = conf.get("output", "private")
-		self.webRoot = conf.get("reporting", "webroot")
-		self.index = conf.get("reporting", "index")
-		self.templateDir = conf.get("reporting", "templateDir")
+		self.webRoot = conf.get("output", "webroot")
+		self.index = conf.get("output", "index")
+		self.templateDir = conf.get("output", "templateDir")
 		
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
