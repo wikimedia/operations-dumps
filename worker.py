@@ -849,7 +849,8 @@ def findNextWikis(config):
 					print "dump dir %s vanished while looking at it!" % dumpDir
 			else:
 				available.append((sys.maxint, db))
-	available.sort(reverse=True)
+	available.sort()
+	available.reverse()
 	return [db for (age, db) in available]
 
 def findAndLockNextWiki(config):
