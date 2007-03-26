@@ -1,5 +1,5 @@
 import ConfigParser
-import email
+import email.MIMEText
 import os
 import re
 import smtplib
