@@ -194,10 +194,10 @@ class Wiki(object):
 		if not os.path.isdir(self.privateDir()):
 			try:
 				os.mkdir(self.privateDir())
-			except e:
+			except:
 				# Maybe it was just created (race condition)?
 				if not os.path.isdir(self.privateDir()):
-					raise e
+					raise
 		f = atomicCreate(self.lockFile(), "w")
 		f.write("%s.%d" % (os.getenv("HOSTNAME"), os.getpid()))
 		f.close()
@@ -290,6 +290,9 @@ class Wiki(object):
 class LockWatchdog(threading.Thread):
 	"""Touch the given file every 10 seconds until asked to stop."""
 	
+	# For emergency aborts
+	threads = []
+	
 	def __init__(self, lockfile):
 		threading.Thread.__init__(self)
 		self.lockfile = lockfile
@@ -308,15 +311,22 @@ class LockWatchdog(threading.Thread):
 		self.finished.clear()
 	
 	def run(self):
+		LockWatchdog.threads.append(self)
 		while not self.trigger.isSet():
 			self.touchLock()
 			self.trigger.wait(10)
 		self.trigger.clear()
 		self.finished.set()
+		LockWatchdog.threads.remove(self)
 	
 	def touchLock(self):
 		"""Run me inside..."""
 		os.utime(self.lockfile, None)
+
+def cleanup():
+	"""Call cleanup handlers for any background threads..."""
+	for watchdog in LockWatchdog.threads:
+		watchdog.stopWatching()
 
 if __name__ == "__main__":
 	config = Config()

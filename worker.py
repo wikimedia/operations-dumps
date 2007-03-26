@@ -849,18 +849,21 @@ def findAndLockNextWiki(config):
 	return None
 			
 if __name__ == "__main__":
-	config = WikiDump.Config()
+	try:
+		config = WikiDump.Config()
+		
+		if len(sys.argv) > 1:
+			wiki = WikiDump.Wiki(config, sys.argv[1])
+			wiki.lock()
+		else:
+			wiki = findAndLockNextWiki(config)
 	
-	if len(sys.argv) > 1:
-		wiki = WikiDump.Wiki(config, sys.argv[1])
-		wiki.lock()
-	else:
-		wiki = findAndLockNextWiki(config)
-	
-	if wiki:
-		runner = Runner(wiki)
-		print "Running %s..." % wiki.dbName
-		runner.run()
-		wiki.unlock()
-	else:
-		print "No wikis available to run."
+		if wiki:
+			runner = Runner(wiki)
+			print "Running %s..." % wiki.dbName
+			runner.run()
+			wiki.unlock()
+		else:
+			print "No wikis available to run."
+	finally:
+		WikiDump.cleanup()
