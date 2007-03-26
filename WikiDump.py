@@ -101,7 +101,9 @@ class Config(object):
 			"php": "php",
 			"bzip2": "bzip2",
 			"sevenzip": "7za",
-			"mysql": "mysql"
+			"mysql": "mysql",
+			#"cleanup": {
+			"keep": "3",
 			}
 		conf = ConfigParser.SafeConfigParser(defaults)
 		conf.read(files)
@@ -129,6 +131,8 @@ class Config(object):
 		self.bzip2 = conf.get("tools", "bzip2")
 		self.sevenzip = conf.get("tools", "sevenzip")
 		self.mysql = conf.get("tools", "mysql")
+		
+		self.keep = conf.getint("cleanup", "keep")
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)

@@ -265,11 +265,11 @@ class Runner(object):
 		self.statusComplete()
 	
 	def cleanOldDumps(self):
-		# Keep the last two
-		old = self.wiki.dumpDirs()[:-2]
+		# Keep the last few
+		old = self.wiki.dumpDirs()[:-(self.config.keep)]
 		if old:
 			for dump in old:
-				self.status("Purging old dump %s for %s")
+				self.status("Purging old dump %s for %s" % (dump, self.db))
 				base = os.path.join(self.wiki.publicDir(), dump)
 				command = "rm -rf %s" % shellEscape(base)
 				self.runCommand(command)
