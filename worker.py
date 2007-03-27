@@ -832,29 +832,9 @@ class TitleDump(Dump):
 		return ["all-titles-in-ns0.gz"]
 
 
-def findNextWikis(config):
-	"""Sort available wikis in reverse order of last dump."""
-	available = []
-	for db in config.dbList:
-		wiki = WikiDump.Wiki(config, db)
-		if not wiki.isLocked():
-			last = wiki.latestDump()
-			if last:
-				dumpDir = os.path.join(wiki.publicDir(), last)
-				try:
-					age = WikiDump.fileAge(dumpDir)
-					position = -1
-					available.append((age, db))
-				except:
-					print "dump dir %s vanished while looking at it!" % dumpDir
-			else:
-				available.append((sys.maxint, db))
-	available.sort()
-	available.reverse()
-	return [db for (age, db) in available]
-
 def findAndLockNextWiki(config):
-	next = findNextWikis(config)
+	next = config.dbListByAge()
+	next.reverse()
 	
 	for x in next:
 		print x

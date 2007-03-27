@@ -134,6 +134,27 @@ class Config(object):
 		
 		self.keep = conf.getint("cleanup", "keep")
 	
+	def dbListByAge(self):
+		"""Sort available wikis in reverse order of last dump."""
+		available = []
+		for db in self.dbList:
+			wiki = Wiki(self, db)
+			last = wiki.latestDump()
+			if last:
+				dumpDir = os.path.join(wiki.publicDir(), last)
+				try:
+					age = fileAge(dumpDir)
+				except:
+					print "dump dir %s vanished while looking at it!" % dumpDir
+					available.append((sys.maxint, db))
+				else:
+					position = -1
+					available.append((age, db))
+			else:
+				available.append((sys.maxint, db))
+		available.sort()
+		return [db for (age, db) in available]
+	
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
 		return readFile(template)

@@ -9,7 +9,7 @@ def generateIndex():
 	running = False
 	states = []
 	
-	for dbName in config.dbList:
+	for dbName in config.dbListByAge():
 		wiki = WikiDump.Wiki(config, dbName)
 		if wiki.isStale():
 			print dbName + " is stale"

@@ -7,5 +7,5 @@ while true; do
 	echo "Sweeping!"
 	python $WIKIDUMP_BASE/monitor.py
 	echo "sleeping"
-	sleep 30
+	sleep 15
 done
