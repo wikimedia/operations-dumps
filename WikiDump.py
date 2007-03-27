@@ -139,19 +139,15 @@ class Config(object):
 		available = []
 		for db in self.dbList:
 			wiki = Wiki(self, db)
+			age = sys.maxint
 			last = wiki.latestDump()
 			if last:
-				dumpDir = os.path.join(wiki.publicDir(), last)
+				dumpStatus = os.path.join(wiki.publicDir(), last, "status.html")
 				try:
-					age = fileAge(dumpDir)
+					age = fileAge(dumpStatus)
 				except:
-					print "dump dir %s vanished while looking at it!" % dumpDir
-					available.append((sys.maxint, db))
-				else:
-					position = -1
-					available.append((age, db))
-			else:
-				available.append((sys.maxint, db))
+					print "dump dir %s corrupt?" % dumpDir
+			available.append((age, db))
 		available.sort()
 		return [db for (age, db) in available]
 	
