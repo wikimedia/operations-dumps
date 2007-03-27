@@ -146,7 +146,7 @@ class Config(object):
 				try:
 					age = fileAge(dumpStatus)
 				except:
-					print "dump dir %s corrupt?" % dumpDir
+					print "dump dir %s corrupt?" % dumpStatus
 			available.append((age, db))
 		available.sort()
 		return [db for (age, db) in available]
