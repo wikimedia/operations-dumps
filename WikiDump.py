@@ -205,6 +205,9 @@ class Wiki(object):
 	def privateDir(self):
 		return os.path.join(self.config.privateDir, self.dbName)
 	
+	def webDir(self):
+		return "/".join((self.config.webRoot, self.dbName))
+	
 	# Actions!
 	
 	def lock(self):

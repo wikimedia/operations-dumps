@@ -170,6 +170,9 @@ class Runner(object):
 	def latestPath(self, filename):
 		return self.buildPath(self.wiki.publicDir(), "latest", filename)
 	
+	def webPath(self, filename):
+		return self.buildPath(self.wiki.webDir(), self.date, filename)
+	
 	def makeDir(self, dir):
 		if exists(dir):
 			self.debug("Checkdir dir %s ..." % dir)
@@ -404,7 +407,7 @@ class Runner(object):
 		filepath = self.publicPath(file)
 		if status == "done" and exists(filepath):
 			size = prettySize(getsize(filepath))
-			webpath = file
+			webpath = self.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
 		else:
 			return "<li class='missing'>%s</li>" % file
@@ -487,9 +490,9 @@ class Runner(object):
 	
 	def saveFeed(self, file):
 		self.makeDir(join(self.wiki.publicDir(), 'latest'))
-		webPath = "%s/%s/%s/" % (self.config.webRoot, self.dbName, self.date)
-		fileName = "%s-%s-%s" % (self.dbName, self.date, file)
-		filePath = webPath + fileName
+		filePath = self.webPath(file)
+		fileName = os.path.basename(filePath)
+		webPath = os.path.dirname(filePath)
 		rssText = self.config.readTemplate("feed.xml") % {
 			"chantitle": file,
 			"chanlink": webPath,
