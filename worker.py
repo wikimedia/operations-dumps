@@ -262,6 +262,7 @@ class Runner(object):
 			else:
 				for f in item.listFiles(self):
 					self.saveFeed(f)
+					self.checksum(f)
 				self.lastFailed = False
 
 		self.updateStatusFiles(done=True)
@@ -353,7 +354,7 @@ class Runner(object):
 			"status": self.reportStatusLine(done),
 			"previous": self.reportPreviousDump(done),
 			"items": html,
-			"checksum": "md5sums.txt"}
+			"checksum": self.webPath("md5sums.txt")}
 	
 	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
@@ -455,11 +456,10 @@ class Runner(object):
 		This will overwrite a previous run's output, if any."""
 		output = file(self.publicPath("md5sums.txt"), "w")
 	
-	def checksums(self, files):
-		"""Run checksums for a set of output files, and append to the list."""
+	def checksum(self, filename):
+		"""Run checksum for an output file, and append to the list."""
 		output = file(self.publicPath("md5sums.txt"), "a")
-		for filename in files:
-			self.saveChecksum(filename, output)
+		self.saveChecksum(filename, output)
 		output.close()
 	
 	def saveChecksum(self, file, output):
