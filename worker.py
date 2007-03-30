@@ -273,8 +273,15 @@ class Runner(object):
 		self.statusComplete()
 	
 	def cleanOldDumps(self):
-		# Keep the last few
-		old = self.wiki.dumpDirs()[:-(self.config.keep)]
+		old = self.wiki.dumpDirs()
+		if old:
+			if old[-1] == self.date:
+				# If we're re-running today's dump, don't count it as one
+				# of the old dumps to keep... or delete it halfway through!
+				old = old[:-1]
+			if self.config.keep > 0:
+				# Keep the last few
+				old = old[:-(self.config.keep)]
 		if old:
 			for dump in old:
 				self.status("Purging old dump %s for %s" % (dump, self.dbName))
