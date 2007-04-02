@@ -184,7 +184,7 @@ class Runner(object):
 		self.dbServer = self.defaultServer()
 	
 	def defaultServer(self):
-		command = "%s -q %s/maintenance/getSlaveServer.php %s" % shellEscape((
+		command = "%s -q %s/maintenance/getSlaveServer.php %s --group=dump" % shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
 		return self.runAndReturn(command).strip()
 	
