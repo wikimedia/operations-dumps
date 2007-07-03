@@ -261,6 +261,7 @@ class Runner(object):
 				self.lastFailed = True
 			else:
 				for f in item.listFiles(self):
+					self.saveSymlink(f)
 					self.saveFeed(f)
 					self.checksum(f)
 				self.lastFailed = False
@@ -477,12 +478,12 @@ class Runner(object):
 			output.write(checksum)
 	
 	def completeDump(self, files):
-		self.makeDir(join(self.wiki.publicDir(), 'latest'))
-		for file in files:
-			self.saveSymlink(file)
+		# FIXME: md5sums.txt won't be consistent with mixed data.
+		# Buuuuut life sucks, huh?
 		self.saveSymlink("md5sums.txt")
 	
 	def saveSymlink(self, file):
+		self.makeDir(join(self.wiki.publicDir(), 'latest'))
 		real = self.publicPath(file)
 		link = self.latestPath(file)
 		if exists(link) or os.path.islink(link):
