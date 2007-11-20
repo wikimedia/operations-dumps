@@ -695,14 +695,16 @@ class XmlDump(Dump):
   %s \
   %s \
   --report=1000 \
-  --server=%s""" % shellEscape((
+  --server=%s \
+  --spawn=%s""" % shellEscape((
 			runner.config.php,
 			runner.config.wikiDir,
 			runner.dbName,
 			stubOption,
 			prefetch,
 			runner.forceNormalOption(),
-			runner.dbServer))
+			runner.dbServer,
+			runner.config.php))
 		command = dumpCommand
 		return command
 	
