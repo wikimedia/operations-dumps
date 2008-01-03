@@ -47,10 +47,18 @@ def prettyDate(key):
 	return "-".join((key[0:4], key[4:6], key[6:8]))
 
 def dumpFile(filename, text):
-	"""Dump a string to a file."""
-	file = open(filename, "wt")
+	"""Dump a string to a file, as atomically as possible, via a temporary file in the same directory."""
+	
+	# I'd use os.tempnam() here but it whines about symlinks attacks.
+	tempFilename = filename + ".tmp"
+	
+	file = open(tempFilename, "wt")
 	file.write(text)
 	file.close()
+	
+	# This may fail across filesystems or on Windows.
+	# Of course nothing else will work on Windows. ;)
+	os.rename(tempFilename, filename)
 
 def readFile(filename):
 	file = open(filename, "r")
