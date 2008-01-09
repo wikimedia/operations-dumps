@@ -1,5 +1,6 @@
 # Worker process, does the actual dumping
 
+import getopt
 import md5
 import os
 import popen2
@@ -56,16 +57,22 @@ class BackupError(Exception):
 
 class Runner(object):
 	
-	def __init__(self, wiki):
+	def __init__(self, wiki, date=None, checkpoint=None):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
 		
-		self.date = WikiDump.today()
+		if date:
+			# Override, continuing a past dump?
+			self.date = date
+		else:
+			self.date = WikiDump.today()
 		wiki.setDate(self.date)
 		
 		self.failCount = 0
 		self.lastFailed = False
+		
+		self.checkpoint = checkpoint
 	
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo',
@@ -249,10 +256,18 @@ class Runner(object):
 		for item in self.items:
 			item.start(self)
 			self.updateStatusFiles()
-			try:
-				item.dump(self)
-			except Exception, ex:
-				self.debug("*** exception! " + str(ex))
+			if self.checkpoint and not item.matchCheckpoint(self.checkpoint):
+				self.debug("*** Skipping until we reach checkpoint...")
+				item.setStatus("done")
+				pass
+			else:
+				if self.checkpoint and item.matchCheckpoint(self.checkpoint):
+					self.debug("*** Reached checkpoint!")
+					self.checkpoint = None
+				try:
+					item.dump(self)
+				except Exception, ex:
+					self.debug("*** exception! " + str(ex))
 			if item.status == "failed":
 				if self.failCount < 1:
 					# Email the site administrator just once per database
@@ -557,6 +572,9 @@ class Dump(object):
 		sys.stderr.write(line)
 		self.progress = line.strip()
 		runner.updateStatusFiles()
+	
+	def matchCheckpoint(self, checkpoint):
+		return checkpoint == self.__class__.__name__
 
 class PublicTable(Dump):
 	"""Dump of a table using MySQL's mysqldump utility."""
@@ -576,6 +594,9 @@ class PublicTable(Dump):
 	
 	def listFiles(self, runner):
 		return [self._file()]
+	
+	def matchCheckpoint(self, checkpoint):
+		return checkpoint == self.__class__.__name__ + "." + self._table
 
 class PrivateTable(PublicTable):
 	"""Hidden table dumps for private data."""
@@ -716,7 +737,7 @@ class XmlDump(Dump):
 		dumps.sort()
 		dumps.reverse()
 		for date in dumps:
-			base = join(runner.wiki.publicDir(), date)
+			base = runner.wiki.publicDir()
 			old = runner.buildPath(base, date, bzfile)
 			print old
 			if exists(old):
@@ -734,6 +755,9 @@ class XmlDump(Dump):
 	
 	def listFiles(self, runner):
 		return [self._file("bz2")]
+	
+	def matchCheckpoint(self, checkpoint):
+		return checkpoint == self.__class__.__name__ + "." + self._subset
 
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
@@ -781,6 +805,9 @@ class XmlRecompressDump(Dump):
 		
 	def listFiles(self, runner):
 		return [self._file("7z")]
+	
+	def matchCheckpoint(self, checkpoint):
+		return checkpoint == self.__class__.__name__ + "." + self._subset
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
@@ -865,15 +892,32 @@ def findAndLockNextWiki(config):
 if __name__ == "__main__":
 	try:
 		config = WikiDump.Config()
+
+		date = None
+		checkpoint = None
+		forceLock = False
 		
-		if len(sys.argv) > 1:
-			wiki = WikiDump.Wiki(config, sys.argv[1])
+		(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
+			['date=', 'checkpoint=', 'force'])
+		for (opt, val) in options:
+			if opt == "--date":
+				date = val
+			elif opt == "--checkpoint":
+				checkpoint = val
+			elif opt == "--force":
+				forceLock = True
+		
+		if len(remainder) > 0:
+			wiki = WikiDump.Wiki(config, remainder[0])
+			if forceLock:
+				if wiki.isLocked():
+					wiki.unlock()
 			wiki.lock()
 		else:
 			wiki = findAndLockNextWiki(config)
 	
 		if wiki:
-			runner = Runner(wiki)
+			runner = Runner(wiki, date, checkpoint)
 			print "Running %s..." % wiki.dbName
 			runner.run()
 			wiki.unlock()
