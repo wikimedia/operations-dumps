@@ -877,6 +877,10 @@ class TitleDump(Dump):
 
 
 def findAndLockNextWiki(config):
+	if config.halt:
+		print "Dump process halted by config."
+		return None
+	
 	next = config.dbListByAge()
 	next.reverse()
 	
@@ -896,7 +900,7 @@ def findAndLockNextWiki(config):
 if __name__ == "__main__":
 	try:
 		config = WikiDump.Config()
-
+		
 		date = None
 		checkpoint = None
 		forceLock = False

@@ -91,6 +91,7 @@ class Config(object):
 			"privatelist": "",
 			"dir": "",
 			"forcenormal": "0",
+			"halt": "0",
 			#"output": {
 			"public": "/dumps/public",
 			"private": "/dumps/private",
@@ -120,6 +121,7 @@ class Config(object):
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
 		self.wikiDir = conf.get("wiki", "dir")
 		self.forceNormal = conf.getint("wiki", "forceNormal")
+		self.halt = conf.getint("wiki", "halt")
 		
 		self.publicDir = conf.get("output", "public")
 		self.privateDir = conf.get("output", "private")
