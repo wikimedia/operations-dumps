@@ -695,7 +695,7 @@ class XmlDump(Dump):
 			bz2mode = "dbzip2"
 		else:
 			bz2mode = "bzip2"
-		return "--output=%s:%s" % shellEscape(bz2mode, xmlbz2)
+		return "--output=%s:%s" % shellEscape((bz2mode, xmlbz2))
 	
 	def buildCommand(self, runner):
 		"""Build the command line for the dump, minus output and filter options"""
