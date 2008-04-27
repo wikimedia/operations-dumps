@@ -210,6 +210,8 @@ class Runner(object):
 			PrivateTable("ipblocks", "Data for blocks of IP addresses, ranges, and users."),
 			PrivateTable("archive", "Deleted page and revision data."),
 			PrivateTable("updates", "Update dataset for OAI updater system."),
+			# Need this one as well?
+			#PrivateTable("filearchive", "Deleted image data"),
 			
 			PublicTable("site_stats", "A few statistics such as the page count."),
 			PublicTable("image", "Metadata on current versions of uploaded images."),
@@ -223,9 +225,12 @@ class Runner(object):
 			PublicTable("interwiki", "Set of defined interwiki prefixes and links for this wiki."),
 			PublicTable("logging", "Data for various events (deletions, uploads, etc)."),
 			PublicTable("user_groups", "User group assignments."),
+			PublicTable("category", "Category information."),
 			
 			PublicTable("page", "Base per-page data (id, title, old restrictions, etc)."),
 			PublicTable("page_restrictions", "Newer per-page restrictions table."),
+			PublicTable("page_props", "Name/value pairs for pages."),
+			PublicTable("protected_titles", "Nonexistent pages that have been protected."),
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "Text blob storage. May be compressed, etc."), // ?
 			PublicTable("redirect", "Redirect list"),
