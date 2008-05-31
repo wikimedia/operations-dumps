@@ -172,7 +172,7 @@ class Config(object):
 					status = readFile(dumpStatus)
 				except:
 					print "dump dir %s corrupt?" % dumpStatus
-			dumpFailed = (status = '') or ('dump aborted' in status)
+			dumpFailed = (status == '') or ('dump aborted' in status)
 			available.append((dumpFailed, age, db))
 		available.sort()
 		return [db for (failed, age, db) in available]
