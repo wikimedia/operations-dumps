@@ -145,21 +145,37 @@ class Config(object):
 		self.keep = conf.getint("cleanup", "keep")
 	
 	def dbListByAge(self):
-		"""Sort available wikis in reverse order of last dump."""
+		"""
+			Sort wikis in reverse order of last successful dump :
+
+			Order is (DumpFailed, Age), and False < True :
+			First, wikis whose latest dump was successful, most recent dump first
+			Then, wikis whose latest dump failed, most recent dump first.
+
+			According to that sort, the last item of this list is, when applicable,
+			the oldest failed dump attempt.
+
+			If some error occurs checking a dump status, that dump is put last in the
+			list (sort value is (True, maxint) )
+		"""
 		available = []
 		for db in self.dbList:
 			wiki = Wiki(self, db)
+
 			age = sys.maxint
 			last = wiki.latestDump()
+			status = ''
 			if last:
 				dumpStatus = os.path.join(wiki.publicDir(), last, "status.html")
 				try:
 					age = fileAge(dumpStatus)
+					status = readFile(dumpStatus)
 				except:
 					print "dump dir %s corrupt?" % dumpStatus
-			available.append((age, db))
+			dumpFailed = (status = '') or ('dump aborted' in status)
+			available.append((dumpFailed, age, db))
 		available.sort()
-		return [db for (age, db) in available]
+		return [db for (failed, age, db) in available]
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
