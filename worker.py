@@ -191,7 +191,7 @@ class Runner(object):
 		self.dbServer = self.defaultServer()
 	
 	def defaultServer(self):
-		command = "%s -q %s/maintenance/getSlaveServer.php %s --group=dump" % shellEscape((
+		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
 		return self.runAndReturn(command).strip()
 	
@@ -641,7 +641,8 @@ class XmlStub(Dump):
 			if exists(filename):
 				os.remove(filename)
 		command = """
-%s -q %s/maintenance/dumpBackup.php %s \
+%s -q %s/maintenance/dumpBackup.php \
+  --wiki=%s \
   --full \
   --stub \
   --report=10000 \
@@ -720,7 +721,8 @@ class XmlDump(Dump):
 			prefetch = None
 		
 		dumpCommand = """
-%s -q %s/maintenance/dumpTextPass.php %s \
+%s -q %s/maintenance/dumpTextPass.php \
+  --wiki=%s \
   %s \
   %s \
   %s \
@@ -823,7 +825,8 @@ class AbstractDump(Dump):
 	
 	def run(self, runner):
 		command = """
-%s -q %s/maintenance/dumpBackup.php %s \
+%s -q %s/maintenance/dumpBackup.php \
+  --wiki=%s \
   --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
   --current \
   --report=1000 \
