@@ -210,7 +210,8 @@ class Runner(object):
 			PrivateTable("ipblocks", "Data for blocks of IP addresses, ranges, and users."),
 			PrivateTable("archive", "Deleted page and revision data."),
 			PrivateTable("updates", "Update dataset for OAI updater system."),
-			# Need this one as well?
+			PrivateTable("logging", "Data for various events (deletions, uploads, etc)."),
+			#PrivateTable("oldimage", "Metadata on prior versions of uploaded images."),
 			#PrivateTable("filearchive", "Deleted image data"),
 			
 			PublicTable("site_stats", "A few statistics such as the page count."),
@@ -223,7 +224,6 @@ class Runner(object):
 			PublicTable("externallinks", "Wiki external URL link records."),
 			PublicTable("langlinks", "Wiki interlanguage link records."),
 			PublicTable("interwiki", "Set of defined interwiki prefixes and links for this wiki."),
-			PublicTable("logging", "Data for various events (deletions, uploads, etc)."),
 			PublicTable("user_groups", "User group assignments."),
 			PublicTable("category", "Category information."),
 			
@@ -246,6 +246,9 @@ class Runner(object):
 			XmlDump("meta-current",
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
+			XmlDump("logging",
+				"<big><b>Log events to all pages.</b></big>",
+				"This contains the log of actions performed on pages."),
 			BigXmlDump("meta-history",
 				"All pages with complete page edit history (.bz2)",
 				"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
@@ -631,13 +634,15 @@ class XmlStub(Dump):
 	def listFiles(self, runner):
 		return ["stub-meta-history.xml.gz",
 			"stub-meta-current.xml.gz",
-			"stub-articles.xml.gz"]
+			"stub-articles.xml.gz",
+			"logging.xml.gz"]
 	
 	def run(self, runner):
 		history = runner.publicPath("stub-meta-history.xml.gz")
 		current = runner.publicPath("stub-meta-current.xml.gz")
 		articles = runner.publicPath("stub-articles.xml.gz")
-		for filename in (history, current, articles):
+		logging = runner.publicPath("logging.xml.gz")
+		for filename in (history, current, articles, logging):
 			if exists(filename):
 				os.remove(filename)
 		command = """
@@ -664,6 +669,22 @@ class XmlStub(Dump):
 			history,
 			current,
 			articles))
+		runner.runCommand(command)
+		command = """
+%s -q %s/maintenance/dumpBackup.php \
+  --wiki=%s \
+  --logs \
+  --report=10000 \
+  %s \
+  --server=%s \
+  --output=gzip:%s \
+""" % shellEscape((
+			runner.config.php,
+			runner.config.wikiDir,
+			runner.dbName,
+			runner.forceNormalOption(),
+			runner.dbServer,
+			logging))
 		runner.runCommand(command, callback=self.progressCallback)
 
 class XmlDump(Dump):
