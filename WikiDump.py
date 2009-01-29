@@ -89,6 +89,7 @@ class Config(object):
 			#"wiki": {
 			"dblist": "",
 			"privatelist": "",
+			"biglist": "",
 			"dir": "",
 			"forcenormal": "0",
 			"halt": "0",
@@ -119,6 +120,12 @@ class Config(object):
 		
 		self.dbList = dbList(conf.get("wiki", "dblist"))
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
+		biglistFile = conf.get("wiki", "biglist")
+		if biglistFile:
+			self.bigList = dbList(biglistFile)
+		else:
+			self.bigList = []
+		
 		self.wikiDir = conf.get("wiki", "dir")
 		self.forceNormal = conf.getint("wiki", "forceNormal")
 		self.halt = conf.getint("wiki", "halt")
@@ -207,6 +214,9 @@ class Wiki(object):
 	
 	def isPrivate(self):
 		return self.dbName in self.config.privateList
+	
+	def isBig(self):
+		return self.dbName in self.config.bigList
 	
 	def isLocked(self):
 		return os.path.exists(self.lockFile())

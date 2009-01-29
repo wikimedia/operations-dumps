@@ -248,15 +248,19 @@ class Runner(object):
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
 			XmlDump("logging",
 				"<big><b>Log events to all pages.</b></big>",
-				"This contains the log of actions performed on pages."),
-			BigXmlDump("meta-history",
-				"All pages with complete page edit history (.bz2)",
-				"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-				"Suitable for archival and statistical use, most mirror sites won't want or need this."),
-			XmlRecompressDump("meta-history",
-				"All pages with complete edit history (.7z)",
-				"These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-				"Suitable for archival and statistical use, most mirror sites won't want or need this.")]
+				"This contains the log of actions performed on pages.")]
+		
+		if not self.wiki.isBig():
+			self.items.append(
+				BigXmlDump("meta-history",
+					"All pages with complete page edit history (.bz2)",
+					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
+					"Suitable for archival and statistical use, most mirror sites won't want or need this."))
+			self.items.append(
+				XmlRecompressDump("meta-history",
+					"All pages with complete edit history (.7z)",
+					"These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
+					"Suitable for archival and statistical use, most mirror sites won't want or need this."))
 		
 		files = self.listFilesFor(self.items)
 		self.prepareChecksums()
