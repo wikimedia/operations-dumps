@@ -151,6 +151,7 @@ class Config(object):
 			Order is (DumpFailed, Age), and False < True :
 			First, wikis whose latest dump was successful, most recent dump first
 			Then, wikis whose latest dump failed, most recent dump first.
+			Finally, wikis which have never been dumped.
 
 			According to that sort, the last item of this list is, when applicable,
 			the oldest failed dump attempt.
