@@ -831,12 +831,14 @@ class XmlRecompressDump(Dump):
 		# Clear prior 7zip attempts; 7zip will try to append an existing archive
 		if exists(xml7z):
 			os.remove(xml7z)
-		
-		command = "%s -dc < %s | %s a -si %s" % shellEscape((
+		 
+         # temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
+		command = "%s -dc < %s | %s a -si %s ; chmod 644 %s" % shellEscape((
 			runner.config.bzip2,
 			xmlbz2,
 			runner.config.sevenzip,
-			xml7z));
+			xml7z,
+            xml7z));
 		return runner.runCommand(command, callback=self.progressCallback)
 		
 	def listFiles(self, runner):
