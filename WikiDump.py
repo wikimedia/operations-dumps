@@ -3,6 +3,7 @@ import email.MIMEText
 import os
 import re
 import smtplib
+import socket
 import sys
 import threading
 import time
@@ -256,7 +257,7 @@ class Wiki(object):
 				if not os.path.isdir(self.privateDir()):
 					raise
 		f = atomicCreate(self.lockFile(), "w")
-		f.write("%s.%d" % (os.getenv("HOSTNAME"), os.getpid()))
+		f.write("%s %d\n" % (socket.getfqdn(), os.getpid()))
 		f.close()
 		
 		self.watchdog = LockWatchdog(self.lockFile())
