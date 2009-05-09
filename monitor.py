@@ -15,7 +15,10 @@ def generateIndex():
 			print dbName + " is stale"
 			wiki.cleanupStaleLock()
 		if wiki.isLocked():
-			print dbName + " is locked"
+                    f = open( wiki.lockFile(), 'r' )
+                    (host, pid) = f.readline().split(" ") 
+                    f.close()
+                    print dbName, "is locked by pid", pid, "on", host 
 		running = running or wiki.isLocked()
 		states.append(wiki.statusLine())
 	

@@ -257,7 +257,7 @@ class Wiki(object):
 				if not os.path.isdir(self.privateDir()):
 					raise
 		f = atomicCreate(self.lockFile(), "w")
-		f.write("%s %d\n" % (socket.getfqdn(), os.getpid()))
+		f.write("%s %d" % (socket.getfqdn(), os.getpid()))
 		f.close()
 		
 		self.watchdog = LockWatchdog(self.lockFile())
