@@ -341,10 +341,13 @@ class Runner(object):
 	
 	def saveStatus(self, items, done=False):
 		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
-		self.wiki.writeIndex(self.reportStatus(items, done))
-		
-		# Short line for report extraction
-		self.wiki.writeStatus(self.reportDatabase(items, done))
+                try:
+                        self.wiki.writeIndex(self.reportStatus(items, done))
+                        
+                        # Short line for report extraction
+                        self.wiki.writeStatus(self.reportDatabase(items, done))
+                except:
+                        print "Couldn't update status files. Continuing anyways"
 	
 	def progressReports(self):
 		status = {}
