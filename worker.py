@@ -444,7 +444,10 @@ class Runner(object):
 	
 	def reportFile(self, file, status):
 		filepath = self.publicPath(file)
-		if status == "done" and exists(filepath):
+               if status == "in-progress" and exists (filepath):
+                        size = prettySize(getsize(filepath))
+                        return "<li class='file'>%s %s (written) </li>" % (file, size)
+               elif status == "done" and exists(filepath):
 			size = prettySize(getsize(filepath))
 			webpath = self.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
