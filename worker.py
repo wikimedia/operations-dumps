@@ -100,7 +100,7 @@ class Runner(object):
 	
 	def saveSql(self, query, outfile):
 		"""Pass some SQL commands to the server for this DB and save output to a file."""
-		command = "echo %s | mysql -h %s -u %s %s %s | gzip" % shellEscape((
+		command = "echo %s | mysql -h %s -u %s %s %s -r | gzip" % shellEscape((
 			query,
 			self.dbServer,
 			self.config.dbUser,
