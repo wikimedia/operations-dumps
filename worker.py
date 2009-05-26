@@ -246,9 +246,7 @@ class Runner(object):
 			XmlDump("meta-current",
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
-			XmlDump("logging",
-				"<big><b>Log events to all pages.</b></big>",
-				"This contains the log of actions performed on pages.")]
+			XmlLogging("Pull out all logging data")]
 		
 		if not self.wiki.isBig():
 			self.items.append(
@@ -341,13 +339,13 @@ class Runner(object):
 	
 	def saveStatus(self, items, done=False):
 		"""Write out an HTML file with the status for this wiki's dump and links to completed files."""
-                try:
-                        self.wiki.writeIndex(self.reportStatus(items, done))
-                        
-                        # Short line for report extraction
-                        self.wiki.writeStatus(self.reportDatabase(items, done))
-                except:
-                        print "Couldn't update status files. Continuing anyways"
+		try: 
+			self.wiki.writeIndex(self.reportStatus(items, done))
+		
+			# Short line for report extraction
+			self.wiki.writeStatus(self.reportDatabase(items, done))
+		except:
+			print "Couldn't update status files. Continuing anyways"
 	
 	def progressReports(self):
 		status = {}
@@ -442,12 +440,13 @@ class Runner(object):
 		html += "</li>"
 		return html
 	
+	# Report on the file size & status of the current output and output a link if were done 
 	def reportFile(self, file, status):
 		filepath = self.publicPath(file)
-                if status == "in-progress" and exists (filepath):
-                        size = prettySize(getsize(filepath))
-                        return "<li class='file'>%s %s (written) </li>" % (file, size)
-                elif status == "done" and exists(filepath):
+		if status == "in-progress" and exists (filepath):
+			size = prettySize(getsize(filepath))
+			return "<li class='file'>%s %s (written) </li>" % (file, size)
+		elif status == "done" and exists(filepath):
 			size = prettySize(getsize(filepath))
 			webpath = self.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
@@ -644,15 +643,13 @@ class XmlStub(Dump):
 	def listFiles(self, runner):
 		return ["stub-meta-history.xml.gz",
 			"stub-meta-current.xml.gz",
-			"stub-articles.xml.gz",
-			"logging.xml.gz"]
+			"stub-articles.xml.gz",]
 	
 	def run(self, runner):
 		history = runner.publicPath("stub-meta-history.xml.gz")
 		current = runner.publicPath("stub-meta-current.xml.gz")
 		articles = runner.publicPath("stub-articles.xml.gz")
-		logging = runner.publicPath("logging.xml.gz")
-		for filename in (history, current, articles, logging):
+		for filename in (history, current, articles):
 			if exists(filename):
 				os.remove(filename)
 		command = """
@@ -679,7 +676,24 @@ class XmlStub(Dump):
 			history,
 			current,
 			articles))
-		runner.runCommand(command)
+		runner.runCommand(command, callback=self.progressCallback) 
+
+class XmlLogging(Dump):
+	""" Create a logging dump of all page activity """
+	
+	def description(self):
+		return "<big><b>Log events to all pages.</big></b>"
+	
+	def detail(self):
+		return "This contains the log of actions performed on pages."
+	
+	def listFiles(self, runner):
+		return ["pages-logging.xml.gz"]
+	
+	def run(self, runner):
+		logging = runner.publicPath("pages-logging.xml.gz")
+		if exists(logging):
+			os.remove(logging)
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
   --wiki=%s \
@@ -837,14 +851,15 @@ class XmlRecompressDump(Dump):
 		# Clear prior 7zip attempts; 7zip will try to append an existing archive
 		if exists(xml7z):
 			os.remove(xml7z)
-		 
-         # temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
-		command = "%s -dc < %s | %s a -si %s ; chmod 644 %s" % shellEscape((
+		
+		# temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
+		command = "%s -dc < %s | %s a -si %s ; chmod 644 %s" % shellEscape(( 
 			runner.config.bzip2,
 			xmlbz2,
 			runner.config.sevenzip,
 			xml7z,
-            xml7z));
+			xml7z));
+
 		return runner.runCommand(command, callback=self.progressCallback)
 		
 	def listFiles(self, runner):
@@ -924,9 +939,8 @@ def findAndLockNextWiki(config):
 	
 	next = config.dbListByAge()
 	next.reverse()
-	
-	for x in next:
-		print x
+
+	print "Finding oldest unlocked wiki..."
 	
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
