@@ -251,7 +251,7 @@ class Wiki(object):
 	def lock(self):
 		if not os.path.isdir(self.privateDir()):
 			try:
-				os.mkdir(self.privateDir())
+				os.makedirs(self.privateDir())
 			except:
 				# Maybe it was just created (race condition)?
 				if not os.path.isdir(self.privateDir()):
