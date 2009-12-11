@@ -390,7 +390,8 @@ class Runner(object):
 			"status": self.reportStatusLine(done),
 			"previous": self.reportPreviousDump(done),
 			"items": html,
-			"checksum": self.webPath("md5sums.txt")}
+			"checksum": self.webPath("md5sums.txt"),
+			"index": self.config.index}
 	
 	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
