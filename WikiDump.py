@@ -126,7 +126,7 @@ class Config(object):
 			self.bigList = dbList(biglistFile)
 		else:
 			self.bigList = []
-		flaggedRevsFile = conf.get("wiki", "flaggedrevs")
+		flaggedRevsFile = conf.get("wiki", "flaggedrevslist")
 		if flaggedRevsFile:
 			self.flaggedRevsList = dbList(flaggedRevsFile)
 		else:
@@ -225,7 +225,7 @@ class Wiki(object):
 		return self.dbName in self.config.bigList
 
 	def hasFlaggedRevs(self):
-		retrn self.dbName in self.config.flaggedRevsList
+		return self.dbName in self.config.flaggedRevsList
 	
 	def isLocked(self):
 		return os.path.exists(self.lockFile())
