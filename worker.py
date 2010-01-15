@@ -247,7 +247,11 @@ class Runner(object):
 				"All pages, current versions only.",
 				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
 			XmlLogging("Pull out all logging data")]
-		
+		if self.wiki.hasFlaggedRevs():
+			self.items.append(
+				PublicTable( "flaggedpages", "Has a row for each flagged article, containing which revision is stable revision, if the lastest edit was flagged, how long edits have been pending" ),
+				PublicTable( "flaggedrevs", "Every flagged revision has a row, containing who flagged it, when it was flagged, any reviewer comments, the flag values, the quality tier those flags fall under, and such." ))			
+
 		if not self.wiki.isBig():
 			self.items.append(
 				BigXmlDump("meta-history",
