@@ -90,7 +90,7 @@ class Runner(object):
 	
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
-		command = "mysqldump -h %s -u %s %s --opt --quote-names %s %s | gzip" % shellEscape((
+		command = "mysqldump -h %s -u %s %s --extended-insert --skip-opt --quick --create-options --add-drop-table --extended-insert --set-charset  --quote-names  %s %s | gzip" % shellEscape((
 			self.dbServer,
 			self.config.dbUser,
 			self.passwordOption(),
