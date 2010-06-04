@@ -88,6 +88,12 @@ class Runner(object):
 		else:
 			return ""
 	
+	def getDBTablePrefix(self):
+		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
+		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
+			self.config.php, self.config.wikiDir, self.dbName))
+		return self.runAndReturn(command).strip()
+
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
 		command = "mysqldump -h %s -u %s %s --extended-insert --skip-opt --quick --create-options --add-drop-table --extended-insert --set-charset  --quote-names  %s %s | gzip" % shellEscape((
@@ -95,7 +101,7 @@ class Runner(object):
 			self.config.dbUser,
 			self.passwordOption(),
 			self.dbName,
-			table))
+			self.getDBTablePrefix() + table))
 		return self.saveCommand(command, outfile, pipe=True)
 	
 	def saveSql(self, query, outfile):
