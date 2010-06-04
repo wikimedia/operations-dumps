@@ -57,7 +57,7 @@ class BackupError(Exception):
 
 class Runner(object):
 	
-	def __init__(self, wiki, date=None, checkpoint=None):
+	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -248,10 +248,10 @@ class Runner(object):
 			XmlStub("First-pass for page XML data dumps"),
 			XmlDump("articles",
 				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want."),
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.", prefetch),
 			XmlDump("meta-current",
 				"All pages, current versions only.",
-				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material."),
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", prefetch),
 			XmlLogging("Pull out all logging data")]
 		if self.wiki.hasFlaggedRevs():
 			self.items.append(
@@ -263,7 +263,7 @@ class Runner(object):
 				BigXmlDump("meta-history",
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this."))
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", prefetch))
 			self.items.append(
 				XmlRecompressDump("meta-history",
 					"All pages with complete edit history (.7z)",
@@ -724,11 +724,12 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, desc, detail):
+	def __init__(self, subset, desc, detail, prefetch):
 		Dump.__init__(self, desc)
 		self._subset = subset
 		self._detail = detail
-	
+		self._prefetch = prefetch
+
 	def detail(self):
 		"""Optionally return additional text to appear under the heading."""
 		return self._detail
@@ -768,7 +769,10 @@ class XmlDump(Dump):
 		
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
-		source = self._findPreviousDump(runner)
+		if self._prefetch:
+			source = self._findPreviousDump(runner)
+		else:
+			source = None
 		if source and exists(source):
 			runner.status("... building %s XML dump, with text prefetch from %s..." % (self._subset, source))
 			prefetch = "--prefetch=bzip2:%s" % (source)
@@ -970,9 +974,10 @@ if __name__ == "__main__":
 		date = None
 		checkpoint = None
 		forceLock = False
-		
+		prefetch = True
+
 		(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-			['date=', 'checkpoint=', 'force'])
+			['date=', 'checkpoint=', 'force', 'noprefetch'])
 		for (opt, val) in options:
 			if opt == "--date":
 				date = val
@@ -980,7 +985,9 @@ if __name__ == "__main__":
 				checkpoint = val
 			elif opt == "--force":
 				forceLock = True
-		
+			elif opt == "--noprefetch":
+				prefetch = False
+
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
 			if forceLock:
@@ -991,7 +998,7 @@ if __name__ == "__main__":
 			wiki = findAndLockNextWiki(config)
 	
 		if wiki:
-			runner = Runner(wiki, date, checkpoint)
+			runner = Runner(wiki, date, checkpoint, prefetch)
 			print "Running %s..." % wiki.dbName
 			runner.run()
 			wiki.unlock()
