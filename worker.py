@@ -57,7 +57,7 @@ class BackupError(Exception):
 
 class Runner(object):
 	
-	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True):
+	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -248,10 +248,10 @@ class Runner(object):
 			XmlStub("First-pass for page XML data dumps"),
 			XmlDump("articles",
 				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want.", prefetch),
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.", prefetch, spawn),
 			XmlDump("meta-current",
 				"All pages, current versions only.",
-				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", prefetch),
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", prefetch, spawn),
 			XmlLogging("Pull out all logging data")]
 		if self.wiki.hasFlaggedRevs():
 			self.items.append(
@@ -263,7 +263,7 @@ class Runner(object):
 				BigXmlDump("meta-history",
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this.", prefetch))
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", prefetch, spawn))
 			self.items.append(
 				XmlRecompressDump("meta-history",
 					"All pages with complete edit history (.7z)",
@@ -724,11 +724,12 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, desc, detail, prefetch):
+	def __init__(self, subset, desc, detail, prefetch, spawn):
 		Dump.__init__(self, desc)
 		self._subset = subset
 		self._detail = detail
 		self._prefetch = prefetch
+		self._spawn = spawn
 
 	def detail(self):
 		"""Optionally return additional text to appear under the heading."""
@@ -779,7 +780,12 @@ class XmlDump(Dump):
 		else:
 			runner.status("... building %s XML dump, no text prefetch..." % self._subset)
 			prefetch = None
-		
+
+		if self._spawn:
+			spawn = "--spawn=%s" % (runner.config.php)
+		else:
+			spawn = None
+
 		dumpCommand = """
 %s -q %s/maintenance/dumpTextPass.php \
   --wiki=%s \
@@ -788,7 +794,7 @@ class XmlDump(Dump):
   %s \
   --report=1000 \
   --server=%s \
-  --spawn=%s""" % shellEscape((
+  %s""" % shellEscape((
 			runner.config.php,
 			runner.config.wikiDir,
 			runner.dbName,
@@ -796,7 +802,7 @@ class XmlDump(Dump):
 			prefetch,
 			runner.forceNormalOption(),
 			runner.dbServer,
-			runner.config.php))
+			spawn))
 		command = dumpCommand
 		return command
 	
@@ -975,9 +981,10 @@ if __name__ == "__main__":
 		checkpoint = None
 		forceLock = False
 		prefetch = True
+		spawn = True
 
 		(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-			['date=', 'checkpoint=', 'force', 'noprefetch'])
+			['date=', 'checkpoint=', 'force', 'noprefetch', 'nospawn'])
 		for (opt, val) in options:
 			if opt == "--date":
 				date = val
@@ -987,6 +994,8 @@ if __name__ == "__main__":
 				forceLock = True
 			elif opt == "--noprefetch":
 				prefetch = False
+			elif opt == "--nospawn":
+				spawn = False
 
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
@@ -998,7 +1007,7 @@ if __name__ == "__main__":
 			wiki = findAndLockNextWiki(config)
 	
 		if wiki:
-			runner = Runner(wiki, date, checkpoint, prefetch)
+			runner = Runner(wiki, date, checkpoint, prefetch, spawn)
 			print "Running %s..." % wiki.dbName
 			runner.run()
 			wiki.unlock()
