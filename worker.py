@@ -255,7 +255,8 @@ class Runner(object):
 			XmlLogging("Pull out all logging data")]
 		if self.wiki.hasFlaggedRevs():
 			self.items.append(
-				PublicTable( "flaggedpages", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending." ),
+				PublicTable( "flaggedpages", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending." ))
+			self.items.append(
 				PublicTable( "flaggedrevs", "This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under." ))			
 
 		if not self.wiki.isBig():
