@@ -61,6 +61,8 @@ class Runner(object):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
+		self.prefetch = prefetch
+		self.spawn = spawn
 		
 		if date:
 			# Override, continuing a past dump?
@@ -248,10 +250,10 @@ class Runner(object):
 			XmlStub("First-pass for page XML data dumps"),
 			XmlDump("articles",
 				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want.", prefetch, spawn),
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self.prefetch, self.spawn),
 			XmlDump("meta-current",
 				"All pages, current versions only.",
-				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", prefetch, spawn),
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.prefetch, self.spawn),
 			XmlLogging("Pull out all logging data")]
 		if self.wiki.hasFlaggedRevs():
 			self.items.append(
@@ -264,7 +266,7 @@ class Runner(object):
 				BigXmlDump("meta-history",
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this.", prefetch, spawn))
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self.prefetch, self.spawn))
 			self.items.append(
 				XmlRecompressDump("meta-history",
 					"All pages with complete edit history (.7z)",
