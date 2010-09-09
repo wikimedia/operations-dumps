@@ -100,6 +100,7 @@ class Config(object):
 			"webroot": "http://localhost/dumps",
 			"index": "index.html",
 			"templatedir": home,
+			"perdumpindex": "index.html",
 			#"reporting": {
 			"adminmail": "root@localhost",
 			"mailfrom": "root@localhost",
@@ -109,10 +110,16 @@ class Config(object):
 			"user": "root",
 			"password": "",
 			#"tools": {
-			"php": "php",
-			"bzip2": "bzip2",
-			"sevenzip": "7za",
-			"mysql": "mysql",
+			"php": "/bin/php",
+			"gzip2": "/usr/bin/gzip",
+			"bzip2": "/usr/bin/bzip2",
+			"sevenzip": "/bin/7za",
+			"mysql": "/usr/bin/mysql",
+			"mysqldump": "/usr/bin/mysqldump",
+			"head": "/usr/bin/head",
+			"tail": "/usr/bin/tail",
+			"cat": "/bin/cat",
+			"grep": "/bin/grep",
 			#"cleanup": {
 			"keep": "3",
 			}
@@ -141,6 +148,7 @@ class Config(object):
 		self.webRoot = conf.get("output", "webroot")
 		self.index = conf.get("output", "index")
 		self.templateDir = conf.get("output", "templateDir")
+		self.perDumpIndex = conf.get("output", "perdumpindex")
 		
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
@@ -151,10 +159,16 @@ class Config(object):
 		self.dbPassword = conf.get("database", "password")
 		
 		self.php = conf.get("tools", "php")
+		self.gzip = conf.get("tools", "gzip")
 		self.bzip2 = conf.get("tools", "bzip2")
 		self.sevenzip = conf.get("tools", "sevenzip")
 		self.mysql = conf.get("tools", "mysql")
-		
+		self.mysqldump = conf.get("tools", "mysqldump")
+		self.head = conf.get("tools", "head")
+		self.tail = conf.get("tools", "tail")
+		self.cat = conf.get("tools", "cat")
+		self.grep = conf.get("tools", "grep")
+
 		self.keep = conf.getint("cleanup", "keep")
 	
 	def dbListByAge(self):
@@ -289,9 +303,13 @@ class Wiki(object):
 				"<span class=\"failed\">dump aborted</span>"))
 		self.unlock()
 	
-	def writeIndex(self, html):
-		index = os.path.join(self.publicDir(), self.date, "index.html")
+	def writePerDumpIndex(self, html):
+		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
 		dumpFile(index, html)
+	
+	def existsPerDumpIndex(self):
+		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
+		return os.path.exists(index)
 	
 	def writeStatus(self, message):
 		index = os.path.join(self.publicDir(), self.date, "status.html")
