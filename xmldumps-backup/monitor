@@ -1,0 +1,11 @@
+#!/bin/bash
+
+WIKIDUMP_BASE=`dirname "$0"`
+
+while true; do
+	echo ""
+	echo "Sweeping!"
+	python $WIKIDUMP_BASE/monitor.py
+	echo "sleeping"
+	sleep 15
+done
