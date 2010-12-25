@@ -419,7 +419,7 @@ class Runner(object):
 
 		self.checkpoint = checkpoint
 
-		self.jobRequested = jobRequested
+		self.jobRequested = job
 		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
 		self.checksums = Checksummer(self.wiki, self.dumpDir)
 		# some or all of these dumpItems will be marked to run
