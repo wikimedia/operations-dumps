@@ -228,7 +228,7 @@ class Config(object):
 				try:
 					# tack on the file age so that if we have multiple wikis
 					# dumped on the same day, they get ordered properly
-					age = last . fileAge(dumpStatus)
+					age = "%s%s" % (last, fileAge(dumpStatus))
 					status = readFile(dumpStatus)
 				except:
 					print "dump dir %s corrupt?" % dumpStatus
