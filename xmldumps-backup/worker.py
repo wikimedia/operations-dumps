@@ -1681,7 +1681,7 @@ class XmlRecompressDump(Dump):
 	def _path(self, runner, ext, chunk=0):
 		return runner.dumpDir.publicPath(self._file(ext,chunk))
 
-	def getOutputFilename(self, runner, chunk):
+	def getOutputFilename(self, runner, chunk=0):
 		if (chunk):
 			xml7z = self._path(runner, "7z", chunk)
 		else:
