@@ -12,6 +12,7 @@ import select
 import shutil
 import stat
 import signal
+import errno
 import WikiDump
 import CommandManagement
 
@@ -45,6 +46,135 @@ def relativePath(path, base):
 
 def xmlEscape(text):
 	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+# so if the pages/revsPerChunkAbstract/History are just one number it means
+# use that number for all the chunks, figure out yourself how many.
+# otherwise we get passed alist that says "here's now many for each chunk and it's this many chunks. 
+# extra pages/revs go in the last chunk, stuck on the end. too bad. :-P
+class Chunk(object, ):
+	def __init__(self, wiki, dbName):
+
+		self._dbName = dbName
+		self._chunksEnabled = wiki.config.chunksEnabled
+		self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkHistory)
+		self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.revsPerChunkHistory)
+		self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkAbstract)
+
+		if (self._chunksEnabled):
+			self.Stats = PageAndEditStats(wiki,dbName)
+
+			if (self._revsPerChunkHistory):
+				if (len(self._revsPerChunkHistory) == 1):
+					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(totalEdits, self._pagesPerChunkHistory)
+					self._revsPerChunkHistory = [ self._revsPerChunkHistory[0] for i in range(self._numChunksHistory)]
+				else:
+					self._numChunksHistory = len(self._revsPerChunkHistory)
+				# here we should generate the number of pages per chunk based on number of revs.
+				# ...next code update! FIXME
+				# self._pagesPerChunkHistory = ....
+			elif (self._pagesPerChunkHistory):
+				if (len(self._pagesPerChunkHistory) == 1):
+					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(totalPages, self._pagesPerChunkHistory)
+					self._pagesPerChunkHistory = [ self._pagesPerChunkHistory[0] for i in range(self._numChunksHistory)]
+				else:
+					self._numChunksHistory = len(self._pagesPerChunkHistory)
+			else:
+				self._numChunksHistory = 0
+
+			if (self._pagesPerChunkAbstract):
+				if (len(self._pagesPerChunkAbstract) == 1):
+					self._numChunksAbstract = self.getNumberOfChunksForXMLDumps(totalPages, self._pagesPerChunkAbstract)
+					self._pagesPerChunkAbstract = [ self._pagesPerChunkAbstract[0] for i in range(self._numChunksAbstract)]
+				else:
+					self._numChunksAbstract = len(self._pagesPerChunkAbstract)
+			else:
+				self._numChunksAbstract = 0
+
+	def convertCommaSepLineToNumbers(self, line):
+		if (line == ""):
+			return(False)
+		result = line.split(',')
+		numbers = []
+		for field in result:
+			field = field.strip()
+			numbers.append(int(field))
+		return(numbers)
+
+	def getPagesPerChunkAbstract(self):
+		return self._pagesPerChunkAbstract
+
+	def getNumChunksAbstract(self):
+		return self._numChunksAbtsract
+
+	def getPagesPerChunkHistory(self):
+		return self._pagesPerChunkHistory
+
+	def getNumChunksHistory(self):
+		return self._numChunksHistory
+
+	def chunksEnabled(self):
+		return self._chunksEnabled
+
+	# args: total (pages or revs), and the number of (pages or revs) per chunk.
+	def getNumberOfChunksForXMLDumps(self, total, perChunk):
+		if (not total):
+			# default: no chunking.
+			return 0
+		else:
+			chunks = int(total/perChunk)
+			# more smaller chunks are better, we want speed
+			if (total - (chunks * perChunk)) > 0:
+				chunks = chunks + 1
+			if chunks == 1:
+				return 0
+			return chunks
+
+class PageAndEditStats(object):
+	def __init__(self, wiki, dbName):
+		self.totalPages = None
+		self.totalEdits = None
+		self.config = wiki.config
+		self.dbName = dbName
+		(totalPages, totalEdits) = self.getStatistics(config,dbName)
+
+	def getStatistics(self, config,dbName):
+		"""Get (cached) statistics for the wiki"""
+		totalPages = None
+		totalEdits = None
+		statsCommand = """%s -q %s/maintenance/showStats.php --wiki=%s """ % shellEscape((
+			self.config.php, self.config.wikiDir, self.dbName))
+		# FIXME runAndReturn?  defined somewhere else
+		results = self.runAndReturn(statsCommand)
+		lines = results.splitlines()
+		if (lines):
+			for line in lines:
+				(name,value) = line.split(':')
+				name = name.replace(' ','')
+				value = value.replace(' ','')
+				if (name == "Totalpages"):
+					totalPages = int(value)
+				elif (name == "Totaledits"):
+					totalEdits = int(value)
+		return(totalPages, totalEdits)
+
+	def getTotalPages(self):
+		return self.totalPages
+
+	def getTotalEdits(self):
+		return self.totalEdits
+
+	# FIXME should rewrite this I guess and also move it elsewhere, phooey
+	def runAndReturn(self, command):
+		"""Run a command and return the output as a string.
+		Raises BackupError on non-zero return code."""
+		# FIXME convert all these calls so they just use runCommand now
+		proc = popen2.Popen4(command, 64)
+		output = proc.fromchild.read()
+		retval = proc.wait()
+		if retval:
+			raise BackupError("Non-zero return code from '%s'" % command)
+		else:
+			return output
 
 class BackupError(Exception):
 	pass
@@ -82,14 +212,15 @@ class RunInfo(object):
 
 class DumpItemList(object):
 	
-	def __init__(self, wiki, prefetch, spawn, date, chunks):
+	def __init__(self, wiki, prefetch, spawn, date, chunkInfo):
 		self.date = date
 		self.wiki = wiki
 		self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
 		self._isBig = self.wiki.isBig()
 		self._prefetch = prefetch
 		self._spawn = spawn
-		self._chunks = chunks
+		self.chunkInfo = chunkInfo
+
 		self.dumpItems = [PrivateTable("user", "usertable", "User account data."),
 			PrivateTable("watchlist", "watchlisttable", "Users' watchlist settings."),
 			PrivateTable("ipblocks", "ipblockstable", "Data for blocks of IP addresses, ranges, and users."),
@@ -122,36 +253,36 @@ class DumpItemList(object):
 
 			TitleDump("pagetitlesdump", "List of page titles"),
 
-			AbstractDump("abstractsdump","Extracted page abstracts for Yahoo", self._chunks)]
+			AbstractDump("abstractsdump","Extracted page abstracts for Yahoo", self.chunkInfo.getPagesPerChunkAbstract())]
 
-		if (self._chunks):
-			self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self._chunks))
+		if (self.chunkInfo.chunksEnabled()):
+			self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.chunkInfo.getPagesPerChunkAbstract()))
 
-		self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._chunks))
-		
-		if (self._chunks):
-			self.dumpItems.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self._chunks))
+		self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self.chunkInfo.getPagesPerChunkHistory()))
+		if (self.chunkInfo.chunksEnabled()):
+			self.dumpItems.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self.chunkInfo.getPagesPerChunkHistory()))
 
+		# NOTE that the chunkInfo thing passed here is irrelevant, these get generated from the stubs which are all done in one pass
 		self.dumpItems.append(
 			XmlDump("articles",
 				"articlesdump",
 				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self._prefetch, self._spawn, self._chunks))
-		if (self._chunks):
-			self.dumpItems.append(RecombineXmlDump("articles","articlesdumprecombine", "<big><b>Recombine articles, templates, image descriptions, and primary meta-pages.</b></big>","This contains current versions of article content, and is the archive most mirror sites will probably want.", self._chunks))
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
+		if (self.chunkInfo.chunksEnabled()):
+			self.dumpItems.append(RecombineXmlDump("articles","articlesdumprecombine", "<big><b>Recombine articles, templates, image descriptions, and primary meta-pages.</b></big>","This contains current versions of article content, and is the archive most mirror sites will probably want.", self.chunkInfo.getPagesPerChunkHistory()))
 
 		self.dumpItems.append(
 			XmlDump("meta-current",
 				"metacurrentdump",
 				"All pages, current versions only.",
-				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self._prefetch, self._spawn, self._chunks))
-
-		if (self._chunks):
-			self.dumpItems.append(RecombineXmlDump("meta-current","metacurrentdumprecombine", "Recombine all pages, current versions only.","Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self._chunks))
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
+			
+		if (self.chunkInfo.chunksEnabled()):
+			self.dumpItems.append(RecombineXmlDump("meta-current","metacurrentdumprecombine", "Recombine all pages, current versions only.","Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.chunkInfo.getPagesPerChunkHistory()))
 
 		self.dumpItems.append(
 			XmlLogging("Log events to all pages."))
-
+			
 		if self._hasFlaggedRevs:
 			self.dumpItems.append(
 				PublicTable( "flaggedpages", "flaggedpagestable","This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending." ))
@@ -164,20 +295,20 @@ class DumpItemList(object):
 					"metahistorybz2dump",
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._prefetch, self._spawn, self._chunks))
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
 			self.dumpItems.append(
 				XmlRecompressDump("meta-history",
 					"metahistory7zdump",
 					"All pages with complete edit history (.7z)",
 					"These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._chunks))
-			if (self._chunks):
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self.chunkInfo.getPagesPerChunkHistory()))
+			if (self.chunkInfo.chunksEnabled()):
 				self.dumpItems.append(
 					RecombineXmlRecompressDump("meta-history",
 								   "metahistory7zdumprecombine",
 								   "Recombine all pages with complete edit history (.7z)",
 								   "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-								   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self._chunks))
+								   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.chunkInfo.getPagesPerChunkHistory()))
 		self.oldRunInfoRetrieved = self._getOldRunInfoFromFile()
 
 
@@ -313,7 +444,7 @@ class DumpItemList(object):
 			if (not self.jobDoneSuccessfully("metacurrentdump")):
 				return False
 		if (job == "metahistory7zdumprecombine"):
-			if (not self.jobDoneSuccessfully("metahistory7zdumprecombine")):
+			if (not self.jobDoneSuccessfully("metahistory7zdump")):
 				return False
 		if (job == "metahistory7zdump"):
 			if (not self.jobDoneSuccessfully("xmlstubsdump") or not self.jobDoneSuccessfully("metahistorybz2dump")):
@@ -405,7 +536,7 @@ class Runner(object):
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
 		self.spawn = spawn
-		self._chunks = self.setNumberOfChunksForXMLDumps(self.dbName)
+		self.chunkInfo = Chunk(wiki, self.dbName)
 
 		if date:
 			# Override, continuing a past dump?
@@ -423,7 +554,7 @@ class Runner(object):
 		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
 		self.checksums = Checksummer(self.wiki, self.dumpDir)
 		# some or all of these dumpItems will be marked to run
-		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self._chunks);
+		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
 
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo',
@@ -496,26 +627,6 @@ class Runner(object):
 					totalEdits = int(value)
 		return(totalPages, totalEdits)
 
-	def pagesPerChunk(self):
-		# we are gonna say that chunks are 2 mill pages, it can always be adjusted later.
-		# last one might be 3 mill pages. 
-		return 2000000
-#		return 200
-
-	def setNumberOfChunksForXMLDumps(self, dbName):
-		(pages,edits) = self.getStatistics(dbName)
-		if (not pages):
-			# default: no chunking.
-			return 0
-		else:
-			chunks = int(pages/self.pagesPerChunk())
-			# more smaller chunks are better, we want speed
-			if pages - (chunks * self.pagesPerChunk()) > 0:
-				chunks = chunks + 1
-			if chunks == 1:
-				return 0
-			return chunks
-				      
 	# command series list: list of (commands plus args) is one pipeline. list of pipelines = 1 series. 
 	# this function wants a list of series.
 	# be a list (the command name and the various args)
@@ -789,18 +900,29 @@ class Runner(object):
 
 	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
+		# get the list of dumps for this wiki in order, find me in the list, find the one prev to me.
+		# why? we might be rerunning a job from an older dumps. we might have two
+		# runs going at once (think en pedia, one finishing up the history, another
+		# starting at the beginning to get the new abstracts and stubs).
+
 		try:
-			raw = self.wiki.latestDump(-2)
+			dumpsInOrder = self.wiki.latestDump(all=True)
+			meIndex = dumpsInOrder.index(self.date)
+			# don't wrap around to the newest dump in the list!
+			if (meIndex > 0):
+				rawDate = dumpsInOrder[meIndex-1]
+			else:
+				raise(ValueException)
 		except:
 			return "No prior dumps of this database stored."
-		date = WikiDump.prettyDate(raw)
+		prettyDate = WikiDump.prettyDate(rawDate)
 		if done:
 			prefix = ""
 			message = "Last dumped on"
 		else:
 			prefix = "This dump is in progress; see also the "
 			message = "previous dump from"
-		return "%s<a href=\"../%s/\">%s %s</a>" % (prefix, raw, message, date)
+		return "%s<a href=\"../%s/\">%s %s</a>" % (prefix, rawDate, message, prettyDate)
 				      
 	def reportStatusSummaryLine(self, done=False):
 		if (done == "done"):
@@ -925,7 +1047,7 @@ class Runner(object):
 			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
 		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
 		WikiDump.dumpFile(rssPath, rssText)
-				      
+
 class Dump(object):
 	def __init__(self, name, desc):
 		self._desc = desc
@@ -998,6 +1120,11 @@ class Dump(object):
 		runner.updateStatusFiles()
 		runner.dumpItemList.saveDumpRunInfoFile()
 
+	def timeToWait(self):
+		# we use wait this many secs for a command to complete that
+		# doesn't produce output
+		return 5
+
 	def waitAlarmHandler(self, signum, frame):
 		pass
 
@@ -1049,15 +1176,14 @@ class Dump(object):
 			recombine = " ".join(uncompressThisFile)
 			headerEndNum = int(headerEndNum) + 1
 			if (chunkNum == 1):
-				# skip footer
+				# first file, put header and contents
 				recombine = recombine + " | %s -n -1 " % headEsc
-			elif (chunkNum == self._chunks):
-				# skip header
+			elif (chunkNum == len(files)):
+				# last file, put footer
 				recombine = recombine + (" | %s -n +%s" % (tailEsc, headerEndNum))
 			else:
-				# skip header
+				# put contents only
 				recombine = recombine + (" | %s -n +%s" % (tailEsc, headerEndNum))
-				# skip footer
 				recombine = recombine + " | %s -n -1 " % head
 			recombines.append(recombine)
 		recombineCommandString = "(" + ";".join(recombines) + ")" + "|" + "%s %s" % (compressionCommand, outputFilename)
@@ -1105,7 +1231,7 @@ class XmlStub(Dump):
 	A second pass will import text from prior dumps or the database to make
 	full files for the public."""
 				      
-	def __init__(self, name, desc, chunks = None):
+	def __init__(self, name, desc, chunks = False):
 		Dump.__init__(self, name, desc)
 		self._chunks = chunks
 
@@ -1115,7 +1241,7 @@ class XmlStub(Dump):
 	def listFiles(self, runner, unnumbered=False):
 		if (self._chunks) and not unnumbered:
 		        files = []
-			for i in range(1, self._chunks + 1):
+			for i in range(1, len(self._chunks) + 1):
 				files.append("stub-meta-history%s.xml.gz" % i)
 				files.append("stub-meta-current%s.xml.gz" % i)
 				files.append("stub-articles%s.xml.gz" % i)
@@ -1149,13 +1275,15 @@ class XmlStub(Dump):
 			 if (chunk):
 				# set up start end end pageids for this piece
 				# note there is no page id 0 I guess. so we start with 1
-				start = runner.pagesPerChunk()*(chunk-1) + 1
+				# start = runner.pagesPerChunk()*(chunk-1) + 1
+				start = sum([ self._chunks[i] for i in range(0,chunk-1)]) + 1
 				startopt = "--start=%s" % start
 				# if we are on the last chunk, we should get up to the last pageid, 
 				# whatever that is. 
 				command.append(startopt)
-				if chunk < self._chunks:
-					end = start + runner.pagesPerChunk()
+				if chunk < len(self._chunks):
+					# end = start + runner.pagesPerChunk()
+					end = sum([ self._chunks[i] for i in range(0,chunk)]) +1
 					endopt = "--end=%s" % end
 					command.append(endopt)
 
@@ -1166,7 +1294,7 @@ class XmlStub(Dump):
 	def run(self, runner):
 		commands = []
 		if self._chunks:
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				series = self.buildCommand(runner, i)
 				commands.append(series)
 		else:
@@ -1210,16 +1338,22 @@ class RecombineXmlStub(XmlStub):
 					# these commands don't produce any progress bar... so we can at least
 					# update the size and last update time of the file once a minute
 					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(60)
-					recombinePipeline._lastProcessInPipe.wait()
+					signal.alarm(self.timeToWait())
+					try:
+						recombinePipeline._lastProcessInPipe.wait()
+						break
+					except Exception, e:
+						if e.errno == errno.EINTR:
+							pass
+						else:
+							raise
 					self.progressCallback(runner)
 					signal.alarm(0)
-					break
 
 class XmlLogging(Dump):
 	""" Create a logging dump of all page activity """
 
-	def __init__(self, desc, chunks = None):
+	def __init__(self, desc, chunks = False):
 		Dump.__init__(self, "xmlpagelogsdump", desc)
 		self._chunks = chunks
 
@@ -1246,7 +1380,7 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, name, desc, detail, prefetch, spawn, chunks = None):
+	def __init__(self, subset, name, desc, detail, prefetch, spawn, chunks = False):
 		Dump.__init__(self, name, desc)
 		self._subset = subset
 		self._detail = detail
@@ -1270,7 +1404,7 @@ class XmlDump(Dump):
 	def run(self, runner):
 		commands = []
 		if (self._chunks):
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				series = self.buildCommand(runner, i)
 				commands.append(series)
 		else:
@@ -1460,7 +1594,7 @@ class XmlDump(Dump):
 	def listFiles(self, runner, unnumbered = False):
 		if (self._chunks) and not unnumbered:
 			files = []
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				files.append(self._file("bz2",i))
 			return files
 		else:
@@ -1470,7 +1604,7 @@ class XmlDump(Dump):
 		return checkpoint == self.__class__.__name__ + "." + self._subset
 
 class RecombineXmlDump(XmlDump):
-	def __init__(self, subset, name, desc, detail, chunks = None):
+	def __init__(self, subset, name, desc, detail, chunks = False):
 		# no prefetch, no spawn
 		XmlDump.__init__(self, subset, name, desc, detail, None, None, chunks)
 		# this is here only so that a callback can capture output from some commands
@@ -1505,11 +1639,17 @@ class RecombineXmlDump(XmlDump):
 					# these commands don't produce any progress bar... so we can at least
 					# update the size and last update time of the file once a minute
 					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(60)
-					recombinePipeline._lastProcessInPipe.wait()
+					signal.alarm(self.timeToWait())
+					try:
+						recombinePipeline._lastProcessInPipe.wait()
+						break
+					except Exception, e:
+						if e.errno == errno.EINTR:
+							pass
+						else:
+							raise
 					self.progressCallback(runner)
 					signal.alarm(0)
-					break
 
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
@@ -1522,7 +1662,7 @@ class BigXmlDump(XmlDump):
 class XmlRecompressDump(Dump):
 	"""Take a .bz2 and recompress it as 7-Zip."""
 
-	def __init__(self, subset, name, desc, detail, chunks = None):
+	def __init__(self, subset, name, desc, detail, chunks = False):
 		Dump.__init__(self, name, desc)
 		self._subset = subset
 		self._detail = detail
@@ -1572,7 +1712,7 @@ class XmlRecompressDump(Dump):
 			raise BackupError("bz2 dump incomplete, not recompressing")
 		commands = []
 		if (self._chunks):
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				series = self.buildCommand(runner, i)
 				commands.append(series)
 		else:
@@ -1585,7 +1725,7 @@ class XmlRecompressDump(Dump):
 		# temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
 		# some hacks aren't so temporary - atg 3 sept 2010
 		if (self._chunks):
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				xml7z = self.getOutputFilename(runner,i)
 				if exists(xml7z):
 					os.chmod(xml7z, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH )
@@ -1598,7 +1738,7 @@ class XmlRecompressDump(Dump):
 	def listFiles(self, runner, unnumbered = False):
 		if (self._chunks) and not unnumbered:
 			files = []
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				files.append(self._file("7z",i))
 			return files
 		else:
@@ -1645,16 +1785,22 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 					# these commands don't produce any progress bar... so we can at least
 					# update the size and last update time of the file once a minute
 					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(60)
-					recombinePipeline._lastProcessInPipe.wait()
+					signal.alarm(self.timeToWait())
+					try:
+						recombinePipeline._lastProcessInPipe.wait()
+						break
+					except Exception, e:
+						if e.errno == errno.EINTR:
+							pass
+						else:
+							raise
 					self.progressCallback(runner)
 					signal.alarm(0)
-					break
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
 
-        def __init__(self, name, desc, chunks = None):
+        def __init__(self, name, desc, chunks = False):
 		Dump.__init__(self, name, desc)
 		self._chunks = chunks
 
@@ -1672,13 +1818,15 @@ class AbstractDump(Dump):
 			if (chunk):
 				# set up start end end pageids for this piece
 				# note there is no page id 0 I guess. so we start with 1
-				start = runner.pagesPerChunk()*(chunk-1) + 1
+				# start = runner.pagesPerChunk()*(chunk-1) + 1
+				start = sum([ self._chunks[i] for i in range(0,chunk-1)]) + 1
 				startopt = "--start=%s" % start
 				# if we are on the last chunk, we should get up to the last pageid, 
 				# whatever that is. 
 				command.append(startopt)
-				if chunk < self._chunks:
-					end = start + runner.pagesPerChunk()
+				if chunk < len(self._chunks):
+					# end = start + runner.pagesPerChunk()
+					end = sum([ self._chunks[i] for i in range(0,chunk)]) +1
 					endopt = "--end=%s" % end
 					command.append(endopt)
 		pipeline = [ command ]
@@ -1688,7 +1836,7 @@ class AbstractDump(Dump):
 	def run(self, runner):
 		commands = []
 		if (self._chunks):
-			for i in range(1, self._chunks+1):
+			for i in range(1, len(self._chunks)+1):
 				series = self.buildCommand(runner, i)
 				commands.append(series)
 		else:
@@ -1725,7 +1873,7 @@ class AbstractDump(Dump):
 		files = []
 		for x in self._variants(runner):
 			if (self._chunks) and not unnumbered:
-				for i in range(1, self._chunks+1):
+				for i in range(1, len(self._chunks)+1):
 					files.append(self._variantFile(x, i))
 			else:
 				files.append(self._variantFile(x))
@@ -1765,11 +1913,17 @@ class RecombineAbstractDump(AbstractDump):
 					# these commands don't produce any progress bar... so we can at least
 					# update the size and last update time of the file once a minute
 					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(60)
-					recombinePipeline._lastProcessInPipe.wait()
+					signal.alarm(self.timeToWait())
+					try:
+						recombinePipeline._lastProcessInPipe.wait()
+						break
+					except Exception, e:
+						if e.errno == errno.EINTR:
+							pass
+						else:
+							raise
 					self.progressCallback(runner)
 					signal.alarm(0)
-					break
 
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""

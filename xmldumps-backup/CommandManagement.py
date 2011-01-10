@@ -6,6 +6,8 @@ import time
 import subprocess
 import select
 import signal
+import Queue
+import thread
 
 from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
@@ -111,7 +113,9 @@ class CommandPipeline(object):
 			else:
 				stdoutOpt = PIPE
 
-			process = Popen( command, stdout=stdoutOpt, stdin=stdinOpt,
+			stderrOpt = PIPE
+
+			process = Popen( command, stdout=stdoutOpt, stdin=stdinOpt, stderr=stderrOpt,
 					 preexec_fn=self.subprocess_setup, shell= self._shell)
 			
 			if (command == self._commands[0]):
@@ -142,10 +146,10 @@ class CommandPipeline(object):
 		# will hang forever in the wait() on them.
 		self._processes.reverse()
 		for p in self._processes:
-#			print "DEBUG: trying to get return code for %s" %  p.pid
+			print "DEBUG: trying to get return code for %s" %  p.pid
 			self._exitValues.append(p.wait())
 			retcode = p.poll() 
-#			print "DEBUG: return code %s for %s" % (retcode, p.pid)
+			print "DEBUG: return code %s for %s" % (retcode, p.pid)
 		self._exitValues.reverse()
 		self._processes.reverse()
 		if (self.saveFile()):
@@ -154,8 +158,8 @@ class CommandPipeline(object):
 		
 	def isRunning(self):
 		"""Check if process is running."""
-		if (not self._lastProcessInPipe.poll()):
-			return(False)
+		# Note that poll() returns None if the process
+		# is not completed, or some value (may be 0) otherwise
 		if (self._lastProcessInPipe.poll() == None):
 			return(True)
 		else:
@@ -220,6 +224,7 @@ class CommandPipeline(object):
 		if (timeout == None):
 			fdReady = self._poller.poll()
 		else:
+			# FIXME so poll doesn't take an arg :-P ...?
 			fdReady = self._poller.poll(timeout)
 
 		if (fdReady):
@@ -240,8 +245,11 @@ class CommandPipeline(object):
 					# line, let it get written to the caller anyways...
 					# when we poll do we get a byte count of how much is available? no.
 					out = self._lastProcessInPipe.stdout.readline()
+
+					# DEBUG
 #					if (out):
 #						sys.stdout.write("DEBUG: got from %s out %s" % (self._lastCommandString, out))
+
 
 					signal.alarm(0)
 					return(out)
@@ -378,90 +386,115 @@ class CommandsInParallel(object):
 	pipelines), as well as a possible callback which is used to capture all output
 	from the various commmand series.  If the callback takes an argument other than
 	the line of output, it should be passed in the arg parameter (and it will be passed
-	to the callback function first before the output line).  If no callback is provided and the individual
-	pipelines are not provided with a file to save output, then output is written
-	to stderr."""
-	def __init__(self, commandSeriesList, callback = None, arg=None, quiet = False, shell = False, forceCallback = False ):
+	to the callback function first before the output line).  If no callback is provided 
+	and the individual pipelines are not provided with a file to save output, 
+	then output is written 	to stderr."""
+	def __init__(self, commandSeriesList, callback = None, arg=None, quiet = False, shell = False ):
 		self._commandSeriesList = commandSeriesList
 		self._commandSerieses = []
 		for series in self._commandSeriesList:
 			self._commandSerieses.append( CommandSeries(series, quiet, shell) )
-		self._processesToPoll = []
-		self._fdToProcess = {}
-		self._fdToSeries = {}
+		# for each command series running in parallel,
+		# in cases where a command pipeline in the series generates output, the callback
+		# will be called with a line of output from the pipeline as it becomes available
 		self._callback = callback
 		self._arg = arg
-		self._poller = None
+		self._commandSeriesQueue = Queue.Queue()
+
 		# number millisecs we will wait for select.poll()
 		self._defaultPollTime = 500
-		# this number of poll cycles gives us 1 minute, use this 
-		# as the amount of time to wait between forced callbacks, if forced is requested
-		self._defaultPollCycles = 120
-		if (forceCallback and not callback):
-			raise RuntimeError("CommandsInParallel: forceCallback requires that a callback be specified")
-		self._forceCallback = forceCallback
+		
+		# for programs that don't generate output, wait this many seconds between 
+		# invoking callback if there is one
+		self._defaultCallbackInterval = 20
 
 	def startCommands(self):
 		for series in self._commandSerieses:
 			series.startCommands()
 
-	def setupOutputMonitoring(self):
-		self._poller = select.poll()
-		for series in self._commandSerieses:
+	# one of these as a thread to monitor each command series.
+	def seriesMonitor(self, timeout, queue):
+		series = queue.get()
+		poller = select.poll()
+		while series.processProducingOutput():
 			p = series.processProducingOutput()
+			poller.register(p.stderr,select.POLLIN|select.POLLPRI)
+			if (p.stdout):
+				fdToStream = { p.stdout.fileno(): p.stdout, p.stderr.fileno(): p.stderr }
+			else:
+				fdToStream = { p.stderr.fileno(): p.stderr }
 			# if we have a savefile, this won't be set. 
 			if (p.stdout):
-				self._processesToPoll.append(p)
-				self._poller.register(p.stdout,select.POLLIN|select.POLLPRI)
-				self._fdToProcess['%s' % p.stdout.fileno()]  = p
-				self._fdToSeries['%s' % p.stdout.fileno()]  = series
+				poller.register(p.stdout,select.POLLIN|select.POLLPRI)
 
-	# if there is a savefile don't call this, it's going to get written by itself
-	def checkForOutput(self):
-		if len(self._processesToPoll):
-			fdReady = self._poller.poll(self._defaultPollTime)
-			if (fdReady):
-				for (fd,event) in fdReady:
-					series = self._fdToSeries["%s" % fd]
-					series.inProgressPipeline().setPollState(event)
-					if series.inProgressPipeline().checkPollReadyForRead():
-						out = self._fdToProcess['%s' % fd].stdout.readline()
-						if out:
-							if self._callback:
-								if (self._arg):
-									self._callback(self._arg, out)
+				commandCompleted = False
+
+				while not commandCompleted:
+					waiting = poller.poll(self._defaultPollTime)
+					if (waiting):
+						for (fd,event) in waiting:
+							series.inProgressPipeline().setPollState(event)
+							if series.inProgressPipeline().checkPollReadyForRead():
+
+								# so what happens if we get more than one line of output
+								# in the poll interval? it will sit there waiting... 
+								# could have accumulation. FIXME. for our purposes we want 
+								# one line only, the latest. but for other uses of this 
+								# module?  really we should read whatever is available only,
+								# pass it to callback, let callback handle multiple lines,
+								# partial lines etc.
+								# out = p.stdout.readline()
+								out = fdToStream[fd].readline()
+								if out:
+									if self._callback:
+										if (self._arg):
+											self._callback(self._arg, out)
+										else:
+											self._callback(out)
+									else:
+										# fixme this behavior is different, do we want it?
+										sys.stderr.write(out)   
 								else:
-									self._callback(out)
-							else:
-								# fixme this behavior is different, do we want it?
-								sys.stderr.write(out)   
-						else:
-							# possible eof? (empty string from readline)
-							pass
-					elif series.inProgressPipeline().checkForPollErrors():
-						self._poller.unregister(fd)
-						self._processesToPoll.remove(self._fdToProcess['%s' % fd])
-			else:
-				pass
-		else:
-			# suppose there is nothing left to poll. 
-			# but whatever state we have left around then is... False (= we are trying to get state from None obj)?
-			# then we will never know we are done? ugh
-			pass
+									# possible eof? (empty string from readline)
+									pass
+							elif series.inProgressPipeline().checkForPollErrors():
+								poller.unregister(fd)
+								p.wait()
+								# FIXME put the returncode someplace?
+								print "returned from %s with %s" % (p.pid, p.returncode)
+								commandCompleted = True
+						if commandCompleted:
+							break
 
-	def continueCommands(self):
-		"""Start new commands if needed, updating the poller if there are changes"""
+
+				# run next command in series, if any
+				series.continueCommands()
+
+			else:
+				# no output from this process, just wait for it and do callback if there is one
+				waited = 0
+				while p.poll() == None:
+					if waited > self._defaultCallbackInterval and self._callback:
+						if (self._arg):
+							self._callback(self._arg)
+						else:
+							self._callback()
+						waited = 0
+					time.sleep(1)
+					waited = waited + 1
+
+				print "returned from %s with %s" % (p.pid, p.returncode)
+				series.continueCommands()
+
+		# completed the whole series. time to go home.
+		queue.task_done()
+
+
+	def setupOutputMonitoring(self):
 		for series in self._commandSerieses:
-			oldInProgress = series.inProgressPipeline()
-			series.continueCommands()
-			if series.inProgressPipeline() != oldInProgress:
-				if (series.processProducingOutput()):
-					# Note that we don't remove the old process, that will happen when we check for output.
-					self._poller.register(series.processProducingOutput().stdout,select.POLLIN|select.POLLPRI)
-					self._processesToPoll.append(series.processProducingOutput())
-					self._fdToProcess['%s' % series.processProducingOutput().stdout.fileno()]  = series.processProducingOutput()
-					self._fdToSeries['%s' % series.processProducingOutput().stdout.fileno()]  = series
-				
+			self._commandSeriesQueue.put(series)
+			thread.start_new_thread(self.seriesMonitor, (500, self._commandSeriesQueue))
+
 	def allCommandsCompleted(self):
 		"""Check if all series have run to completion."""
 		for series in self._commandSerieses:
@@ -486,18 +519,16 @@ class CommandsInParallel(object):
 	def runCommands(self):
 		self.startCommands()
 		self.setupOutputMonitoring()
-		done = False
-		while not done:
-			for i in range(self._defaultPollCycles):
-				self.checkForOutput()
-				self.continueCommands()
-				if (self.allCommandsCompleted() and not len(self._processesToPoll)):
-					done = True
-					break
-			if (self._forceCallback):
-				# forced call to callback every so often
-				self.progressCallback(runner, "")
+		self._commandSeriesQueue.join()
 
+
+def testcallback(output = None):
+	outputFile = open("/home/ariel/src/mediawiki/testing/outputsaved.txt","a")
+	if (output == None):
+		outputFile.write( "no output for me.\n" )
+	else:
+		outputFile.write(output)
+	outputFile.close()
 
 if __name__ == "__main__":
 	command1 = [ "/usr/bin/vmstat", "1", "10" ]
@@ -520,7 +551,7 @@ if __name__ == "__main__":
 	series4 = [ pipeline5 ]
 	series5 = [ pipeline6 ]
 	parallel = [ series1, series2, series3, series4, series5 ]
-	commands = CommandsInParallel(parallel)
+	commands = CommandsInParallel(parallel, callback=testcallback)
 	commands.runCommands()
 	if commands.exitedSuccessfully():
 		print "w00t!"
