@@ -221,21 +221,23 @@ class Config(object):
 			wiki = Wiki(self, db)
 
 			age = sys.maxint
+			date = sys.maxint
 			last = wiki.latestDump()
 			status = ''
 			if last:
 				dumpStatus = os.path.join(wiki.publicDir(), last, "status.html")
 				try:
-					# tack on the file age so that if we have multiple wikis
+					# tack on the file mtime so that if we have multiple wikis
 					# dumped on the same day, they get ordered properly
-					age = "%s%s" % (last, fileAge(dumpStatus))
+					date = int(today()) - int(last)
+					age = fileAge(dumpStatus)
 					status = readFile(dumpStatus)
 				except:
 					print "dump dir %s corrupt?" % dumpStatus
 			dumpFailed = (status == '') or ('dump aborted' in status)
-			available.append((dumpFailed, age, db))
+			available.append((dumpFailed, date, age, db))
 		available.sort()
-		return [db for (failed, age, db) in available]
+		return [db for (failed, date, age, db) in available]
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
