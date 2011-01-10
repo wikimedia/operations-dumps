@@ -94,6 +94,7 @@ class Config(object):
 			"dir": "",
 			"forcenormal": "0",
 			"halt": "0",
+			"skipdblist" : "",
 			#"output": {
 			"public": "/dumps/public",
 			"private": "/dumps/private",
@@ -122,11 +123,29 @@ class Config(object):
 			"grep": "/bin/grep",
 			#"cleanup": {
 			"keep": "3",
+			#"chunks": {
+			# set this to True to enable runing the various xml dump stages as chunks in parallel
+			"chunksEnabled" : False,
+			# for page history runs, number of pages for each chunk, specified separately 
+			# e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
+			# would define 10 chunks with the specified number of pages in each and any extra in
+			# a final 11th chunk
+			"pagesPerChunkHistory" : False,
+			# revs per chunk (roughly, it will be split along page lines) for history and current dumps
+			# values: positive integer, "compute", 
+			# this field is overriden by pagesPerChunkHistory
+			# CURRENTLY NOT COMPLETE so please don't use this.
+			"revsPerChunkHistory" : False,
+			# pages per chunk for abstract runs
+			"pagesPerChunkAbstract" : False,
 			}
 		conf = ConfigParser.SafeConfigParser(defaults)
 		conf.read(files)
 		
 		self.dbList = dbList(conf.get("wiki", "dblist"))
+		self.skipDbList = dbList(conf.get("wiki", "skipdblist"))
+		self.dbList = list(set(self.dbList) - set(self.skipDbList))
+
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
 		biglistFile = conf.get("wiki", "biglist")
 		if biglistFile:
@@ -169,6 +188,11 @@ class Config(object):
 		self.cat = conf.get("tools", "cat")
 		self.grep = conf.get("tools", "grep")
 
+		self.chunksEnabled = conf.get("chunks","chunksEnabled")
+		self.pagesPerChunkHistory = conf.get("chunks","pagesPerChunkHistory")
+		self.revsPerChunkHistory = conf.get("chunks","revsPerChunkHistory")
+		self.pagesPerChunkAbstract = conf.get("chunks","pagesPerChunkAbstract")
+
 		self.keep = conf.getint("cleanup", "keep")
 	
 	def dbListByAge(self):
@@ -185,6 +209,12 @@ class Config(object):
 
 			If some error occurs checking a dump status, that dump is put last in the
 			list (sort value is (True, maxint) )
+
+			Note that we now sort this list by the date of the dump directory, not the
+			last date that a dump file in that directory may have been touched. This
+			allows us to rerun jobs to completion from older runs, for example
+			an en pedia history urn that failed in the middle, without borking the
+			index page links.
 		"""
 		available = []
 		for db in self.dbList:
@@ -196,7 +226,9 @@ class Config(object):
 			if last:
 				dumpStatus = os.path.join(wiki.publicDir(), last, "status.html")
 				try:
-					age = fileAge(dumpStatus)
+					# tack on the file age so that if we have multiple wikis
+					# dumped on the same day, they get ordered properly
+					age = last . fileAge(dumpStatus)
 					status = readFile(dumpStatus)
 				except:
 					print "dump dir %s corrupt?" % dumpStatus
@@ -341,11 +373,14 @@ class Wiki(object):
 				link = "%s (new)" % self.dbName
 		return "<li>%s %s: %s</li>\n" % (stamp, link, status)
 
-	def latestDump(self, index=-1):
+	def latestDump(self, index=-1, all=False):
 		"""Find the last (or slightly less than last) dump for a db."""
 		dirs = self.dumpDirs()
 		if dirs:
-			return dirs[index]
+			if all:
+				return dirs
+			else:
+				return dirs[index]
 		else:
 			return None
 
