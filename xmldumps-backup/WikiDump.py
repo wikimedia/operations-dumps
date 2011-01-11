@@ -80,10 +80,12 @@ def dbList(filename):
 	return dbs
 
 class Config(object):
-	def __init__(self):
+	def __init__(self, configFile=False):
 		home = os.path.dirname(sys.argv[0])
+		if (not configFile):
+			configFile = "wikidump.conf"
 		files = [
-			os.path.join(home, "wikidump.conf"),
+			os.path.join(home,configFile),
 			"/etc/wikidump.conf",
 			os.path.join(os.getenv("HOME"), ".wikidump.conf")]
 		defaults = {
@@ -142,8 +144,17 @@ class Config(object):
 		conf = ConfigParser.SafeConfigParser(defaults)
 		conf.read(files)
 		
-		self.dbList = dbList(conf.get("wiki", "dblist"))
-		self.skipDbList = dbList(conf.get("wiki", "skipdblist"))
+		try:
+			self.dbList = dbList(conf.get("wiki", "dblist"))
+		except ConfigParser.NoSectionError:
+			print "The mandatory configuration section 'wiki' was not defined."
+			print "Either the section was ommitted or none of the files in the list"
+			print "%s exists. Giving up." % files
+			raise
+		try:
+			self.skipDbList = dbList(conf.get("wiki", "skipdblist"))
+		except ConfigParser.NoSectionError:
+			self.skipDbList = []
 		self.dbList = list(set(self.dbList) - set(self.skipDbList))
 
 		self.privateList = dbList(conf.get("wiki", "privatelist"))

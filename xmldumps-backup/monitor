@@ -2,10 +2,16 @@
 
 WIKIDUMP_BASE=`dirname "$0"`
 
+if [ ! -z "$1" ]; then
+    configFile="$1"
+else
+    configFile=""
+fi
+
 while true; do
 	echo ""
 	echo "Sweeping!"
-	python $WIKIDUMP_BASE/monitor.py
+	python $WIKIDUMP_BASE/monitor.py "$configFile"
 	echo "sleeping"
 	sleep 15
 done
