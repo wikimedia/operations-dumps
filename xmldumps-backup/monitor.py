@@ -1,9 +1,14 @@
 # Wiki dump-generation monitor
 
 import os
+import sys
 import WikiDump
 
-config = WikiDump.Config()
+# can specify name of alternate config file
+if (sys.argv[1]):
+	config = WikiDump.Config(sys.argv[1])
+else:
+	config = WikiDump.Config()
 
 def generateIndex():
 	running = False

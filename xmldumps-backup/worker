@@ -2,8 +2,16 @@
 
 WIKIDUMP_BASE=`dirname "$0"`
 
+if [ ! -z "$1" ]; then
+    configFile="$1"
+fi
+
 while true; do
+    if [ ! -z "$configFile" ]; then
+	python $WIKIDUMP_BASE/worker.py "--configfile" "$configFile"
+    else
 	python $WIKIDUMP_BASE/worker.py
-	echo "sleeping"
-	sleep 30
+    fi
+    echo "sleeping"
+    sleep 30
 done

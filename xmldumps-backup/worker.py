@@ -1959,7 +1959,9 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --date, --checkpoint, --job, --force, --noprefetch, --nospawn"
+	print "Options: --configfile, --date, --checkpoint, --job, --force, --noprefetch, --nospawn"
+	print "--configfile:  Specify an alternative configuration file to read."
+	print "              Default config file name: wikidump.conf"
 	print "--date:       Rerun dump of a given date (probably unwise)"
 	print "--checkpoint: Run just the specified step (deprecated)"
 	print "--job:        Run just the specified step or set of steps; for the list,"
@@ -1978,10 +1980,9 @@ def usage(message = None):
 
 if __name__ == "__main__":
 	try:
-		config = WikiDump.Config()
-
 		date = None
 		checkpoint = None
+		configFile = False
 		forceLock = False
 		prefetch = True
 		spawn = True
@@ -1989,7 +1990,7 @@ if __name__ == "__main__":
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'checkpoint=', 'job=', 'force', 'noprefetch', 'nospawn'])
+								 ['date=', 'checkpoint=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn'])
 		except:
 			usage("Unknown option specified")
 
@@ -1998,6 +1999,8 @@ if __name__ == "__main__":
 				date = val
 			elif opt == "--checkpoint":
 				checkpoint = val
+			elif opt == "--configfile":
+				configFile = val
 			elif opt == "--force":
 				forceLock = True
 			elif opt == "--noprefetch":
@@ -2011,6 +2014,12 @@ if __name__ == "__main__":
 			usage("--job option requires the name of a wikidb to be specified")
 		if (jobRequested and forceLock):
 	       		usage("--force cannot be used with --job option")
+
+		# allow alternate config file
+		if (configFile):
+			config = WikiDump.Config(configFile)
+		else:
+			config = WikiDump.Config()
 
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
