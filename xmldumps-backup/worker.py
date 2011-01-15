@@ -65,7 +65,7 @@ class Chunk(object, ):
 
 			if (self._revsPerChunkHistory):
 				if (len(self._revsPerChunkHistory) == 1):
-					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(totalEdits, self._pagesPerChunkHistory)
+					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalEdits, self._pagesPerChunkHistory[0])
 					self._revsPerChunkHistory = [ self._revsPerChunkHistory[0] for i in range(self._numChunksHistory)]
 				else:
 					self._numChunksHistory = len(self._revsPerChunkHistory)
@@ -74,7 +74,7 @@ class Chunk(object, ):
 				# self._pagesPerChunkHistory = ....
 			elif (self._pagesPerChunkHistory):
 				if (len(self._pagesPerChunkHistory) == 1):
-					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(totalPages, self._pagesPerChunkHistory)
+					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalPages, self._pagesPerChunkHistory[0])
 					self._pagesPerChunkHistory = [ self._pagesPerChunkHistory[0] for i in range(self._numChunksHistory)]
 				else:
 					self._numChunksHistory = len(self._pagesPerChunkHistory)
@@ -83,7 +83,7 @@ class Chunk(object, ):
 
 			if (self._pagesPerChunkAbstract):
 				if (len(self._pagesPerChunkAbstract) == 1):
-					self._numChunksAbstract = self.getNumberOfChunksForXMLDumps(totalPages, self._pagesPerChunkAbstract)
+					self._numChunksAbstract = self.getNumberOfChunksForXMLDumps(self.Stats.totalPages, self._pagesPerChunkAbstract[0])
 					self._pagesPerChunkAbstract = [ self._pagesPerChunkAbstract[0] for i in range(self._numChunksAbstract)]
 				else:
 					self._numChunksAbstract = len(self._pagesPerChunkAbstract)
@@ -135,7 +135,7 @@ class PageAndEditStats(object):
 		self.totalEdits = None
 		self.config = wiki.config
 		self.dbName = dbName
-		(totalPages, totalEdits) = self.getStatistics(config,dbName)
+		(self.totalPages, totalEdits) = self.getStatistics(config,dbName)
 
 	def getStatistics(self, config,dbName):
 		"""Get (cached) statistics for the wiki"""
