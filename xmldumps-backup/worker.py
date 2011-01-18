@@ -296,6 +296,13 @@ class DumpItemList(object):
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
 					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
+			if (self.chunkInfo.chunksEnabled()):
+				self.dumpItems.append(
+					RecombineXmlDump("meta-history",
+								   "metahistorybz2dumprecombine",
+								   "Recombine all pages with complete edit history (.bz2)",
+								   "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
+								   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.chunkInfo.getPagesPerChunkHistory()))
 			self.dumpItems.append(
 				XmlRecompressDump("meta-history",
 					"metahistory7zdump",
@@ -445,6 +452,9 @@ class DumpItemList(object):
 				return False
 		if (job == "metahistory7zdumprecombine"):
 			if (not self.jobDoneSuccessfully("metahistory7zdump")):
+				return False
+		if (job == "metahistorybz2dumprecombine"):
+			if (not self.jobDoneSuccessfully("metahistorybz2dump")):
 				return False
 		if (job == "metahistory7zdump"):
 			if (not self.jobDoneSuccessfully("xmlstubsdump") or not self.jobDoneSuccessfully("metahistorybz2dump")):
