@@ -13,6 +13,7 @@ import shutil
 import stat
 import signal
 import errno
+import glob
 import WikiDump
 import CommandManagement
 
@@ -1397,6 +1398,7 @@ class XmlDump(Dump):
 		self._prefetch = prefetch
 		self._spawn = spawn
 		self._chunks = chunks
+		self._pageID = {}
 
 	def detail(self):
 		"""Optionally return additional text to appear under the heading."""
@@ -1451,13 +1453,17 @@ class XmlDump(Dump):
 
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
+		sources = []
 		if self._prefetch:
-			source = self._findPreviousDump(runner, chunk)
-		else:
-			source = None
-		if source and exists(source):
+			possibleSources = self._findPreviousDump(runner, chunk)
+			# if we have a list of more than one then we need to check existence for each and put them together in a string
+			for sourceFile in possibleSources:
+				if exists(sourceFile):
+					sources.append(sourceFile)
+		if (len(sources) > 0):
+			source = "bzip2:%s" % (";".join(sources) )
 			runner.showRunnerState("... building %s %s XML dump, with text prefetch from %s..." % (self._subset, chunkinfo, source))
-			prefetch = "--prefetch=bzip2:%s" % (source)
+			prefetch = "--prefetch=%s" % (source)
 		else:
 			runner.showRunnerState("... building %s %s XML dump, no text prefetch..." % (self._subset, chunkinfo))
 			prefetch = None
@@ -1483,12 +1489,62 @@ class XmlDump(Dump):
 		series = [ pipeline ]
 		return series
 
+	# given filename, (assume bz2 compression) dig out the first page id in that file
+	def findFirstPageIDInFile(self, runner, fileName):
+		if (fileName in self._pageID):
+			return self._pageID[fileName]
+		pageID = None
+		pipeline = []
+		uncompressionCommand = [ "%s" % runner.config.bzip2, "-dc", fileName ]
+		pipeline.append(uncompressionCommand)
+		# warning: we figure any header (<siteinfo>...</siteinfo>) is going to be less than 2000 lines!
+		head = runner.config.head
+		headEsc = shellEscape(head)
+		pipeline.append([ head, "-2000"])
+		# without shell
+		p = CommandPipeline(pipeline, quiet=True)
+		p.runPipelineAndGetOutput()
+		if (p.output()):
+			pageData = p.output()
+			titleAndIDPattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '<id>(?P<pageid>\d+?)</id>')
+			result = titleAndIDPattern.search(pageData)
+			if (result):
+				pageID = result.group('pageid')
+		self._pageID[fileName] = pageID
+		return(pageID)
+
+
+	def filenameHasChunk(self, filename, ext):
+		fileNamePattern = re.compile('.*pages-' + self._subset + '[0-9]+.xml.' + ext +'$')
+		if (fileNamePattern.match(filename)):
+			return True
+		else:
+			return False
+
+	# taken from a comment by user "Toothy" on Ned Batchelder's blog (no longer on the net)
+	def sort_nicely(self, l): 
+		""" Sort the given list in the way that humans expect. 
+		""" 
+		convert = lambda text: int(text) if text.isdigit() else text 
+		alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+		l.sort( key=alphanum_key ) 
+
+		
+	# this finds the content file or files from the first previous successful dump
+	# to be used as input ("prefetch") for this run.
 	def _findPreviousDump(self, runner, chunk = 0):
 		"""The previously-linked previous successful dump."""
-		if (chunk):
-			bzfileChunk = self._file("bz2", chunk)
 		bzfile = self._file("bz2")
 		if (chunk):
+			startPageID = sum([ self._chunks[i] for i in range(0,chunk-1)]) + 1
+			if (len(self._chunks) > chunk):
+				endPageID = sum([ self._chunks[i] for i in range(0,chunk)])
+			else:
+				endPageID = None
+			# we will look for the first chunk file, if it's there and the
+			# status of the job is ok then we will get the rest of the info
+			bzfileChunk = self._file("bz2", 1)
+			bzfileGlob = self._file("bz2", '[1-9]*')
 			currentChunk = realpath(runner.dumpDir.publicPath(bzfile))
 		current = realpath(runner.dumpDir.publicPath(bzfile))
 		dumps = runner.wiki.dumpDirs()
@@ -1496,12 +1552,23 @@ class XmlDump(Dump):
 		dumps.reverse()
 		for date in dumps:
 			base = runner.wiki.publicDir()
-			# first see if the corresponding "chunk" file is there, if not we will accept 
-			# the whole dump as one file though it will be slower
+			# first see if a "chunk" file is there, if not we will accept 
+			# using the the single file dump although it will be slower
 			possibles = []
 			oldChunk = None
+			# scan all the existing chunk files and get the first page ID from each
 			if (chunk):
 				oldChunk = runner.dumpDir.buildPath(base, date, bzfileChunk)
+				oldGlob = runner.dumpDir.buildPath(base, date, bzfileGlob)
+				pageIDs = []
+				bzfileChunks = glob.glob(oldGlob)
+				self.sort_nicely(bzfileChunks)
+				if (bzfileChunks):
+					for fileName in bzfileChunks:
+						pageID = self.findFirstPageIDInFile(runner, fileName )
+						if (pageID):
+							pageIDs.append(pageID)
+
 			old = runner.dumpDir.buildPath(base, date, bzfile)
 			if (oldChunk):
 				if exists(oldChunk):
@@ -1523,7 +1590,31 @@ class XmlDump(Dump):
 						runner.debug("skipping incomplete or failed dump for prefetch %s" % possible)
 						continue
 					runner.debug("Prefetchable %s" % possible)
-					return possible
+					# found something workable, now check the chunk situation
+					if (chunk):
+						if (self.filenameHasChunk(possible, "bz2")):
+							if len(pageIDs) > 0:
+								for i in range(len(pageIDs)):
+									if int(pageIDs[i]) <= int(startPageID):
+										# chunk number of file starts at 1.
+										possibleStartNum = i+1
+									else:
+										break;
+								if possibleStartNum:
+									possibleEndNum = possibleStartNum
+									for j in range(i,len(pageIDs)):
+										if (not endPageID) or (int(pageIDs[j]) <= int(endPageID)):
+											# chunk number of file starts at 1.
+											possibleEndNum = j + 1
+										else:
+											break
+									# now we have the range of the relevant files, put together the list.
+									possible = [ runner.dumpDir.buildPath(base, date, self._file("bz2", k)) for k in range(possibleStartNum,possibleEndNum+1) ]
+									return possible
+						else:
+							continue
+							
+					return [ possible ]
 		runner.debug("Could not locate a prefetchable dump.")
 		return None
 
