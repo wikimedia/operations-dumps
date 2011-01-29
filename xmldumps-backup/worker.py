@@ -419,7 +419,10 @@ class DumpItemList(object):
 				if (item.name() == job):
 					item.setToBeRun(True)
 					return True
+		if job == "noop":
+			return True
 		print "No job of the name specified exists. Choose one of the following:"
+		print "noop (runs no job but rewrites md5sums file and resets latest links"
 		print "tables (includes all items below that end in 'table'"
 		for item in self.dumpItems:
 			print "%s " % item.name()
