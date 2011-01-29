@@ -428,6 +428,16 @@ class DumpItemList(object):
 			print "%s " % item.name()
 	        return False
 
+	def markFollowingJobsToRun(self):
+		# find the first one marked to run, mark the following ones
+		i = 0;
+		for item in self.dumpItems:
+			i = i + 1;
+			if item.toBeRun():
+				for j in range(i,len(self.dumpItems)):
+					self.dumpItems[j].setToBeRun(True)
+				break
+
 	# see whether job needs previous jobs that have not completed successfully
 
 	def jobDoneSuccessfully(self, job):
@@ -544,13 +554,14 @@ class DumpDir(object):
 				      
 class Runner(object):
 
-	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None):
+	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None, restart=False):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
 		self.spawn = spawn
 		self.chunkInfo = Chunk(wiki, self.dbName)
+		self.restart = restart
 
 		if date:
 			# Override, continuing a past dump?
@@ -756,11 +767,16 @@ class Runner(object):
 			# job has dependent steps that weren't already run
 			if (not self.dumpItemList.checkJobDependencies(self.jobRequested)):
 				raise RuntimeError( "Job dependencies not run beforehand, exiting" )
+			if (restart):
+				# mark all the following jobs to run as well 
+				self.dumpItemList.markFollowingJobsToRun()
 
 		self.makeDir(join(self.wiki.publicDir(), self.date))
 	       	self.makeDir(join(self.wiki.privateDir(), self.date))
 
-		if (self.jobRequested):
+		if (self.restart):
+			print "Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName)
+		elif (self.jobRequested):
 			print "Preparing for job %s of %s" % (self.jobRequested, self.dbName)
 		else:
 			self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
@@ -802,7 +818,10 @@ class Runner(object):
 			if (self.failCount < 1):
 				self.completeDump(files)
 											
-			self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
+			if (self.restart):
+				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
+			else:
+				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
 		else:
 			self.checksums.prepareChecksums()
 
@@ -2063,22 +2082,24 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --configfile, --date, --checkpoint, --job, --force, --noprefetch, --nospawn"
+	print "Options: --configfile, --date, --checkpoint, --job, --force, --noprefetch, --nospawn, --restartfrom"
 	print "--configfile:  Specify an alternative configuration file to read."
-	print "              Default config file name: wikidump.conf"
-	print "--date:       Rerun dump of a given date (probably unwise)"
-	print "--checkpoint: Run just the specified step (deprecated)"
-	print "--job:        Run just the specified step or set of steps; for the list,"
-	print "              give the option --job help"
-	print "              This option requires specifiying a wikidbname on which to run."
-	print "              This option cannot be specified with --force."
-	print "--force:      remove a lock file for the specified wiki (dangerous, if there is"
-	print "              another process running, useful if you want to start a second later"
-	print "              run while the first dump from a previous date is still going)"
-	print "              This option cannot be specified with --job."
-	print "--noprefetch: Do not use a previous file's contents for speeding up the dumps"
-	print "              (helpful if the previous files may have corrupt contents)"
-	print "--nospawn:    Do not spawn a separate process in order to retrieve revision texts"
+	print "               Default config file name: wikidump.conf"
+	print "--date:        Rerun dump of a given date (probably unwise)"
+	print "--checkpoint:  Run just the specified step (deprecated)"
+	print "--job:         Run just the specified step or set of steps; for the list,"
+	print "               give the option --job help"
+	print "               This option requires specifiying a wikidbname on which to run."
+	print "               This option cannot be specified with --force."
+	print "--force:       remove a lock file for the specified wiki (dangerous, if there is"
+	print "               another process running, useful if you want to start a second later"
+	print "               run while the first dump from a previous date is still going)"
+	print "               This option cannot be specified with --job."
+	print "--noprefetch:  Do not use a previous file's contents for speeding up the dumps"
+	print "               (helpful if the previous files may have corrupt contents)"
+	print "--nospawn:     Do not spawn a separate process in order to retrieve revision texts"
+	print "--restartfrom: Do all jobs after the one specified via --job, including that one"
+
 	sys.exit(1)
 
 
@@ -2090,11 +2111,12 @@ if __name__ == "__main__":
 		forceLock = False
 		prefetch = True
 		spawn = True
+		restart = False
 		jobRequested = None
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'checkpoint=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn'])
+								 ['date=', 'checkpoint=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn', 'restartfrom'])
 		except:
 			usage("Unknown option specified")
 
@@ -2113,11 +2135,15 @@ if __name__ == "__main__":
 				spawn = False
 			elif opt == "--job":
 				jobRequested = val
+			elif opt == "--restartfrom":
+				restart = True
 
 		if jobRequested and (len(remainder) == 0):
 			usage("--job option requires the name of a wikidb to be specified")
 		if (jobRequested and forceLock):
 	       		usage("--force cannot be used with --job option")
+		if (restart and not jobRequested):
+			usage("--restartfrom requires --job and the job from which to restart")
 
 		# allow alternate config file
 		if (configFile):
@@ -2131,20 +2157,22 @@ if __name__ == "__main__":
 			if forceLock:
 				if wiki.isLocked():
 					wiki.unlock()
-			if not jobRequested:
+			if restart or not jobRequested:
 				wiki.lock()
 		else:
 			wiki = findAndLockNextWiki(config)
 
 		if wiki:
-			runner = Runner(wiki, date, checkpoint, prefetch, spawn, jobRequested)
-			if (jobRequested):
+			runner = Runner(wiki, date, checkpoint, prefetch, spawn, jobRequested, restart)
+			if (restart):
+				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
+			elif (jobRequested):
 				print "Running %s, job %s..." % (wiki.dbName, jobRequested)
 			else:
 				print "Running %s..." % wiki.dbName
 			runner.run()
 			# if we are doing one piece only of the dump, we don't unlock either
-			if not jobRequested:
+			if restart or not jobRequested:
 				wiki.unlock()
 		else:
 			print "No wikis available to run."
