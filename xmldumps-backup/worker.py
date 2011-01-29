@@ -1616,6 +1616,7 @@ class XmlDump(Dump):
 					if (chunk):
 						if (self.filenameHasChunk(possible, "bz2")):
 							if len(pageIDs) > 0:
+								possibleStartNum = None
 								for i in range(len(pageIDs)):
 									if int(pageIDs[i]) <= int(startPageID):
 										# chunk number of file starts at 1.
