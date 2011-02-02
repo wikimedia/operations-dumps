@@ -54,5 +54,7 @@ Configuration is done with an INI-style configuration file wikidump.conf.
 Configuration files in the script directory, /etc, and $HOME are used
 if available, in that order.
 
-FIXME: add a sample file
+See README.config for details about the configuration options supported,
+and wikidump.conf.sample for a sample configuration file.
+
 
