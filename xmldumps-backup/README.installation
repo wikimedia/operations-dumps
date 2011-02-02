@@ -1,0 +1,46 @@
+===Dependencies
+
+* Python 2.5 or greater, with the select module on an OS that supports
+  polling on pipes (this excludes Windows).
+* PHP 2.5 or greater
+* A fully functional MediaWiki installation with some data in it (depends on 
+  mysql and a functioning webserver)
+* The applications gzip, bzip2, 7zip version 4.58 or better
+* Command line utilities head, tail, cat
+* Build the utfnormal php module, located in svn:
+    This depends on swig and libicu-dev, install those.
+    svn co http://svn.wikimedia.org/svnroot/mediawiki/trunk/extensions/normal/
+    cd normal; make
+    install the file php_utfnormal.so in the php extension directory (typically 
+       something like /usr/lib/php5/20060613 or /usr/lib64/php/modules)
+    create the file utfnormal.ini with the contents "extension=php_utfnormal.so" 
+       in the appropriate location (typically /etc/php5/conf.d/ or /etc/php.d)
+
+===Setup
+
+Check out the scripts from 
+http://svn.wikimedia.org/svnroot/mediawiki/trunk/backup/
+for trunk copies, but 
+http://svn.wikimedia.org/svnroot/mediawiki/branches/ariel/xmldumps-backup
+for the currently running versions with parallelization and various command 
+line arguments:
+
+  svn co http://svn.wikimedia.org/svnroot/mediawiki/branches/ariel/xmldumps-backup backups
+
+Copy the file wikidump.conf.sample to wikidump.conf and edit the values 
+appropriately; see the file README.config for information on the format of the 
+configuration file and the options specified.
+
+===Testing
+
+Test it: 
+
+python ./worker.py name-of-db-here
+
+and see if it runs.  If you have a web server set up which includes somewhere
+underneath its document root the directory specified for the configuration
+option "public", you should be able to load up the main index page for that
+directory (see the configuration option "index") and see something much
+like our WMF backups page (see http://dumps.wikimedia.org/backup-index.html
+for an example).
+
