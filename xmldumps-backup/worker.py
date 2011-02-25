@@ -1476,12 +1476,14 @@ class XmlDump(Dump):
 		# Try to pull text from the previous run; most stuff hasn't changed
 		#Source=$OutputDir/pages_$section.xml.bz2
 		sources = []
+		possibleSources = None
 		if self._prefetch:
 			possibleSources = self._findPreviousDump(runner, chunk)
 			# if we have a list of more than one then we need to check existence for each and put them together in a string
-			for sourceFile in possibleSources:
-				if exists(sourceFile):
-					sources.append(sourceFile)
+			if possibleSources:
+				for sourceFile in possibleSources:
+					if exists(sourceFile):
+						sources.append(sourceFile)
 		if (len(sources) > 0):
 			source = "bzip2:%s" % (";".join(sources) )
 			runner.showRunnerState("... building %s %s XML dump, with text prefetch from %s..." % (self._subset, chunkinfo, source))
