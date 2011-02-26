@@ -1300,7 +1300,6 @@ class XmlStub(Dump):
 				    "--wiki=%s" % runner.dbName,
 				    "--full", "--stub", "--report=10000",
 				    "%s" % runner.forceNormalOption(),
-				    "--server=%s" % runner.dbServer,
 				    "--output=gzip:%s" % history,
 				    "--output=gzip:%s" % current,
 				    "--filter=latest", "--output=gzip:%s" % articles,
@@ -1405,7 +1404,6 @@ class XmlLogging(Dump):
 			    "--wiki=%s" % runner.dbName,
 			    "--logs", "--report=10000",
 			    "%s" % runner.forceNormalOption(),
-			    "--server=%s" % runner.dbServer,
 			    "--output=gzip:%s" % logging ]
 		pipeline = [ command ]
 		series = [ pipeline ]
@@ -1503,7 +1501,7 @@ class XmlDump(Dump):
 				"%s" % stubOption,
 				"%s" % prefetch,
 				"%s" % runner.forceNormalOption(),
-				"--report=1000", "--server=%s" % runner.dbServer,
+				"--report=1000",
 				"%s" % spawn ]
 		command = dumpCommand
 		filters = self.buildFilters(runner, chunk)
@@ -1936,7 +1934,7 @@ class AbstractDump(Dump):
 			    "--wiki=%s" % runner.dbName,
 			    "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.config.wikiDir,
 			    "--current", "--report=1000", "%s" % runner.forceNormalOption(),
-			    "--server=%s" % runner.dbServer ]
+			    ]
 		for variant in self._variants(runner):
 			command.extend( [ "--output=file:%s" % runner.dumpDir.publicPath(self._variantFile(variant, chunk)),
 					  "--filter=namespace:NS_MAIN", "--filter=noredirect", 
