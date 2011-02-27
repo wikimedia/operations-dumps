@@ -104,6 +104,7 @@ class Config(object):
 			"index": "index.html",
 			"templatedir": home,
 			"perdumpindex": "index.html",
+			"logfile": "dumplog.txt",
 			#"reporting": {
 			"adminmail": "root@localhost",
 			"mailfrom": "root@localhost",
@@ -179,7 +180,8 @@ class Config(object):
 		self.index = conf.get("output", "index")
 		self.templateDir = conf.get("output", "templateDir")
 		self.perDumpIndex = conf.get("output", "perdumpindex")
-		
+		self.logFile = conf.get("output", "logfile")
+
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
 		self.smtpServer = conf.get("reporting", "smtpserver")

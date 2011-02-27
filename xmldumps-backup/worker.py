@@ -16,6 +16,8 @@ import errno
 import glob
 import WikiDump
 import CommandManagement
+import Queue
+import thread
 
 from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
@@ -47,6 +49,43 @@ def relativePath(path, base):
 
 def xmlEscape(text):
 	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+class Logger(object):
+
+	def __init__(self, logFileName=None):
+		if (logFileName):
+			self.logFile = open(logFileName, "a")
+		else:
+			self.logFile = None
+		self.queue = Queue.Queue()
+		self.JobsDone = "JOBSDONE"
+
+	def logWrite(self, line=None):
+		if (self.logFile):
+			self.logFile.write(line)
+			self.logFile.flush()
+
+	def logClose(self):
+		if (logfile):
+			self.logFile.close()
+
+	# return 1 if logging terminated, 0 otherwise
+	def doJobOnLogQueue(self):
+		line = self.queue.get()
+		if (line == self.JobsDone):
+			self.logClose()
+			return 1
+		else:
+			self.logWrite(line)
+			return 0
+
+	def addToLogQueue(self,line=None):
+		if (line):
+			self.queue.put_nowait(line)
+
+	# set in order to have logging thread clean up and exit
+	def indicateJobsDone(self):
+		self.queue.put_nowait(self.JobsDone)
 
 # so if the pages/revsPerChunkAbstract/History are just one number it means
 # use that number for all the chunks, figure out yourself how many.
@@ -554,7 +593,7 @@ class DumpDir(object):
 				      
 class Runner(object):
 
-	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None, restart=False):
+	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None, restart=False, loggingEnabled=False):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -562,6 +601,8 @@ class Runner(object):
 		self.spawn = spawn
 		self.chunkInfo = Chunk(wiki, self.dbName)
 		self.restart = restart
+		self.loggingEnabled = loggingEnabled
+		self.log = None
 
 		if date:
 			# Override, continuing a past dump?
@@ -577,9 +618,31 @@ class Runner(object):
 
 		self.jobRequested = job
 		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
+
+		# this must come after the dumpdir setup so we know which directory we are in 
+		# for the log file.
+		if (loggingEnabled):
+			self.logFileName = self.dumpDir.publicPath(config.logFile)
+			self.makeDir(join(self.wiki.publicDir(), self.date))
+			self.log = Logger(self.logFileName)
+			thread.start_new_thread(self.logQueueReader,(self.log,))
+
 		self.checksums = Checksummer(self.wiki, self.dumpDir)
+
 		# some or all of these dumpItems will be marked to run
 		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
+
+	def logQueueReader(self,log):
+		if not log:
+			return
+		done = False
+		while not done:
+			done = log.doJobOnLogQueue()
+		
+	def logAndPrint(self, message):
+		if (self.log):
+			self.log.addToLogQueue("%s\n" % message)
+		print message
 
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo',
@@ -676,6 +739,7 @@ class Runner(object):
 			errorString = "Error from command(s): "
 			for cmd in problemCommands: 
 				errorString = errorString + "%s " % cmd
+			self.logAndPrint(errorString)
 			raise BackupError(errorString)
 		return 1
 
@@ -702,12 +766,14 @@ class Runner(object):
 		output = proc.fromchild.read()
 		retval = proc.wait()
 		if retval:
+			self.logAndPrint("Non-zero return code from '%s'" % command)
 			raise BackupError("Non-zero return code from '%s'" % command)
 		else:
 			return output
 
 	def debug(self, stuff):
-		print "%s: %s %s" % (prettyTime(), self.dbName, stuff)
+		self.logAndPrint("%s: %s %s" % (prettyTime(), self.dbName, stuff))
+#		print "%s: %s %s" % (prettyTime(), self.dbName, stuff)
 
 	def makeDir(self, dir):
 		if exists(dir):
@@ -775,9 +841,9 @@ class Runner(object):
 	       	self.makeDir(join(self.wiki.privateDir(), self.date))
 
 		if (self.restart):
-			print "Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName)
+			self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
 		elif (self.jobRequested):
-			print "Preparing for job %s of %s" % (self.jobRequested, self.dbName)
+			self.logAndPrint("Preparing for job %s of %s" % (self.jobRequested, self.dbName))
 		else:
 			self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
 			self.cleanOldDumps()
@@ -901,7 +967,7 @@ class Runner(object):
 			# Short line for report extraction goes here
 			self.wiki.writeStatus(self.reportDatabaseStatusSummary(items, done))
 		except:
-			print "Couldn't update status files. Continuing anyways"
+			self.logAndPrint("Couldn't update status files. Continuing anyways")
 
 	def updateStatusFiles(self, done=False):
 		self.saveStatusSummaryAndDetail(self.dumpItemList.dumpItems, done)
@@ -1059,6 +1125,7 @@ class Runner(object):
 				self.debug("Removing old symlink %s" % link)
 				os.remove(link)
 			else:
+				self.logAndPrint("What the hell dude, %s is not a symlink" % link)
 				raise BackupError("What the hell dude, %s is not a symlink" % link)
 		relative = relativePath(real, dirname(link))
 		if exists(real):
@@ -1148,6 +1215,8 @@ class Dump(object):
 		"""Receive a status line from a shellout and update the status files."""
 		# pass through...
 		if (line):
+			if (runner.log):
+				runner.log.addToLogQueue(line)
 			sys.stderr.write(line)
 		self.progress = line.strip()
 		runner.updateStatusFiles()
@@ -2083,7 +2152,7 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --configfile, --date, --checkpoint, --job, --force, --noprefetch, --nospawn, --restartfrom"
+	print "Options: --configfile, --date, --checkpoint, --job, --force, --noprefetch, --nospawn, --restartfrom, --log"
 	print "--configfile:  Specify an alternative configuration file to read."
 	print "               Default config file name: wikidump.conf"
 	print "--date:        Rerun dump of a given date (probably unwise)"
@@ -2100,9 +2169,10 @@ def usage(message = None):
 	print "               (helpful if the previous files may have corrupt contents)"
 	print "--nospawn:     Do not spawn a separate process in order to retrieve revision texts"
 	print "--restartfrom: Do all jobs after the one specified via --job, including that one"
+	print "--log:         Log progress messages and other output to logfile in addition to"
+	print "               the usual console output"
 
 	sys.exit(1)
-
 
 if __name__ == "__main__":
 	try:
@@ -2114,10 +2184,12 @@ if __name__ == "__main__":
 		spawn = True
 		restart = False
 		jobRequested = None
+		enableLogging = False
+		log = None
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'checkpoint=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn', 'restartfrom'])
+								 ['date=', 'checkpoint=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
 		except:
 			usage("Unknown option specified")
 
@@ -2138,6 +2210,8 @@ if __name__ == "__main__":
 				jobRequested = val
 			elif opt == "--restartfrom":
 				restart = True
+			elif opt == "--log":
+				enableLogging = True
 
 		if jobRequested and (len(remainder) == 0):
 			usage("--job option requires the name of a wikidb to be specified")
@@ -2164,7 +2238,7 @@ if __name__ == "__main__":
 			wiki = findAndLockNextWiki(config)
 
 		if wiki:
-			runner = Runner(wiki, date, checkpoint, prefetch, spawn, jobRequested, restart)
+			runner = Runner(wiki, date, checkpoint, prefetch, spawn, jobRequested, restart, enableLogging)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
