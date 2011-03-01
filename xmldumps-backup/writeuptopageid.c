@@ -11,10 +11,11 @@ typedef enum { None, StartHeader, StartPage, AtPageID, WriteMem, Write, EndPage,
 #define MAXHEADERLEN 524289
 
 void usage(char *me) {
-  fprintf(stderr,"Usage: %s pageID\n",me);
-  fprintf(stderr,"Copies the contents of an XML file up to but not including\n");
-  fprintf(stderr,"the specified pageID. This program is used in processing XML\n");
-  fprintf(stderr,"dump files that were only partially written.\n");
+  fprintf(stderr,"Usage: %s startPageID endPageID\n",me);
+  fprintf(stderr,"Copies the contents of an XML file starting with and including startPageID\n");
+  fprintf(stderr,"and up to but not including endPageID. This program is used in processing XML\n");
+  fprintf(stderr,"dump files that were only partially written, as well as in writing partial\n");
+  fprintf(stderr,"stub files for reruns of those dump files.\n");
 }
 
 /* note that even if we have only read a partial line
@@ -24,7 +25,7 @@ void usage(char *me) {
    in the page text. 
 
    returns new state */
-States setState (char *line, States currentState, int endPageID) {
+States setState (char *line, States currentState, int startPageID, int endPageID) {
   int pageID = 0;
 
   if (!strncmp(line,"<mediawiki",10)) {
@@ -37,18 +38,28 @@ States setState (char *line, States currentState, int endPageID) {
   else if (currentState == StartPage && (!strncmp(line, "<id>", 4))) {
     /* dig the id out, format is <id>num</id> */
     pageID = atoi(line+4);
-    if (pageID == endPageID) {
+    if (pageID >= endPageID) {
       return(AtLastPageID);
     }
-    else {
+    else if (pageID >= startPageID) {
       return(WriteMem);
+    }
+    else {
+      /* we don't write anything */
+      return(None);
     }
   }
   else if (currentState == WriteMem) {
     return(Write);
   }
   else if (!strncmp(line, "</page>", 6)) {
-    return(EndPage);
+    if (currentState == Write) {
+      return(EndPage);
+    }
+    else {
+      /* don't write anything */
+      return(None);
+    }
   }
   return(currentState);
 }
@@ -59,9 +70,15 @@ int writeMemoryIfNeeded(char *mem, States state) {
 
   if (state == WriteMem) {
     res = fwrite(mem,strlen(mem),1,stdout);
-    mem[0]='\0';
     return(res);
   }
+}
+
+void clearMemoryIfNeeded(char *mem, States state) {
+  if (state == WriteMem || state == None) {
+    mem[0]='\0';
+  }
+  return;
 }
 
 /* returns 1 on success, 0 on error */
@@ -86,7 +103,8 @@ int saveInMemIfNeeded(char *mem, char *line, States state) {
 }
 
 int main(int argc,char **argv) {
-  long int pageID = 0;
+  long int startPageID = 0;
+  long int endPageID = 0;
   char *nonNumeric = 0;
   States state = None;
   char *text;
@@ -97,18 +115,27 @@ int main(int argc,char **argv) {
      length of time. */
   char mem[MAXHEADERLEN];
 
-  if (argc != 2) {
+  if (argc != 3) {
     usage(argv[0]);
     exit(-1);
   }
 
   errno = 0;
-  pageID = strtol(argv[1], &nonNumeric, 10);
-  if (pageID == 0 || 
+  startPageID = strtol(argv[1], &nonNumeric, 10);
+  if (startPageID == 0 || 
       *nonNumeric != 0 ||
-      nonNumeric == (char *) &pageID || 
+      nonNumeric == (char *) &startPageID || 
       errno != 0) {
-    fprintf (stderr,"The value you entered for pageID must be a positive integer.\n");
+    fprintf (stderr,"The value you entered for startPageID must be a positive integer.\n");
+    usage(argv[0]);
+    exit(-1);
+  }
+  endPageID = strtol(argv[2], &nonNumeric, 10);
+  if (endPageID == 0 || 
+      *nonNumeric != 0 ||
+      nonNumeric == (char *) &endPageID || 
+      errno != 0) {
+    fprintf (stderr,"The value you entered for endPageID must be a positive integer.\n");
     usage(argv[0]);
     exit(-1);
   }
@@ -117,7 +144,7 @@ int main(int argc,char **argv) {
     text=line;
     while (*text && isspace(*text))
       text++;
-    state = setState(text, state, pageID);
+    state = setState(text, state, startPageID, endPageID);
     if (!saveInMemIfNeeded(mem,line,state)) {
       fprintf(stderr,"failed to save text in temp memory, bailing\n");
       exit(-1);
@@ -126,6 +153,7 @@ int main(int argc,char **argv) {
       fprintf(stderr,"failed to write text from memory, bailing\n");
       exit(-1);
     }
+    clearMemoryIfNeeded(mem,state);
     if (!writeIfNeeded(line,state)) {
       fprintf(stderr,"failed to write text, bailing\n");
       exit(-1);
