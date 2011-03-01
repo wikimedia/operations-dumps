@@ -61,6 +61,9 @@ States setState (char *line, States currentState, int startPageID, int endPageID
       return(None);
     }
   }
+  else if (!strncmp(line, "</mediawiki",11)) {
+    return(None);
+  }
   return(currentState);
 }
 
