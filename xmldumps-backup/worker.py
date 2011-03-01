@@ -1122,13 +1122,25 @@ class Runner(object):
 		link = self.dumpDir.latestPath(file)
 		if exists(link) or os.path.islink(link):
 			if os.path.islink(link):
-				self.debug("Removing old symlink %s" % link)
-				os.remove(link)
+				realfile = os.readlink(link)
+				# format of these links should be...  ../20110228/elwikidb-20110228-templatelinks.sql.gz
+				rellinkpattern = re.compile('^\.\./(20[0-9]+)/');
+				dateinlink = rellinkpattern.search(realfile)
+				if (dateinlink):
+					dateoflinkedfile = dateinlink.group(1)
+					dateinterval = int(self.date) - int(dateoflinkedfile)
+				else:
+					dateinterval = 0
+				# no file or it's older than ours... *then* remove the link
+				if not exists(os.path.realpath(link)) or dateinterval > 0:
+					self.debug("Removing old symlink %s" % link)
+					os.remove(link)
 			else:
 				self.logAndPrint("What the hell dude, %s is not a symlink" % link)
 				raise BackupError("What the hell dude, %s is not a symlink" % link)
 		relative = relativePath(real, dirname(link))
-		if exists(real):
+		# if we removed the link cause it's obsolete, make the new one
+		if exists(real) and not exists(link):
 			self.debug("Adding symlink %s -> %s" % (link, relative))
 			os.symlink(relative, link)
 			
