@@ -290,6 +290,7 @@ class DumpItemList(object):
 			#PublicTable("revision", #revisiontable", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "texttable", "Text blob storage. May be compressed, etc."), // ?
 			PublicTable("redirect", "redirecttable", "Redirect list"),
+			PublicTable("iwlinks", "iwlinkstable", "Interwiki link tracking records"),
 
 			TitleDump("pagetitlesdump", "List of page titles"),
 
