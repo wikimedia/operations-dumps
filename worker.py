@@ -242,6 +242,7 @@ class Runner(object):
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "Text blob storage. May be compressed, etc."), // ?
 			PublicTable("redirect", "Redirect list"),
+			PublicTable("iwlinks", "Interwiki link tracking records"),
 
 			TitleDump("List of page titles"),
 
