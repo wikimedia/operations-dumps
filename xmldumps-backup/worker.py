@@ -169,42 +169,55 @@ class Chunk(object, ):
 				return 0
 			return chunks
 
-class PageAndEditStats(object):
+class DbServerInfo(object):
 	def __init__(self, wiki, dbName):
-		self.totalPages = None
-		self.totalEdits = None
 		self.config = wiki.config
 		self.dbName = dbName
-		(self.totalPages, totalEdits) = self.getStatistics(config,dbName)
+		self.selectDatabaseServer()
 
-	def getStatistics(self, config,dbName):
-		"""Get (cached) statistics for the wiki"""
-		totalPages = None
-		totalEdits = None
-		statsCommand = """%s -q %s/maintenance/showStats.php --wiki=%s """ % shellEscape((
+	def defaultServer(self):
+		# if this fails what do we do about it? Not a bleeping thing. *ugh* FIXME!!
+		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
-		# FIXME runAndReturn?  defined somewhere else
-		results = self.runAndReturn(statsCommand)
-		lines = results.splitlines()
-		if (lines):
-			for line in lines:
-				(name,value) = line.split(':')
-				name = name.replace(' ','')
-				value = value.replace(' ','')
-				if (name == "Totalpages"):
-					totalPages = int(value)
-				elif (name == "Totaledits"):
-					totalEdits = int(value)
-		return(totalPages, totalEdits)
+		return RunSimpleCommand.runAndReturn(command).strip()
 
-	def getTotalPages(self):
-		return self.totalPages
+	def selectDatabaseServer(self):
+		self.dbServer = self.defaultServer()
 
-	def getTotalEdits(self):
-		return self.totalEdits
+	def runSqlAndGetOutput(self, query):
+		"""Pass some SQL commands to the server for this DB and save output to a file."""
+		command = [ [ "/bin/echo", "%s" % query ], 
+			    [ "%s" % self.config.mysql, "-h", 
+			      "%s" % self.dbServer,
+			      "-u", "%s" % self.config.dbUser,
+			      "%s" % self.passwordOption(),
+			      "%s" % self.dbName, 
+			      "-r" ] ]
+		p = CommandPipeline(command, quiet=True)
+		p.runPipelineAndGetOutput()
+		# fixme best to put the return code someplace along with any errors....
+		if (p.output()):
+			return(p.output())
+		else:
+			return None
 
-	# FIXME should rewrite this I guess and also move it elsewhere, phooey
-	def runAndReturn(self, command):
+	def passwordOption(self):
+		"""If you pass '-pfoo' mysql uses the password 'foo',
+		but if you pass '-p' it prompts. Sigh."""
+		if self.config.dbPassword == "":
+			return None
+		else:
+			return "-p" + self.config.dbPassword
+
+
+class RunSimpleCommand(object):
+
+	def log(self, message, log = None):
+		if (log):
+			log.addToLogQueue("%s\n" % message)
+
+	# FIXME rewrite to not use popen2
+	def runAndReturn(command, log = None):
 		"""Run a command and return the output as a string.
 		Raises BackupError on non-zero return code."""
 		# FIXME convert all these calls so they just use runCommand now
@@ -212,9 +225,59 @@ class PageAndEditStats(object):
 		output = proc.fromchild.read()
 		retval = proc.wait()
 		if retval:
+			self.log("Non-zero return code from '%s'" % command, log)
 			raise BackupError("Non-zero return code from '%s'" % command)
 		else:
 			return output
+
+	def runAndReport(self, command, callback):
+		"""Shell out to a command, and feed output lines to the callback function.
+		Returns the exit code from the program once complete.
+		stdout and stderr will be combined into a single stream.
+		"""
+		# FIXME convert all these calls so they just use runCommand now
+		proc = popen2.Popen4(command, 64)
+		#for line in proc.fromchild:
+		#	callback(self, line)
+		line = proc.fromchild.readline()
+		while line:
+			callback(self, line)
+			line = proc.fromchild.readline()
+		return proc.wait()
+
+	runAndReturn = staticmethod(runAndReturn)
+	runAndReport = staticmethod(runAndReport)
+
+class PageAndEditStats(object):
+	def __init__(self, wiki, dbName):
+		self.totalPages = None
+		self.totalEdits = None
+		self.config = wiki.config
+		self.dbName = dbName
+		self.dbServerInfo = DbServerInfo(wiki, dbName)
+		(self.totalPages, totalEdits) = self.getStatistics(config,dbName)
+
+	def getStatistics(self, dbName, ignore):
+		"""Get (cached) statistics for the wiki"""
+		totalPages = None
+		totalEdits = None
+		query = "select MAX(page_id) from page;"
+		results = self.dbServerInfo.runSqlAndGetOutput(query)
+		lines = results.splitlines()
+		if (lines and lines[1]):
+			totalPages = int(lines[1])
+		query = "select MAX(rev_id) from revision;"
+		results = self.dbServerInfo.runSqlAndGetOutput(query)
+		lines = results.splitlines()
+		if (lines and lines[1]):
+			totalEdits = int(lines[1])
+		return(totalPages, totalEdits)
+
+	def getTotalPages(self):
+		return self.totalPages
+
+	def getTotalEdits(self):
+		return self.totalEdits
 
 class BackupError(Exception):
 	pass
@@ -618,6 +681,8 @@ class Runner(object):
 		self.checkpoint = checkpoint
 
 		self.jobRequested = job
+		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName)
+
 		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
 
 		# this must come after the dumpdir setup so we know which directory we are in 
@@ -645,14 +710,6 @@ class Runner(object):
 			self.log.addToLogQueue("%s\n" % message)
 		print message
 
-	def passwordOption(self):
-		"""If you pass '-pfoo' mysql uses the password 'foo',
-		but if you pass '-p' it prompts. Sigh."""
-		if self.config.dbPassword == "":
-			return None
-		else:
-			return "-p" + self.config.dbPassword
-
 	def forceNormalOption(self):
 		if self.config.forceNormal:
 			return "--force-normal"
@@ -664,14 +721,14 @@ class Runner(object):
 		# FIXME later full path
 		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
-		return self.runAndReturn(command).strip()
+		return RunSimpleCommand.runAndReturn(command, self.log).strip()
 				      
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
 		commands = [ [ "%s" % self.config.mysqldump, "-h", 
-			       "%s" % self.dbServer, "-u", 
+			       "%s" % self.dbServerInfo.dbServer, "-u", 
 			       "%s" % self.config.dbUser, 
-			       "%s" % self.passwordOption(), "--opt", "--quick", 
+			       "%s" % self.dbServerInfo.passwordOption(), "--opt", "--quick", 
 			       "--skip-add-locks", "--skip-lock-tables", 
 			       "%s" % self.dbName, 
 			       "%s" % self.getDBTablePrefix() + table ], 
@@ -683,9 +740,9 @@ class Runner(object):
 		"""Pass some SQL commands to the server for this DB and save output to a file."""
 		command = [ [ "/bin/echo", "%s" % query ], 
 			    [ "%s" % self.config.mysql, "-h", 
-			      "%s" % self.dbServer,
+			      "%s" % self.dbServerInfo.dbServer,
 			      "-u", "%s" % self.config.dbUser,
-			      "%s" % self.passwordOption(),
+			      "%s" % self.dbServerInfo.passwordOption(),
 			      "%s" % self.dbName, 
 			      "-r" ],
 			    [ "%s" % self.config.gzip ] ]
@@ -696,25 +753,6 @@ class Runner(object):
 		commands[-1].extend( [ ">" , outfile ] )
 		series = [ commands ]
 		return self.runCommand([ series ])
-
-	def getStatistics(self, dbName):
-		"""Get (cached) statistics for the wiki"""
-		totalPages = None
-		totalEdits = None
-		statsCommand = """%s -q %s/maintenance/showStats.php --wiki=%s """ % shellEscape((
-			self.config.php, self.config.wikiDir, self.dbName))
-		results = self.runAndReturn(statsCommand)
-		lines = results.splitlines()
-		if (lines):
-			for line in lines:
-				(name,value) = line.split(':')
-				name = name.replace(' ','')
-				value = value.replace(' ','')
-				if (name == "Totalpages"):
-					totalPages = int(value)
-				elif (name == "Totaledits"):
-					totalEdits = int(value)
-		return(totalPages, totalEdits)
 
 	# command series list: list of (commands plus args) is one pipeline. list of pipelines = 1 series. 
 	# this function wants a list of series.
@@ -735,7 +773,6 @@ class Runner(object):
 		if commands.exitedSuccessfully():
 			return 0
 		else:
-			#print "***** BINGBING retval is '%s' ********" % retval
 			problemCommands = commands.commandsWithErrors()
 			errorString = "Error from command(s): "
 			for cmd in problemCommands: 
@@ -743,34 +780,6 @@ class Runner(object):
 			self.logAndPrint(errorString)
 			raise BackupError(errorString)
 		return 1
-
-	def runAndReport(self, command, callback):
-		"""Shell out to a command, and feed output lines to the callback function.
-		Returns the exit code from the program once complete.
-		stdout and stderr will be combined into a single stream.
-		"""
-		# FIXME convert all these calls so they just use runCommand now
-		proc = popen2.Popen4(command, 64)
-		#for line in proc.fromchild:
-		#	callback(self, line)
-		line = proc.fromchild.readline()
-		while line:
-			callback(self, line)
-			line = proc.fromchild.readline()
-		return proc.wait()
-
-	def runAndReturn(self, command):
-		"""Run a command and return the output as a string.
-		Raises BackupError on non-zero return code."""
-		# FIXME convert all these calls so they just use runCommand now
-		proc = popen2.Popen4(command, 64)
-		output = proc.fromchild.read()
-		retval = proc.wait()
-		if retval:
-			self.logAndPrint("Non-zero return code from '%s'" % command)
-			raise BackupError("Non-zero return code from '%s'" % command)
-		else:
-			return output
 
 	def debug(self, stuff):
 		self.logAndPrint("%s: %s %s" % (prettyTime(), self.dbName, stuff))
@@ -783,14 +792,6 @@ class Runner(object):
 			self.debug("Creating %s ..." % dir)
 			os.makedirs(dir)
 
-	def selectDatabaseServer(self):
-		self.dbServer = self.defaultServer()
-
-	def defaultServer(self):
-		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % shellEscape((
-			self.config.php, self.config.wikiDir, self.dbName))
-		return self.runAndReturn(command).strip()
-				      
 	def runHandleFailure(self):
 		if self.failCount < 1:
 			# Email the site administrator just once per database
@@ -850,7 +851,7 @@ class Runner(object):
 			self.cleanOldDumps()
 			self.showRunnerState("Starting backup of %s" % self.dbName)
 
-		self.selectDatabaseServer()
+		self.DbServerInfo = DbServerInfo(self.wiki,self.dbName)
 
 		files = self.listFilesFor(self.dumpItemList.dumpItems)
 
