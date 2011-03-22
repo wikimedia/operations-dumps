@@ -102,7 +102,10 @@ class Chunk(object, ):
 
 		if (self._chunksEnabled):
 			self.Stats = PageAndEditStats(wiki,dbName)
-
+			print "total",self.Stats.totalEdits
+			print "total2",self.Stats.totalPages
+			if (not self.Stats.totalEdits or not self.Stats.totalPages):
+				raise BackupError("Failed to get DB stats, exiting")
 			if (self._revsPerChunkHistory):
 				if (len(self._revsPerChunkHistory) == 1):
 					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalEdits, self._pagesPerChunkHistory[0])
@@ -212,20 +215,30 @@ class DbServerInfo(object):
 
 class RunSimpleCommand(object):
 
-	def log(self, message, log = None):
-		if (log):
-			log.addToLogQueue("%s\n" % message)
+	def log(message, logInfo = None):
+		if (logInfo):
+			logInfo.addToLogQueue("%s\n" % message)
 
 	# FIXME rewrite to not use popen2
-	def runAndReturn(command, log = None):
+	def runAndReturn(command, logInfo = None):
 		"""Run a command and return the output as a string.
 		Raises BackupError on non-zero return code."""
 		# FIXME convert all these calls so they just use runCommand now
+		retval = 1
+		retries=0
+		maxretries=3
 		proc = popen2.Popen4(command, 64)
 		output = proc.fromchild.read()
 		retval = proc.wait()
+		while (retval and retries < maxretries):
+			RunSimpleCommand.log("Non-zero return code from '%s'" % command, logInfo)
+			time.sleep(5)
+			proc = popen2.Popen4(command, 64)
+			output = proc.fromchild.read()
+			retval = proc.wait()
+			retries = retries + 1
 		if retval:
-			self.log("Non-zero return code from '%s'" % command, log)
+#			RunSimpleCommand.log("Non-zero return code from '%s'" % command, logInfo)
 			raise BackupError("Non-zero return code from '%s'" % command)
 		else:
 			return output
@@ -247,6 +260,7 @@ class RunSimpleCommand(object):
 
 	runAndReturn = staticmethod(runAndReturn)
 	runAndReport = staticmethod(runAndReport)
+	log = staticmethod(log)
 
 class PageAndEditStats(object):
 	def __init__(self, wiki, dbName):
@@ -255,23 +269,43 @@ class PageAndEditStats(object):
 		self.config = wiki.config
 		self.dbName = dbName
 		self.dbServerInfo = DbServerInfo(wiki, dbName)
-		(self.totalPages, totalEdits) = self.getStatistics(config,dbName)
+		self.getStatistics(config,dbName)
 
 	def getStatistics(self, dbName, ignore):
-		"""Get (cached) statistics for the wiki"""
-		totalPages = None
-		totalEdits = None
+		"""Get statistics for the wiki"""
+
 		query = "select MAX(page_id) from page;"
+		results = None
+		retries = 0
+		maxretries = 5
 		results = self.dbServerInfo.runSqlAndGetOutput(query)
+		while (results == None and retries < maxretries):
+			retries = retries + 1
+			time.sleep(5)
+			results = self.dbServerInfo.runSqlAndGetOutput(query)
+		if (not results):
+			return(1)
+
 		lines = results.splitlines()
 		if (lines and lines[1]):
-			totalPages = int(lines[1])
+			self.totalPages = int(lines[1])
+			print "totalpages here is ",self.totalPages
 		query = "select MAX(rev_id) from revision;"
+		retries = 0
+		results = None
 		results = self.dbServerInfo.runSqlAndGetOutput(query)
+		while (results == None and retries < maxretries):
+			retries = retries + 1
+			time.sleep(5)
+			results = self.dbServerInfo.runSqlAndGetOutput(query)
+		if (not results):
+			return(1)
+
 		lines = results.splitlines()
 		if (lines and lines[1]):
-			totalEdits = int(lines[1])
-		return(totalPages, totalEdits)
+			self.totalEdits = int(lines[1])
+			print "totaledits here is ",self.totalEdits
+		return(0)
 
 	def getTotalPages(self):
 		return self.totalPages
@@ -723,6 +757,7 @@ class Runner(object):
 			self.config.php, self.config.wikiDir, self.dbName))
 		return RunSimpleCommand.runAndReturn(command, self.log).strip()
 				      
+	# returns 0 on success, 1 on error
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
 		commands = [ [ "%s" % self.config.mysqldump, "-h", 
@@ -748,6 +783,7 @@ class Runner(object):
 			    [ "%s" % self.config.gzip ] ]
 		return self.saveCommand(command, outfile)
 
+	# returns 0 on success, 1 on error
 	def saveCommand(self, commands, outfile):
 		"""For one pipeline of commands, redirect output to a given file."""
 		commands[-1].extend( [ ">" , outfile ] )
@@ -759,7 +795,9 @@ class Runner(object):
 	# be a list (the command name and the various args)
 	# If the shell option is true, all pipelines will be run under the shell.
 	def runCommand(self, commandSeriesList, callback=None, arg=None, shell = False):
-		"""Nonzero return code from the shell from any command in any pipeline will raise a BackupError.
+		"""Nonzero return code from the shell from any command in any pipeline will cause this
+		function to print an error message and return 1, indictating error.
+		Returns 0 on success.
 		If a callback function is passed, it will receive lines of
 		output from the call.  If the callback function takes another argument (which will
 		be passed before the line of output) must be specified by the arg paraemeter.
@@ -778,7 +816,7 @@ class Runner(object):
 			for cmd in problemCommands: 
 				errorString = errorString + "%s " % cmd
 			self.logAndPrint(errorString)
-			raise BackupError(errorString)
+#			raise BackupError(errorString)
 		return 1
 
 	def debug(self, stuff):
@@ -1320,7 +1358,15 @@ class PublicTable(Dump):
 		return runner.dumpDir.publicPath(self._file())
 
 	def run(self, runner):
-		return runner.saveTable(self._table, self._path(runner))
+		retries = 0
+		# try this initially and see how it goes
+		maxretries = 3 
+		error = runner.saveTable(self._table, self._path(runner)) 
+		while (error and retries < maxretries):
+			retries = retries + 1
+			time.sleep(5)
+			error = runner.saveTable(self._table, self._path(runner)) 
+		return error 
 
 	def listFiles(self, runner):
 		return [self._file()]
@@ -2135,8 +2181,16 @@ class RecombineAbstractDump(AbstractDump):
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
 	def run(self, runner):
-		return runner.saveSql("select page_title from page where page_namespace=0;",
-			runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+		retries = 0
+		# try this initially and see how it goes
+		maxretries = 3 
+		query="select page_title from page where page_namespace=0;"
+		error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+		while (error and retries < maxretries):
+			retries = retries + 1
+			time.sleep(5)
+			error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+		return error 
 
 	def listFiles(self, runner):
 		return ["all-titles-in-ns0.gz"]
