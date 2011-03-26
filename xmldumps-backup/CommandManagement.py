@@ -8,6 +8,7 @@ import select
 import signal
 import Queue
 import thread
+import fcntl
 
 from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
@@ -388,8 +389,9 @@ class CommandsInParallel(object):
 	the line of output, it should be passed in the arg parameter (and it will be passed
 	to the callback function first before the output line).  If no callback is provided 
 	and the individual pipelines are not provided with a file to save output, 
-	then output is written 	to stderr."""
-	def __init__(self, commandSeriesList, callback = None, arg=None, quiet = False, shell = False ):
+	then output is written 	to stderr.
+	Callbackinterval is in milliseconds, defaults is 20 seconds"""
+	def __init__(self, commandSeriesList, callbackStderr = None, callbackStdout = None, callbackTimed = None, callbackStderrArg=None, callbackStdoutArg = None, callbackTimedArg = None, quiet = False, shell = False, callbackInterval = 20000 ):
 		self._commandSeriesList = commandSeriesList
 		self._commandSerieses = []
 		for series in self._commandSeriesList:
@@ -397,16 +399,20 @@ class CommandsInParallel(object):
 		# for each command series running in parallel,
 		# in cases where a command pipeline in the series generates output, the callback
 		# will be called with a line of output from the pipeline as it becomes available
-		self._callback = callback
-		self._arg = arg
+		self._callbackStderr = callbackStderr
+		self._callbackStdout = callbackStdout
+		self._callbackTimed = callbackTimed
+		self._callbackStderrArg = callbackStderrArg
+		self._callbackStdoutArg = callbackStdoutArg
+		self._callbackTimedArg = callbackTimedArg
 		self._commandSeriesQueue = Queue.Queue()
 
 		# number millisecs we will wait for select.poll()
 		self._defaultPollTime = 500
 		
-		# for programs that don't generate output, wait this many seconds between 
+		# for programs that don't generate output, wait this many milliseconds between 
 		# invoking callback if there is one
-		self._defaultCallbackInterval = 20
+		self._defaultCallbackInterval = callbackInterval
 
 	def startCommands(self):
 		for series in self._commandSerieses:
@@ -415,76 +421,71 @@ class CommandsInParallel(object):
 	# one of these as a thread to monitor each command series.
 	def seriesMonitor(self, timeout, queue):
 		series = queue.get()
-		poller = select.poll()
 		while series.processProducingOutput():
 			p = series.processProducingOutput()
+			poller = select.poll()
 			poller.register(p.stderr,select.POLLIN|select.POLLPRI)
-			if (p.stdout):
-				fdToStream = { p.stdout.fileno(): p.stdout, p.stderr.fileno(): p.stderr }
-			else:
-				fdToStream = { p.stderr.fileno(): p.stderr }
-			# if we have a savefile, this won't be set. 
+			fderr = p.stderr.fileno()
+			flerr = fcntl.fcntl(fderr, fcntl.F_GETFL)
+			fcntl.fcntl(fderr, fcntl.F_SETFL, flerr | os.O_NONBLOCK)
 			if (p.stdout):
 				poller.register(p.stdout,select.POLLIN|select.POLLPRI)
-
-				commandCompleted = False
-
-				while not commandCompleted:
-					waiting = poller.poll(self._defaultPollTime)
-					if (waiting):
-						for (fd,event) in waiting:
-							series.inProgressPipeline().setPollState(event)
-							if series.inProgressPipeline().checkPollReadyForRead():
-
-								# so what happens if we get more than one line of output
-								# in the poll interval? it will sit there waiting... 
-								# could have accumulation. FIXME. for our purposes we want 
-								# one line only, the latest. but for other uses of this 
-								# module?  really we should read whatever is available only,
-								# pass it to callback, let callback handle multiple lines,
-								# partial lines etc.
-								# out = p.stdout.readline()
-								out = fdToStream[fd].readline()
-								if out:
-									if self._callback:
-										if (self._arg):
-											self._callback(self._arg, out)
-										else:
-											self._callback(out)
-									else:
-										# fixme this behavior is different, do we want it?
-										sys.stderr.write(out)   
-								else:
-									# possible eof? (empty string from readline)
-									pass
-							elif series.inProgressPipeline().checkForPollErrors():
-								poller.unregister(fd)
-								p.wait()
-								# FIXME put the returncode someplace?
-								print "returned from %s with %s" % (p.pid, p.returncode)
-								commandCompleted = True
-						if commandCompleted:
-							break
-
-
-				# run next command in series, if any
-				series.continueCommands()
-
+				fdToStream = { p.stdout.fileno(): p.stdout, p.stderr.fileno(): p.stderr }
+				fdout = p.stdout.fileno()
+				flout = fcntl.fcntl(fdout, fcntl.F_GETFL)
+				fcntl.fcntl(fdout, fcntl.F_SETFL, flout | os.O_NONBLOCK)
 			else:
-				# no output from this process, just wait for it and do callback if there is one
-				waited = 0
-				while p.poll() == None:
-					if waited > self._defaultCallbackInterval and self._callback:
-						if (self._arg):
-							self._callback(self._arg)
-						else:
-							self._callback()
-						waited = 0
-					time.sleep(1)
-					waited = waited + 1
+				fdToStream = { p.stderr.fileno(): p.stderr }
 
-				print "returned from %s with %s" % (p.pid, p.returncode)
-				series.continueCommands()
+			commandCompleted = False
+
+			waited = 0
+			while not commandCompleted:
+				waiting = poller.poll(self._defaultPollTime)
+				if (waiting):
+					for (fd,event) in waiting:
+						series.inProgressPipeline().setPollState(event)
+						if series.inProgressPipeline().checkPollReadyForRead():
+							out = os.read(fd,1024)
+							if out:
+								if fd == p.stderr.fileno():
+									if self._callbackStderr:
+										if (self._callbackStderrArg):
+											self._callbackStderr(self._callbackStderrArg, out)
+										else:
+											self._callbackStderr(out)
+									else:
+										sys.stderr.write(out)   
+								elif fd == p.stdout.fileno():
+									if self._callbackStdout:
+										if (self._callbackStdoutArg):
+											self._callbackStdout(self._callbackStdoutArg, out)
+										else:
+											self._callbackStdout(out)
+									else:
+										sys.stderr.write(out)   
+							else:
+								# possible eof? what would cause this?
+								pass
+						elif series.inProgressPipeline().checkForPollErrors():
+							poller.unregister(fd)
+							# FIXME if it closed prematurely and then runs for hours to completion
+							# we will get no updates here...
+							p.wait()
+							# FIXME put the returncode someplace?
+							print "returned from %s with %s" % (p.pid, p.returncode)
+							commandCompleted = True
+
+				waited = waited + self._defaultPollTime
+				if waited > self._defaultCallbackInterval and self._callbackTimed:
+					if (self._callbackTimedArg):
+						self._callbackTimed(self._callbackTimedArg)
+					else:
+						self._callbackTimed()
+					waited = 0
+
+			# run next command in series, if any
+			series.continueCommands()
 
 		# completed the whole series. time to go home.
 		queue.task_done()
@@ -551,7 +552,7 @@ if __name__ == "__main__":
 	series4 = [ pipeline5 ]
 	series5 = [ pipeline6 ]
 	parallel = [ series1, series2, series3, series4, series5 ]
-	commands = CommandsInParallel(parallel, callback=testcallback)
+	commands = CommandsInParallel(parallel, callbackStdout=testcallback)
 	commands.runCommands()
 	if commands.exitedSuccessfully():
 		print "w00t!"

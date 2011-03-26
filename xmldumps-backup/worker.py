@@ -102,8 +102,6 @@ class Chunk(object, ):
 
 		if (self._chunksEnabled):
 			self.Stats = PageAndEditStats(wiki,dbName)
-			print "total",self.Stats.totalEdits
-			print "total2",self.Stats.totalPages
 			if (not self.Stats.totalEdits or not self.Stats.totalPages):
 				raise BackupError("Failed to get DB stats, exiting")
 			if (self._revsPerChunkHistory):
@@ -289,7 +287,6 @@ class PageAndEditStats(object):
 		lines = results.splitlines()
 		if (lines and lines[1]):
 			self.totalPages = int(lines[1])
-			print "totalpages here is ",self.totalPages
 		query = "select MAX(rev_id) from revision;"
 		retries = 0
 		results = None
@@ -304,7 +301,6 @@ class PageAndEditStats(object):
 		lines = results.splitlines()
 		if (lines and lines[1]):
 			self.totalEdits = int(lines[1])
-			print "totaledits here is ",self.totalEdits
 		return(0)
 
 	def getTotalPages(self):
@@ -788,13 +784,14 @@ class Runner(object):
 		"""For one pipeline of commands, redirect output to a given file."""
 		commands[-1].extend( [ ">" , outfile ] )
 		series = [ commands ]
-		return self.runCommand([ series ])
+		return self.runCommand([ series ], callbackTimed = self.updateStatusFiles)
 
 	# command series list: list of (commands plus args) is one pipeline. list of pipelines = 1 series. 
 	# this function wants a list of series.
 	# be a list (the command name and the various args)
 	# If the shell option is true, all pipelines will be run under the shell.
-	def runCommand(self, commandSeriesList, callback=None, arg=None, shell = False):
+	# callbackinterval: how often we will call callbackTimed (in milliseconds), defaults to every 5 secs
+	def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell = False, callbackInterval=5000):
 		"""Nonzero return code from the shell from any command in any pipeline will cause this
 		function to print an error message and return 1, indictating error.
 		Returns 0 on success.
@@ -806,7 +803,7 @@ class Runner(object):
 		This function spawns multiple series of pipelines  in parallel.
 
 		"""
-		commands = CommandsInParallel(commandSeriesList, callback=callback, arg=arg, shell=shell)
+		commands = CommandsInParallel(commandSeriesList, callbackStderr=callbackStderr, callbackStderrArg=callbackStderrArg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callbackInterval=callbackInterval)
 		commands.runCommands()
 		if commands.exitedSuccessfully():
 			return 0
@@ -1366,7 +1363,8 @@ class PublicTable(Dump):
 			retries = retries + 1
 			time.sleep(5)
 			error = runner.saveTable(self._table, self._path(runner)) 
-		return error 
+		if (error):
+			raise BackupError("error dumping table %s" % self._table)
 
 	def listFiles(self, runner):
 		return [self._file()]
@@ -1461,7 +1459,8 @@ class XmlStub(Dump):
 		else:
 			series = self.buildCommand(runner)
 			commands.append(series)
-		runner.runCommand(commands, callback=self.progressCallback, arg=runner)
+		result = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		return result
 
 class RecombineXmlStub(XmlStub):
 	def __init__(self, name, desc, chunks):
@@ -1493,23 +1492,10 @@ class RecombineXmlStub(XmlStub):
 				uncompressionCommand = [ "%s" % runner.config.gzip, "-dc" ] 
 				recombineCommandString = self.buildRecombineCommandString(runner, inputFiles, outputFile, compressionCommand, uncompressionCommand )
 				recombineCommand = [ recombineCommandString ]
-				recombinePipeline = CommandPipeline([ recombineCommand ], shell = True)
-				recombinePipeline.startCommands()
-				while True:
-					# these commands don't produce any progress bar... so we can at least
-					# update the size and last update time of the file once a minute
-					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(self.timeToWait())
-					try:
-						recombinePipeline._lastProcessInPipe.wait()
-						break
-					except Exception, e:
-						if e.errno == errno.EINTR:
-							pass
-						else:
-							raise
-					self.progressCallback(runner)
-					signal.alarm(0)
+				recombinePipeline = [ recombineCommand ]
+				series = [ recombinePipeline ]
+				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+				return result
 
 class XmlLogging(Dump):
 	""" Create a logging dump of all page activity """
@@ -1536,7 +1522,8 @@ class XmlLogging(Dump):
 			    "--output=gzip:%s" % logging ]
 		pipeline = [ command ]
 		series = [ pipeline ]
-		runner.runCommand([ series ], callback=self.progressCallback, arg=runner)
+		result = runner.runCommand([ series ], callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		return result
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
@@ -1571,7 +1558,8 @@ class XmlDump(Dump):
 		else:
 			series = self.buildCommand(runner)
 			commands.append(series)
-		return runner.runCommand(commands, callback=self.progressCallback, arg=runner)
+		result = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		return result
 
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
@@ -1886,23 +1874,10 @@ class RecombineXmlDump(XmlDump):
 				uncompressionCommand = [ "%s" % runner.config.bzip2, "-dc" ] 
 				recombineCommandString = self.buildRecombineCommandString(runner, inputFiles, outputFile, compressionCommand, uncompressionCommand )
 				recombineCommand = [ recombineCommandString ]
-				recombinePipeline = CommandPipeline([ recombineCommand ], shell = True)
-				recombinePipeline.startCommands()
-				while True:
-					# these commands don't produce any progress bar... so we can at least
-					# update the size and last update time of the file once a minute
-					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(self.timeToWait())
-					try:
-						recombinePipeline._lastProcessInPipe.wait()
-						break
-					except Exception, e:
-						if e.errno == errno.EINTR:
-							pass
-						else:
-							raise
-					self.progressCallback(runner)
-					signal.alarm(0)
+				recombinePipeline = [ recombineCommand ]
+				series = [ recombinePipeline ]
+				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+				return result
 
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
@@ -1971,10 +1946,7 @@ class XmlRecompressDump(Dump):
 		else:
 			series = self.buildCommand(runner)
 			commands.append(series)
-		# FIXME don't we want callback? yes we do. *sigh* on each one of these, right? bleah
-		# this means we have the alarm loop in here (while we do what, poll a lot?) and um
-		# write out a progress bar regardless after 60 secs by looking at all the files etc. bleah
-		result = runner.runCommand(commands, callback=self.progressCallback, arg=runner, shell = True)
+		result = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
 		# temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
 		# some hacks aren't so temporary - atg 3 sept 2010
 		if (self._chunks):
@@ -2032,23 +2004,10 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 
 				recombineCommandString = self.buildRecombineCommandString(runner, files, outputFile, compressionCommand, uncompressionCommand )
 				recombineCommand = [ recombineCommandString ]
-				recombinePipeline = CommandPipeline([ recombineCommand ], shell = True)
-				recombinePipeline.startCommands()
-				while True:
-					# these commands don't produce any progress bar... so we can at least
-					# update the size and last update time of the file once a minute
-					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(self.timeToWait())
-					try:
-						recombinePipeline._lastProcessInPipe.wait()
-						break
-					except Exception, e:
-						if e.errno == errno.EINTR:
-							pass
-						else:
-							raise
-					self.progressCallback(runner)
-					signal.alarm(0)
+				recombinePipeline = [ recombineCommand ]
+				series = [ recombinePipeline ]
+				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+				return result
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
@@ -2095,7 +2054,7 @@ class AbstractDump(Dump):
 		else:
 			series = self.buildCommand(runner)
 		        commands.append(series)
-		runner.runCommand(commands, callback=self.progressCallback, arg=runner)
+		runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
 
 	def _variants(self, runner):
 		# If the database name looks like it's marked as Chinese language,
@@ -2160,23 +2119,10 @@ class RecombineAbstractDump(AbstractDump):
 				uncompressionCommand = [ "%s" % runner.config.cat ] 
 				recombineCommandString = self.buildRecombineCommandString(runner, inputFiles, outputFile, compressionCommand, uncompressionCommand, "<feed>" )
 				recombineCommand = [ recombineCommandString ]
-				recombinePipeline = CommandPipeline([ recombineCommand ], shell = True)
-				recombinePipeline.startCommands()
-				while True:
-					# these commands don't produce any progress bar... so we can at least
-					# update the size and last update time of the file once a minute
-					signal.signal(signal.SIGALRM, self.waitAlarmHandler)
-					signal.alarm(self.timeToWait())
-					try:
-						recombinePipeline._lastProcessInPipe.wait()
-						break
-					except Exception, e:
-						if e.errno == errno.EINTR:
-							pass
-						else:
-							raise
-					self.progressCallback(runner)
-					signal.alarm(0)
+				recombinePipeline = [ recombineCommand ]
+				series = [ recombinePipeline ]
+				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+				return result
 
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
