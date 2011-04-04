@@ -69,6 +69,8 @@ def readFile(filename):
 
 def dbList(filename):
 	"""Read database list from a file"""
+	if (not filename):
+		return []
 	infile = open(filename)
 	dbs = []
 	for line in infile:
@@ -93,7 +95,8 @@ class Config(object):
 			"dblist": "",
 			"privatelist": "",
 			"biglist": "",
-			"dir": "",
+			"flaggedrevslist": "",
+#			"dir": "",
 			"forcenormal": "0",
 			"halt": "0",
 			"skipdblist" : "",
@@ -115,7 +118,7 @@ class Config(object):
 			"password": "",
 			#"tools": {
 			"php": "/bin/php",
-			"gzip2": "/usr/bin/gzip",
+			"gzip": "/usr/bin/gzip",
 			"bzip2": "/usr/bin/bzip2",
 			"sevenzip": "/bin/7za",
 			"mysql": "/usr/bin/mysql",
@@ -127,8 +130,8 @@ class Config(object):
 			#"cleanup": {
 			"keep": "3",
 			#"chunks": {
-			# set this to True to enable runing the various xml dump stages as chunks in parallel
-			"chunksEnabled" : False,
+			# set this to 1 to enable runing the various xml dump stages as chunks in parallel
+			"chunksEnabled" : "0",
 			# for page history runs, number of pages for each chunk, specified separately 
 			# e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
 			# would define 10 chunks with the specified number of pages in each and any extra in
@@ -141,39 +144,33 @@ class Config(object):
 			"revsPerChunkHistory" : False,
 			# pages per chunk for abstract runs
 			"pagesPerChunkAbstract" : False,
+			# whether or not to recombine the history pieces
+			"recombineHistory" : "1",
 			}
 		conf = ConfigParser.SafeConfigParser(defaults)
 		conf.read(files)
 		
-		try:
-			self.dbList = dbList(conf.get("wiki", "dblist"))
-		except ConfigParser.NoSectionError:
+		if not conf.has_section("wiki"):
 			print "The mandatory configuration section 'wiki' was not defined."
-			print "Either the section was ommitted or none of the files in the list"
-			print "%s exists. Giving up." % files
-			raise
-		try:
-			self.skipDbList = dbList(conf.get("wiki", "skipdblist"))
-		except ConfigParser.NoSectionError:
-			self.skipDbList = []
-		self.dbList = list(set(self.dbList) - set(self.skipDbList))
+			raise ConfigParser.NoSectionError('wiki')
 
+		if not conf.has_option("wiki","dir"):
+			print "The mandatory setting 'dir' in the section 'wiki' was not defined."
+			raise ConfigParser.NoOptionError('wiki','dir')
+
+		self.dbList = dbList(conf.get("wiki", "dblist"))
+		self.skipDbList = dbList(conf.get("wiki", "skipdblist"))
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
-		biglistFile = conf.get("wiki", "biglist")
-		if biglistFile:
-			self.bigList = dbList(biglistFile)
-		else:
-			self.bigList = []
-		flaggedRevsFile = conf.get("wiki", "flaggedrevslist")
-		if flaggedRevsFile:
-			self.flaggedRevsList = dbList(flaggedRevsFile)
-		else:
-			self.flaggedRevsList = []
-		
+		self.bigList = dbList(conf.get("wiki", "biglist"))
+		self.flaggedRevsList = dbList(conf.get("wiki", "flaggedrevslist"))
 		self.wikiDir = conf.get("wiki", "dir")
 		self.forceNormal = conf.getint("wiki", "forceNormal")
 		self.halt = conf.getint("wiki", "halt")
-		
+
+		self.dbList = list(set(self.dbList) - set(self.skipDbList))
+
+		if not conf.has_section('output'):
+			conf.add_section('output')
 		self.publicDir = conf.get("output", "public")
 		self.privateDir = conf.get("output", "private")
 		self.webRoot = conf.get("output", "webroot")
@@ -182,14 +179,20 @@ class Config(object):
 		self.perDumpIndex = conf.get("output", "perdumpindex")
 		self.logFile = conf.get("output", "logfile")
 
+		if not conf.has_section('reporting'):
+			conf.add_section('reporting')
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
 		self.smtpServer = conf.get("reporting", "smtpserver")
 		self.staleAge = conf.getint("reporting", "staleAge")
 		
+		if not conf.has_section('database'):
+			conf.add_section('database')
 		self.dbUser = conf.get("database", "user")
 		self.dbPassword = conf.get("database", "password")
 		
+		if not conf.has_section('tools'):
+			conf.add_section('tools')
 		self.php = conf.get("tools", "php")
 		self.gzip = conf.get("tools", "gzip")
 		self.bzip2 = conf.get("tools", "bzip2")
@@ -201,13 +204,18 @@ class Config(object):
 		self.cat = conf.get("tools", "cat")
 		self.grep = conf.get("tools", "grep")
 
-		self.chunksEnabled = conf.get("chunks","chunksEnabled")
+		if not conf.has_section('chunks'):
+			conf.add_section('chunks')
+		self.chunksEnabled = conf.getint("chunks","chunksEnabled")
 		self.pagesPerChunkHistory = conf.get("chunks","pagesPerChunkHistory")
 		self.revsPerChunkHistory = conf.get("chunks","revsPerChunkHistory")
 		self.pagesPerChunkAbstract = conf.get("chunks","pagesPerChunkAbstract")
+		self.recombineHistory = conf.getint("chunks","recombineHistory")
 
+		if not conf.has_section('cleanup'):
+			conf.add_section('cleanup')
 		self.keep = conf.getint("cleanup", "keep")
-	
+
 	def dbListByAge(self):
 		"""
 			Sort wikis in reverse order of last successful dump :
