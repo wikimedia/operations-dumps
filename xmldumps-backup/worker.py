@@ -477,12 +477,13 @@ class DumpItemList(object):
 
 	# format: name:%; updated:%; status:%
 	def _getOldRunInfoFromLine(self, line):
-		# get rid of leading/trailing/embedded blanks
-		line = line.replace(" ","")
+		# get rid of leading/trailing/blanks
+		line = line.strip(" ")
 		line = line.replace("\n","")
 		fields = line.split(';',3)
 		dumpRunInfo = RunInfo()
 		for field in fields:
+			field = field.strip(" ")
 			(fieldName, separator, fieldValue)  = field.partition(':')
 			if (fieldName == "name"):
 				dumpRunInfo.setName(fieldValue)
@@ -612,21 +613,25 @@ class DumpItemList(object):
 		return True
 				      
 class Checksummer(object):
-
 	def __init__(self,wiki,dumpDir):
 		self.wiki = wiki
 		self.dumpDir = dumpDir
-
+		self.timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+	
 	def getChecksumFileNameBasename(self):
 		return ("md5sums.txt")
 
 	def getChecksumFileName(self):
 		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename()))
 
+	def getChecksumFileNameTmp(self):
+		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename() + "." + self.timestamp + ".tmp"))
+
 	def prepareChecksums(self):
-		"""Create the md5 checksum file at the start of the run.
-		This will overwrite a previous run's output, if any."""
-		checksumFileName = self.getChecksumFileName()
+		"""Create a temporary md5 checksum file.
+		Call this at the start of the dump run, and move the file
+		into the final location at the completion of the dump run."""
+		checksumFileName = self.getChecksumFileNameTmp()
 		output = file(checksumFileName, "w")
 
 	def md5File(self, filename):
@@ -652,11 +657,16 @@ class Checksummer(object):
 
 	def checksum(self, filename, runner):
 		"""Run checksum for an output file, and append to the list."""
-		checksumFileName = self.getChecksumFileName()
+		checksumFileName = self.getChecksumFileNameTmp()
 		output = file(checksumFileName, "a")
 		self.saveChecksum(filename, output, runner)
 		output.close()
-				      
+
+	def moveMd5FileIntoPlace(self):
+		tmpFileName = self.getChecksumFileNameTmp()
+		realFileName = self.getChecksumFileName()
+		os.rename(tmpFileName, realFileName)
+
 class DumpDir(object):
 	def __init__(self, wiki, dbName, date):
 		self._wiki = wiki
@@ -925,6 +935,7 @@ class Runner(object):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
 			else:
 				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
+
 		else:
 			self.checksums.prepareChecksums()
 
@@ -1149,8 +1160,11 @@ class Runner(object):
 		self.debug("SUCCESS: done.")
 
 	def completeDump(self, files):
-		# FIXME: md5sums.txt won't be consistent with mixed data.
-		# later comment: which mixed data was meant here?
+		# note that it's possible for links in "latest" to point to 
+		# files from different runs, in which case the md5sums file
+		# will have accurate checksums for the run for which it was
+		# produced, but not the other files. FIXME
+		self.checksums.moveMd5FileIntoPlace()
 		self.saveSymlink(self.checksums.getChecksumFileNameBasename())
 
 	def saveSymlink(self, file):
