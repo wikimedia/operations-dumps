@@ -99,6 +99,7 @@ class Chunk(object, ):
 		self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkHistory)
 		self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.revsPerChunkHistory)
 		self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkAbstract)
+		self._recombineHistory = wiki.config.recombineHistory
 
 		if (self._chunksEnabled):
 			self.Stats = PageAndEditStats(wiki,dbName)
@@ -155,6 +156,9 @@ class Chunk(object, ):
 
 	def chunksEnabled(self):
 		return self._chunksEnabled
+
+	def recombineHistory(self):
+		return self._recombineHistory
 
 	# args: total (pages or revs), and the number of (pages or revs) per chunk.
 	def getNumberOfChunksForXMLDumps(self, total, perChunk):
@@ -430,7 +434,7 @@ class DumpItemList(object):
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
 					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
-			if (self.chunkInfo.chunksEnabled()):
+			if (self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory()):
 				self.dumpItems.append(
 					RecombineXmlDump("meta-history",
 								   "metahistorybz2dumprecombine",
@@ -443,7 +447,7 @@ class DumpItemList(object):
 					"All pages with complete edit history (.7z)",
 					"These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
 					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self.chunkInfo.getPagesPerChunkHistory()))
-			if (self.chunkInfo.chunksEnabled()):
+			if (self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory()):
 				self.dumpItems.append(
 					RecombineXmlRecompressDump("meta-history",
 								   "metahistory7zdumprecombine",
