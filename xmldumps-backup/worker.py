@@ -92,7 +92,7 @@ class Logger(object):
 # otherwise we get passed alist that says "here's now many for each chunk and it's this many chunks. 
 # extra pages/revs go in the last chunk, stuck on the end. too bad. :-P
 class Chunk(object, ):
-	def __init__(self, wiki, dbName):
+	def __init__(self, wiki, dbName, errorCallback = None):
 
 		self._dbName = dbName
 		self._chunksEnabled = wiki.config.chunksEnabled
@@ -102,7 +102,7 @@ class Chunk(object, ):
 		self._recombineHistory = wiki.config.recombineHistory
 
 		if (self._chunksEnabled):
-			self.Stats = PageAndEditStats(wiki,dbName)
+			self.Stats = PageAndEditStats(wiki,dbName, errorCallback)
 			if (not self.Stats.totalEdits or not self.Stats.totalPages):
 				raise BackupError("Failed to get DB stats, exiting")
 			if (self._revsPerChunkHistory):
@@ -175,22 +175,23 @@ class Chunk(object, ):
 			return chunks
 
 class DbServerInfo(object):
-	def __init__(self, wiki, dbName):
+	def __init__(self, wiki, dbName, errorCallback = None):
 		self.config = wiki.config
 		self.dbName = dbName
+		self.errorCallback = errorCallback
 		self.selectDatabaseServer()
 
 	def defaultServer(self):
 		# if this fails what do we do about it? Not a bleeping thing. *ugh* FIXME!!
 		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
-		return RunSimpleCommand.runAndReturn(command).strip()
+		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 
 	def selectDatabaseServer(self):
 		self.dbServer = self.defaultServer()
 
-	def runSqlAndGetOutput(self, query):
-		"""Pass some SQL commands to the server for this DB and save output to a file."""
+	def buildSqlCommand(self, query, pipeto = None):
+		"""Put together a command to execute an sql query to the server for this DB."""
 		command = [ [ "/bin/echo", "%s" % query ], 
 			    [ "%s" % self.config.mysql, "-h", 
 			      "%s" % self.dbServer,
@@ -198,6 +199,26 @@ class DbServerInfo(object):
 			      "%s" % self.passwordOption(),
 			      "%s" % self.dbName, 
 			      "-r" ] ]
+		if (pipeto):
+			command.append([ pipeto ])
+		return command
+
+	def buildSqlDumpCommand(self, table, pipeto = None):
+		"""Put together a command to dump a table from the current DB with mysqldump
+		and save to a gzipped sql file."""
+		command = [ [ "%s" % self.config.mysqldump, "-h", 
+			       "%s" % self.dbServer, "-u", 
+			       "%s" % self.config.dbUser, 
+			       "%s" % self.passwordOption(), "--opt", "--quick", 
+			       "--skip-add-locks", "--skip-lock-tables", 
+			       "%s" % self.dbName, 
+			       "%s" % self.getDBTablePrefix() + table ] ]
+		if (pipeto):
+			command.append([ pipeto ])
+		return command
+
+	def runSqlAndGetOutput(self, query):
+		command = self.buildSqlCommand(query)
 		p = CommandPipeline(command, quiet=True)
 		p.runPipelineAndGetOutput()
 		# fixme best to put the return code someplace along with any errors....
@@ -214,15 +235,18 @@ class DbServerInfo(object):
 		else:
 			return "-p" + self.config.dbPassword
 
+	def getDBTablePrefix(self):
+		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
+		# FIXME later full path
+		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
+			self.config.php, self.config.wikiDir, self.dbName))
+		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
+				      
 
 class RunSimpleCommand(object):
 
-	def log(message, logInfo = None):
-		if (logInfo):
-			logInfo.addToLogQueue("%s\n" % message)
-
 	# FIXME rewrite to not use popen2
-	def runAndReturn(command, logInfo = None):
+	def runAndReturn(command, logCallback = None):
 		"""Run a command and return the output as a string.
 		Raises BackupError on non-zero return code."""
 		# FIXME convert all these calls so they just use runCommand now
@@ -233,14 +257,16 @@ class RunSimpleCommand(object):
 		output = proc.fromchild.read()
 		retval = proc.wait()
 		while (retval and retries < maxretries):
-			RunSimpleCommand.log("Non-zero return code from '%s'" % command, logInfo)
+			if self.logCallback:
+				self.logCallback("Non-zero return code from '%s'" % command)
 			time.sleep(5)
 			proc = popen2.Popen4(command, 64)
 			output = proc.fromchild.read()
 			retval = proc.wait()
 			retries = retries + 1
 		if retval:
-#			RunSimpleCommand.log("Non-zero return code from '%s'" % command, logInfo)
+			if self.logCallback:
+				self.logCallback("Non-zero return code from '%s'" % command)
 			raise BackupError("Non-zero return code from '%s'" % command)
 		else:
 			return output
@@ -262,15 +288,14 @@ class RunSimpleCommand(object):
 
 	runAndReturn = staticmethod(runAndReturn)
 	runAndReport = staticmethod(runAndReport)
-	log = staticmethod(log)
 
 class PageAndEditStats(object):
-	def __init__(self, wiki, dbName):
+	def __init__(self, wiki, dbName, errorCallback = None):
 		self.totalPages = None
 		self.totalEdits = None
 		self.config = wiki.config
 		self.dbName = dbName
-		self.dbServerInfo = DbServerInfo(wiki, dbName)
+		self.dbServerInfo = DbServerInfo(wiki, dbName, errorCallback)
 		self.getStatistics(config,dbName)
 
 	def getStatistics(self, dbName, ignore):
@@ -862,7 +887,7 @@ class Runner(object):
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
 		self.spawn = spawn
-		self.chunkInfo = Chunk(wiki, self.dbName)
+		self.chunkInfo = Chunk(wiki, self.dbName, self.logAndPrint)
 		self.restart = restart
 		self.loggingEnabled = loggingEnabled
 		self.log = None
@@ -879,7 +904,7 @@ class Runner(object):
 		self.checkpoint = checkpoint
 
 		self.jobRequested = job
-		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName)
+		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.logAndPrint)
 
 		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
 
@@ -916,37 +941,15 @@ class Runner(object):
 		else:
 			return ""
 
-	def getDBTablePrefix(self):
-		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
-		# FIXME later full path
-		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
-			self.config.php, self.config.wikiDir, self.dbName))
-		return RunSimpleCommand.runAndReturn(command, self.log).strip()
-				      
 	# returns 0 on success, 1 on error
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
-		commands = [ [ "%s" % self.config.mysqldump, "-h", 
-			       "%s" % self.dbServerInfo.dbServer, "-u", 
-			       "%s" % self.config.dbUser, 
-			       "%s" % self.dbServerInfo.passwordOption(), "--opt", "--quick", 
-			       "--skip-add-locks", "--skip-lock-tables", 
-			       "%s" % self.dbName, 
-			       "%s" % self.getDBTablePrefix() + table ], 
-			     [ "%s" % self.config.gzip ] ]
-
+		commands = self.dbServerInfo.buildSqlDumpCommand(table, self.config.gzip)
 		return self.saveCommand(commands, outfile)
 
 	def saveSql(self, query, outfile):
-		"""Pass some SQL commands to the server for this DB and save output to a file."""
-		command = [ [ "/bin/echo", "%s" % query ], 
-			    [ "%s" % self.config.mysql, "-h", 
-			      "%s" % self.dbServerInfo.dbServer,
-			      "-u", "%s" % self.config.dbUser,
-			      "%s" % self.dbServerInfo.passwordOption(),
-			      "%s" % self.dbName, 
-			      "-r" ],
-			    [ "%s" % self.config.gzip ] ]
+		"""Pass some SQL commands to the server for this DB and save output to a gzipped file."""
+		command = self.dbServerInfo.buildSqlCommand(query, self.config.gzip)
 		return self.saveCommand(command, outfile)
 
 	# returns 0 on success, 1 on error
@@ -993,7 +996,7 @@ class Runner(object):
 	def runHandleFailure(self):
 		if self.status.failCount < 1:
 			# Email the site administrator just once per database
-			self.reportFailure()
+			self.status.reportFailure()
 			self.status.failCount += 1
 			self.lastFailed = True
 
@@ -1048,8 +1051,6 @@ class Runner(object):
 			self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
 			self.cleanOldDumps()
 			self.showRunnerState("Starting backup of %s" % self.dbName)
-
-		self.DbServerInfo = DbServerInfo(self.wiki,self.dbName)
 
 		files = self.listFilesFor(self.dumpItemList.dumpItems)
 
@@ -2182,11 +2183,11 @@ class TitleDump(Dump):
 		# try this initially and see how it goes
 		maxretries = 3 
 		query="select page_title from page where page_namespace=0;"
-		error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+		error = runner.dbServerInfo.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
 		while (error and retries < maxretries):
 			retries = retries + 1
 			time.sleep(5)
-			error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+			error = runner.dbServerInfo.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
 		return error 
 
 	def listFiles(self, runner):
