@@ -699,345 +699,54 @@ class DumpDir(object):
 	def webPath(self, filename):
 		return self.buildPath(self._wiki.webDir(), self._date, filename)
 				      
-class Runner(object):
-
-	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None, restart=False, loggingEnabled=False):
+# everything that has to do with reporting the status of a piece
+# of a dump is collected here
+class Status(object):
+	def __init__(self, wiki, dumpDir, date, items, checksums, errorCallback=None):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
-		self.prefetch = prefetch
-		self.spawn = spawn
-		self.chunkInfo = Chunk(wiki, self.dbName)
-		self.restart = restart
-		self.loggingEnabled = loggingEnabled
-		self.log = None
-
-		if date:
-			# Override, continuing a past dump?
-			self.date = date
-		else:
-			self.date = WikiDump.today()
-		wiki.setDate(self.date)
-
+		self.dumpDir = dumpDir
+		self.items = items
+		self.checksums = checksums
+		self.date = date
+		# this is just a glorified name for "give me a logging facility"
+		self.errorCallback = errorCallback
 		self.failCount = 0
-		self.lastFailed = False
 
-		self.checkpoint = checkpoint
-
-		self.jobRequested = job
-		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName)
-
-		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
-
-		# this must come after the dumpdir setup so we know which directory we are in 
-		# for the log file.
-		if (loggingEnabled):
-			self.logFileName = self.dumpDir.publicPath(config.logFile)
-			self.makeDir(join(self.wiki.publicDir(), self.date))
-			self.log = Logger(self.logFileName)
-			thread.start_new_thread(self.logQueueReader,(self.log,))
-
-		self.checksums = Checksummer(self.wiki, self.dumpDir)
-
-		# some or all of these dumpItems will be marked to run
-		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
-
-	def logQueueReader(self,log):
-		if not log:
-			return
-		done = False
-		while not done:
-			done = log.doJobOnLogQueue()
-		
-	def logAndPrint(self, message):
-		if (self.log):
-			self.log.addToLogQueue("%s\n" % message)
-		print message
-
-	def forceNormalOption(self):
-		if self.config.forceNormal:
-			return "--force-normal"
-		else:
-			return ""
-
-	def getDBTablePrefix(self):
-		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
-		# FIXME later full path
-		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
-			self.config.php, self.config.wikiDir, self.dbName))
-		return RunSimpleCommand.runAndReturn(command, self.log).strip()
-				      
-	# returns 0 on success, 1 on error
-	def saveTable(self, table, outfile):
-		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
-		commands = [ [ "%s" % self.config.mysqldump, "-h", 
-			       "%s" % self.dbServerInfo.dbServer, "-u", 
-			       "%s" % self.config.dbUser, 
-			       "%s" % self.dbServerInfo.passwordOption(), "--opt", "--quick", 
-			       "--skip-add-locks", "--skip-lock-tables", 
-			       "%s" % self.dbName, 
-			       "%s" % self.getDBTablePrefix() + table ], 
-			     [ "%s" % self.config.gzip ] ]
-
-		return self.saveCommand(commands, outfile)
-
-	def saveSql(self, query, outfile):
-		"""Pass some SQL commands to the server for this DB and save output to a file."""
-		command = [ [ "/bin/echo", "%s" % query ], 
-			    [ "%s" % self.config.mysql, "-h", 
-			      "%s" % self.dbServerInfo.dbServer,
-			      "-u", "%s" % self.config.dbUser,
-			      "%s" % self.dbServerInfo.passwordOption(),
-			      "%s" % self.dbName, 
-			      "-r" ],
-			    [ "%s" % self.config.gzip ] ]
-		return self.saveCommand(command, outfile)
-
-	# returns 0 on success, 1 on error
-	def saveCommand(self, commands, outfile):
-		"""For one pipeline of commands, redirect output to a given file."""
-		commands[-1].extend( [ ">" , outfile ] )
-		series = [ commands ]
-		return self.runCommand([ series ], callbackTimed = self.updateStatusFiles)
-
-	# command series list: list of (commands plus args) is one pipeline. list of pipelines = 1 series. 
-	# this function wants a list of series.
-	# be a list (the command name and the various args)
-	# If the shell option is true, all pipelines will be run under the shell.
-	# callbackinterval: how often we will call callbackTimed (in milliseconds), defaults to every 5 secs
-	def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell = False, callbackInterval=5000):
-		"""Nonzero return code from the shell from any command in any pipeline will cause this
-		function to print an error message and return 1, indictating error.
-		Returns 0 on success.
-		If a callback function is passed, it will receive lines of
-		output from the call.  If the callback function takes another argument (which will
-		be passed before the line of output) must be specified by the arg paraemeter.
-		If no callback is provided, and no output file is specified for a given 
-		pipe, the output will be written to stderr. (Do we want that?)
-		This function spawns multiple series of pipelines  in parallel.
-
-		"""
-		commands = CommandsInParallel(commandSeriesList, callbackStderr=callbackStderr, callbackStderrArg=callbackStderrArg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callbackInterval=callbackInterval)
-		commands.runCommands()
-		if commands.exitedSuccessfully():
-			return 0
-		else:
-			problemCommands = commands.commandsWithErrors()
-			errorString = "Error from command(s): "
-			for cmd in problemCommands: 
-				errorString = errorString + "%s " % cmd
-			self.logAndPrint(errorString)
-#			raise BackupError(errorString)
-		return 1
-
-	def debug(self, stuff):
-		self.logAndPrint("%s: %s %s" % (prettyTime(), self.dbName, stuff))
-#		print "%s: %s %s" % (prettyTime(), self.dbName, stuff)
-
-	def makeDir(self, dir):
-		if exists(dir):
-			self.debug("Checkdir dir %s ..." % dir)
-		else:
-			self.debug("Creating %s ..." % dir)
-			os.makedirs(dir)
-
-	def runHandleFailure(self):
-		if self.failCount < 1:
-			# Email the site administrator just once per database
-			self.reportFailure()
-			self.failCount += 1
-			self.lastFailed = True
-
-	def runUpdateItemFileInfo(self, item):
-		for f in item.listFiles(self):
-			print f
-			if exists(self.dumpDir.publicPath(f)):
-				# why would the file not exist? because we changed chunk numbers in the
-				# middle of a run, and now we list more files for the next stage than there
-				# were for earlier ones
-				self.saveSymlink(f)
-				self.saveFeed(f)
-				self.checksums.checksum(f, self)
-
-	def run(self):
-		if (self.jobRequested):
-			if ((not self.dumpItemList.oldRunInfoRetrieved) and (self.wiki.existsPerDumpIndex())):
-				# There was a previous run of all or part of this date, but...
-				# There was no old RunInfo to be had (or an error was encountered getting it)
-				# so we can't rerun a step and keep all the status information about the old run around.
-				# In this case ask the user if they reeeaaally want to go ahead
-				print "No information about the previous run for this date could be retrieved."
-				print "This means that the status information about the old run will be lost, and"
-				print "only the information about the current (and future) runs will be kept."
-				reply = raw_input("Continue anyways? [y/N]: ")
-				if (not reply in "y", "Y"):
-					raise RuntimeError( "No run information available for previous dump, exiting" )
-			if (not self.wiki.existsPerDumpIndex()):
-				# AFAWK this is a new run (not updating or rerunning an old run), 
-				# so we should see about cleaning up old dumps
-				self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
-				self.cleanOldDumps()
-
-			if (not self.dumpItemList.markDumpsToRun(self.jobRequested)):
-			# probably no such job
-				raise RuntimeError( "No job marked to run, exiting" )
-			# job has dependent steps that weren't already run
-			if (not self.dumpItemList.checkJobDependencies(self.jobRequested)):
-				raise RuntimeError( "Job dependencies not run beforehand, exiting" )
-			if (restart):
-				# mark all the following jobs to run as well 
-				self.dumpItemList.markFollowingJobsToRun()
-
-		self.makeDir(join(self.wiki.publicDir(), self.date))
-	       	self.makeDir(join(self.wiki.privateDir(), self.date))
-
-		if (self.restart):
-			self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
-		elif (self.jobRequested):
-			self.logAndPrint("Preparing for job %s of %s" % (self.jobRequested, self.dbName))
-		else:
-			self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
-			self.cleanOldDumps()
-			self.showRunnerState("Starting backup of %s" % self.dbName)
-
-		self.DbServerInfo = DbServerInfo(self.wiki,self.dbName)
-
-		files = self.listFilesFor(self.dumpItemList.dumpItems)
-
-		if (self.jobRequested):
-			self.checksums.prepareChecksums()
-
-			for item in self.dumpItemList.dumpItems:
-				if (item.toBeRun()):
-					item.start(self)
-					self.updateStatusFiles()
-					self.dumpItemList.saveDumpRunInfoFile()
-					try:
-						item.dump(self)
-					except Exception, ex:
-						self.debug("*** exception! " + str(ex))
-						item.setStatus("failed")
-					if item.status() == "failed":
-						self.runHandleFailure()
-					else:
-						self.lastFailed = False
-				# this ensures that, previous run or new one, the old or new md5sums go to the file
-				if item.status() == "done":
-					self.runUpdateItemFileInfo(item)
-
-			if (self.dumpItemList.allPossibleJobsDone()):
-				self.updateStatusFiles("done")
-			else:
-				self.updateStatusFiles("partialdone")
-			self.dumpItemList.saveDumpRunInfoFile()
-
-			# if any job succeeds we might as well make the sym link
-			if (self.failCount < 1):
-				self.completeDump(files)
-											
-			if (self.restart):
-				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
-			else:
-				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
-
-		else:
-			self.checksums.prepareChecksums()
-
-			for item in self.dumpItemList.dumpItems:
-				item.start(self)
-				self.updateStatusFiles()
-				self.dumpItemList.saveDumpRunInfoFile()
-				# FIXME is this checkpoint stuff useful to us now?
-				if self.checkpoint and not item.matchCheckpoint(self.checkpoint):
-					self.debug("*** Skipping until we reach checkpoint...")
-					item.setStatus("done")
-					pass
-				else:
-					if self.checkpoint and item.matchCheckpoint(self.checkpoint):
-						self.debug("*** Reached checkpoint!")
-						self.checkpoint = None
-				try:
-					item.dump(self)
-				except Exception, ex:
-					self.debug("*** exception! " + str(ex))
-					item.setStatus("failed")
-				if item.status() == "failed":
-					self.runHandleFailure()
-				else:
-					self.runUpdateItemFileInfo(item)
-					self.lastFailed = False
-
-			self.updateStatusFiles("done")
-			self.dumpItemList.saveDumpRunInfoFile()
-										
-			if self.failCount < 1:
-				self.completeDump(files)
-											
-			self.showRunnerStateComplete()
-
-	def cleanOldDumps(self):
-		old = self.wiki.dumpDirs()
-		if old:
-			if old[-1] == self.date:
-				# If we're re-running today's (or jobs from a given day's) dump, don't count it as one
-				# of the old dumps to keep... or delete it halfway through!
-				old = old[:-1]
-			if self.config.keep > 0:
-				# Keep the last few
-				old = old[:-(self.config.keep)]
-		if old:
-			for dump in old:
-				self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
-				base = os.path.join(self.wiki.publicDir(), dump)
-				shutil.rmtree("%s" % base)
-		else:
-			self.showRunnerState("No old dumps to purge.")
-
-	def reportFailure(self):
-		if self.config.adminMail:
-			subject = "Dump failure for " + self.dbName
-			message = self.config.readTemplate("errormail.txt") % {
-				"db": self.dbName,
-				"date": self.date,
-				"time": prettyTime(),
-				"url": "/".join((self.config.webRoot, self.dbName, self.date, ''))}
-			config.mail(subject, message)
-
-	def listFilesFor(self, items):
-		files = []
-		for item in items:
-			for file in item.listFiles(self):
-				files.append(file)
-		return files
-
-	def saveStatusSummaryAndDetail(self, items, done=False):
-		"""Write out an HTML file with the status for this wiki's dump and links to completed files, as well as a summary status in a separate file."""
+	def saveStatusSummaryAndDetail(self, done=False):
+		"""Write out an HTML file with the status for this wiki's dump 
+		and links to completed files, as well as a summary status in a separate file."""
 		try:
 			# Comprehensive report goes here
-			self.wiki.writePerDumpIndex(self.reportDatabaseStatusDetailed(items, done))
+			self.wiki.writePerDumpIndex(self.reportDatabaseStatusDetailed(done))
 
 			# Short line for report extraction goes here
-			self.wiki.writeStatus(self.reportDatabaseStatusSummary(items, done))
+			self.wiki.writeStatus(self.reportDatabaseStatusSummary(done))
 		except:
-			self.logAndPrint("Couldn't update status files. Continuing anyways")
+			message = "Couldn't update status files. Continuing anyways"
+			if self.errorCallback:
+				self.errorCallback(message)
+			else:
+				print(message)
 
 	def updateStatusFiles(self, done=False):
-		self.saveStatusSummaryAndDetail(self.dumpItemList.dumpItems, done)
+		self.saveStatusSummaryAndDetail(done)
 
-	def reportDatabaseStatusSummary(self, items, done=False):
+	def reportDatabaseStatusSummary(self, done=False):
 		"""Put together a brief status summary and link for the current database."""
 		status = self.reportStatusSummaryLine(done)
 		html = self.wiki.reportStatusLine(status)
 
-		activeItems = [x for x in items if x.status() == "in-progress"]
+		activeItems = [x for x in self.items if x.status() == "in-progress"]
 		if activeItems:
 			return html + "<ul>" + "\n".join([self.reportItem(x) for x in activeItems]) + "</ul>"
 		else:
 			return html
 
-	def reportDatabaseStatusDetailed(self, items, done=False):
+	def reportDatabaseStatusDetailed(self, done=False):
 		"""Put together a status page for this database, with all its component dumps."""
-		statusItems = [self.reportItem(item) for item in items]
+		statusItems = [self.reportItem(item) for item in self.items]
 		statusItems.reverse()
 		html = "\n".join(statusItems)
 		return self.config.readTemplate("report.html") % {
@@ -1048,6 +757,16 @@ class Runner(object):
 			"items": html,
 			"checksum": self.dumpDir.webPath(self.checksums.getChecksumFileNameBasename()),
 			"index": self.config.index}
+
+	def reportFailure(self):
+		if self.config.adminMail:
+			subject = "Dump failure for " + self.dbName
+			message = self.config.readTemplate("errormail.txt") % {
+				"db": self.dbName,
+				"date": self.date,
+				"time": prettyTime(),
+				"url": "/".join((self.config.webRoot, self.dbName, self.date, ''))}
+			config.mail(subject, message)
 
 	def reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
@@ -1112,29 +831,325 @@ class Runner(object):
 		return html
 
 	# this is a per-dump-item report (well per file generated by the item)
-	# Report on the file size & status of the current output and output a link if were done
-	def reportFile(self, file, status):
+	# Report on the file size & item status of the current output and output a link if we are done
+	def reportFile(self, file, itemStatus):
 		filepath = self.dumpDir.publicPath(file)
-		if status == "in-progress" and exists (filepath):
+		if itemStatus == "in-progress" and exists (filepath):
 			size = prettySize(getsize(filepath))
 			return "<li class='file'>%s %s (written) </li>" % (file, size)
-		elif status == "done" and exists(filepath):
+		elif itemStatus == "done" and exists(filepath):
 			size = prettySize(getsize(filepath))
 			webpath = self.dumpDir.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
 		else:
 			return "<li class='missing'>%s</li>" % file
 
-	def lockFile(self):
+class Runner(object):
+
+	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None, restart=False, loggingEnabled=False):
+		self.wiki = wiki
+		self.config = wiki.config
+		self.dbName = wiki.dbName
+		self.prefetch = prefetch
+		self.spawn = spawn
+		self.chunkInfo = Chunk(wiki, self.dbName)
+		self.restart = restart
+		self.loggingEnabled = loggingEnabled
+		self.log = None
+
+		if date:
+			# Override, continuing a past dump?
+			self.date = date
+		else:
+			self.date = WikiDump.today()
+		wiki.setDate(self.date)
+
+		self.lastFailed = False
+
+		self.checkpoint = checkpoint
+
+		self.jobRequested = job
+		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName)
+
+		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
+
+		# this must come after the dumpdir setup so we know which directory we are in 
+		# for the log file.
+		if (loggingEnabled):
+			self.logFileName = self.dumpDir.publicPath(config.logFile)
+			self.makeDir(join(self.wiki.publicDir(), self.date))
+			self.log = Logger(self.logFileName)
+			thread.start_new_thread(self.logQueueReader,(self.log,))
+
+		self.checksums = Checksummer(self.wiki, self.dumpDir)
+
+		# some or all of these dumpItems will be marked to run
+		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
+
+	        self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.logAndPrint)
+
+	def logQueueReader(self,log):
+		if not log:
+			return
+		done = False
+		while not done:
+			done = log.doJobOnLogQueue()
+		
+	def logAndPrint(self, message):
+		if (self.log):
+			self.log.addToLogQueue("%s\n" % message)
+		print message
+
+	def forceNormalOption(self):
+		if self.config.forceNormal:
+			return "--force-normal"
+		else:
+			return ""
+
+	def getDBTablePrefix(self):
+		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
+		# FIXME later full path
+		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
+			self.config.php, self.config.wikiDir, self.dbName))
+		return RunSimpleCommand.runAndReturn(command, self.log).strip()
+				      
+	# returns 0 on success, 1 on error
+	def saveTable(self, table, outfile):
+		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
+		commands = [ [ "%s" % self.config.mysqldump, "-h", 
+			       "%s" % self.dbServerInfo.dbServer, "-u", 
+			       "%s" % self.config.dbUser, 
+			       "%s" % self.dbServerInfo.passwordOption(), "--opt", "--quick", 
+			       "--skip-add-locks", "--skip-lock-tables", 
+			       "%s" % self.dbName, 
+			       "%s" % self.getDBTablePrefix() + table ], 
+			     [ "%s" % self.config.gzip ] ]
+
+		return self.saveCommand(commands, outfile)
+
+	def saveSql(self, query, outfile):
+		"""Pass some SQL commands to the server for this DB and save output to a file."""
+		command = [ [ "/bin/echo", "%s" % query ], 
+			    [ "%s" % self.config.mysql, "-h", 
+			      "%s" % self.dbServerInfo.dbServer,
+			      "-u", "%s" % self.config.dbUser,
+			      "%s" % self.dbServerInfo.passwordOption(),
+			      "%s" % self.dbName, 
+			      "-r" ],
+			    [ "%s" % self.config.gzip ] ]
+		return self.saveCommand(command, outfile)
+
+	# returns 0 on success, 1 on error
+	def saveCommand(self, commands, outfile):
+		"""For one pipeline of commands, redirect output to a given file."""
+		commands[-1].extend( [ ">" , outfile ] )
+		series = [ commands ]
+		return self.runCommand([ series ], callbackTimed = self.status.updateStatusFiles)
+
+	# command series list: list of (commands plus args) is one pipeline. list of pipelines = 1 series. 
+	# this function wants a list of series.
+	# be a list (the command name and the various args)
+	# If the shell option is true, all pipelines will be run under the shell.
+	# callbackinterval: how often we will call callbackTimed (in milliseconds), defaults to every 5 secs
+	def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell = False, callbackInterval=5000):
+		"""Nonzero return code from the shell from any command in any pipeline will cause this
+		function to print an error message and return 1, indictating error.
+		Returns 0 on success.
+		If a callback function is passed, it will receive lines of
+		output from the call.  If the callback function takes another argument (which will
+		be passed before the line of output) must be specified by the arg paraemeter.
+		If no callback is provided, and no output file is specified for a given 
+		pipe, the output will be written to stderr. (Do we want that?)
+		This function spawns multiple series of pipelines  in parallel.
+
+		"""
+		commands = CommandsInParallel(commandSeriesList, callbackStderr=callbackStderr, callbackStderrArg=callbackStderrArg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callbackInterval=callbackInterval)
+		commands.runCommands()
+		if commands.exitedSuccessfully():
+			return 0
+		else:
+			problemCommands = commands.commandsWithErrors()
+			errorString = "Error from command(s): "
+			for cmd in problemCommands: 
+				errorString = errorString + "%s " % cmd
+			self.logAndPrint(errorString)
+#			raise BackupError(errorString)
+		return 1
+
+	def debug(self, stuff):
+		self.logAndPrint("%s: %s %s" % (prettyTime(), self.dbName, stuff))
+#		print "%s: %s %s" % (prettyTime(), self.dbName, stuff)
+
+	def runHandleFailure(self):
+		if self.status.failCount < 1:
+			# Email the site administrator just once per database
+			self.reportFailure()
+			self.status.failCount += 1
+			self.lastFailed = True
+
+	def runUpdateItemFileInfo(self, item):
+		for f in item.listFiles(self):
+			print f
+			if exists(self.dumpDir.publicPath(f)):
+				# why would the file not exist? because we changed chunk numbers in the
+				# middle of a run, and now we list more files for the next stage than there
+				# were for earlier ones
+				self.saveSymlink(f)
+				self.saveFeed(f)
+				self.checksums.checksum(f, self)
+
+	def run(self):
+		if (self.jobRequested):
+			if ((not self.dumpItemList.oldRunInfoRetrieved) and (self.wiki.existsPerDumpIndex())):
+				# There was a previous run of all or part of this date, but...
+				# There was no old RunInfo to be had (or an error was encountered getting it)
+				# so we can't rerun a step and keep all the status information about the old run around.
+				# In this case ask the user if they reeeaaally want to go ahead
+				print "No information about the previous run for this date could be retrieved."
+				print "This means that the status information about the old run will be lost, and"
+				print "only the information about the current (and future) runs will be kept."
+				reply = raw_input("Continue anyways? [y/N]: ")
+				if (not reply in "y", "Y"):
+					raise RuntimeError( "No run information available for previous dump, exiting" )
+			if (not self.wiki.existsPerDumpIndex()):
+				# AFAWK this is a new run (not updating or rerunning an old run), 
+				# so we should see about cleaning up old dumps
+				self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
+				self.cleanOldDumps()
+
+			if (not self.dumpItemList.markDumpsToRun(self.jobRequested)):
+			# probably no such job
+				raise RuntimeError( "No job marked to run, exiting" )
+			# job has dependent steps that weren't already run
+			if (not self.dumpItemList.checkJobDependencies(self.jobRequested)):
+				raise RuntimeError( "Job dependencies not run beforehand, exiting" )
+			if (restart):
+				# mark all the following jobs to run as well 
+				self.dumpItemList.markFollowingJobsToRun()
+
+		self.makeDir(join(self.wiki.publicDir(), self.date))
+	       	self.makeDir(join(self.wiki.privateDir(), self.date))
+
+		if (self.restart):
+			self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
+		elif (self.jobRequested):
+			self.logAndPrint("Preparing for job %s of %s" % (self.jobRequested, self.dbName))
+		else:
+			self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
+			self.cleanOldDumps()
+			self.showRunnerState("Starting backup of %s" % self.dbName)
+
+		self.DbServerInfo = DbServerInfo(self.wiki,self.dbName)
+
+		files = self.listFilesFor(self.dumpItemList.dumpItems)
+
+		if (self.jobRequested):
+			self.checksums.prepareChecksums()
+
+			for item in self.dumpItemList.dumpItems:
+				if (item.toBeRun()):
+					item.start(self)
+					self.status.updateStatusFiles()
+					self.dumpItemList.saveDumpRunInfoFile()
+					try:
+						item.dump(self)
+					except Exception, ex:
+						self.debug("*** exception! " + str(ex))
+						item.setStatus("failed")
+					if item.status() == "failed":
+						self.runHandleFailure()
+					else:
+						self.lastFailed = False
+				# this ensures that, previous run or new one, the old or new md5sums go to the file
+				if item.status() == "done":
+					self.runUpdateItemFileInfo(item)
+
+			if (self.dumpItemList.allPossibleJobsDone()):
+				self.status.updateStatusFiles("done")
+			else:
+				self.status.updateStatusFiles("partialdone")
+			self.dumpItemList.saveDumpRunInfoFile()
+
+			# if any job succeeds we might as well make the sym link
+			if (self.status.failCount < 1):
+				self.completeDump(files)
+											
+			if (self.restart):
+				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
+			else:
+				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
+
+		else:
+			self.checksums.prepareChecksums()
+
+			for item in self.dumpItemList.dumpItems:
+				item.start(self)
+				self.status.updateStatusFiles()
+				self.dumpItemList.saveDumpRunInfoFile()
+				# FIXME is this checkpoint stuff useful to us now?
+				if self.checkpoint and not item.matchCheckpoint(self.checkpoint):
+					self.debug("*** Skipping until we reach checkpoint...")
+					item.setStatus("done")
+					pass
+				else:
+					if self.checkpoint and item.matchCheckpoint(self.checkpoint):
+						self.debug("*** Reached checkpoint!")
+						self.checkpoint = None
+				try:
+					item.dump(self)
+				except Exception, ex:
+					self.debug("*** exception! " + str(ex))
+					item.setStatus("failed")
+				if item.status() == "failed":
+					self.runHandleFailure()
+				else:
+					self.runUpdateItemFileInfo(item)
+					self.lastFailed = False
+
+			self.status.updateStatusFiles("done")
+			self.dumpItemList.saveDumpRunInfoFile()
+										
+			if self.status.failCount < 1:
+				self.completeDump(files)
+											
+			self.showRunnerStateComplete()
+
+	def cleanOldDumps(self):
+		old = self.wiki.dumpDirs()
+		if old:
+			if old[-1] == self.date:
+				# If we're re-running today's (or jobs from a given day's) dump, don't count it as one
+				# of the old dumps to keep... or delete it halfway through!
+				old = old[:-1]
+			if self.config.keep > 0:
+				# Keep the last few
+				old = old[:-(self.config.keep)]
+		if old:
+			for dump in old:
+				self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
+				base = os.path.join(self.wiki.publicDir(), dump)
+				shutil.rmtree("%s" % base)
+		else:
+			self.showRunnerState("No old dumps to purge.")
+
+	def listFilesFor(self, items):
+		files = []
+		for item in items:
+			for file in item.listFiles(self):
+				files.append(file)
+		return files
+
+
+	def lockFileName(self):
 		return self.dumpDir.publicPath("lock")
 
-	def doneFile(self):
+	def doneFileName(self):
 		return self.dumpDir.publicPath("done")
 
 	def lock(self):
 		self.showRunnerState("Creating lock file.")
-		lockfile = self.lockFile()
-		donefile = self.doneFile()
+		lockfile = self.lockFileName()
+		donefile = self.doneFileName()
 		if exists(lockfile):
 			raise BackupError("Lock file %s already exists" % lockfile)
 		if exists(donefile):
@@ -1170,6 +1185,13 @@ class Runner(object):
 		# produced, but not the other files. FIXME
 		self.checksums.moveMd5FileIntoPlace()
 		self.saveSymlink(self.checksums.getChecksumFileNameBasename())
+
+	def makeDir(self, dir):
+		if exists(dir):
+			self.debug("Checkdir dir %s ..." % dir)
+		else:
+			self.debug("Creating %s ..." % dir)
+			os.makedirs(dir)
 
 	def saveSymlink(self, file):
 		self.makeDir(join(self.wiki.publicDir(), 'latest'))
@@ -1286,7 +1308,7 @@ class Dump(object):
 				runner.log.addToLogQueue(line)
 			sys.stderr.write(line)
 		self.progress = line.strip()
-		runner.updateStatusFiles()
+		runner.status.updateStatusFiles()
 		runner.dumpItemList.saveDumpRunInfoFile()
 
 	def timeToWait(self):
