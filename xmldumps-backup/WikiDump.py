@@ -7,6 +7,7 @@ import socket
 import sys
 import threading
 import time
+import tempfile
 
 def fileAge(filename):
 	return time.time() - os.stat(filename).st_mtime
@@ -47,16 +48,12 @@ def prettyDate(key):
 	"Prettify a MediaWiki date key"
 	return "-".join((key[0:4], key[4:6], key[6:8]))
 
-def dumpFile(filename, text):
+def dumpFile(dirname, filename, text):
 	"""Dump a string to a file, as atomically as possible, via a temporary file in the same directory."""
 	
-	# I'd use os.tempnam() here but it whines about symlinks attacks.
-	tempFilename = filename + ".tmp"
-	
-	file = open(tempFilename, "wt")
-	file.write(text)
-	file.close()
-	
+	(fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
+	os.write(fd,text)
+	os.close(fd)
 	# This may fail across filesystems or on Windows.
 	# Of course nothing else will work on Windows. ;)
 	os.rename(tempFilename, filename)
@@ -359,16 +356,18 @@ class Wiki(object):
 		self.unlock()
 	
 	def writePerDumpIndex(self, html):
+		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
-		dumpFile(index, html)
+		dumpFile(directory, index, html)
 	
 	def existsPerDumpIndex(self):
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
 		return os.path.exists(index)
 	
 	def writeStatus(self, message):
+		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, "status.html")
-		dumpFile(index, message)
+		dumpFile(directory, index, message)
 	
 	def statusLine(self):
 		date = self.latestDump()
