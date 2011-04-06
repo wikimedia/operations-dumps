@@ -468,6 +468,12 @@ class DumpItemList(object):
 		else:
 			return os.path.join(self.wiki.publicDir(), self.date, "dumpruninfo.txt")
 
+	def _getDumpRunInfoDirName(self, date=None):
+		if (date):
+			return os.path.join(self.wiki.publicDir(), date);
+		else:
+			return os.path.join(self.wiki.publicDir(), self.date);
+
 	def _setDumpItemRunInfo(self, runInfo):
 		if (not runInfo.name()):
 			return False
@@ -526,8 +532,9 @@ class DumpItemList(object):
 		return text
 
 	def writeDumpRunInfoFile(self, text):
+		directory = self._getDumpRunInfoDirName()
 		dumpRunInfoFilename = self._getDumpRunInfoFileName()
-		WikiDump.dumpFile(dumpRunInfoFilename, text)
+		WikiDump.dumpFile(directory, dumpRunInfoFilename, text)
 
 	def saveDumpRunInfoFile(self, done=False):
 		"""Write out a simple text file with the status for this wiki's dump."""
@@ -678,7 +685,7 @@ class DumpDir(object):
 		self._date = date
 
 	def buildDir(self, base, version):
-		return join(base, self._dbName, version)
+		return join(base, version)
 
 	def buildPath(self, base, version, filename):
 		return join(base, version, "%s-%s-%s" % (self._dbName, version, filename))
@@ -692,6 +699,9 @@ class DumpDir(object):
 		If this database is marked as private, will use the private dir instead.
 		"""
 		return self.buildPath(self._wiki.publicDir(), self._date, filename)
+
+	def latestDir(self):
+		return self.buildDir(self._wiki.publicDir(), "latest")
 
 	def latestPath(self, filename):
 		return self.buildPath(self._wiki.publicDir(), "latest", filename)
@@ -1234,8 +1244,9 @@ class Runner(object):
 			"link": webPath,
 			"description": xmlEscape("<a href=\"%s\">%s</a>" % (filePath, fileName)),
 			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
+		directory = self.dumpDir.latestDir()
 		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
-		WikiDump.dumpFile(rssPath, rssText)
+		WikiDump.dumpFile(directory, rssPath, rssText)
 
 class Dump(object):
 	def __init__(self, name, desc):
