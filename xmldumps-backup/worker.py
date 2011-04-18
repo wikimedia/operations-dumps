@@ -21,34 +21,13 @@ import thread
 
 from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
-from WikiDump import prettyTime, prettySize, shellEscape
+#from WikiDump import FileUtils, DirUtils, MiscUtils, prettyTime, prettySize, shellEscape
+from WikiDump import FileUtils, MiscUtils, TimeUtils
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
 
-def splitPath(path):
-	# For some reason, os.path.split only does one level.
-	parts = []
-	(path, file) = os.path.split(path)
-	if not file:
-		# Probably a final slash
-		(path, file) = os.path.split(path)
-	while file:
-		parts.insert(0, file)
-		(path, file) = os.path.split(path)
-	return parts
-
-def relativePath(path, base):
-	"""Return a relative path to 'path' from the directory 'base'."""
-	path = splitPath(path)
-	base = splitPath(base)
-	while base and path[0] == base[0]:
-		path.pop(0)
-		base.pop(0)
-	for prefix in base:
-		path.insert(0, "..")
-	return os.path.join(*path)
-
+# FIXME test this change.
 def xmlEscape(text):
-	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;");
 
 class Logger(object):
 
@@ -183,7 +162,7 @@ class DbServerInfo(object):
 
 	def defaultServer(self):
 		# if this fails what do we do about it? Not a bleeping thing. *ugh* FIXME!!
-		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % shellEscape((
+		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % MiscUtils.shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
 		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 
@@ -238,7 +217,7 @@ class DbServerInfo(object):
 	def getDBTablePrefix(self):
 		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
 		# FIXME later full path
-		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % shellEscape((
+		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % MiscUtils.shellEscape((
 			self.config.php, self.config.wikiDir, self.dbName))
 		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 				      
@@ -257,37 +236,21 @@ class RunSimpleCommand(object):
 		output = proc.fromchild.read()
 		retval = proc.wait()
 		while (retval and retries < maxretries):
-			if self.logCallback:
-				self.logCallback("Non-zero return code from '%s'" % command)
+			if logCallback:
+				logCallback("Non-zero return code from '%s'" % command)
 			time.sleep(5)
 			proc = popen2.Popen4(command, 64)
 			output = proc.fromchild.read()
 			retval = proc.wait()
 			retries = retries + 1
 		if retval:
-			if self.logCallback:
-				self.logCallback("Non-zero return code from '%s'" % command)
+			if logCallback:
+				logCallback("Non-zero return code from '%s'" % command)
 			raise BackupError("Non-zero return code from '%s'" % command)
 		else:
 			return output
 
-	def runAndReport(self, command, callback):
-		"""Shell out to a command, and feed output lines to the callback function.
-		Returns the exit code from the program once complete.
-		stdout and stderr will be combined into a single stream.
-		"""
-		# FIXME convert all these calls so they just use runCommand now
-		proc = popen2.Popen4(command, 64)
-		#for line in proc.fromchild:
-		#	callback(self, line)
-		line = proc.fromchild.readline()
-		while line:
-			callback(self, line)
-			line = proc.fromchild.readline()
-		return proc.wait()
-
 	runAndReturn = staticmethod(runAndReturn)
-	runAndReport = staticmethod(runAndReport)
 
 class PageAndEditStats(object):
 	def __init__(self, wiki, dbName, errorCallback = None):
@@ -559,7 +522,7 @@ class DumpItemList(object):
 	def writeDumpRunInfoFile(self, text):
 		directory = self._getDumpRunInfoDirName()
 		dumpRunInfoFilename = self._getDumpRunInfoFileName()
-		WikiDump.dumpFile(directory, dumpRunInfoFilename, text)
+		FileUtils.writeFile(directory, dumpRunInfoFilename, text)
 
 	def saveDumpRunInfoFile(self, done=False):
 		"""Write out a simple text file with the status for this wiki's dump."""
@@ -799,7 +762,7 @@ class Status(object):
 			message = self.config.readTemplate("errormail.txt") % {
 				"db": self.dbName,
 				"date": self.date,
-				"time": prettyTime(),
+				"time": TimeUtils.prettyTime(),
 				"url": "/".join((self.config.webRoot, self.dbName, self.date, ''))}
 			config.mail(subject, message)
 
@@ -820,7 +783,7 @@ class Status(object):
 				raise(ValueException)
 		except:
 			return "No prior dumps of this database stored."
-		prettyDate = WikiDump.prettyDate(rawDate)
+		prettyDate = TimeUtils.prettyDate(rawDate)
 		if done:
 			prefix = ""
 			message = "Last dumped on"
@@ -870,10 +833,10 @@ class Status(object):
 	def reportFile(self, file, itemStatus):
 		filepath = self.dumpDir.publicPath(file)
 		if itemStatus == "in-progress" and exists (filepath):
-			size = prettySize(getsize(filepath))
+			size = FileUtils.prettySize(getsize(filepath))
 			return "<li class='file'>%s %s (written) </li>" % (file, size)
 		elif itemStatus == "done" and exists(filepath):
-			size = prettySize(getsize(filepath))
+			size = FileUtils.prettySize(getsize(filepath))
 			webpath = self.dumpDir.webPath(file)
 			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
 		else:
@@ -896,7 +859,7 @@ class Runner(object):
 			# Override, continuing a past dump?
 			self.date = date
 		else:
-			self.date = WikiDump.today()
+			self.date = TimeUtils.today()
 		wiki.setDate(self.date)
 
 		self.lastFailed = False
@@ -931,7 +894,7 @@ class Runner(object):
 			done = log.doJobOnLogQueue()
 		
 	def logAndPrint(self, message):
-		if (self.log):
+		if hasattr(self,'log') and self.log:
 			self.log.addToLogQueue("%s\n" % message)
 		print message
 
@@ -990,8 +953,8 @@ class Runner(object):
 		return 1
 
 	def debug(self, stuff):
-		self.logAndPrint("%s: %s %s" % (prettyTime(), self.dbName, stuff))
-#		print "%s: %s %s" % (prettyTime(), self.dbName, stuff)
+		self.logAndPrint("%s: %s %s" % (TimeUtils.prettyTime(), self.dbName, stuff))
+#		print "%s: %s %s" % (MiscUtils.prettyTime(), self.dbName, stuff)
 
 	def runHandleFailure(self):
 		if self.status.failCount < 1:
@@ -1226,7 +1189,7 @@ class Runner(object):
 			else:
 				self.logAndPrint("What the hell dude, %s is not a symlink" % link)
 				raise BackupError("What the hell dude, %s is not a symlink" % link)
-		relative = relativePath(real, dirname(link))
+		relative = FileUtils.relativePath(real, dirname(link))
 		# if we removed the link cause it's obsolete, make the new one
 		if exists(real) and not exists(link):
 			self.debug("Adding symlink %s -> %s" % (link, relative))
@@ -1247,7 +1210,7 @@ class Runner(object):
 			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
 		directory = self.dumpDir.latestDir()
 		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
-		WikiDump.dumpFile(directory, rssPath, rssText)
+		FileUtils.writeFile(directory, rssPath, rssText)
 
 class Dump(object):
 	def __init__(self, name, desc):
@@ -1279,7 +1242,7 @@ class Dump(object):
 	def setStatus(self,status,setUpdated = True):
 		self.runInfo.setStatus(status)
 		if (setUpdated):
-			self.runInfo.setUpdated(prettyTime())
+			self.runInfo.setUpdated(TimeUtils.prettyTime())
 
 	def setUpdated(self, updated):
 		self.runInfo.setUpdated(updated)
@@ -1345,18 +1308,18 @@ class Dump(object):
 		# we assume the result is always going to be run in a subshell. 
 		# much quicker than this script trying to read output
 		# and pass it to a subprocess
-		outputFilenameEsc = shellEscape(outputFilename)
-		headEsc = shellEscape(head)
-		tailEsc = shellEscape(tail)
-		grepEsc = shellEscape(grep)
+		outputFilenameEsc = MiscUtils.shellEscape(outputFilename)
+		headEsc = MiscUtils.shellEscape(head)
+		tailEsc = MiscUtils.shellEscape(tail)
+		grepEsc = MiscUtils.shellEscape(grep)
 
 		uncompressionCommandEsc = uncompressionCommand[:]
 		for u in uncompressionCommandEsc:
-			u = shellEscape(u)
+			u = MiscUtils.shellEscape(u)
 		for u in compressionCommand:
-			u = shellEscape(u)
+			u = MiscUtils.shellEscape(u)
 		for f in files:
-			f = shellEscape(f)
+			f = MiscUtils.shellEscape(f)
 
 		for f in files:
 			f = runner.dumpDir.publicPath(f)
@@ -1690,7 +1653,7 @@ class XmlDump(Dump):
 		pipeline.append(uncompressionCommand)
 		# warning: we figure any header (<siteinfo>...</siteinfo>) is going to be less than 2000 lines!
 		head = runner.config.head
-		headEsc = shellEscape(head)
+		headEsc = MiscUtils.shellEscape(head)
 		pipeline.append([ head, "-2000"])
 		# without shell
 		p = CommandPipeline(pipeline, quiet=True)
