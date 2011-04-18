@@ -698,7 +698,7 @@ class DumpDir(object):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-	def __init__(self, wiki, dumpDir, date, items, checksums, errorCallback=None):
+	def __init__(self, wiki, dumpDir, date, items, checksums, notice="", errorCallback=None):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -707,6 +707,7 @@ class Status(object):
 		self.checksums = checksums
 		self.date = date
 		# this is just a glorified name for "give me a logging facility"
+		self.htmlNotice = notice
 		self.errorCallback = errorCallback
 		self.failCount = 0
 
@@ -740,6 +741,7 @@ class Status(object):
 		else:
 			return html
 
+	# FIXME add capacity for special notice here. 
 	def reportDatabaseStatusDetailed(self, done=False):
 		"""Put together a status page for this database, with all its component dumps."""
 		statusItems = [self.reportItem(item) for item in self.items]
@@ -748,6 +750,7 @@ class Status(object):
 		return self.config.readTemplate("report.html") % {
 			"db": self.dbName,
 			"date": self.date,
+			"notice": self.htmlNotice,
 			"status": self.reportStatusSummaryLine(done),
 			"previous": self.reportPreviousDump(done),
 			"items": html,
@@ -842,7 +845,7 @@ class Status(object):
 
 class Runner(object):
 
-	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, loggingEnabled=False):
+	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", loggingEnabled=False):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -851,6 +854,7 @@ class Runner(object):
 		self.chunkInfo = Chunk(wiki, self.dbName, self.logAndPrint)
 		self.restart = restart
 		self.loggingEnabled = loggingEnabled
+		self.htmlNotice = notice
 		self.log = None
 
 		if date:
@@ -880,7 +884,7 @@ class Runner(object):
 		# some or all of these dumpItems will be marked to run
 		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
 
-	        self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.logAndPrint)
+	        self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.htmlNotice, self.logAndPrint)
 
 	def logQueueReader(self,log):
 		if not log:
@@ -2160,10 +2164,13 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --configfile, --date, --job, --force, --noprefetch, --nospawn, --restartfrom, --log"
+	print "Options: --configfile, --date, --job, --notice, --force, --noprefetch, --nospawn, --restartfrom, --log"
 	print "--configfile:  Specify an alternative configuration file to read."
 	print "               Default config file name: wikidump.conf"
 	print "--date:        Rerun dump of a given date (probably unwise)"
+	print "--notice:      Text message that will be inserted in the per-dump-run index.html"
+	print "               file; use this when rerunning some job and you want to notify the"
+	print "               potential downloaders of problems, for example."
 	print "--job:         Run just the specified step or set of steps; for the list,"
 	print "               give the option --job help"
 	print "               This option requires specifiying a wikidbname on which to run."
@@ -2192,10 +2199,11 @@ if __name__ == "__main__":
 		jobRequested = None
 		enableLogging = False
 		log = None
+		htmlNotice = ""
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
+								 ['date=', 'job=', 'configfile=', 'notice=', 'force', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
 		except:
 			usage("Unknown option specified")
 
@@ -2216,6 +2224,8 @@ if __name__ == "__main__":
 				restart = True
 			elif opt == "--log":
 				enableLogging = True
+			elif opt == "--notice":
+				htmlNotice = val
 
 		if jobRequested and (len(remainder) == 0):
 			usage("--job option requires the name of a wikidb to be specified")
@@ -2242,7 +2252,7 @@ if __name__ == "__main__":
 			wiki = findAndLockNextWiki(config)
 
 		if wiki:
-			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, enableLogging)
+			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, htmlNotice, enableLogging)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
