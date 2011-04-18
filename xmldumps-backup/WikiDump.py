@@ -9,74 +9,119 @@ import threading
 import time
 import tempfile
 
-def fileAge(filename):
-	return time.time() - os.stat(filename).st_mtime
+class FileUtils(object):
 
-def atomicCreate(filename, mode='w'):
-	"""Create a file, aborting if it already exists..."""
-	fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
-	return os.fdopen(fd, mode)
+	def fileAge(filename):
+		return time.time() - os.stat(filename).st_mtime
 
-def shellEscape(param):
-	"""Escape a string parameter, or set of strings, for the shell."""
-	if isinstance(param, basestring):
-		return "'" + param.replace("'", "'\\''") + "'"
-	elif param is None:
-		# A blank string might actually be needed; None means we can leave it out
-		return ""
-	else:
-		return tuple([shellEscape(x) for x in param])
+	def atomicCreate(filename, mode='w'):
+		"""Create a file, aborting if it already exists..."""
+		fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
+		return os.fdopen(fd, mode)
 
-def prettySize(size):
-	"""Return a string with an attractively formatted file size."""
-	quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
-	return _prettySize(size, quanta)
+	def writeFile(dirname, filename, text):
+		"""Write text to a file, as atomically as possible, via a temporary file in the same directory."""
+		
+		(fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
+		os.write(fd,text)
+		os.close(fd)
+		# This may fail across filesystems or on Windows.
+		# Of course nothing else will work on Windows. ;)
+		os.rename(tempFilename, filename)
 
-def _prettySize(size, quanta):
-	if size < 1024 or len(quanta) == 1:
-		return quanta[0] % size
-	else:
-		return _prettySize(size / 1024.0, quanta[1:])
+	def readFile(filename):
+		"""Read text from a file in one fell swoop."""
+		file = open(filename, "r")
+		text = file.read()
+		file.close()
+		return text
 
-def today():
-	return time.strftime("%Y%m%d", time.gmtime())
+	def splitPath(path):
+		# For some reason, os.path.split only does one level.
+		parts = []
+		(path, file) = os.path.split(path)
+		if not file:
+			# Probably a final slash
+			(path, file) = os.path.split(path)
+		while file:
+			parts.insert(0, file)
+			(path, file) = os.path.split(path)
+		return parts
 
-def prettyTime():
-	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+	def relativePath(path, base):
+		"""Return a relative path to 'path' from the directory 'base'."""
+		path = FileUtils.splitPath(path)
+		base = FileUtils.splitPath(base)
+		while base and path[0] == base[0]:
+			path.pop(0)
+			base.pop(0)
+		for prefix in base:
+			path.insert(0, "..")
+		return os.path.join(*path)
 
-def prettyDate(key):
-	"Prettify a MediaWiki date key"
-	return "-".join((key[0:4], key[4:6], key[6:8]))
+	def prettySize(size):
+		"""Return a string with an attractively formatted file size."""
+		quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
+		return FileUtils._prettySize(size, quanta)
 
-def dumpFile(dirname, filename, text):
-	"""Dump a string to a file, as atomically as possible, via a temporary file in the same directory."""
-	
-	(fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
-	os.write(fd,text)
-	os.close(fd)
-	# This may fail across filesystems or on Windows.
-	# Of course nothing else will work on Windows. ;)
-	os.rename(tempFilename, filename)
+	def _prettySize(size, quanta):
+		if size < 1024 or len(quanta) == 1:
+			return quanta[0] % size
+		else:
+			return FileUtils._prettySize(size / 1024.0, quanta[1:])
 
-def readFile(filename):
-	file = open(filename, "r")
-	text = file.read()
-	file.close()
-	return text
+	fileAge = staticmethod(fileAge)
+	atomicCreate = staticmethod(atomicCreate)
+	writeFile = staticmethod(writeFile)
+	readFile = staticmethod(readFile)
+	splitPath = staticmethod(splitPath)
+	relativePath = staticmethod(relativePath)
+	prettySize = staticmethod(prettySize)
+	_prettySize = staticmethod(_prettySize)
 
-def dbList(filename):
-	"""Read database list from a file"""
-	if (not filename):
-		return []
-	infile = open(filename)
-	dbs = []
-	for line in infile:
-		line = line.strip()
-		if line != "":
-			dbs.append(line)
-	infile.close()
-	dbs.sort()
-	return dbs
+class TimeUtils(object):
+
+	def today():
+		return time.strftime("%Y%m%d", time.gmtime())
+
+	def prettyTime():
+		return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+
+	def prettyDate(key):
+		"Prettify a MediaWiki date key"
+		return "-".join((key[0:4], key[4:6], key[6:8]))
+
+	today = staticmethod(today)
+	prettyTime = staticmethod(prettyTime)
+	prettyDate = staticmethod(prettyDate)
+
+class MiscUtils(object):
+	def dbList(filename):
+		"""Read database list from a file"""
+		if (not filename):
+			return []
+		infile = open(filename)
+		dbs = []
+		for line in infile:
+			line = line.strip()
+			if line != "":
+				dbs.append(line)
+		infile.close()
+		dbs.sort()
+		return dbs
+
+	def shellEscape(param):
+		"""Escape a string parameter, or set of strings, for the shell."""
+		if isinstance(param, basestring):
+			return "'" + param.replace("'", "'\\''") + "'"
+		elif param is None:
+			# A blank string might actually be needed; None means we can leave it out
+			return ""
+		else:
+			return tuple([MiscUtils.shellEscape(x) for x in param])
+
+	dbList = staticmethod(dbList)
+	shellEscape = staticmethod(shellEscape)
 
 class Config(object):
 	def __init__(self, configFile=False):
@@ -155,11 +200,11 @@ class Config(object):
 			print "The mandatory setting 'dir' in the section 'wiki' was not defined."
 			raise ConfigParser.NoOptionError('wiki','dir')
 
-		self.dbList = dbList(conf.get("wiki", "dblist"))
-		self.skipDbList = dbList(conf.get("wiki", "skipdblist"))
-		self.privateList = dbList(conf.get("wiki", "privatelist"))
-		self.bigList = dbList(conf.get("wiki", "biglist"))
-		self.flaggedRevsList = dbList(conf.get("wiki", "flaggedrevslist"))
+		self.dbList = MiscUtils.dbList(conf.get("wiki", "dblist"))
+		self.skipDbList = MiscUtils.dbList(conf.get("wiki", "skipdblist"))
+		self.privateList = MiscUtils.dbList(conf.get("wiki", "privatelist"))
+		self.bigList = MiscUtils.dbList(conf.get("wiki", "biglist"))
+		self.flaggedRevsList = MiscUtils.dbList(conf.get("wiki", "flaggedrevslist"))
 		self.wikiDir = conf.get("wiki", "dir")
 		self.forceNormal = conf.getint("wiki", "forceNormal")
 		self.halt = conf.getint("wiki", "halt")
@@ -248,8 +293,8 @@ class Config(object):
 					# tack on the file mtime so that if we have multiple wikis
 					# dumped on the same day, they get ordered properly
 					date = int(today()) - int(last)
-					age = fileAge(dumpStatus)
-					status = readFile(dumpStatus)
+					age = FileUtils.fileAge(dumpStatus)
+					status = FileUtils.readFile(dumpStatus)
 				except:
 					print "dump dir %s corrupt?" % dumpStatus
 			dumpFailed = (status == '') or ('dump aborted' in status)
@@ -259,7 +304,7 @@ class Config(object):
 	
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
-		return readFile(template)
+		return FileUtils.readFile(template)
 	
 	def mail(self, subject, body):
 		"""Send out a quickie email."""
@@ -330,7 +375,7 @@ class Wiki(object):
 				# Maybe it was just created (race condition)?
 				if not os.path.isdir(self.privateDir()):
 					raise
-		f = atomicCreate(self.lockFile(), "w")
+		f = FileUtils.atomicCreate(self.lockFile(), "w")
 		f.write("%s %d" % (socket.getfqdn(), os.getpid()))
 		f.close()
 		
@@ -358,7 +403,7 @@ class Wiki(object):
 	def writePerDumpIndex(self, html):
 		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
-		dumpFile(directory, index, html)
+		FileUtils.writeFile(directory, index, html)
 	
 	def existsPerDumpIndex(self):
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
@@ -367,14 +412,14 @@ class Wiki(object):
 	def writeStatus(self, message):
 		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, "status.html")
-		dumpFile(directory, index, message)
+		FileUtils.writeFile(directory, index, message)
 	
 	def statusLine(self):
 		date = self.latestDump()
 		if date:
 			status = os.path.join(self.publicDir(), date, "status.html")
 			try:
-				return readFile(status)
+				return FileUtils.readFile(status)
 			except:
 				return self.reportStatusLine("missing status record")
 		else:
@@ -383,9 +428,9 @@ class Wiki(object):
 	def reportStatusLine(self, status, error=False):
 		if error:
 			# No state information, hide the timestamp
-			stamp = "<span style=\"visible: none\">" + prettyTime() + "</span>"
+			stamp = "<span style=\"visible: none\">" + TimeUtils.prettyTime() + "</span>"
 		else:
-			stamp = prettyTime()
+			stamp = TimeUtils.prettyTime()
 		if self.isPrivate():
 			link = "%s (private data)" % self.dbName
 		else:
@@ -426,7 +471,7 @@ class Wiki(object):
 		return os.path.join(self.privateDir(), "lock")
 	
 	def lockAge(self):
-		return fileAge(self.lockFile())
+		return FileUtils.fileAge(self.lockFile())
 
 class LockWatchdog(threading.Thread):
 	"""Touch the given file every 10 seconds until asked to stop."""
