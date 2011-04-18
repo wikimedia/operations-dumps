@@ -21,13 +21,11 @@ import thread
 
 from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
-#from WikiDump import FileUtils, DirUtils, MiscUtils, prettyTime, prettySize, shellEscape
 from WikiDump import FileUtils, MiscUtils, TimeUtils
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
 
-# FIXME test this change.
 def xmlEscape(text):
-	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;");
+	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 
 class Logger(object):
 
@@ -844,7 +842,7 @@ class Status(object):
 
 class Runner(object):
 
-	def __init__(self, wiki, date=None, checkpoint=None, prefetch=True, spawn=True, job=None, restart=False, loggingEnabled=False):
+	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, loggingEnabled=False):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -863,8 +861,6 @@ class Runner(object):
 		wiki.setDate(self.date)
 
 		self.lastFailed = False
-
-		self.checkpoint = checkpoint
 
 		self.jobRequested = job
 		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.logAndPrint)
@@ -1060,15 +1056,6 @@ class Runner(object):
 				item.start(self)
 				self.status.updateStatusFiles()
 				self.dumpItemList.saveDumpRunInfoFile()
-				# FIXME is this checkpoint stuff useful to us now?
-				if self.checkpoint and not item.matchCheckpoint(self.checkpoint):
-					self.debug("*** Skipping until we reach checkpoint...")
-					item.setStatus("done")
-					pass
-				else:
-					if self.checkpoint and item.matchCheckpoint(self.checkpoint):
-						self.debug("*** Reached checkpoint!")
-						self.checkpoint = None
 				try:
 					item.dump(self)
 				except Exception, ex:
@@ -1134,22 +1121,14 @@ class Runner(object):
 		except:
 			# failure? let it die
 			pass
-		#####date -u > $StatusLockFile
 				      
 	def unlock(self):
 		self.showRunnerState("Marking complete.")
-		######date -u > $StatusDoneFile
-
-	def dateStamp(self):
-		#date -u --iso-8601=seconds
-		pass
 
 	def showRunnerState(self, message):
-		#echo $DatabaseName `dateStamp` OK: "$1" | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug(message)
 
 	def showRunnerStateComplete(self):
-		#  echo $DatabaseName `dateStamp` SUCCESS: "done." | tee -a $StatusLog | tee -a $GlobalLog
 		self.debug("SUCCESS: done.")
 
 	def completeDump(self, files):
@@ -1294,9 +1273,6 @@ class Dump(object):
 	def waitAlarmHandler(self, signum, frame):
 		pass
 
-	def matchCheckpoint(self, checkpoint):
-		return checkpoint == self.__class__.__name__
-				      
 	def buildRecombineCommandString(self, runner, files, outputFileBasename, compressionCommand, uncompressionCommand, endHeaderMarker="</siteinfo>"):
 		outputFilename = runner.dumpDir.publicPath(outputFileBasename)
 		chunkNum = 0
@@ -1383,9 +1359,6 @@ class PublicTable(Dump):
 
 	def listFiles(self, runner):
 		return [self._file()]
-
-	def matchCheckpoint(self, checkpoint):
-		return checkpoint == self.__class__.__name__ + "." + self._table
 
 class PrivateTable(PublicTable):
 	"""Hidden table dumps for private data."""
@@ -1859,9 +1832,6 @@ class XmlDump(Dump):
 		else:
 			return [ self._file("bz2",0) ]
 
-	def matchCheckpoint(self, checkpoint):
-		return checkpoint == self.__class__.__name__ + "." + self._subset
-
 class RecombineXmlDump(XmlDump):
 	def __init__(self, subset, name, desc, detail, chunks = False):
 		# no prefetch, no spawn
@@ -1992,9 +1962,6 @@ class XmlRecompressDump(Dump):
 
 	def getCommandOutputCallback(self, line):
 		self._output = line
-
-	def matchCheckpoint(self, checkpoint):
-		return checkpoint == self.__class__.__name__ + "." + self._subset
 
 class RecombineXmlRecompressDump(XmlRecompressDump):
 	def __init__(self, subset, name, desc, detail, chunks):
@@ -2193,11 +2160,10 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --configfile, --date, --checkpoint, --job, --force, --noprefetch, --nospawn, --restartfrom, --log"
+	print "Options: --configfile, --date, --job, --force, --noprefetch, --nospawn, --restartfrom, --log"
 	print "--configfile:  Specify an alternative configuration file to read."
 	print "               Default config file name: wikidump.conf"
 	print "--date:        Rerun dump of a given date (probably unwise)"
-	print "--checkpoint:  Run just the specified step (deprecated)"
 	print "--job:         Run just the specified step or set of steps; for the list,"
 	print "               give the option --job help"
 	print "               This option requires specifiying a wikidbname on which to run."
@@ -2218,7 +2184,6 @@ def usage(message = None):
 if __name__ == "__main__":
 	try:
 		date = None
-		checkpoint = None
 		configFile = False
 		forceLock = False
 		prefetch = True
@@ -2230,15 +2195,13 @@ if __name__ == "__main__":
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'checkpoint=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
+								 ['date=', 'job=', 'configfile=', 'force', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
 		except:
 			usage("Unknown option specified")
 
 		for (opt, val) in options:
 			if opt == "--date":
 				date = val
-			elif opt == "--checkpoint":
-				checkpoint = val
 			elif opt == "--configfile":
 				configFile = val
 			elif opt == "--force":
@@ -2279,7 +2242,7 @@ if __name__ == "__main__":
 			wiki = findAndLockNextWiki(config)
 
 		if wiki:
-			runner = Runner(wiki, date, checkpoint, prefetch, spawn, jobRequested, restart, enableLogging)
+			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, enableLogging)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
