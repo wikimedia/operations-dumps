@@ -1489,6 +1489,7 @@ class RecombineXmlStub(XmlStub):
 		return(XmlStub.listFiles(self, runner, unnumbered=True))
 
 	def run(self, runner):
+		errorresult=0
 		if (self._chunks):
 			files = XmlStub.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -1510,7 +1511,9 @@ class RecombineXmlStub(XmlStub):
 				recombinePipeline = [ recombineCommand ]
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
-				return result
+				if result:
+					errorresult = result
+		return errorresult
 
 class XmlLogging(Dump):
 	""" Create a logging dump of all page activity """
@@ -1871,6 +1874,7 @@ class RecombineXmlDump(XmlDump):
 		return(XmlDump.listFiles(self, runner, unnumbered=True))
 
 	def run(self, runner):
+		errorresult=0
 		if (self._chunks):
 			files = XmlDump.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -1892,7 +1896,9 @@ class RecombineXmlDump(XmlDump):
 				recombinePipeline = [ recombineCommand ]
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
-				return result
+				if result:
+					errorresult = result
+		return errorresult
 
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
@@ -2001,6 +2007,7 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 		return(XmlRecompressDump.listFiles(self, runner, unnumbered=True))
 
 	def run(self, runner):
+		errorresult = 0
 		if (self._chunks):
 			files = XmlRecompressDump.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -2022,7 +2029,9 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 				recombinePipeline = [ recombineCommand ]
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
-				return result
+				if result:
+					errorresult = result
+		return errorresult
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
@@ -2117,6 +2126,7 @@ class RecombineAbstractDump(AbstractDump):
 		return(AbstractDump.listFiles(self,runner, unnumbered = True))
 
 	def run(self, runner):
+		errorresult = 0
 		if (self._chunks):
 			files = AbstractDump.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -2137,7 +2147,9 @@ class RecombineAbstractDump(AbstractDump):
 				recombinePipeline = [ recombineCommand ]
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
-				return result
+				if result:
+					errorresult = result
+		return errorresult
 
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
@@ -2146,11 +2158,11 @@ class TitleDump(Dump):
 		# try this initially and see how it goes
 		maxretries = 3 
 		query="select page_title from page where page_namespace=0;"
-		error = runner.dbServerInfo.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+		error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
 		while (error and retries < maxretries):
 			retries = retries + 1
 			time.sleep(5)
-			error = runner.dbServerInfo.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
+			error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
 		return error 
 
 	def listFiles(self, runner):
