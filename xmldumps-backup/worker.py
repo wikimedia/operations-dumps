@@ -698,7 +698,7 @@ class DumpDir(object):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-	def __init__(self, wiki, dumpDir, date, items, checksums, notice="", errorCallback=None):
+	def __init__(self, wiki, dumpDir, date, items, checksums, noticeFile = None, errorCallback=None):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -707,7 +707,7 @@ class Status(object):
 		self.checksums = checksums
 		self.date = date
 		# this is just a glorified name for "give me a logging facility"
-		self.htmlNotice = notice
+		self.noticeFile = noticeFile
 		self.errorCallback = errorCallback
 		self.failCount = 0
 
@@ -741,16 +741,16 @@ class Status(object):
 		else:
 			return html
 
-	# FIXME add capacity for special notice here. 
 	def reportDatabaseStatusDetailed(self, done=False):
 		"""Put together a status page for this database, with all its component dumps."""
+		self.noticeFile.refreshNotice()
 		statusItems = [self.reportItem(item) for item in self.items]
 		statusItems.reverse()
 		html = "\n".join(statusItems)
 		return self.config.readTemplate("report.html") % {
 			"db": self.dbName,
 			"date": self.date,
-			"notice": self.htmlNotice,
+			"notice": self.noticeFile.notice,
 			"status": self.reportStatusSummaryLine(done),
 			"previous": self.reportPreviousDump(done),
 			"items": html,
@@ -842,6 +842,42 @@ class Status(object):
 		else:
 			return "<li class='missing'>%s</li>" % file
 
+class NoticeFile(object):
+	def __init__(self, wiki, date, notice):
+		self.wiki = wiki
+		self.date = date
+		self.notice = notice
+
+		noticeFile = self.getNoticeFilename()
+		# delnotice.  toss any existing file 
+		if self.notice == False:
+			if exists(noticeFile):
+				os.remove(noticeFile)
+			self.notice = ""
+		# addnotice, stuff notice in a file for other jobs etc
+		elif self.notice != "":
+			noticeDir = self.getNoticeDir()
+			FileUtils.writeFile(noticeDir, noticeFile, self.notice)
+		# default case. if there is a file get the contents, otherwise
+		# we have empty contents, all good
+		else:
+			if exists(noticeFile):
+				self.notice = FileUtils.readFile(noticeFile)
+		
+	def getNoticeFilename(self):
+		return os.path.join(self.wiki.publicDir(), date, "notice.txt")
+
+	def getNoticeDir(self):
+		return os.path.join(self.wiki.publicDir(), self.date);
+
+	def refreshNotice(self):
+		# if the notice file has changed or gone away, we comply.
+		noticeFile = self.getNoticeFilename()
+		if exists(noticeFile):
+			self.notice = FileUtils.readFile(noticeFile)
+		else:
+			self.notice = ""
+
 class Runner(object):
 
 	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False):
@@ -853,7 +889,7 @@ class Runner(object):
 		self.chunkInfo = Chunk(wiki, self.dbName, self.logAndPrint)
 		self.restart = restart
 		self.loggingEnabled = loggingEnabled
-		self.htmlNotice = notice
+		self.htmlNoticeFile = None
 		self.log = None
 		self.dryrun = dryrun
 
@@ -879,6 +915,10 @@ class Runner(object):
 			self.log = Logger(self.logFileName)
 			thread.start_new_thread(self.logQueueReader,(self.log,))
 
+		# have to handle the notice file here instead of main, it goes in the per-run directory
+		if not dryrun:
+			self.htmlNoticeFile = NoticeFile(self.wiki, self.date, notice)
+
 		if not dryrun:
 			self.checksums = Checksummer(self.wiki, self.dumpDir)
 
@@ -886,7 +926,7 @@ class Runner(object):
 		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
 
 		if not self.dryrun:
-			self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.htmlNotice, self.logAndPrint)
+			self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.htmlNoticeFile, self.logAndPrint)
 
 	def logQueueReader(self,log):
 		if not log:
@@ -2261,13 +2301,17 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --configfile, --date, --job, --notice, --force, --noprefetch, --nospawn, --restartfrom, --log"
+	print "Options: --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log"
 	print "--configfile:  Specify an alternative configuration file to read."
 	print "               Default config file name: wikidump.conf"
 	print "--date:        Rerun dump of a given date (probably unwise)"
-	print "--notice:      Text message that will be inserted in the per-dump-run index.html"
+	print "--addnotice:   Text message that will be inserted in the per-dump-run index.html"
 	print "               file; use this when rerunning some job and you want to notify the"
-	print "               potential downloaders of problems, for example."
+	print "               potential downloaders of problems, for example.  This option "
+	print "               remains in effective for the specified wiki and date until"
+	print "               the delnotice option is given."
+	print "--delnotice:   Remove any notice that has been specified by addnotice, for"
+	print "               the given wiki and date."
 	print "--job:         Run just the specified step or set of steps; for the list,"
 	print "               give the option --job help"
 	print "               This option requires specifiying a wikidbname on which to run."
@@ -2303,7 +2347,7 @@ if __name__ == "__main__":
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'notice=', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
 		except:
 			usage("Unknown option specified")
 
@@ -2326,8 +2370,10 @@ if __name__ == "__main__":
 				restart = True
 			elif opt == "--log":
 				enableLogging = True
-			elif opt == "--notice":
+			elif opt == "--addnotice":
 				htmlNotice = val
+			elif opt == "--delnotice":
+				htmlNotice = False
 
 		if dryrun and (len(remainder) == 0):
 			usage("--dryrun requires the name of a wikidb to be specified")
@@ -2351,13 +2397,14 @@ if __name__ == "__main__":
 
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
-			# if we are doing one piece only of the dump, we don't try to grab a lock
-			# unless told to. 
 			if not dryrun:
+				# if we are doing one piece only of the dump, we don't try to grab a lock
+				# unless told to. 
 				if forceLock and wiki.isLocked():
 					wiki.unlock()
 				if restart or not jobRequested:
 					wiki.lock()
+
 		else:
 			wiki = findAndLockNextWiki(config)
 
