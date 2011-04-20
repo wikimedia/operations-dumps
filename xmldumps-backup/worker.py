@@ -773,7 +773,6 @@ class Status(object):
 		# why? we might be rerunning a job from an older dumps. we might have two
 		# runs going at once (think en pedia, one finishing up the history, another
 		# starting at the beginning to get the new abstracts and stubs).
-
 		try:
 			dumpsInOrder = self.wiki.latestDump(all=True)
 			meIndex = dumpsInOrder.index(self.date)
@@ -845,7 +844,7 @@ class Status(object):
 
 class Runner(object):
 
-	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", loggingEnabled=False):
+	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -856,6 +855,7 @@ class Runner(object):
 		self.loggingEnabled = loggingEnabled
 		self.htmlNotice = notice
 		self.log = None
+		self.dryrun = dryrun
 
 		if date:
 			# Override, continuing a past dump?
@@ -873,18 +873,20 @@ class Runner(object):
 
 		# this must come after the dumpdir setup so we know which directory we are in 
 		# for the log file.
-		if (loggingEnabled):
+		if (loggingEnabled and not self.dryrun):
 			self.logFileName = self.dumpDir.publicPath(config.logFile)
 			self.makeDir(join(self.wiki.publicDir(), self.date))
 			self.log = Logger(self.logFileName)
 			thread.start_new_thread(self.logQueueReader,(self.log,))
 
-		self.checksums = Checksummer(self.wiki, self.dumpDir)
+		if not dryrun:
+			self.checksums = Checksummer(self.wiki, self.dumpDir)
 
 		# some or all of these dumpItems will be marked to run
 		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
 
-	        self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.htmlNotice, self.logAndPrint)
+		if not self.dryrun:
+			self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.htmlNotice, self.logAndPrint)
 
 	def logQueueReader(self,log):
 		if not log:
@@ -894,7 +896,7 @@ class Runner(object):
 			done = log.doJobOnLogQueue()
 		
 	def logAndPrint(self, message):
-		if hasattr(self,'log') and self.log:
+		if hasattr(self,'log') and self.log and not self.dryrun:
 			self.log.addToLogQueue("%s\n" % message)
 		print message
 
@@ -903,6 +905,10 @@ class Runner(object):
 			return "--force-normal"
 		else:
 			return ""
+
+	def remove(self, filename):
+		if not self.dryrun:
+			os.remove(filename)
 
 	# returns 0 on success, 1 on error
 	def saveTable(self, table, outfile):
@@ -920,7 +926,20 @@ class Runner(object):
 		"""For one pipeline of commands, redirect output to a given file."""
 		commands[-1].extend( [ ">" , outfile ] )
 		series = [ commands ]
-		return self.runCommand([ series ], callbackTimed = self.status.updateStatusFiles)
+		if (self.dryrun):
+			self.prettyPrintCommands([ series ])
+			return 0
+		else:
+			return self.runCommand([ series ], callbackTimed = self.status.updateStatusFiles)
+
+	def prettyPrintCommands(self, commandSeriesList):
+		for series in commandSeriesList:
+			for pipeline in series:
+				commandStrings = []
+				for command in pipeline:
+					commandStrings.append(" ".join(command))
+				pipelineString = " | ".join(commandStrings)
+				print "Command to run: ", pipelineString
 
 	# command series list: list of (commands plus args) is one pipeline. list of pipelines = 1 series. 
 	# this function wants a list of series.
@@ -939,18 +958,23 @@ class Runner(object):
 		This function spawns multiple series of pipelines  in parallel.
 
 		"""
-		commands = CommandsInParallel(commandSeriesList, callbackStderr=callbackStderr, callbackStderrArg=callbackStderrArg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callbackInterval=callbackInterval)
-		commands.runCommands()
-		if commands.exitedSuccessfully():
+		if self.dryrun:
+			self.prettyPrintCommands(commandSeriesList)
 			return 0
+
 		else:
-			problemCommands = commands.commandsWithErrors()
-			errorString = "Error from command(s): "
-			for cmd in problemCommands: 
-				errorString = errorString + "%s " % cmd
-			self.logAndPrint(errorString)
-#			raise BackupError(errorString)
-		return 1
+			commands = CommandsInParallel(commandSeriesList, callbackStderr=callbackStderr, callbackStderrArg=callbackStderrArg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callbackInterval=callbackInterval)
+			commands.runCommands()
+			if commands.exitedSuccessfully():
+				return 0
+			else:
+				problemCommands = commands.commandsWithErrors()
+				errorString = "Error from command(s): "
+				for cmd in problemCommands: 
+					errorString = errorString + "%s " % cmd
+				self.logAndPrint(errorString)
+	#			raise BackupError(errorString)
+			return 1
 
 	def debug(self, stuff):
 		self.logAndPrint("%s: %s %s" % (TimeUtils.prettyTime(), self.dbName, stuff))
@@ -1003,8 +1027,9 @@ class Runner(object):
 				# mark all the following jobs to run as well 
 				self.dumpItemList.markFollowingJobsToRun()
 
-		self.makeDir(join(self.wiki.publicDir(), self.date))
-	       	self.makeDir(join(self.wiki.privateDir(), self.date))
+		if not self.dryrun:
+			self.makeDir(join(self.wiki.publicDir(), self.date))
+			self.makeDir(join(self.wiki.privateDir(), self.date))
 
 		if (self.restart):
 			self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
@@ -1018,35 +1043,38 @@ class Runner(object):
 		files = self.listFilesFor(self.dumpItemList.dumpItems)
 
 		if (self.jobRequested):
-			self.checksums.prepareChecksums()
+			if not self.dryrun:
+				self.checksums.prepareChecksums()
 
 			for item in self.dumpItemList.dumpItems:
 				if (item.toBeRun()):
 					item.start(self)
-					self.status.updateStatusFiles()
-					self.dumpItemList.saveDumpRunInfoFile()
+					if not self.dryrun:
+						self.status.updateStatusFiles()
+						self.dumpItemList.saveDumpRunInfoFile()
 					try:
 						item.dump(self)
 					except Exception, ex:
 						self.debug("*** exception! " + str(ex))
 						item.setStatus("failed")
-					if item.status() == "failed":
+					if item.status() == "failed" and not self.dryrun:
 						self.runHandleFailure()
 					else:
 						self.lastFailed = False
 				# this ensures that, previous run or new one, the old or new md5sums go to the file
-				if item.status() == "done":
+				if item.status() == "done" and not self.dryrun:
 					self.runUpdateItemFileInfo(item)
 
-			if (self.dumpItemList.allPossibleJobsDone()):
-				self.status.updateStatusFiles("done")
-			else:
-				self.status.updateStatusFiles("partialdone")
-			self.dumpItemList.saveDumpRunInfoFile()
+			if not self.dryrun:
+				if (self.dumpItemList.allPossibleJobsDone()):
+					self.status.updateStatusFiles("done")
+				else:
+					self.status.updateStatusFiles("partialdone")
+				self.dumpItemList.saveDumpRunInfoFile()
 
-			# if any job succeeds we might as well make the sym link
-			if (self.status.failCount < 1):
-				self.completeDump(files)
+				# if any job succeeds we might as well make the sym link
+				if (self.status.failCount < 1):
+					self.completeDump(files)
 											
 			if (self.restart):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
@@ -1054,28 +1082,31 @@ class Runner(object):
 				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
 
 		else:
-			self.checksums.prepareChecksums()
+			if not self.dryrun:
+				self.checksums.prepareChecksums()
 
 			for item in self.dumpItemList.dumpItems:
 				item.start(self)
-				self.status.updateStatusFiles()
-				self.dumpItemList.saveDumpRunInfoFile()
+				if not self.dryrun:
+					self.status.updateStatusFiles()
+					self.dumpItemList.saveDumpRunInfoFile()
 				try:
 					item.dump(self)
 				except Exception, ex:
 					self.debug("*** exception! " + str(ex))
 					item.setStatus("failed")
-				if item.status() == "failed":
+				if item.status() == "failed" and not self.dryrun:
 					self.runHandleFailure()
 				else:
-					self.runUpdateItemFileInfo(item)
+					if not self.dryrun:
+						self.runUpdateItemFileInfo(item)
 					self.lastFailed = False
 
-			self.status.updateStatusFiles("done")
-			self.dumpItemList.saveDumpRunInfoFile()
-										
-			if self.status.failCount < 1:
-				self.completeDump(files)
+			if not self.dryrun:
+				self.status.updateStatusFiles("done")
+				self.dumpItemList.saveDumpRunInfoFile()
+				if self.status.failCount < 1:
+					self.completeDump(files)
 											
 			self.showRunnerStateComplete()
 
@@ -1092,8 +1123,9 @@ class Runner(object):
 		if old:
 			for dump in old:
 				self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
-				base = os.path.join(self.wiki.publicDir(), dump)
-				shutil.rmtree("%s" % base)
+				if not self.dryrun:
+					base = os.path.join(self.wiki.publicDir(), dump)
+					shutil.rmtree("%s" % base)
 		else:
 			self.showRunnerState("No old dumps to purge.")
 
@@ -1278,7 +1310,8 @@ class Dump(object):
 		pass
 
 	def buildRecombineCommandString(self, runner, files, outputFileBasename, compressionCommand, uncompressionCommand, endHeaderMarker="</siteinfo>"):
-		outputFilename = runner.dumpDir.publicPath(outputFileBasename)
+#		outputFilename = self.buildOutputFilename(runner, outputFileBasename)
+                outputFilename = runner.dumpDir.publicPath(outputFileBasename)
 		chunkNum = 0
 		recombines = []
 		head = runner.config.head
@@ -1311,14 +1344,12 @@ class Dump(object):
 			# warning: we figure any header (<siteinfo>...</siteinfo>) is going to be less than 2000 lines!
 			pipeline.append([ head, "-2000"])
 			pipeline.append([ grep, "-n", endHeaderMarker ])
-			# without sheell
+			# without shell
 			p = CommandPipeline(pipeline, quiet=True)
 			p.runPipelineAndGetOutput()
 			if (p.output()):
 				(headerEndNum, junk) = p.output().split(":",1)
 				# get headerEndNum
-			if exists(outputFilename):
-				os.remove(outputFilename)
 			recombine = " ".join(uncompressThisFile)
 			headerEndNum = int(headerEndNum) + 1
 			if (chunkNum == 1):
@@ -1335,6 +1366,13 @@ class Dump(object):
 		recombineCommandString = "(" + ";".join(recombines) + ")" + "|" + "%s %s" % (compressionCommand, outputFilename)
 		return(recombineCommandString)
 
+	def cleanupOldFiles(self, runner, outputFileBasename):
+		outputFilename = self.buildOutputFilename(runner, outputFileBasename)
+		if exists(outputFilename):
+			runner.remove(outputFilename)
+
+	def buildOutputFilename(self, runner, outputFileBasename):
+		return outputFilename
 
 class PublicTable(Dump):
 	"""Dump of a table using MySQL's mysqldump utility."""
@@ -1404,51 +1442,83 @@ class XmlStub(Dump):
 				"stub-articles.xml.gz"]
 
 	def buildCommand(self, runner, chunk = 0):
+		history = self.buildHistoryOutputFilename(runner, chunk)
+		current = self.buildCurrentOutputFilename(runner, chunk)
+		articles = self.buildArticlesOutputFilename(runner, chunk)
+
+		command = [ "%s" % runner.config.php,
+			    "-q", "%s/maintenance/dumpBackup.php" % runner.config.wikiDir,
+			    "--wiki=%s" % runner.dbName,
+			    "--full", "--stub", "--report=10000",
+			    "%s" % runner.forceNormalOption(),
+			    "--output=gzip:%s" % history,
+			    "--output=gzip:%s" % current,
+			    "--filter=latest", "--output=gzip:%s" % articles,
+			    "--filter=latest", "--filter=notalk", "--filter=namespace:!NS_USER" ]
+		if (chunk):
+			# set up start end end pageids for this piece
+			# note there is no page id 0 I guess. so we start with 1
+			# start = runner.pagesPerChunk()*(chunk-1) + 1
+			start = sum([ self._chunks[i] for i in range(0,chunk-1)]) + 1
+			startopt = "--start=%s" % start
+			# if we are on the last chunk, we should get up to the last pageid, 
+			# whatever that is. 
+			command.append(startopt)
+			if chunk < len(self._chunks):
+				# end = start + runner.pagesPerChunk()
+				end = sum([ self._chunks[i] for i in range(0,chunk)]) +1
+				endopt = "--end=%s" % end
+				command.append(endopt)
+
+		pipeline = [ command ]
+		series = [ pipeline ]
+		return(series)
+
+	def cleanupOldFiles(self, runner, chunk = 0):
+		fileList = self.buildOutputFilenames(runner, chunk)
+		for filename in fileList:
+			 if exists(filename):
+				runner.remove(filename)
+
+	def buildHistoryOutputFilename(self, runner, chunk = 0):
 		if (chunk):
 			chunkinfo = "%s" % chunk
 		else:
 			 chunkinfo = ""
 		history = runner.dumpDir.publicPath("stub-meta-history" + chunkinfo + ".xml.gz")
-		current = runner.dumpDir.publicPath("stub-meta-current" + chunkinfo + ".xml.gz")
-		articles = runner.dumpDir.publicPath("stub-articles" + chunkinfo + ".xml.gz")
-		for filename in (history, current, articles):
-			 if exists(filename):
-				os.remove(filename)
-			 command = [ "%s" % runner.config.php,
-				    "-q", "%s/maintenance/dumpBackup.php" % runner.config.wikiDir,
-				    "--wiki=%s" % runner.dbName,
-				    "--full", "--stub", "--report=10000",
-				    "%s" % runner.forceNormalOption(),
-				    "--output=gzip:%s" % history,
-				    "--output=gzip:%s" % current,
-				    "--filter=latest", "--output=gzip:%s" % articles,
-				    "--filter=latest", "--filter=notalk", "--filter=namespace:!NS_USER" ]
-			 if (chunk):
-				# set up start end end pageids for this piece
-				# note there is no page id 0 I guess. so we start with 1
-				# start = runner.pagesPerChunk()*(chunk-1) + 1
-				start = sum([ self._chunks[i] for i in range(0,chunk-1)]) + 1
-				startopt = "--start=%s" % start
-				# if we are on the last chunk, we should get up to the last pageid, 
-				# whatever that is. 
-				command.append(startopt)
-				if chunk < len(self._chunks):
-					# end = start + runner.pagesPerChunk()
-					end = sum([ self._chunks[i] for i in range(0,chunk)]) +1
-					endopt = "--end=%s" % end
-					command.append(endopt)
+		return history
 
-		pipeline = [ command ]
-		series = [ pipeline ]
-		return(series)
-	
+	def buildCurrentOutputFilename(self, runner, chunk = 0):
+		if (chunk):
+			chunkinfo = "%s" % chunk
+		else:
+			 chunkinfo = ""
+		current = runner.dumpDir.publicPath("stub-meta-current" + chunkinfo + ".xml.gz")
+		return current
+
+	def buildArticlesOutputFilename(self, runner, chunk = 0):
+		if (chunk):
+			chunkinfo = "%s" % chunk
+		else:
+			 chunkinfo = ""
+		articles = runner.dumpDir.publicPath("stub-articles" + chunkinfo + ".xml.gz")
+		return articles
+
+	def buildOutputFilenames(self, runner, chunk = 0):
+		history = self.buildHistoryOutputFilename(runner, chunk)
+		current = self.buildCurrentOutputFilename(runner, chunk)
+		articles = self.buildArticlesOutputFilename(runner, chunk)
+		return([ history, current, articles ])
+
 	def run(self, runner):
 		commands = []
 		if self._chunks:
 			for i in range(1, len(self._chunks)+1):
+				self.cleanupOldFiles(runner,i)
 				series = self.buildCommand(runner, i)
 				commands.append(series)
 		else:
+			self.cleanupOldFiles(runner)
 			series = self.buildCommand(runner)
 			commands.append(series)
 		result = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
@@ -1505,10 +1575,18 @@ class XmlLogging(Dump):
 	def listFiles(self, runner):
 		return ["pages-logging.xml.gz"]
 
-	def run(self, runner):
-		logging = runner.dumpDir.publicPath("pages-logging.xml.gz")
+	def cleanupOldFiles(self, runner):
+		logging = self.buildOutputFilename(runner)
 		if exists(logging):
-			os.remove(logging)
+			runner.remove(logging)
+
+	def buildOutputFilename(self, runner):
+		logging = runner.dumpDir.publicPath("pages-logging.xml.gz")
+		return logging
+
+	def run(self, runner):
+		self.cleanupOldFiles(runner)
+		logging = self.buildOutputFilename(runner)
 		command = [ "%s" % runner.config.php,
 			    "-q",  "%s/maintenance/dumpBackup.php" % runner.config.wikiDir,
 			    "--wiki=%s" % runner.dbName,
@@ -1723,7 +1801,10 @@ class XmlDump(Dump):
 					if not self.statusOfOldDumpIsDone(runner, date):
 						runner.debug("skipping incomplete or failed dump for prefetch %s" % possible)
 						continue
-					runner.debug("Prefetchable %s" % possible)
+					if (chunk) and (self.filenameHasChunk(possible, "bz2")):
+						runner.debug("Prefetchable %s etc." % possible)
+					else:
+						runner.debug("Prefetchable %s" % possible)
 					# found something workable, now check the chunk situation
 					if (chunk):
 						if (self.filenameHasChunk(possible, "bz2")):
@@ -1904,7 +1985,7 @@ class XmlRecompressDump(Dump):
 	def _path(self, runner, ext, chunk=0):
 		return runner.dumpDir.publicPath(self._file(ext,chunk))
 
-	def getOutputFilename(self, runner, chunk=0):
+	def buildOutputFilename(self, runner, chunk=0):
 		if (chunk):
 			xml7z = self._path(runner, "7z", chunk)
 		else:
@@ -1920,15 +2001,17 @@ class XmlRecompressDump(Dump):
 
 	def buildCommand(self, runner, chunk = 0):
 		xmlbz2 = self.getInputFilename(runner, chunk)
-		xml7z = self.getOutputFilename(runner, chunk)
+		xml7z = self.buildOutputFilename(runner, chunk)
 
-		# Clear prior 7zip attempts; 7zip will try to append an existing archive
-		if exists(xml7z):
-			os.remove(xml7z)
 		# FIXME need shell escape
 		commandPipe = [ [ "%s -dc %s | %s a -si %s"  % (runner.config.bzip2, xmlbz2, runner.config.sevenzip, xml7z) ] ]
 		commandSeries = [ commandPipe ]
 		return(commandSeries)
+
+	def cleanupOldFiles(self, runner, chunk = 0):
+		xml7z = self.buildOutputFilename(runner, chunk)
+		if exists(xml7z):
+			runner.remove(xml7z)
 
 	def run(self, runner):
 		if runner.lastFailed:
@@ -1936,9 +2019,13 @@ class XmlRecompressDump(Dump):
 		commands = []
 		if (self._chunks):
 			for i in range(1, len(self._chunks)+1):
+				# Clear prior 7zip attempts; 7zip will try to append an existing archive
+				self.cleanupOldFiles(runner, i)
 				series = self.buildCommand(runner, i)
 				commands.append(series)
 		else:
+			# Clear prior 7zip attempts; 7zip will try to append an existing archive
+			self.cleanupOldFiles(runner)
 			series = self.buildCommand(runner)
 			commands.append(series)
 		result = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
@@ -1946,11 +2033,11 @@ class XmlRecompressDump(Dump):
 		# some hacks aren't so temporary - atg 3 sept 2010
 		if (self._chunks):
 			for i in range(1, len(self._chunks)+1):
-				xml7z = self.getOutputFilename(runner,i)
+				xml7z = self.buildOutputFilename(runner,i)
 				if exists(xml7z):
 					os.chmod(xml7z, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH )
 		else:
-				xml7z = self.getOutputFilename(runner)
+				xml7z = self.buildOutputFilename(runner)
 				if exists(xml7z):
 					os.chmod(xml7z, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH )
 		return(result)
@@ -1977,9 +2064,19 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 	def listFiles(self, runner):
 		return(XmlRecompressDump.listFiles(self, runner, unnumbered=True))
 
+	def cleanupOldFiles(self, runner):
+		files = self.listFiles(runner)
+		print "here is cleanup"
+		for filename in files:
+			filename = runner.dumpDir.publicPath(filename)
+			if exists(filename):
+				runner.remove(filename)
+
 	def run(self, runner):
+		print "here we are"
 		errorresult = 0
 		if (self._chunks):
+			self.cleanupOldFiles(runner)
 			files = XmlRecompressDump.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
 			for outputFile in outputFileList:
@@ -2175,6 +2272,8 @@ def usage(message = None):
 	print "               give the option --job help"
 	print "               This option requires specifiying a wikidbname on which to run."
 	print "               This option cannot be specified with --force."
+	print "--dryrun:      Don't really run the job, just print what would be done (must be used"
+	print "               with a specified wikidbname on which to run"
 	print "--force:       remove a lock file for the specified wiki (dangerous, if there is"
 	print "               another process running, useful if you want to start a second later"
 	print "               run while the first dump from a previous date is still going)"
@@ -2200,10 +2299,11 @@ if __name__ == "__main__":
 		enableLogging = False
 		log = None
 		htmlNotice = ""
+		dryrun = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'notice=', 'force', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
+								 ['date=', 'job=', 'configfile=', 'notice=', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
 		except:
 			usage("Unknown option specified")
 
@@ -2218,6 +2318,8 @@ if __name__ == "__main__":
 				prefetch = False
 			elif opt == "--nospawn":
 				spawn = False
+			elif opt == "--dryrun":
+				dryrun = True
 			elif opt == "--job":
 				jobRequested = val
 			elif opt == "--restartfrom":
@@ -2227,6 +2329,8 @@ if __name__ == "__main__":
 			elif opt == "--notice":
 				htmlNotice = val
 
+		if dryrun and (len(remainder) == 0):
+			usage("--dryrun requires the name of a wikidb to be specified")
 		if jobRequested and (len(remainder) == 0):
 			usage("--job option requires the name of a wikidb to be specified")
 		if (jobRequested and forceLock):
@@ -2240,19 +2344,25 @@ if __name__ == "__main__":
 		else:
 			config = WikiDump.Config()
 
+		if dryrun:
+			print "***"
+			print "Dry run only, no files will be updated."
+			print "***"
+
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
-			# if we are doing one piece only of the dump, we don't try to grab a lock. 
-			if forceLock:
-				if wiki.isLocked():
+			# if we are doing one piece only of the dump, we don't try to grab a lock
+			# unless told to. 
+			if not dryrun:
+				if forceLock and wiki.isLocked():
 					wiki.unlock()
-			if restart or not jobRequested:
-				wiki.lock()
+				if restart or not jobRequested:
+					wiki.lock()
 		else:
 			wiki = findAndLockNextWiki(config)
 
 		if wiki:
-			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, htmlNotice, enableLogging)
+			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
@@ -2261,8 +2371,9 @@ if __name__ == "__main__":
 				print "Running %s..." % wiki.dbName
 			runner.run()
 			# if we are doing one piece only of the dump, we don't unlock either
-			if restart or not jobRequested:
-				wiki.unlock()
+			if not dryrun:
+				if restart or not jobRequested:
+					wiki.unlock()
 		else:
 			print "No wikis available to run."
 	finally:
