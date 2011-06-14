@@ -865,7 +865,7 @@ class NoticeFile(object):
 				self.notice = FileUtils.readFile(noticeFile)
 		
 	def getNoticeFilename(self):
-		return os.path.join(self.wiki.publicDir(), date, "notice.txt")
+		return os.path.join(self.wiki.publicDir(), self.date, "notice.txt")
 
 	def getNoticeDir(self):
 		return os.path.join(self.wiki.publicDir(), self.date);
