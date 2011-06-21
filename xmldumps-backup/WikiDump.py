@@ -19,12 +19,14 @@ class FileUtils(object):
 		fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
 		return os.fdopen(fd, mode)
 
-	def writeFile(dirname, filename, text):
+	def writeFile(dirname, filename, text, perms = 0):
 		"""Write text to a file, as atomically as possible, via a temporary file in the same directory."""
 		
 		(fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
 		os.write(fd,text)
 		os.close(fd)
+		if (perms):
+			os.chmod(tempFilename,perms)
 		# This may fail across filesystems or on Windows.
 		# Of course nothing else will work on Windows. ;)
 		os.rename(tempFilename, filename)
@@ -150,6 +152,7 @@ class Config(object):
 			"templatedir": home,
 			"perdumpindex": "index.html",
 			"logfile": "dumplog.txt",
+			"fileperms": "0640",
 			#"reporting": {
 			"adminmail": "root@localhost",
 			"mailfrom": "root@localhost",
@@ -220,7 +223,8 @@ class Config(object):
 		self.templateDir = conf.get("output", "templateDir")
 		self.perDumpIndex = conf.get("output", "perdumpindex")
 		self.logFile = conf.get("output", "logfile")
-
+		self.fileperms = conf.get("output", "fileperms")
+		self.fileperms = int(self.fileperms,0)
 		if not conf.has_section('reporting'):
 			conf.add_section('reporting')
 		self.adminMail = conf.get("reporting", "adminmail")
@@ -403,7 +407,7 @@ class Wiki(object):
 	def writePerDumpIndex(self, html):
 		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
-		FileUtils.writeFile(directory, index, html)
+		FileUtils.writeFile(directory, index, html, self.config.fileperms)
 	
 	def existsPerDumpIndex(self):
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
@@ -412,7 +416,7 @@ class Wiki(object):
 	def writeStatus(self, message):
 		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, "status.html")
-		FileUtils.writeFile(directory, index, message)
+		FileUtils.writeFile(directory, index, message, self.config.fileperms)
 	
 	def statusLine(self):
 		date = self.latestDump()

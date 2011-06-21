@@ -520,7 +520,7 @@ class DumpItemList(object):
 	def writeDumpRunInfoFile(self, text):
 		directory = self._getDumpRunInfoDirName()
 		dumpRunInfoFilename = self._getDumpRunInfoFileName()
-		FileUtils.writeFile(directory, dumpRunInfoFilename, text)
+		FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
 
 	def saveDumpRunInfoFile(self, done=False):
 		"""Write out a simple text file with the status for this wiki's dump."""
@@ -857,7 +857,7 @@ class NoticeFile(object):
 		# addnotice, stuff notice in a file for other jobs etc
 		elif self.notice != "":
 			noticeDir = self.getNoticeDir()
-			FileUtils.writeFile(noticeDir, noticeFile, self.notice)
+			FileUtils.writeFile(noticeDir, noticeFile, self.notice, self.wiki.config.fileperms)
 		# default case. if there is a file get the contents, otherwise
 		# we have empty contents, all good
 		else:
@@ -1265,7 +1265,7 @@ class Runner(object):
 			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
 		directory = self.dumpDir.latestDir()
 		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
-		FileUtils.writeFile(directory, rssPath, rssText)
+		FileUtils.writeFile(directory, rssPath, rssText, self.config.fileperms)
 
 class Dump(object):
 	def __init__(self, name, desc):
