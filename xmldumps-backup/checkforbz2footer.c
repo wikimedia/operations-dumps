@@ -17,8 +17,8 @@
    Arguments: the name of the file to check, presumably 
    a bzipped file. 
    Outputs: none.
-   Exits with 1 if the file contains the footer at the end, 
-   0 if the file does not contain the footer, and -1 on error.
+   Exits with 0 if the file contains the footer at the end, 
+   1 if the file does not contain the footer, and -1 on error.
 */
 
 
@@ -74,26 +74,26 @@ int bytescompare(unsigned char *buff1, unsigned char *buff2, int numbytes, int b
   if (bitsrightshifted == 0) {
     for (i = 0; i< numbytes; i++) {
       if (buff1[i] != buff2[i]) {
-	return(0);
+	return(1);
       }
     }
-    return(1);
+    return(0);
   }
   else {
     for (i = 1; i< numbytes-2; i++) {
       if (buff1[i] != buff2[i]) {
-	return(0);
+	return(1);
       }
     }
     /* do leftmost byte */
     if ((buff1[0] & bitmask(8-bitsrightshifted,RIGHT))  != (buff2[0] & bitmask(8-bitsrightshifted,RIGHT)) ) {
-      return(0);
+      return(1);
     }
     /* do rightmost byte */
     if ((buff1[numbytes-1] & bitmask(bitsrightshifted,LEFT))  != (buff2[numbytes-1] & bitmask(bitsrightshifted,LEFT)) ) {
-      return(0);
+      return(1);
     }
-    return(1);
+    return(0);
   }
 }
 
@@ -122,17 +122,17 @@ int checkfileforfooter(int fin) {
   read_footer(buffer,fin);
 
   result = bytescompare(footer[0],buffer+1,6,0);
-  if (result) {
-    return(result);
+  if (!result) {
+    return(0);
   }
   
   for (i=1; i<8; i++) {
     result = bytescompare(footer[i],buffer,7,i);
-    if (result) {
-      return(result);
+    if (!result) {
+      return(0);
     }
   }
-  return(0);
+  return(1);
 }
 
 int main(int argc, char **argv) {
