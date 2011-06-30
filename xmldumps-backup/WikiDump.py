@@ -172,6 +172,7 @@ class Config(object):
 			"tail": "/usr/bin/tail",
 			"cat": "/bin/cat",
 			"grep": "/bin/grep",
+			"checkforbz2footer": "/usr/local/bin/checkforbz2footer",
 			#"cleanup": {
 			"keep": "3",
 			#"chunks": {
@@ -249,6 +250,7 @@ class Config(object):
 		self.tail = conf.get("tools", "tail")
 		self.cat = conf.get("tools", "cat")
 		self.grep = conf.get("tools", "grep")
+		self.checkforbz2footer = conf.get("tools","checkforbz2footer")
 
 		if not conf.has_section('chunks'):
 			conf.add_section('chunks')

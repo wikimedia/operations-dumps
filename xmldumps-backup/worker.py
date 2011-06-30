@@ -988,7 +988,7 @@ class Runner(object):
 	# callbackinterval: how often we will call callbackTimed (in milliseconds), defaults to every 5 secs
 	def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell = False, callbackInterval=5000):
 		"""Nonzero return code from the shell from any command in any pipeline will cause this
-		function to print an error message and return 1, indictating error.
+		function to print an error message and return 1, indicating error.
 		Returns 0 on success.
 		If a callback function is passed, it will receive lines of
 		output from the call.  If the callback function takes another argument (which will
@@ -1561,8 +1561,9 @@ class XmlStub(Dump):
 			self.cleanupOldFiles(runner)
 			series = self.buildCommand(runner)
 			commands.append(series)
-		result = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
-		return result
+		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		if (error):
+			raise BackupError("error producing stub files" % self._subset)
 
 class RecombineXmlStub(XmlStub):
 	def __init__(self, name, desc, chunks):
@@ -1576,7 +1577,7 @@ class RecombineXmlStub(XmlStub):
 		return(XmlStub.listFiles(self, runner, unnumbered=True))
 
 	def run(self, runner):
-		errorresult=0
+		error=0
 		if (self._chunks):
 			files = XmlStub.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -1599,8 +1600,9 @@ class RecombineXmlStub(XmlStub):
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
 				if result:
-					errorresult = result
-		return errorresult
+					error = result
+		if (error):
+			raise BackupError("error recombining stub files")
 
 class XmlLogging(Dump):
 	""" Create a logging dump of all page activity """
@@ -1635,8 +1637,9 @@ class XmlLogging(Dump):
 			    "--output=gzip:%s" % logging ]
 		pipeline = [ command ]
 		series = [ pipeline ]
-		result = runner.runCommand([ series ], callbackStderr=self.progressCallback, callbackStderrArg=runner)
-		return result
+		error = runner.runCommand([ series ], callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		if (error):
+			raise BackupError("error dimping log files")
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
@@ -1671,8 +1674,28 @@ class XmlDump(Dump):
 		else:
 			series = self.buildCommand(runner)
 			commands.append(series)
-		result = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
-		return result
+		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+
+		checkforbz2footer = "%s" % runner.config.checkforbz2footer
+		if exists(checkforbz2footer):
+			# check to see if any of the output files are truncated
+			files = []
+			if (self._chunks):
+				for i in range(1, len(self._chunks)+1):
+					files.append( self._path(runner, 'bz2', i ) )
+			files.append( self._path(runner, 'bz2', i ) )
+
+			for f in files:
+				pipeline = []
+				pipeline.append([ checkforbz2footer, f ])
+				p = CommandPipeline(pipeline, quiet=True)
+				p.runPipelineAndGetOutput()
+				if not p.exitedSuccessfully():
+					runner.logAndPrint("file %s is truncated, moving out of the way" %f )
+					os.rename( f,  f + ".truncated" )
+					error = 1
+		if (error):
+			raise BackupError("error producing xml bz2 file(s) %s" % self._subset)
 
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
@@ -1969,7 +1992,7 @@ class RecombineXmlDump(XmlDump):
 		return(XmlDump.listFiles(self, runner, unnumbered=True))
 
 	def run(self, runner):
-		errorresult=0
+		error=0
 		if (self._chunks):
 			files = XmlDump.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -1992,8 +2015,9 @@ class RecombineXmlDump(XmlDump):
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
 				if result:
-					errorresult = result
-		return errorresult
+					error = result
+		if (error):
+			raise BackupError("error recombining xml bz2 files")
 
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
@@ -2068,7 +2092,7 @@ class XmlRecompressDump(Dump):
 			self.cleanupOldFiles(runner)
 			series = self.buildCommand(runner)
 			commands.append(series)
-		result = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+		error = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
 		# temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
 		# some hacks aren't so temporary - atg 3 sept 2010
 		if (self._chunks):
@@ -2080,7 +2104,8 @@ class XmlRecompressDump(Dump):
 				xml7z = self.buildOutputFilename(runner)
 				if exists(xml7z):
 					os.chmod(xml7z, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH )
-		return(result)
+		if (error):
+			raise BackupError("error recompressing bz2 file(s)")
 	
 	def listFiles(self, runner, unnumbered = False):
 		if (self._chunks) and not unnumbered:
@@ -2113,8 +2138,7 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 				runner.remove(filename)
 
 	def run(self, runner):
-		print "here we are"
-		errorresult = 0
+		error = 0
 		if (self._chunks):
 			self.cleanupOldFiles(runner)
 			files = XmlRecompressDump.listFiles(self,runner)
@@ -2138,8 +2162,9 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
 				if result:
-					errorresult = result
-		return errorresult
+					error = result
+		if (error):
+			raise BackupError("error recombining xml bz2 file(s)")
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
@@ -2186,7 +2211,10 @@ class AbstractDump(Dump):
 		else:
 			series = self.buildCommand(runner)
 		        commands.append(series)
-		runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+		if (error):
+			raise BackupError("error producing abstract dump")
+
 
 	def _variants(self, runner):
 		# If the database name looks like it's marked as Chinese language,
@@ -2234,7 +2262,7 @@ class RecombineAbstractDump(AbstractDump):
 		return(AbstractDump.listFiles(self,runner, unnumbered = True))
 
 	def run(self, runner):
-		errorresult = 0
+		error = 0
 		if (self._chunks):
 			files = AbstractDump.listFiles(self,runner)
 			outputFileList = self.listFiles(runner)
@@ -2256,8 +2284,9 @@ class RecombineAbstractDump(AbstractDump):
 				series = [ recombinePipeline ]
 				result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
 				if result:
-					errorresult = result
-		return errorresult
+					error = result
+		if (error):
+			raise BackupError("error recombining abstract dump files")
 
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
@@ -2271,7 +2300,8 @@ class TitleDump(Dump):
 			retries = retries + 1
 			time.sleep(5)
 			error = runner.saveSql(query, runner.dumpDir.publicPath("all-titles-in-ns0.gz"))
-		return error 
+		if (error):
+			raise BackupError("error dumping titles list")
 
 	def listFiles(self, runner):
 		return ["all-titles-in-ns0.gz"]
