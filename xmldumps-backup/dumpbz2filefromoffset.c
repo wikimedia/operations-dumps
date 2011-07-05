@@ -11,10 +11,6 @@
 #include "bzlib.h"
 #include "findpageidinbz2xml.h"
 
-/* FIXME todo 
-   write mw header first, then write page data
-*/
-
 
 /* return n ones either at left or right end */
 int bit_mask(int numbits, int end) {
@@ -525,6 +521,113 @@ int  move_bytes_to_buffer_start(buf_info_t *b, unsigned char *fromwhere, int max
 }
 
 /* 
+   dump the <meadiawiki> header (up through
+   </siteinfo> close tag) found at the 
+   beginning of xml dump files. 
+   returns:
+      0 on success,
+      -1 on error
+*/
+int dump_mw_header(int fin) {
+  int res;
+  regmatch_t *match_siteinfo;
+  regex_t compiled_siteinfo;
+  int length=5000; /* output buffer size */
+  char *siteinfo = "  </siteinfo>\n";
+
+  buf_info_t *b;
+  bz_info_t bfile;
+
+  int firstpage = 1;
+  int done = 0;
+  bfile.initialized = 0;
+
+  res = regcomp(&compiled_siteinfo, siteinfo, REG_EXTENDED);
+
+  match_siteinfo = (regmatch_t *)malloc(sizeof(regmatch_t)*1);
+
+  b = init_buffer(length);
+  bfile.bytes_read = 0;
+  bfile.position = 0;
+
+  while ((get_buffer_of_uncompressed_data(b, fin, &bfile)>=0) && (! bfile.eof) && (!done)) {
+    /* fixme either we don't check the return code right or we don't notice no bytes read or we don't clear the bytes read */
+    if (bfile.bytes_read) {
+      if (firstpage) {
+	if (bfile.bytes_read >= 11 && !memcmp((char *)b->next_to_read,"<mediawiki ",11)) {
+	  /* good, write it and loop and not firstpage any more */
+	  if (b->bytes_avail) {
+	    if (regexec(&compiled_siteinfo, (char *)b->next_to_read,  2,  match_siteinfo, 0 ) == 0) {
+	      fwrite(b->next_to_read,match_siteinfo[0].rm_eo, 1, stdout);
+	      b->next_to_read = b->end;
+	      b->bytes_avail = 0;
+	      b->next_to_fill = b->buffer; /* empty */
+	      bfile.strm.next_out = (char *)b->next_to_fill;
+	      bfile.strm.avail_out = b->end - b->next_to_fill;
+	      done++;
+	    }
+	    else {
+	      fwrite(b->next_to_read,b->bytes_avail,1,stdout);
+	      b->next_to_read = b->end;
+	      b->bytes_avail = 0;
+	      b->next_to_fill = b->buffer; /* empty */
+	      bfile.strm.next_out = (char *)b->next_to_fill;
+	      bfile.strm.avail_out = b->end - b->next_to_fill;
+	    }
+	  }  
+	}
+	else {
+	  fprintf(stderr,"missing mediawiki header from bz2 xml file\n");
+	  return(-1);
+	}
+	firstpage = 0;
+      }
+      else { /* not firstpage */
+	if (regexec(&compiled_siteinfo, (char *)b->next_to_read,  2,  match_siteinfo, 0 ) == 0) {
+	  fwrite(b->next_to_read,match_siteinfo[0].rm_eo, 1, stdout);
+	  b->next_to_read = b->end;
+	  b->bytes_avail = 0;
+	  b->next_to_fill = b->buffer; /* empty */
+	  bfile.strm.next_out = (char *)b->next_to_fill;
+	  bfile.strm.avail_out = b->end - b->next_to_fill;
+	  done++;
+	}
+	else {
+	  /* could have the first part of the siteinfo tag... so copy up enough bytes to cover that case */
+	  if (b->bytes_avail> 12) {
+	    /* write everything that didn't match, but leave 12 bytes, to stdout */
+	    fwrite(b->next_to_read,b->bytes_avail - 12,1,stdout);
+	    move_bytes_to_buffer_start(b, b->next_to_read + b->bytes_avail - 12, 12);
+	    bfile.strm.next_out = (char *)b->next_to_fill;
+	    bfile.strm.avail_out = b->end - b->next_to_fill;
+	  }
+	  else {
+	    if (buffer_is_empty(b)) {
+	      bfile.strm.next_out = (char *)b->buffer;
+	      bfile.strm.avail_out = bfile.bufout_size;
+	      b->next_to_fill = b->buffer; /* empty */
+	    }
+	    else {
+	      /* there were only 12 or less bytes so just save em don't write em to stdout */
+	      move_bytes_to_buffer_start(b, b->next_to_read, b->bytes_avail);
+	      bfile.strm.next_out = (char *)b->next_to_fill;
+	      bfile.strm.avail_out = b->end - b->next_to_fill;
+	    }
+	  }
+	}
+      } /* end notfirstpage */
+    }
+  }
+  if (!done) {
+    fprintf(stderr,"incomplete or no mediawiki header found\n");
+    return(-1);
+  }
+  else {
+    return(0);
+  }
+}
+
+/* 
    find the first page id after position in file 
    decompress and dump to stdout from that point on
    returns:
@@ -616,7 +719,9 @@ int dump_from_first_page_id_after_offset(int fin, int position) {
 /*
   find the first bz2 block after the specified offset,
   uncompress from that point on, write out the
-  contents starting with the first <page> tag
+  contents starting with the first <page> tag,
+  prefacing first with the <mediawiki> header from
+  the beginning of the file, up through </siteinfo>.
 
   note that we may lose some bytes from the very last
   block if the blocks are bit shifted, because the
@@ -654,6 +759,8 @@ int main(int argc, char **argv) {
     exit(-1);
   }
   /* input file, starting position in file, length of buffer for reading */
+  res = dump_mw_header(fin);
+
   res = dump_from_first_page_id_after_offset(fin, position);
   exit(res);
 }
