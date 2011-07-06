@@ -39,12 +39,12 @@ int read_footer(unsigned char *buffer, int fin) {
   int res;
 
   res = lseek(fin, -11, SEEK_END);
-  if (res < 0) {
+  if (res == -1) {
     fprintf(stderr,"lseek of file failed\n");
     exit(-1);
   }
   res = read(fin, buffer, 11);
-  if (res < 0) {
+  if (res == -1) {
     fprintf(stderr,"read of file failed\n");
     exit(-1);
   }
@@ -240,12 +240,12 @@ int findnextmarker(int fin, int *start_at, int *position, unsigned char **marker
       }
       */
       *position = lseek(fin, -1*(*start_at), SEEK_END);
-      if (*position < 0) {
+      if (*position == -1) {
 	fprintf(stderr,"lseek of file failed\n");
 	exit(-1);
       }
       result = read(fin, buffer, 7);
-      if (result < 0) {
+      if (result == -1) {
 	fprintf(stderr,"read of file failed\n");
 	exit(-1);
       }
@@ -409,12 +409,12 @@ int main(int argc, char **argv) {
   }
   start_at +=6; /* size of marker */
   bfile.position = lseek(fin, -1*start_at, SEEK_END);
-  if (bfile.position < 0) {
+  if (bfile.position == -1) {
     fprintf(stderr,"lseek of file failed\n");
     exit(-1);
   }
   result = read(fin, buffer, 7);
-  if (result < 0) {
+  if (result == -1) {
     fprintf(stderr,"read of file failed\n");
     exit(-1);
   }
