@@ -26,12 +26,12 @@ int read_footer(unsigned char *buffer, int fin) {
   int res;
 
   res = lseek(fin, -11, SEEK_END);
-  if (res < 0) {
+  if (res == -1) {
     fprintf(stderr,"lseek of file failed\n");
     exit(-1);
   }
   res = read(fin, buffer, 11);
-  if (res < 0) {
+  if (res == -1) {
     fprintf(stderr,"read of file failed\n");
     exit(-1);
   }
