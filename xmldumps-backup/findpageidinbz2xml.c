@@ -133,7 +133,7 @@ int find_next_bz2_block_marker(int fin, bz_info_t *bfile) {
 
   bfile->bits_shifted = -1;
   result = read(fin, bfile->marker_buffer, 7);
-  if (result < 0) {
+  if (result == -1) {
     /* fprintf(stderr,"read of file failed\n"); */
     return(-1);
   }
@@ -202,7 +202,7 @@ int decompress_header(int fin, bz_info_t *bfile) {
   int ret, res;
 
   res = lseek(fin,0,SEEK_SET);
-  if (res < 0) {
+  if (res == -1) {
     fprintf(stderr,"lseek of file to 0 failed (3)\n");
     exit(-1);
   }
@@ -242,14 +242,14 @@ int setup_first_buffer_to_decompress(int fin, bz_info_t *bfile) {
 
   if (bfile->bits_shifted == 0) {
     res = lseek(fin,bfile->position+1,SEEK_SET);
-    if (res < 0) {
+    if (res == -1) {
       fprintf(stderr,"lseek of file to %ld failed (4)\n",(long int) bfile->position+1);
       return(-1);
     }
   }
   else {
     res = lseek(fin,bfile->position,SEEK_SET);
-    if (res < 0) {
+    if (res == -1) {
       fprintf(stderr,"lseek of file to %ld failed (5)\n",(long int) bfile->position);
       return(-1);
     }
@@ -356,7 +356,7 @@ int get_file_size(int fin) {
   int res;
 
   res = lseek(fin, 0, SEEK_END);
-  if (res < 0) {
+  if (res == -1) {
     fprintf(stderr,"lseek of file to 0 failed (6)\n");
     exit(-1);
   }
@@ -394,7 +394,7 @@ int find_first_bz2_block_after_offset(bz_info_t *bfile, int fin, int position) {
       return(-1);
     }
     res = lseek(fin, bfile->position, SEEK_SET);
-    if (res < 0) {
+    if (res == -1) {
       fprintf(stderr,"lseek of file to %ld failed (7)\n",(long int) bfile->position);
       exit(-1);
     }
@@ -418,7 +418,7 @@ int find_first_bz2_block_after_offset(bz_info_t *bfile, int fin, int position) {
 	bfile->eof = 0;
 	/* leave the file at the right position */
 	res = lseek(fin, bfile->block_start, SEEK_SET);
-	if (res < 0) {
+	if (res == -1) {
 	  fprintf(stderr,"lseek of file to %ld failed (7)\n",(long int) bfile->position);
 	  exit(-1);
 	}
