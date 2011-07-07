@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <regex.h>
+#include <inttypes.h>
 #include "mwbzutils.h"
 
 
@@ -42,7 +43,7 @@ int init_and_read_first_buffer_bz2_file(bz_info_t *bfile, int fin) {
       0 if no pageid found,
       -1 on error
 */
-int get_first_page_id_after_offset(int fin, int position, page_info_t *pinfo) {
+int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) {
   int res;
   regmatch_t *match_page, *match_page_id;
   regex_t compiled_page, compiled_page_id;
@@ -64,12 +65,12 @@ int get_first_page_id_after_offset(int fin, int position, page_info_t *pinfo) {
   b = init_buffer(length);
 
   pinfo->bits_shifted = -1;
-  pinfo->position = -1;
+  pinfo->position = (off_t)-1;
   pinfo->page_id = -1;
 
   bfile.bytes_read = 0;
 
-  if (find_first_bz2_block_from_offset(&bfile, fin, position, FORWARD) <= 0) {
+  if (find_first_bz2_block_from_offset(&bfile, fin, position, FORWARD) <= (off_t)0) {
     /* fprintf(stderr,"failed to find block in bz2file (1)\n"); */
     return(-1);
   }
@@ -162,21 +163,21 @@ int get_first_page_id_after_offset(int fin, int position, page_info_t *pinfo) {
  */
 int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo) {
   int res;
-  int new_position;
-  int interval;
+  off_t new_position;
+  off_t interval;
 
   /* 
      last_position is somewhere in the interval, perhaps at an end 
      last_value is the value we had at that position
   */
   
-  interval = (iinfo->right_end - iinfo->left_end)/2;
-  if (interval == 0) {
-    interval = 1;
+  interval = (iinfo->right_end - iinfo->left_end)/(off_t)2;
+  if (interval == (off_t)0) {
+    interval = (off_t)1;
   }
-  /*  fprintf(stderr,"interval size is %ld, left end %ld, right end %ld, last val %d\n",interval, iinfo->left_end, iinfo->right_end, iinfo->last_value); */
+  /*  fprintf(stderr,"interval size is %"PRId64", left end %"PRId64", right end %"PRId64", last val %d\n",interval, iinfo->left_end, iinfo->right_end, iinfo->last_value); */
   /* if we're this close, we'll check this value and be done with it */
-  if (iinfo->right_end -iinfo->left_end < 2) {
+  if (iinfo->right_end -iinfo->left_end < (off_t)2) {
     new_position = iinfo->left_end;
     iinfo->right_end = iinfo->left_end;
   }
@@ -231,7 +232,8 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo) {
   returns: 0 on success, -1 on error
 */
 int main(int argc, char **argv) {
-  int fin, position, res, interval, page_id, oldmarker, file_size;
+  int fin, res, page_id;
+  off_t position, interval, file_size;
   page_info_t pinfo;
   iter_info_t iinfo;
 
@@ -256,28 +258,27 @@ int main(int argc, char **argv) {
   file_size = get_file_size(fin);
 
   interval = file_size;
-  position = 0;
-  oldmarker = -1;
+  position = (off_t)0;
   pinfo.bits_shifted = -1;
-  pinfo.position = -1;
+  pinfo.position = (off_t)-1;
   pinfo.page_id = -1;
 
-  iinfo.left_end = 0;
+  iinfo.left_end = (off_t)0;
   file_size = get_file_size(fin);
   iinfo.right_end = file_size;
   iinfo.value_wanted = page_id;
 
-  res = get_first_page_id_after_offset(fin, 0, &pinfo);
+  res = get_first_page_id_after_offset(fin, (off_t)0, &pinfo);
   if (res > 0) {
     iinfo.last_value = pinfo.page_id;
-    iinfo.last_position = 0;
+    iinfo.last_position = (off_t)0;
   }
   else {
     fprintf(stderr,"failed to get anything useful from the beginning of the file even, bailing.\n");
     exit(1);
   }
   if (pinfo.page_id == page_id) {
-      fprintf(stdout,"position:%d page_id:%d\n",pinfo.position, pinfo.page_id);
+      fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
       exit(0);
   }
 
@@ -285,7 +286,7 @@ int main(int argc, char **argv) {
     res = do_iteration(&iinfo, fin, &pinfo);
     /* things to check: bad return? interval is 0 bytes long? */
     if (iinfo.left_end == iinfo.right_end) {
-      fprintf(stdout,"position:%d page_id:%d\n",pinfo.position, pinfo.page_id);
+      fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
       exit(0);
     }
     else if (res < 0) {

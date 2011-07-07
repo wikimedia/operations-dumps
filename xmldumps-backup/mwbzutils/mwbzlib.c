@@ -8,9 +8,9 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <regex.h>
+#include <inttypes.h>
 #include "bzlib.h"
 #include "mwbzutils.h"
-
 
 
 /* return n ones either at left or right end */
@@ -130,11 +130,12 @@ int check_buffer_for_bz2_block_marker(bz_info_t *bfile) {
 
 /* return: 1 if found, 0 if not, -1 on error */
 int find_next_bz2_block_marker(int fin, bz_info_t *bfile, int direction) {
-  int result;
+  off_t seekresult;
+  int res;
 
   bfile->bits_shifted = -1;
-  result = read(fin, bfile->marker_buffer, 7);
-  if (result == -1) {
+  res = read(fin, bfile->marker_buffer, 7);
+  if (res == -1) {
     fprintf(stderr,"read of file failed\n");
     return(-1);
   }
@@ -149,13 +150,13 @@ int find_next_bz2_block_marker(int fin, bz_info_t *bfile, int direction) {
       else {
 	bfile->position--;
       }
-      result = lseek(fin, (bfile->position), SEEK_SET);
-      if (result == -1) {
-	fprintf(stderr,"lseek of file to %ld failed (2)\n",(long int) bfile->position);
+      seekresult = lseek(fin, bfile->position, SEEK_SET);
+      if (seekresult == (off_t)-1) {
+	fprintf(stderr,"lseek of file to %"PRId64" failed (2)\n",bfile->position);
 	return(-1);
       }
-      result = read(fin, bfile->marker_buffer, 7);
-      if (result < 7) {
+      res = read(fin, bfile->marker_buffer, 7);
+      if (res < 7) {
 	/* fprintf(stderr,"read of file failed\n"); */
 	return(-1);
       }
@@ -194,15 +195,14 @@ int init_decompress(bz_info_t *bfile) {
 }
 
 /* FIXME do this right. whatever. */
-int get_file_size(int fin) {
-  int res;
+off_t get_file_size(int fin) {
+  off_t seekresult;
 
-  res = lseek(fin, 0, SEEK_END);
-  if (res == -1) {
+  seekresult = lseek(fin, (off_t)0, SEEK_END);
+  if (seekresult == (off_t)-1) {
     fprintf(stderr,"lseek of file to 0 failed (6)\n");
-    return(-1);
   }
-  return(res);
+  return(seekresult);
 }
 
 /*
@@ -217,10 +217,11 @@ int get_file_size(int fin) {
     various BZ_ errors or -1 on failure (see bzlib.h)
 */
 int decompress_header(int fin, bz_info_t *bfile) {
-  int ret, res;
+  int res;
+  off_t seekresult;
 
-  res = lseek(fin,0,SEEK_SET);
-  if (res == -1) {
+  seekresult = lseek(fin,(off_t)0,SEEK_SET);
+  if (seekresult == (off_t)-1) {
     fprintf(stderr,"lseek of file to 0 failed (3)\n");
     return(-1);
   }
@@ -232,12 +233,12 @@ int decompress_header(int fin, bz_info_t *bfile) {
   bfile->strm.next_in = (char *)bfile->header_buffer;
   bfile->strm.avail_in = 4;
 
-  ret = BZ2_bzDecompress_mine ( &(bfile->strm) );
-  if (BZ_OK != ret && BZ_STREAM_END != ret) {
+  res = BZ2_bzDecompress_mine ( &(bfile->strm) );
+  if (BZ_OK != res && BZ_STREAM_END != res) {
     fprintf(stderr,"Corrupt bzip2 header\n");
     return(-1);
   }
-  return(ret);
+  return(res);
 }
 
 /*
@@ -256,19 +257,19 @@ int decompress_header(int fin, bz_info_t *bfile) {
     -1 on error
 */
 int setup_first_buffer_to_decompress(int fin, bz_info_t *bfile) {
-  int res;
+  off_t seekresult;
 
   if (bfile->bits_shifted == 0) {
-    res = lseek(fin,bfile->position+1,SEEK_SET);
-    if (res == -1) {
-      fprintf(stderr,"lseek of file to %ld failed (4)\n",(long int) bfile->position+1);
+    seekresult = lseek(fin,bfile->position+(off_t)1,SEEK_SET);
+    if (seekresult == -1) {
+      fprintf(stderr,"lseek of file to %"PRId64" failed (4)\n",bfile->position+(off_t)1);
       return(-1);
     }
   }
   else {
-    res = lseek(fin,bfile->position,SEEK_SET);
-    if (res == -1) {
-      fprintf(stderr,"lseek of file to %ld failed (5)\n",(long int) bfile->position);
+    seekresult = lseek(fin,bfile->position,SEEK_SET);
+    if (seekresult == -1) {
+      fprintf(stderr,"lseek of file to %"PRId64" failed (5)\n",bfile->position);
       return(-1);
     }
   }
@@ -294,7 +295,7 @@ int setup_first_buffer_to_decompress(int fin, bz_info_t *bfile) {
    -1 if no marker or other error, position of next read if ok 
 */
 int init_bz2_file(bz_info_t *bfile, int fin, int direction) {
-  int res;
+  off_t seekresult;
 
   bfile->bufin_size = BUFINSIZE;
   bfile->marker = init_marker();
@@ -309,9 +310,9 @@ int init_bz2_file(bz_info_t *bfile, int fin, int direction) {
     fprintf(stderr,"asked for position past end of file\n");
     return(-1);
   }
-  res = lseek(fin, bfile->position, SEEK_SET);
-  if (res == -1) {
-    fprintf(stderr,"lseek of file to %ld failed (7)\n",(long int) bfile->position);
+  seekresult = lseek(fin, bfile->position, SEEK_SET);
+  if (seekresult == (off_t)-1) {
+    fprintf(stderr,"lseek of file to %"PRId64" failed (7)\n",bfile->position);
     return(-1);
   }
 
@@ -451,7 +452,7 @@ int get_and_decompress_data(bz_info_t *bfile, int fin, unsigned char *bufferout,
     bfile->eof++;
     /* should we actually change the file position? 
     bfile->position = bfile->filesize;
-    lseek(fin,0,SEEK_END);
+    lseek(fin,(off_t)0,SEEK_END);
     */
   }
   return(0);
@@ -559,10 +560,11 @@ unsigned char ** init_footer() {
 }
 
 int read_footer(unsigned char *buffer, int fin) {
+  off_t seekresult;
   int res;
 
-  res = lseek(fin, -11, SEEK_END);
-  if (res == -1) {
+  seekresult = lseek(fin, (off_t)-11, SEEK_END);
+  if (seekresult == (off_t)-1) {
     fprintf(stderr,"lseek of file failed\n");
     return(-1);
   }
@@ -621,13 +623,14 @@ void clear_buffer(unsigned char *buf, int length) {
     0 if no marker
     -1 on error
 */
-int find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, int position, int direction) {
+off_t find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, off_t position, int direction) {
+  off_t seekresult;
   int res;
 
   bfile->bufin_size = BUFINSIZE;
   bfile->marker = init_marker();
   bfile->position = position;
-  bfile->block_start = -1;
+  bfile->block_start = (off_t)-1;
   bfile->bytes_read = 0;
   bfile->bytes_written = 0;
   bfile->eof = 0;
@@ -639,9 +642,9 @@ int find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, int position, in
     if (bfile->position > bfile->file_size) {
       return(0);
     }
-    res = lseek(fin, bfile->position, SEEK_SET);
-    if (res < 0) {
-      fprintf(stderr,"lseek of file to %ld failed (7)\n",(long int) bfile->position);
+    seekresult = lseek(fin, bfile->position, SEEK_SET);
+    if (seekresult == (off_t)-1) {
+      fprintf(stderr,"lseek of file to %"PRId64" failed (7)\n",bfile->position);
       return(-1);
     }
     res = find_next_bz2_block_marker(fin, bfile,direction);
@@ -663,19 +666,19 @@ int find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, int position, in
 	bfile->bytes_written = 0;
 	bfile->eof = 0;
 	/* leave the file at the right position */
-	res = lseek(fin, bfile->block_start, SEEK_SET);
-	if (res < 0) {
-	  fprintf(stderr,"lseek of file to %ld failed (7)\n",(long int) bfile->position);
+	seekresult = lseek(fin, bfile->block_start, SEEK_SET);
+	if (seekresult == (off_t)-1) {
+	  fprintf(stderr,"lseek of file to %"PRId64" failed (7)\n",bfile->position);
 	  return(-1);
 	}
-	bfile->position = res;
+	bfile->position = seekresult;
 	return(bfile->position);
       }
       /* right bytes, but there by chance, skip and try again */
       else {
-	bfile->position+=6;
+	bfile->position+=(off_t)6;
 	bfile->bits_shifted = -1;
-	bfile->block_start = -1;
+	bfile->block_start = (off_t)-1;
       }
     }
     else {

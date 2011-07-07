@@ -38,7 +38,7 @@ int dump_mw_header(int fin) {
 
   b = init_buffer(length);
   bfile.bytes_read = 0;
-  bfile.position = 0;
+  bfile.position = (off_t)0;
 
   while ((get_buffer_of_uncompressed_data(b, fin, &bfile, FORWARD)>=0) && (! bfile.eof) && (!done)) {
     /* fixme either we don't check the return code right or we don't notice no bytes read or we don't clear the bytes read */
@@ -124,7 +124,7 @@ int dump_mw_header(int fin) {
       0 on success,
       -1 on error
 */
-int dump_from_first_page_id_after_offset(int fin, int position) {
+int dump_from_first_page_id_after_offset(int fin, off_t position) {
   int res;
   regmatch_t *match_page;
   regex_t compiled_page;
@@ -229,7 +229,8 @@ int dump_from_first_page_id_after_offset(int fin, int position) {
     BZ_OK on success, various BZ_ errors otherwise.
 */
 int main(int argc, char **argv) {
-  int fin, position, res;
+  int fin, res;
+  off_t position;
 
   if (argc != 3) {
     fprintf(stderr,"usage: %s infile position\n", argv[0]);
@@ -242,8 +243,8 @@ int main(int argc, char **argv) {
     exit(-1);
   }
 
-  position = atoi(argv[2]);
-  if (position <0) {
+  position = atoll(argv[2]);
+  if (position <(off_t)0) {
     fprintf(stderr,"please specify a position >= 0.\n");
     fprintf(stderr,"usage: %s infile position\n", argv[0]);
     exit(-1);

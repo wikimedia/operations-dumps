@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <inttypes.h>
 #include "mwbzutils.h"
 
 
@@ -54,9 +55,9 @@ int main(int argc, char **argv) {
     bfile.position = bfile.file_size;
   }
   else {
-    bfile.position = bfile.file_size - 11; /* size of footer, perhaps with 1 byte extra */
+    bfile.position = bfile.file_size - (off_t)11; /* size of footer, perhaps with 1 byte extra */
   }
-  bfile.position -=6; /* size of marker */
+  bfile.position -=(off_t)6; /* size of marker */
   bfile.initialized = 0;
   b = init_buffer(length);
   bfile.bytes_read = 0;
@@ -64,11 +65,11 @@ int main(int argc, char **argv) {
   /*  init_bz2_file(&bfile, fin, BACKWARD); */
   firstblock = 1;
 
-  if (find_first_bz2_block_from_offset(&bfile, fin, bfile.position, BACKWARD) <= 0) {
+  if (find_first_bz2_block_from_offset(&bfile, fin, bfile.position, BACKWARD) <= (off_t)0) {
     fprintf(stderr,"failed to find block in bz2file\n");
     exit(-1);
   }
-  while ((get_buffer_of_uncompressed_data(b, fin, &bfile, FORWARD)>=0) && (! bfile.eof) && (! bfile.position ==0)) {
+  while ((get_buffer_of_uncompressed_data(b, fin, &bfile, FORWARD)>=0) && (! bfile.eof) && (! bfile.position == (off_t)0)) {
     if (bfile.bytes_read) {
       fwrite(b->next_to_read,b->bytes_avail,1,stdout);
       b->next_to_read = b->end;

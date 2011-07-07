@@ -7,7 +7,7 @@ int BZ_API(BZ2_bzDecompress_mine) ( bz_stream *strm );
 typedef struct {
   int page_id; /* first id in the block */
   int bits_shifted; /* block is right shifted this many bits */
-  int position; /* position in file of block */
+  off_t position; /* position in file of block */
 } page_info_t;
 
 #define BUFINSIZE 5000
@@ -27,7 +27,7 @@ typedef struct {
 
   int initialized;                  /* whether bz2file has been initialized (header processed, seek to 
 				       some bz2 block in the file and input buffer filled) */
-  int block_start;                   /* position of bz2 block in file from which we started to read (we
+  off_t block_start;                   /* position of bz2 block in file from which we started to read (we
                                        read a sequence of bz2 blocks from a given position, this is 
                                        the offset to the first one) */
 
@@ -44,12 +44,12 @@ typedef struct {
   unsigned char **footer;           /* bzip2 end of stream footer, plus bit-shifted versions of it for
 				       locating the footer in a stream of compressed data */
 
-  int position;                     /* current offset into file from start of file */
+  off_t position;                     /* current offset into file from start of file */
 
   int bytes_read;                    /* number of bytes of compressed data read from file (per read) */
   int bytes_written;                 /* number of bytes of decompressed data written into output buffer (per decompress) */
   int eof;                          /* nonzero if eof reached */
-  int file_size;                     /* length of file, so we don't search past it for blocks */
+  off_t file_size;                     /* length of file, so we don't search past it for blocks */
 } bz_info_t;
 
 #define MASKLEFT 0
@@ -76,11 +76,11 @@ typedef struct {
    position and checking the first pageid (if any) contained in it.  
 */
 typedef struct {
-  int left_end;       /* left end of interval to search (bytes from start of file) */
-  int right_end;      /* right end of interval to search */
+  off_t left_end;       /* left end of interval to search (bytes from start of file) */
+  off_t right_end;      /* right end of interval to search */
   int value_wanted;   /* pageid desired */
   int last_value;     /* pageid we found in last iteration */
-  int last_position;  /* position in file for last iteration */
+  off_t last_position;  /* position in file for last iteration */
 } iter_info_t;
 
 int bit_mask(int numbits, int end);
@@ -114,7 +114,7 @@ int buffer_is_empty(buf_info_t *b);
 
 int buffer_is_full(buf_info_t *b);
 
-int get_file_size(int fin);
+off_t get_file_size(int fin);
 
 int init_bz2_file(bz_info_t *bfile, int fin, int direction);
 
@@ -134,6 +134,6 @@ int check_file_for_footer(int fin, bz_info_t *bfile);
 
 void clear_buffer(unsigned char *buf, int length);
 
-int find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, int position, int direction);
+off_t find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, off_t position, int direction);
 
 #endif
