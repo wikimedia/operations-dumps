@@ -1,5 +1,8 @@
-#ifndef _FINDPAGEID_H
-#define _FINDPAGEID_H
+#ifndef _MWBZUTILS_H
+#define _MWBZUTILS_H
+
+#include "bzlib_private.h"
+int BZ_API(BZ2_bzDecompress_mine) ( bz_stream *strm );
 
 typedef struct {
   int page_id; /* first id in the block */
@@ -38,6 +41,8 @@ typedef struct {
 				       data is byte-aligned) */
   unsigned char **marker;           /* bzip2 start of block marker, plus bit-shifted versions of it for
 				       locating the marker in a stream of compressed data */
+  unsigned char **footer;           /* bzip2 end of stream footer, plus bit-shifted versions of it for
+				       locating the footer in a stream of compressed data */
 
   int position;                     /* current offset into file from start of file */
 
@@ -77,5 +82,58 @@ typedef struct {
   int last_value;     /* pageid we found in last iteration */
   int last_position;  /* position in file for last iteration */
 } iter_info_t;
+
+int bit_mask(int numbits, int end);
+
+void shift_bytes_left(unsigned char *buffer, int buflen, int numbits);
+
+void shift_bytes_right(unsigned char *buffer, int buflen, int numbits);
+
+unsigned char ** init_marker();
+
+int bytes_compare(unsigned char *buff1, unsigned char *buff2, int numbytes, int bitsrightshifted);
+
+int check_buffer_for_bz2_block_marker(bz_info_t *bfile);
+
+#define FORWARD 1
+#define BACKWARD 2
+
+int find_next_bz2_block_marker(int fin, bz_info_t *bfile, int direction);
+
+int init_decompress(bz_info_t *bfile);
+
+int decompress_header(int fin, bz_info_t *bfile);
+
+int setup_first_buffer_to_decompress(int fin, bz_info_t *bfile);
+
+int fill_buffer_to_decompress(int fin, bz_info_t *bfile, int ret);
+
+buf_info_t *init_buffer(int size);
+
+int buffer_is_empty(buf_info_t *b);
+
+int buffer_is_full(buf_info_t *b);
+
+int get_file_size(int fin);
+
+int init_bz2_file(bz_info_t *bfile, int fin, int direction);
+
+int get_and_decompress_data(bz_info_t *bfile, int fin, unsigned char *bufferout, int bufout_size, int direction);
+
+int get_buffer_of_uncompressed_data(buf_info_t *b, int fin, bz_info_t *bfile, int direction);
+
+void dump_buf_info(buf_info_t *b);
+
+int  move_bytes_to_buffer_start(buf_info_t *b, unsigned char *fromwhere, int maxbytes);
+
+unsigned char ** init_footer();
+
+int read_footer(unsigned char *buffer, int fin);
+
+int check_file_for_footer(int fin, bz_info_t *bfile);
+
+void clear_buffer(unsigned char *buf, int length);
+
+int find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, int position, int direction);
 
 #endif

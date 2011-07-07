@@ -1,0 +1,58 @@
+What is this?
+
+It is a tiny suite of utilities that hapless WMF employees use to massage the
+XML dump files so that we can produce them on a more regular basis.
+
+More specifically, they allow us to do various things with bz2 files
+quickly instead of requiring a serial read/decompress of the file.  Some
+of these files range from 2 to 30 GB in size, so serial access is too slow.
+
+The files bz2libfuncs.c and bzlib_private.h are taken from bzip2/libbzip2 
+version 1.0.6 of 6 September 2010 (Copyright (C) 1996-2010 Julian Seward 
+<jseward@bzip.org>) and as such their copyright license is in the file 
+LICENSE_BZ; all other files in the package are released under the GPL, 
+see the file COPYING for details.
+
+Utilities:
+
+checkforbz2footer     - Tests to see if the bz2 file specified on the command line
+		        has a bz2 footer (if it does it is likely to be intact).
+			Exits with 0 if found, 1 otherwise.
+dumpbz2filefromoffset - Uncompresses the file from the first bz2 block found after
+		        the specified offset, and dumps the results to stdout.
+                        This will first look for and dump the <mediawiki> header, 
+			up to and including the </siteinfo> tag; then it will
+			find the first <page> tag in the first bz2 block after
+			the specified output and dump the contents from that point
+			on.
+dumplastbz2block      - Finds the last bz2 block marker in a file and dumps whatever 
+		        can be decompressed after that point;  the header of the file 
+			must be intact in order for any output to be produced. This 
+			will produce output for truncated files as well, as long as 
+			there is "enough" data after the bz2 block marker.  
+			Exits with 0 if decompression of some data can be done,
+			1 if decompression fails, and -1 on error.
+
+findpageidinbz2xml    - Given a bzipped and possibly truncated file, and a page id, 
+		        hunt for the page id in the file; this assumes that the
+			bz2 header is intact and that page ids are steadily increasing
+			throughout the file.  It writes the offset of the relevant block 
+			(from beginning of file) and the first pageid found in that block, 
+			to stdout. Format of output:
+			     position:xxxxx pageid:nnn
+			It exits with 0 on success, -1 on error.
+
+Library routines:
+
+mwbz2lib.c            - various utility functions (bitmasks, shifting and comparing bytes,
+	                setting up bz2 files for decompression, etc)
+
+External library routines:
+
+bz2libfuncs.c         - the BZ2_bzDecompress() routine, modified so that it does not do
+		      	a check of the cumulative CRC (since we read from an arbitrary 
+			point in most of these files, we won't have a cumulative CRC
+			that makes any sense).  It's a one line fix but it requires
+			unRLE_obuf_to_output_FAST() which is marked static in the original
+			library, so that's in here too.
+
