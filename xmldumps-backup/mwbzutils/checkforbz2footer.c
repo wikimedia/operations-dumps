@@ -19,7 +19,7 @@
    a bzipped file. 
    Outputs: none.
    Exits with 0 if the file contains the footer at the end, 
-   1 if the file does not contain the footer, and -1 on error.
+   -1 if the file does not contain the footer or there is an error.
 */
 
 
@@ -42,6 +42,11 @@ int main(int argc, char **argv) {
   bfile.footer = init_footer();
   result = check_file_for_footer(fin, &bfile);
   close(fin);
-  exit(result);
+  if (result == -1) {
+    return(result);
+  }
+  else {
+    return(0);
+  }
 }
 
