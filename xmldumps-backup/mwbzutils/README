@@ -7,7 +7,7 @@ More specifically, they allow us to do various things with bz2 files
 quickly instead of requiring a serial read/decompress of the file.  Some
 of these files range from 2 to 30 GB in size, so serial access is too slow.
 
-The files bz2libfuncs.c and bzlib_private.h are taken from bzip2/libbzip2 
+The files bz2libfuncs.c, bzlib.h and bzlib_private.h are taken from bzip2/libbzip2 
 version 1.0.6 of 6 September 2010 (Copyright (C) 1996-2010 Julian Seward 
 <jseward@bzip.org>) and as such their copyright license is in the file 
 LICENSE_BZ; all other files in the package are released under the GPL, 

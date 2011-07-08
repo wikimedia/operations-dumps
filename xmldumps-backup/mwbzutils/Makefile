@@ -1,6 +1,6 @@
 # ------------------------------------------------------------------
-# This Makefile builds binaries which rely on two source files
-# from libbzip2 version 1.0.6. (See bz2libfuncs.c and 
+# This Makefile builds binaries which rely on three source files
+# from libbzip2 version 1.0.6. (See bz2libfuncs.c, bzlib.h and 
 # bzlib_private.h; the first is slightly modified while the 
 # second is unchanged from the library version.)
 #
@@ -45,11 +45,10 @@ dumpbz2filefromoffset: $(OBJSBZ) mwbzlib.o dumpbz2filefromoffset.o
 
 install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset
 	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
-	if ( test ! -d $(PREFIX)/include ) ; then mkdir -p $(PREFIX)/include ; fi
-	cp -f bzip2 $(PREFIX)/bin/dumplastbz2block
-	cp -f bzip2 $(PREFIX)/bin/findpageidinbz2xml
-	cp -f bzip2 $(PREFIX)/bin/checkforbz2footer
-	cp -f bzip2 $(PREFIX)/bin/dumpbz2filefromoffset
+	cp -f dumplastbz2block $(PREFIX)/bin/dumplastbz2block
+	cp -f findpageidinbz2xml $(PREFIX)/bin/findpageidinbz2xml
+	cp -f checkforbz2footer $(PREFIX)/bin/checkforbz2footer
+	cp -f dumpbz2filefromoffset $(PREFIX)/bin/dumpbz2filefromoffset
 	chmod a+x $(PREFIX)/bin/dumplastbz2block
 	chmod a+x $(PREFIX)/bin/findpageidinbz2xml
 	chmod a+x $(PREFIX)/bin/checkforbz2footer
@@ -59,9 +58,9 @@ clean:
 	rm -f *.o *.a dumplastbz2block findpageidinbz2xml \
 		checkforbz2footer dumpbz2filefromoffset
 
-bzlibfuncs.o: bzlibfuncs.c
+bzlibfuncs.o: bzlibfuncs.c bzlib.h bzlib_private.h
 	$(CC) $(CFLAGS) -c bzlibfuncs.c
-mwbzlib.o: mwbzlib.c
+mwbzlib.o: mwbzlib.c bzlib.h bzlib_private.h mwbzutils.h
 	$(CC) $(CFLAGS) -c mwbzlib.c
 dumplastbz2block.o: dumplastbz2block.c
 	$(CC) $(CFLAGS) -c dumplastbz2block.c
@@ -86,6 +85,7 @@ dist:
 	   $(DISTNAME)/mwbzlib.c \
 	   $(DISTNAME)/mwbzutils.h \
 	   $(DISTNAME)/bzlibfuncs.c \
+	   $(DISTNAME)/bzlib.h \
 	   $(DISTNAME)/bzlib_private.h \
 	   $(DISTNAME)/Makefile \
 	   $(DISTNAME)/LICENSE_BZ \
