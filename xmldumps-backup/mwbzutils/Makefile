@@ -75,7 +75,8 @@ dumpbz2filefromoffset.o: dumpbz2filefromoffset.c
 distclean: clean
 
 DISTNAME=mwbzutils-0.0.1
-dist: rm -f $(DISTNAME)
+dist: 
+	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)
 	tar cvf $(DISTNAME).tar \
 	   $(DISTNAME)/dumplastbz2block.c \
