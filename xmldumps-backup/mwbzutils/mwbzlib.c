@@ -626,6 +626,7 @@ void clear_buffer(unsigned char *buf, int length) {
 off_t find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, off_t position, int direction) {
   off_t seekresult;
   int res;
+  unsigned char buffout[5000];
 
   bfile->bufin_size = BUFINSIZE;
   bfile->marker = init_marker();
@@ -635,6 +636,8 @@ off_t find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, off_t position
   bfile->bytes_written = 0;
   bfile->eof = 0;
   bfile->bits_shifted = -1;
+  bfile->bufout = buffout;
+  bfile->bufout_size = 5000;
 
   bfile->file_size = get_file_size(fin);
 
