@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -9,8 +10,8 @@
 #include <sys/types.h>
 #include <regex.h>
 #include <inttypes.h>
+#include <zlib.h>
 #include "mwbzutils.h"
-
 
 /* 
    find the first bz2 block marker in the file, 
@@ -23,6 +24,13 @@
 int init_and_read_first_buffer_bz2_file(bz_info_t *bfile, int fin) {
   int res;
 
+  bfile->bufin_size = BUFINSIZE;
+  bfile->marker = init_marker();
+  bfile->bytes_read = 0;
+  bfile->bytes_written = 0;
+  bfile->eof = 0;
+  bfile->file_size = get_file_size(fin);
+
   bfile->initialized++;
 
   res = find_next_bz2_block_marker(fin, bfile, FORWARD);
@@ -32,35 +40,244 @@ int init_and_read_first_buffer_bz2_file(bz_info_t *bfile, int fin) {
     setup_first_buffer_to_decompress(fin, bfile);
     return(0);
   }
+  else {
+    fprintf(stderr,"failed to find the next frigging block marker\n");
+    return(-1);
+  }
+}
+
+extern char * geturl(char *hostname, int port, char *url);
+
+char *get_hostname_from_xml_header(int fin) {
+  int res;
+  regmatch_t *match_base_expr;
+  regex_t compiled_base_expr;
+  /*	 <base>http://el.wiktionary.org/wiki/...</base> */
+  /*  <base>http://trouble.localdomain/wiki/ */
+  char *base_expr = "<base>http://([^/]+)/"; 
+  int length=5000; /* output buffer size */
+
+  buf_info_t *b;
+  bz_info_t bfile;
+
+  int hostname_length = 0;
+
+  off_t old_position, seek_result;
+  static char hostname[256];
+
+  bfile.initialized = 0;
+
+  res = regcomp(&compiled_base_expr, base_expr, REG_EXTENDED);
+  match_base_expr = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
+
+  b = init_buffer(length);
+  bfile.bytes_read = 0;
+
+  bfile.position = (off_t)0;
+  old_position = lseek(fin,(off_t)0,SEEK_CUR);
+  seek_result = lseek(fin,(off_t)0,SEEK_SET);
+
+  while ((get_buffer_of_uncompressed_data(b, fin, &bfile, FORWARD)>=0) && (! bfile.eof)) {
+    /* so someday the header might grow enough that <base> isn't in the first 1000 characters but we'll ignore that for now */
+    if (bfile.bytes_read && b->bytes_avail > 1000) {
+      /* get project name and language name from the file header
+	 format: 
+	 <mediawiki xmlns="http://www.mediawiki.org/xml/export-0.5/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.5/ http://www.mediawiki.org/xml/export-0.5.xsd" version="0.5" xml:lang="el">
+	 <siteinfo>
+	 <sitename>Βικιλεξικό</sitename>
+	 <base>http://el.wiktionary.org/wiki/...</base>
+      */
+      if (regexec(&compiled_base_expr, (char *)b->next_to_read,  2,  match_base_expr, 0 ) == 0) {
+	if (match_base_expr[1].rm_so >=0) {
+	  hostname_length = match_base_expr[1].rm_eo - match_base_expr[1].rm_so;
+	  if (hostname_length > sizeof(hostname)) {
+	    fprintf(stderr,"very long hostname, giving up\n");
+	    break;
+	  }
+	  else {
+	    memcpy(hostname,(char *)b->next_to_read + match_base_expr[1].rm_so, hostname_length);
+	    hostname[hostname_length] = '\0';
+	    b->next_to_read = b->end;
+	    b->bytes_avail = 0;
+	    b->next_to_fill = b->buffer; /* empty */
+	    bfile.strm.next_out = (char *)b->next_to_fill;
+	    bfile.strm.avail_out = b->end - b->next_to_fill;
+	    res = BZ2_bzDecompressEnd ( &(bfile.strm) );
+	    seek_result = lseek(fin,old_position,SEEK_SET);
+	    free_buffer(b);
+	    return(hostname);
+	  }
+	}
+      }
+      else {
+	break;
+      }
+    }
+  }
+  res = BZ2_bzDecompressEnd ( &(bfile.strm) );
+  seek_result = lseek(fin,old_position,SEEK_SET);
+  free_buffer(b);
+  return(NULL);
+}
+
+int has_xml_tag(char *line, char *tag) {
+  return(! strncmp(line,tag,strlen(tag)));
+}
+
+/* assumes the open tag, close tag and avlaue are all on the same line */
+long int get_xml_elt_value(char *line, char *tag) {
+  return(atol(line+strlen(tag)));
+}
+
+/* returns pageid, or -1 on error. this requires the name of a stub file
+   which contains all page ids and revisions ids in our standard xml format.
+   It scans through the entire file looking for the page id which corresponds
+   to the revision id.  This can take up to 5 minutes for the larger
+   stub history files; clearly we don't want to do this unless we
+   have no other option. 
+   we need this in the case where the page text is huge (eg en wp pageid 5137507
+   which has a cumulative text length across all revisions of > 163 GB. 
+   This can take over two hours to uncompress and scan through looking for
+   the next page id, so we cheat */
+long int get_page_id_from_rev_id_via_stub(long int rev_id, char *stubfile) {
+  gzFile *gz;
+  int page_id = -1;
+  char buf[8192];
+  char *bufp;
+  enum States{WantPage,WantPageID,WantRevOrPage,WantRevID};
+  int state;
+  long int temp_rev_id;
+
+  gz = gzopen(stubfile,"r");
+  state = WantPage;
+  while ((bufp = gzgets(gz,buf,8191)) != NULL) {
+    while (*bufp == ' ') bufp++;
+    if (state == WantPage) {
+      if (has_xml_tag(bufp,"<page>")) {
+	state = WantPageID;
+      }
+    }
+    else if (state == WantPageID) {
+      if (has_xml_tag(bufp,"<id>")) {
+	page_id = get_xml_elt_value(bufp,"<id>");
+	state = WantRevOrPage;
+      }
+    }
+    else if (state == WantRevOrPage) {
+      if (has_xml_tag(bufp,"<revision>")) {
+	state = WantRevID;
+      }
+      else if (has_xml_tag(bufp,"<page>")) {
+	state = WantPageID;
+      }
+    }
+    else if (state == WantRevID) {
+      if (has_xml_tag(bufp,"<id>")) {
+	temp_rev_id = get_xml_elt_value(bufp,"<id>");
+	if (temp_rev_id == rev_id) {
+	  return(page_id);
+	}
+	/* this permits multiple revs in the page */
+	state = WantRevOrPage;
+      }
+    }
+  }
   return(-1);
+}
+
+/* returns pageid, or -1 on error. this requires network access,
+ it does an api call to the appropriate server for the appropriate project 
+ we need this in the case where the page text is huge (eg en wp pageid 5137507
+ which has a cumulative text length across all revisions of > 163 GB. 
+ This can take over two hours to uncompress and scan through looking for
+ the next page id, so we cheat */
+int get_page_id_from_rev_id_via_api(long int rev_id, int fin) {
+  /* char hostname[80]; */
+  char *hostname;
+  char url[80];
+  char *buffer;
+  long int page_id = -1;
+  char *api_call = "/w/api.php?action=query&format=xml&revids=";
+  regmatch_t *match_page_id_expr;
+  regex_t compiled_page_id_expr;
+  char *page_id_expr = "<pages><page pageid=\"([0-9]+)\""; 
+  int res;
+
+  hostname = get_hostname_from_xml_header(fin);
+  if (!hostname) {
+    return(-1);
+  }
+
+  /*
+  if (strlen(lang) + strlen(project) + strlen(".org") > sizeof(hostname)-2) {
+    fprintf(stderr,"language code plus project name is huuuge string, giving up\n");
+    return(-1);
+  }
+  sprintf(hostname,"%s.%s.org",lang,project);
+  */
+  sprintf(url,"%s%ld",api_call,rev_id);
+
+  buffer = geturl(hostname, 80, url);
+  if (buffer == NULL) {
+    return(-1);
+  }
+  else {
+    /* dig the page id out of the buffer 
+       format: 
+       <?xml version="1.0"?><api><query><pages><page pageid="6215" ns="0" title="hystérique" /></pages></query></api>
+    */
+    match_page_id_expr = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
+    res = regcomp(&compiled_page_id_expr, page_id_expr, REG_EXTENDED);
+
+    if (regexec(&compiled_page_id_expr, buffer,  2,  match_page_id_expr, 0 ) == 0) {
+      if (match_page_id_expr[1].rm_so >=0) {
+	page_id = atol(buffer + match_page_id_expr[1].rm_so);
+      }
+    }
+    return(page_id);
+  }
 }
 
 /* 
    get the first page id after position in file 
    if a pageid is found, the structure pinfo will be updated accordingly
+   use_api nonzero means that we will fallback to ask the api about a page
+   that contains a given rev_id, in case we wind up with a huge page which
+   has piles of revisions and we aren't seeing a page tag in a reasonable
+   period of time.
    returns:
       1 if a pageid found,
       0 if no pageid found,
       -1 on error
 */
-int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) {
+int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, int use_api, int use_stub, char *stubfilename) {
   int res;
-  regmatch_t *match_page, *match_page_id;
-  regex_t compiled_page, compiled_page_id;
+  regmatch_t *match_page, *match_page_id, *match_rev, *match_rev_id;
+  regex_t compiled_page, compiled_page_id, compiled_rev, compiled_rev_id;
   int length=5000; /* output buffer size */
   char *page = "<page>";
   char *page_id = "<page>\n[ ]+<title>[^<]+</title>\n[ ]+<id>([0-9]+)</id>\n"; 
+  char *rev = "<revision>";
+  char *rev_id_expr = "<revision>\n[ ]+<id>([0-9]+)</id>\n";
 
   buf_info_t *b;
   bz_info_t bfile;
+  long int rev_id=0;
+  long int page_id_found=0;
+
+  int buffer_count = 0;
 
   bfile.initialized = 0;
 
   res = regcomp(&compiled_page, page, REG_EXTENDED);
   res = regcomp(&compiled_page_id, page_id, REG_EXTENDED);
+  res = regcomp(&compiled_rev, rev, REG_EXTENDED);
+  res = regcomp(&compiled_rev_id, rev_id_expr, REG_EXTENDED);
 
   match_page = (regmatch_t *)malloc(sizeof(regmatch_t)*1);
   match_page_id = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
+  match_rev = (regmatch_t *)malloc(sizeof(regmatch_t)*1);
+  match_rev_id = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
 
   b = init_buffer(length);
 
@@ -76,7 +293,8 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) 
   }
 
   while (!get_buffer_of_uncompressed_data(b, fin, &bfile, FORWARD) && (! bfile.eof)) {
-    if (bfile.bytes_read) {
+    buffer_count++;
+    if (bfile.bytes_written) {
       while (regexec(&compiled_page_id, (char *)b->next_to_read,  2,  match_page_id, 0 ) == 0) {
 	if (match_page_id[1].rm_so >=0) {
 	  /* write page_id to stderr */
@@ -101,6 +319,39 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) 
 	  exit(-1);
 	}
       }
+
+      if (use_api || use_stub) {
+	if (!rev_id) {
+	  if (regexec(&compiled_rev_id, (char *)b->next_to_read,  2,  match_rev_id, 0 ) == 0) {
+	    if (match_rev_id[1].rm_so >=0) {
+	      rev_id = atoi((char *)(b->next_to_read+match_rev_id[1].rm_so));
+	    }
+	  }
+	}
+
+	/* this needs to be called if we don't find a page by X tries, or Y buffers read, 
+	   and we need to retrieve a page id from a revision id in the text instead 
+	   where does this obscure figure come from? assume we get at least 2-1 compression ratio,
+	   text revs are at most 10mb plus a little, then if we read this many buffers we should have
+	   at least one rev id in there.  20 million / 5000 or whatever it is, is 4000 buffers full of crap
+	   hopefully that doesn't take forever. 
+	*/
+	/*      if (buffer_count>(20000000/BUFINSIZE) && rev_id) { */
+	if (buffer_count>3 && rev_id) { 
+	  if (use_api) {
+	    page_id_found = get_page_id_from_rev_id_via_api(rev_id, fin);
+	  }
+	  else { /* use_stub */
+	    page_id_found = get_page_id_from_rev_id_via_stub(rev_id, stubfilename);
+	  }
+	  pinfo->page_id = page_id_found +1; /* want the page after this offset, not the one we're in */
+	  pinfo->position = bfile.block_start;
+	  pinfo->bits_shifted = bfile.bits_shifted;
+	  return(1);
+	}
+      }
+      /* FIXME this is probably wrong */
+
       if (regexec(&compiled_page, (char *)b->next_to_read,  1,  match_page, 0 ) == 0) {
 	/* write everything up to but not including the page tag to stdout */
 	/*
@@ -110,14 +361,23 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) 
 	bfile.strm.next_out = (char *)b->next_to_fill;
 	bfile.strm.avail_out = b->end - b->next_to_fill;
       }
+      else if ((use_api || use_stub) && (regexec(&compiled_rev, (char *)b->next_to_read,  1,  match_rev, 0 ) == 0)) {
+	/* write everything up to but not including the rev tag to stdout */
+	/*
+	fwrite(b->next_to_read,match_page[0].rm_eo - 6,1,stdout);
+	*/
+	move_bytes_to_buffer_start(b, b->next_to_read + match_rev[0].rm_so, b->bytes_avail - match_rev[0].rm_so);
+	bfile.strm.next_out = (char *)b->next_to_fill;
+	bfile.strm.avail_out = b->end - b->next_to_fill;
+      }
       else {
-	/* could have the first part of the page tag... so copy up enough bytes to cover that case */
-	if (b->bytes_avail> 5) {
-	  /* write everything that didn't match, but leave 5 bytes, to stdout */
+	/* could have the first part of the page or the rev tag... so copy up enough bytes to cover that case */
+	if (b->bytes_avail> 10) {
+	  /* write everything that didn't match, but leave 10 bytes, to stdout */
 	  /*
-	  fwrite(b->next_to_read,b->bytes_avail - 5,1,stdout);
+	  fwrite(b->next_to_read,b->bytes_avail - 10,1,stdout);
 	  */
-	  move_bytes_to_buffer_start(b, b->next_to_read + b->bytes_avail - 5, 5);
+	  move_bytes_to_buffer_start(b, b->next_to_read + b->bytes_avail - 10, 10);
 	  bfile.strm.next_out = (char *)b->next_to_fill;
 	  bfile.strm.avail_out = b->end - b->next_to_fill;
 	}
@@ -128,7 +388,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) 
 	    b->next_to_fill = b->buffer; /* empty */
 	  }
 	  else {
-	    /* there were only 5 or less bytes so just save em don't write em to stdout */
+	    /* there were only 10 or less bytes so just save em don't write em to stdout */
 	    move_bytes_to_buffer_start(b, b->next_to_read, b->bytes_avail);
 	    bfile.strm.next_out = (char *)b->next_to_fill;
 	    bfile.strm.avail_out = b->end - b->next_to_fill;
@@ -161,7 +421,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo) 
 
    return value from guess, or -1 on error. 
  */
-int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo) {
+int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, int use_stub, char *stubfilename) {
   int res;
   off_t new_position;
   off_t interval;
@@ -194,7 +454,7 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo) {
       new_position = iinfo->last_position - interval;
     }
   }
-  res = get_first_page_id_after_offset(fin, new_position, pinfo);
+  res = get_first_page_id_after_offset(fin, new_position, pinfo, use_api, use_stub, stubfilename);
   if (res >0) {
     /* caller wants the new value */
     iinfo->last_value = pinfo->page_id;
@@ -217,6 +477,14 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo) {
   }
 }
 
+void usage(char *whoami, char *message) {
+  if (message) {
+    fprintf(stderr,message);
+  }
+  fprintf(stderr,"usage: %s --filename file --pageid id [--useapi]\n", whoami);
+  exit(1);
+}
+
 /*
   given a bzipped and possibly truncated file, and a page id, 
   hunt for the page id in the file; this assume that the
@@ -226,33 +494,69 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo) {
   writes the offset of the relevant block (from beginning of file) 
   and the first pageid found in that block, to stdout
 
+  it may use the api to find page ids from rev ids if use_api is specified
+  it may use a stub file to find page ids from rev ids if stubfile is specified
+  it will only do these if it has been reading from awhile without
+  findind a page tag (some pages have > 500K revisions and a heck of
+  a lot of text)
+  if both use_api and stubfile are specified, we will use_api, it's faster
+
   format of output:
      position:xxxxx pageid:nnn
 
   returns: 0 on success, -1 on error
 */
 int main(int argc, char **argv) {
-  int fin, res, page_id;
+  int fin, res, page_id=0;
   off_t position, interval, file_size;
   page_info_t pinfo;
   iter_info_t iinfo;
+  char *filename = NULL;
+  int optindex=0;
+  int use_api = 0;
+  int use_stub = 0;
+  int optc;
+  char *stubfile=NULL;
 
-  if (argc != 3) {
-    fprintf(stderr,"usage: %s infile id\n", argv[0]);
-    exit(-1);
+  struct option optvalues[] = {
+    {"filename", 1, 0, 'f'},
+    {"pageid", 1, 0, 'p'},
+    {"useapi", 0, 0, 'a'},
+    {"stubfile", 1, 0, 's'},
+    {NULL, 0, NULL, 0}
+  };
+
+  while (1) {
+    optc=getopt_long_only(argc,argv,"filename:pageid:useapi:stubfile", optvalues, &optindex);
+    if (optc=='f') {
+     filename=optarg;
+    }
+    else if (optc=='p') {
+      if (!(isdigit(optarg[0]))) usage(argv[0],NULL);
+      page_id=atoi(optarg);
+    }
+    else if (optc=='a') 
+      use_api=1;
+    else if (optc=='s') {
+      use_stub=1;
+      stubfile = optarg;
+    }
+    else if (optc==-1) break;
+    else usage(argv[0],"unknown option or other error\n");
   }
 
-  fin = open (argv[1], O_RDONLY);
+  if (! filename || ! page_id) {
+    usage(argv[0],NULL);
+  }
+
+  if (page_id <1) {
+    usage(argv[0], "please specify a page_id >= 1.\n");
+  }
+
+  fin = open (filename, O_RDONLY);
   if (fin < 0) {
     fprintf(stderr,"failed to open file %s for read\n", argv[1]);
-    exit(-1);
-  }
-
-  page_id = atoi(argv[2]);
-  if (page_id <1) {
-    fprintf(stderr,"please specify a page_id >= 1.\n");
-    fprintf(stderr,"usage: %s infile page_id\n", argv[0]);
-    exit(-1);
+    exit(1);
   }
 
   file_size = get_file_size(fin);
@@ -264,11 +568,10 @@ int main(int argc, char **argv) {
   pinfo.page_id = -1;
 
   iinfo.left_end = (off_t)0;
-  file_size = get_file_size(fin);
   iinfo.right_end = file_size;
   iinfo.value_wanted = page_id;
 
-  res = get_first_page_id_after_offset(fin, (off_t)0, &pinfo);
+  res = get_first_page_id_after_offset(fin, (off_t)0, &pinfo, use_api, use_stub, stubfile);
   if (res > 0) {
     iinfo.last_value = pinfo.page_id;
     iinfo.last_position = (off_t)0;
@@ -283,7 +586,7 @@ int main(int argc, char **argv) {
   }
 
   while (1) {
-    res = do_iteration(&iinfo, fin, &pinfo);
+    res = do_iteration(&iinfo, fin, &pinfo, use_api, use_stub, stubfile);
     /* things to check: bad return? interval is 0 bytes long? */
     if (iinfo.left_end == iinfo.right_end) {
       fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);

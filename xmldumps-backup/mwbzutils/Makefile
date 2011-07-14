@@ -34,8 +34,8 @@ all: checkforbz2footer \
 dumplastbz2block: $(OBJSBZ) mwbzlib.o dumplastbz2block.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o dumplastbz2block dumplastbz2block.o mwbzlib.o  $(OBJSBZ) -lbz2
 
-findpageidinbz2xml: $(OBJSBZ) mwbzlib.o findpageidinbz2xml.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o findpageidinbz2xml findpageidinbz2xml.o mwbzlib.o $(OBJSBZ) -lbz2
+findpageidinbz2xml: $(OBJSBZ) mwbzlib.o httptiny.o findpageidinbz2xml.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o findpageidinbz2xml findpageidinbz2xml.o httptiny.o mwbzlib.o $(OBJSBZ) -lbz2 -lz
 
 checkforbz2footer: $(OBJSBZ) mwbzlib.o checkforbz2footer.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o checkforbz2footer checkforbz2footer.o mwbzlib.o $(OBJSBZ) -lbz2
@@ -62,6 +62,8 @@ bzlibfuncs.o: bzlibfuncs.c bzlib.h bzlib_private.h
 	$(CC) $(CFLAGS) -c bzlibfuncs.c
 mwbzlib.o: mwbzlib.c bzlib.h bzlib_private.h mwbzutils.h
 	$(CC) $(CFLAGS) -c mwbzlib.c
+httptiny.o: httptiny.c
+	$(CC) $(CFLAGS) -c httptiny.c
 dumplastbz2block.o: dumplastbz2block.c
 	$(CC) $(CFLAGS) -c dumplastbz2block.c
 findpageidinbz2xml.o: findpageidinbz2xml.c
@@ -73,7 +75,7 @@ dumpbz2filefromoffset.o: dumpbz2filefromoffset.c
 
 distclean: clean
 
-DISTNAME=mwbzutils-0.0.1
+DISTNAME=mwbzutils-0.0.2
 dist: 
 	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)
@@ -82,6 +84,7 @@ dist:
 	   $(DISTNAME)/findpageidinbz2xml.c \
 	   $(DISTNAME)/checkforbz2footer.c \
 	   $(DISTNAME)/dumpbz2filefromoffset.c \
+	   $(DISTNAME)/httptiny.c \
 	   $(DISTNAME)/mwbzlib.c \
 	   $(DISTNAME)/mwbzutils.h \
 	   $(DISTNAME)/bzlibfuncs.c \

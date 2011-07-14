@@ -141,6 +141,7 @@ int find_next_bz2_block_marker(int fin, bz_info_t *bfile, int direction) {
   }
   /* must be after 4 byte file header, and we add a leftmost byte to the buffer 
      of data read in case some bits have been shifted into it */
+  /*  fprintf(stderr,"position is %"PRId64" and file size is %"PRId64"\n",bfile->position, bfile->file_size); */
   while (bfile->position <= bfile->file_size - 6 && bfile->position >= 0 && bfile->bits_shifted < 0) { 
     bfile->bits_shifted = check_buffer_for_bz2_block_marker(bfile);
     if (bfile->bits_shifted < 0) {
@@ -387,6 +388,16 @@ buf_info_t *init_buffer(int size) {
   return(b);
 }
 
+/* free pieces of buf_info_t */
+void free_buffer(buf_info_t *b) {
+  if (b) {
+    if (b->buffer) {
+      free(b->buffer);
+    }
+  }
+  return;
+}
+
 /* check if buffer (used for decompressed data output) is empty,
    returns 1 if so and 0 if not */
 int buffer_is_empty(buf_info_t *b) {
@@ -476,7 +487,7 @@ int get_buffer_of_uncompressed_data(buf_info_t *b, int fin, bz_info_t *bfile, in
   if (buffer_is_full(b)) {
     return(0);
   }
-
+ 
   if (buffer_is_empty(b)) {
     b->next_to_fill = b->buffer;
   }

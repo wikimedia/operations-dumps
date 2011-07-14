@@ -110,6 +110,8 @@ int fill_buffer_to_decompress(int fin, bz_info_t *bfile, int ret);
 
 buf_info_t *init_buffer(int size);
 
+void free_buffer(buf_info_t *b);
+
 int buffer_is_empty(buf_info_t *b);
 
 int buffer_is_full(buf_info_t *b);
