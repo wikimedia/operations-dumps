@@ -336,8 +336,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, 
 	   at least one rev id in there.  20 million / 5000 or whatever it is, is 4000 buffers full of crap
 	   hopefully that doesn't take forever. 
 	*/
-	/*      if (buffer_count>(20000000/BUFINSIZE) && rev_id) { */
-	if (buffer_count>3 && rev_id) { 
+	if (buffer_count>(20000000/BUFINSIZE) && rev_id) {
 	  if (use_api) {
 	    page_id_found = get_page_id_from_rev_id_via_api(rev_id, fin);
 	  }
