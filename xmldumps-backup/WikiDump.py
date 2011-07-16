@@ -127,10 +127,12 @@ class MiscUtils(object):
 
 class Config(object):
 	def __init__(self, configFile=False):
+		self.projectName = False
+
 		home = os.path.dirname(sys.argv[0])
 		if (not configFile):
 			configFile = "wikidump.conf"
-		files = [
+		self.files = [
 			os.path.join(home,configFile),
 			"/etc/wikidump.conf",
 			os.path.join(os.getenv("HOME"), ".wikidump.conf")]
@@ -193,97 +195,123 @@ class Config(object):
 			# whether or not to recombine the history pieces
 			"recombineHistory" : "1",
 			}
-		conf = ConfigParser.SafeConfigParser(defaults)
-		conf.read(files)
+		self.conf = ConfigParser.SafeConfigParser(defaults)
+		self.conf.read(self.files)
 		
-		if not conf.has_section("wiki"):
+		if not self.conf.has_section("wiki"):
 			print "The mandatory configuration section 'wiki' was not defined."
 			raise ConfigParser.NoSectionError('wiki')
 
-		if not conf.has_option("wiki","dir"):
+		if not self.conf.has_option("wiki","dir"):
 			print "The mandatory setting 'dir' in the section 'wiki' was not defined."
 			raise ConfigParser.NoOptionError('wiki','dir')
 
-		self.dbList = MiscUtils.dbList(conf.get("wiki", "dblist"))
-		self.skipDbList = MiscUtils.dbList(conf.get("wiki", "skipdblist"))
-		self.privateList = MiscUtils.dbList(conf.get("wiki", "privatelist"))
-		self.bigList = MiscUtils.dbList(conf.get("wiki", "biglist"))
-		self.flaggedRevsList = MiscUtils.dbList(conf.get("wiki", "flaggedrevslist"))
-		self.wikiDir = conf.get("wiki", "dir")
-		self.forceNormal = conf.getint("wiki", "forceNormal")
-		self.halt = conf.getint("wiki", "halt")
+		self.parseConfFileGlobally()
+		self.parseConfFilePerProject()
+
+	def parseConfFileGlobally(self):
+		self.dbList = MiscUtils.dbList(self.conf.get("wiki", "dblist"))
+		self.skipDbList = MiscUtils.dbList(self.conf.get("wiki", "skipdblist"))
+		self.privateList = MiscUtils.dbList(self.conf.get("wiki", "privatelist"))
+		self.bigList = MiscUtils.dbList(self.conf.get("wiki", "biglist"))
+		self.flaggedRevsList = MiscUtils.dbList(self.conf.get("wiki", "flaggedrevslist"))
+		self.wikiDir = self.conf.get("wiki", "dir")
+		self.forceNormal = self.conf.getint("wiki", "forceNormal")
+		self.halt = self.conf.getint("wiki", "halt")
 
 		self.dbList = list(set(self.dbList) - set(self.skipDbList))
 
-		if not conf.has_section('output'):
-			conf.add_section('output')
-		self.publicDir = conf.get("output", "public")
-		self.privateDir = conf.get("output", "private")
-		self.webRoot = conf.get("output", "webroot")
-		self.index = conf.get("output", "index")
-		self.templateDir = conf.get("output", "templateDir")
-		self.perDumpIndex = conf.get("output", "perdumpindex")
-		self.logFile = conf.get("output", "logfile")
-		self.fileperms = conf.get("output", "fileperms")
+		if not self.conf.has_section('output'):
+			self.conf.add_section('output')
+		self.publicDir = self.conf.get("output", "public")
+		self.privateDir = self.conf.get("output", "private")
+		self.webRoot = self.conf.get("output", "webroot")
+		self.index = self.conf.get("output", "index")
+		self.templateDir = self.conf.get("output", "templateDir")
+		self.perDumpIndex = self.conf.get("output", "perdumpindex")
+		self.logFile = self.conf.get("output", "logfile")
+		self.fileperms = self.conf.get("output", "fileperms")
 		self.fileperms = int(self.fileperms,0)
-		if not conf.has_section('reporting'):
-			conf.add_section('reporting')
-		self.adminMail = conf.get("reporting", "adminmail")
-		self.mailFrom = conf.get("reporting", "mailfrom")
-		self.smtpServer = conf.get("reporting", "smtpserver")
-		self.staleAge = conf.getint("reporting", "staleAge")
+		if not self.conf.has_section('reporting'):
+			self.conf.add_section('reporting')
+		self.adminMail = self.conf.get("reporting", "adminmail")
+		self.mailFrom = self.conf.get("reporting", "mailfrom")
+		self.smtpServer = self.conf.get("reporting", "smtpserver")
+		self.staleAge = self.conf.getint("reporting", "staleAge")
 		
-		if not conf.has_section('database'):
-			conf.add_section('database')
-		self.dbUser = conf.get("database", "user")
-		self.dbPassword = conf.get("database", "password")
-		
-		if not conf.has_section('tools'):
-			conf.add_section('tools')
-		self.php = conf.get("tools", "php")
-		self.gzip = conf.get("tools", "gzip")
-		self.bzip2 = conf.get("tools", "bzip2")
-		self.sevenzip = conf.get("tools", "sevenzip")
-		self.mysql = conf.get("tools", "mysql")
-		self.mysqldump = conf.get("tools", "mysqldump")
-		self.head = conf.get("tools", "head")
-		self.tail = conf.get("tools", "tail")
-		self.cat = conf.get("tools", "cat")
-		self.grep = conf.get("tools", "grep")
-		self.checkforbz2footer = conf.get("tools","checkforbz2footer")
+		if not self.conf.has_section('tools'):
+			self.conf.add_section('tools')
+		self.php = self.conf.get("tools", "php")
+		self.gzip = self.conf.get("tools", "gzip")
+		self.bzip2 = self.conf.get("tools", "bzip2")
+		self.sevenzip = self.conf.get("tools", "sevenzip")
+		self.mysql = self.conf.get("tools", "mysql")
+		self.mysqldump = self.conf.get("tools", "mysqldump")
+		self.head = self.conf.get("tools", "head")
+		self.tail = self.conf.get("tools", "tail")
+		self.cat = self.conf.get("tools", "cat")
+		self.grep = self.conf.get("tools", "grep")
+		self.checkforbz2footer = self.conf.get("tools","checkforbz2footer")
 
-		if not conf.has_section('chunks'):
-			conf.add_section('chunks')
-		self.chunksEnabled = conf.getint("chunks","chunksEnabled")
-		self.pagesPerChunkHistory = conf.get("chunks","pagesPerChunkHistory")
-		self.revsPerChunkHistory = conf.get("chunks","revsPerChunkHistory")
-		self.pagesPerChunkAbstract = conf.get("chunks","pagesPerChunkAbstract")
-		self.recombineHistory = conf.getint("chunks","recombineHistory")
+		if not self.conf.has_section('cleanup'):
+			self.conf.add_section('cleanup')
+		self.keep = self.conf.getint("cleanup", "keep")
 
-		if not conf.has_section('cleanup'):
-			conf.add_section('cleanup')
-		self.keep = conf.getint("cleanup", "keep")
+	def parseConfFilePerProject(self, projectName = False):
+		# we need to read from the project section without falling back
+		# to the defaults, which has_option() normally does, ugh.  so set
+		# up a local conf instance without the defaults
+		conf = ConfigParser.SafeConfigParser()
+		conf.read(self.files)
 
+		if (projectName):
+			self.projectName = projectName
+
+		if not self.conf.has_section('database'):
+			self.conf.add_section('database')
+		self.dbUser = self.getOptionForProjectOrDefault(conf, "database", "user",0)
+		self.dbPassword = self.getOptionForProjectOrDefault(conf, "database", "password",0)
+
+		if not self.conf.has_section('chunks'):
+			self.conf.add_section('chunks')
+		self.chunksEnabled = self.getOptionForProjectOrDefault(conf, "chunks","chunksEnabled",1)
+		self.pagesPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkHistory",0)
+		self.revsPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","revsPerChunkHistory",0)
+		self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkAbstract",0)
+		self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks","recombineHistory",1)
+
+	def getOptionForProjectOrDefault(self, conf, sectionName, itemName, isInt):
+		if (conf.has_section(self.projectName)):
+			if (conf.has_option(self.projectName, itemName)):
+				if (isInt):
+					return(conf.getint(self.projectName,itemName))
+				else:
+					return(conf.get(self.projectName,itemName))
+		if (isInt):
+			return(self.conf.getint(sectionName,itemName))
+		else:
+			return(self.conf.get(sectionName,itemName))
+				
 	def dbListByAge(self):
 		"""
-			Sort wikis in reverse order of last successful dump :
+		Sort wikis in reverse order of last successful dump :
 
-			Order is (DumpFailed, Age), and False < True :
-			First, wikis whose latest dump was successful, most recent dump first
-			Then, wikis whose latest dump failed, most recent dump first.
-			Finally, wikis which have never been dumped.
+		Order is (DumpFailed, Age), and False < True :
+		First, wikis whose latest dump was successful, most recent dump first
+		Then, wikis whose latest dump failed, most recent dump first.
+		Finally, wikis which have never been dumped.
 
-			According to that sort, the last item of this list is, when applicable,
-			the oldest failed dump attempt.
+		According to that sort, the last item of this list is, when applicable,
+		the oldest failed dump attempt.
 
-			If some error occurs checking a dump status, that dump is put last in the
-			list (sort value is (True, maxint) )
+		If some error occurs checking a dump status, that dump is put last in the
+		list (sort value is (True, maxint) )
 
-			Note that we now sort this list by the date of the dump directory, not the
-			last date that a dump file in that directory may have been touched. This
-			allows us to rerun jobs to completion from older runs, for example
-			an en pedia history urn that failed in the middle, without borking the
-			index page links.
+		Note that we now sort this list by the date of the dump directory, not the
+		last date that a dump file in that directory may have been touched. This
+		allows us to rerun jobs to completion from older runs, for example
+		an en pedia history urn that failed in the middle, without borking the
+		index page links.
 		"""
 		available = []
 		for db in self.dbList:

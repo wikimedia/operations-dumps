@@ -73,11 +73,16 @@ class Chunk(object, ):
 
 		self._dbName = dbName
 		self._chunksEnabled = wiki.config.chunksEnabled
-		self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkHistory)
-		self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.revsPerChunkHistory)
-		self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkAbstract)
-		self._recombineHistory = wiki.config.recombineHistory
-
+		if (self._chunksEnabled):
+			self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkHistory)
+			self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.revsPerChunkHistory)
+			self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkAbstract)
+			self._recombineHistory = wiki.config.recombineHistory
+		else:
+			self._pagesPerChunkHistory = False
+			self._revsPerChunkHistory = False
+			self._pagesPerChunkAbstract = False
+			self._recombineHistory = False
 		if (self._chunksEnabled):
 			self.Stats = PageAndEditStats(wiki,dbName, errorCallback)
 			if (not self.Stats.totalEdits or not self.Stats.totalPages):
@@ -1709,7 +1714,7 @@ class XmlDump(Dump):
 			if (self._chunks):
 				for i in range(1, len(self._chunks)+1):
 					files.append( self._path(runner, 'bz2', i ) )
-			files.append( self._path(runner, 'bz2', i ) )
+				files.append( self._path(runner, 'bz2', i ) )
 
 			for f in files:
 				pipeline = []
@@ -2485,6 +2490,9 @@ if __name__ == "__main__":
 			wiki = findAndLockNextWiki(config)
 
 		if wiki:
+			# process any per-project configuration options
+			config.parseConfFilePerProject(wiki.dbName)
+
 			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
