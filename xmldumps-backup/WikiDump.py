@@ -326,7 +326,7 @@ class Config(object):
 				try:
 					# tack on the file mtime so that if we have multiple wikis
 					# dumped on the same day, they get ordered properly
-					date = int(today()) - int(last)
+					date = int(TimeUtils.today()) - int(last)
 					age = FileUtils.fileAge(dumpStatus)
 					status = FileUtils.readFile(dumpStatus)
 				except:
