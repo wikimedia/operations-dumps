@@ -69,19 +69,20 @@ class Chunk(object, ):
 	def __init__(self, wiki, dbName, errorCallback = None):
 
 		self._dbName = dbName
-		self._chunksEnabled = wiki.config.chunksEnabled
+		self.wiki = wiki
+		self._chunksEnabled = self.wiki.config.chunksEnabled
 		if (self._chunksEnabled):
-			self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkHistory)
-			self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(wiki.config.revsPerChunkHistory)
-			self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(wiki.config.pagesPerChunkAbstract)
-			self._recombineHistory = wiki.config.recombineHistory
+			self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(self.wiki.config.pagesPerChunkHistory)
+			self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(self.wiki.config.revsPerChunkHistory)
+			self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(self.wiki.config.pagesPerChunkAbstract)
+			self._recombineHistory = self.wiki.config.recombineHistory
 		else:
 			self._pagesPerChunkHistory = False
 			self._revsPerChunkHistory = False
 			self._pagesPerChunkAbstract = False
 			self._recombineHistory = False
 		if (self._chunksEnabled):
-			self.Stats = PageAndEditStats(wiki,dbName, errorCallback)
+			self.Stats = PageAndEditStats(self.wiki,dbName, errorCallback)
 			if (not self.Stats.totalEdits or not self.Stats.totalPages):
 				raise BackupError("Failed to get DB stats, exiting")
 			if (self._revsPerChunkHistory):
@@ -155,17 +156,17 @@ class Chunk(object, ):
 
 class DbServerInfo(object):
 	def __init__(self, wiki, dbName, errorCallback = None):
-		self.config = wiki.config
+		self.wiki = wiki
 		self.dbName = dbName
 		self.errorCallback = errorCallback
 		self.selectDatabaseServer()
 
 	def defaultServer(self):
 		# if this fails what do we do about it? Not a bleeping thing. *ugh* FIXME!!
-		if (not exists( self.config.php ) ):
-			raise BackupError("php command %s not found" % self.config.php);
+		if (not exists( self.wiki.config.php ) ):
+			raise BackupError("php command %s not found" % self.wiki.config.php);
 		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % MiscUtils.shellEscape((
-			self.config.php, self.config.wikiDir, self.dbName))
+			self.wiki.config.php, self.wiki.config.wikiDir, self.dbName))
 		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 
 	def selectDatabaseServer(self):
@@ -173,12 +174,12 @@ class DbServerInfo(object):
 
 	def buildSqlCommand(self, query, pipeto = None):
 		"""Put together a command to execute an sql query to the server for this DB."""
-		if (not exists( self.config.mysql ) ):
-			raise BackupError("mysql command %s not found" % self.config.mysql);
+		if (not exists( self.wiki.config.mysql ) ):
+			raise BackupError("mysql command %s not found" % self.wiki.config.mysql);
 		command = [ [ "/bin/echo", "%s" % query ], 
-			    [ "%s" % self.config.mysql, "-h", 
+			    [ "%s" % self.wiki.config.mysql, "-h", 
 			      "%s" % self.dbServer,
-			      "-u", "%s" % self.config.dbUser,
+			      "-u", "%s" % self.wiki.config.dbUser,
 			      "%s" % self.passwordOption(),
 			      "%s" % self.dbName, 
 			      "-r" ] ]
@@ -189,11 +190,11 @@ class DbServerInfo(object):
 	def buildSqlDumpCommand(self, table, pipeto = None):
 		"""Put together a command to dump a table from the current DB with mysqldump
 		and save to a gzipped sql file."""
-		if (not exists( self.config.mysqldump ) ):
-			raise BackupError("mysqldump command %s not found" % self.config.mysqldump);
-		command = [ [ "%s" % self.config.mysqldump, "-h", 
+		if (not exists( self.wiki.config.mysqldump ) ):
+			raise BackupError("mysqldump command %s not found" % self.wiki.config.mysqldump);
+		command = [ [ "%s" % self.wiki.config.mysqldump, "-h", 
 			       "%s" % self.dbServer, "-u", 
-			       "%s" % self.config.dbUser, 
+			       "%s" % self.wiki.config.dbUser, 
 			       "%s" % self.passwordOption(), "--opt", "--quick", 
 			       "--skip-add-locks", "--skip-lock-tables", 
 			       "%s" % self.dbName, 
@@ -215,18 +216,18 @@ class DbServerInfo(object):
 	def passwordOption(self):
 		"""If you pass '-pfoo' mysql uses the password 'foo',
 		but if you pass '-p' it prompts. Sigh."""
-		if self.config.dbPassword == "":
+		if self.wiki.config.dbPassword == "":
 			return None
 		else:
-			return "-p" + self.config.dbPassword
+			return "-p" + self.wiki.config.dbPassword
 
 	def getDBTablePrefix(self):
 		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
 		# FIXME later full path
-		if (not exists( self.config.php ) ):
-			raise BackupError("php command %s not found" % self.config.php);
+		if (not exists( self.wiki.config.php ) ):
+			raise BackupError("php command %s not found" % self.wiki.config.php);
 		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % MiscUtils.shellEscape((
-			self.config.php, self.config.wikiDir, self.dbName))
+			self.wiki.config.php, self.wiki.config.wikiDir, self.dbName))
 		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 				      
 
@@ -263,10 +264,10 @@ class PageAndEditStats(object):
 	def __init__(self, wiki, dbName, errorCallback = None):
 		self.totalPages = None
 		self.totalEdits = None
-		self.config = wiki.config
+		self.wiki = wiki
 		self.dbName = dbName
 		self.dbServerInfo = DbServerInfo(wiki, dbName, errorCallback)
-		self.getStatistics(config,dbName)
+		self.getStatistics(self.wiki.config,dbName)
 
 	def getStatistics(self, dbName, ignore):
 		"""Get statistics for the wiki"""
@@ -334,7 +335,7 @@ class RunInfoFile(object):
 			return 0
 
 		# ok, there was no info there to be had, try the index file. yuck.
-		indexFilename = os.path.join(runner.wiki.publicDir(), date, runner.config.perDumpIndex)
+		indexFilename = os.path.join(runner.wiki.publicDir(), date, runner.wiki.config.perDumpIndex)
 		status = self._getStatusForJobFromIndexFile(indexFilename, jobDesc)
 		if (status == "done"):
 			return 1
@@ -826,7 +827,6 @@ class DumpDir(object):
 class Status(object):
 	def __init__(self, wiki, dumpDir, date, items, checksums, enabled, noticeFile = None, errorCallback=None):
 		self.wiki = wiki
-		self.config = wiki.config
 		self.dbName = wiki.dbName
 		self.dumpDir = dumpDir
 		self.items = items
@@ -844,14 +844,14 @@ class Status(object):
 		
 	def reportFailure(self):
 		if self._enabled:
-			if self.config.adminMail:
+			if self.wiki.config.adminMail:
 				subject = "Dump failure for " + self.dbName
-				message = self.config.readTemplate("errormail.txt") % {
+				message = self.wiki.config.readTemplate("errormail.txt") % {
 					"db": self.dbName,
 					"date": self.date,
 					"time": TimeUtils.prettyTime(),
-					"url": "/".join((self.config.webRoot, self.dbName, self.date, ''))}
-				config.mail(subject, message)
+					"url": "/".join((self.wiki.config.webRoot, self.dbName, self.date, ''))}
+				self.wiki.config.mail(subject, message)
 
 	# this is a per-dump-item report (well per file generated by the item)
 	# Report on the file size & item status of the current output and output a link if we are done
@@ -902,7 +902,7 @@ class Status(object):
 		statusItems = [self._reportItem(item) for item in self.items]
 		statusItems.reverse()
 		html = "\n".join(statusItems)
-		return self.config.readTemplate("report.html") % {
+		return self.wiki.config.readTemplate("report.html") % {
 			"db": self.dbName,
 			"date": self.date,
 			"notice": self.noticeFile.notice,
@@ -910,7 +910,7 @@ class Status(object):
 			"previous": self._reportPreviousDump(done),
 			"items": html,
 			"checksum": self.dumpDir.webPath(self.checksums.getChecksumFileNameBasename()),
-			"index": self.config.index}
+			"index": self.wiki.config.index}
 
 	def _reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
@@ -1024,7 +1024,6 @@ class Runner(object):
 
 	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False):
 		self.wiki = wiki
-		self.config = wiki.config
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
 		self.spawn = spawn
@@ -1067,13 +1066,13 @@ class Runner(object):
 
 		# these must come after the dumpdir setup so we know which directory we are in 
 		if (loggingEnabled):
-			self.logFileName = self.dumpDir.publicPath(config.logFile)
+			self.logFileName = self.dumpDir.publicPath(self.wiki.config.logFile)
 			self.makeDir(join(self.wiki.publicDir(), self.date))
 			self.log = Logger(self.logFileName)
 			thread.start_new_thread(self.logQueueReader,(self.log,))
 		self.runInfoFile = RunInfoFile(wiki,self._runInfoFileEnabled)
 		self.symLinks = SymLinks(self.wiki, self.dumpDir, self. date, self.logAndPrint, self.debug, self._symLinksEnabled)
-		self.feeds = Feeds(self.wiki,self.dumpDir,self.config, self.dbName, self.debug, self._feedsEnabled)
+		self.feeds = Feeds(self.wiki,self.dumpDir, self.dbName, self.debug, self._feedsEnabled)
 		self.htmlNoticeFile = NoticeFile(self.wiki, self.date, notice, self._noticeFileEnabled)
 		self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled)
 
@@ -1094,7 +1093,7 @@ class Runner(object):
 		print message
 
 	def forceNormalOption(self):
-		if self.config.forceNormal:
+		if self.wiki.config.forceNormal:
 			return "--force-normal"
 		else:
 			return ""
@@ -1106,16 +1105,16 @@ class Runner(object):
 	# returns 0 on success, 1 on error
 	def saveTable(self, table, outfile):
 		"""Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
-		if (not exists( self.config.gzip ) ):
-			raise BackupError("gzip command %s not found" % self.config.gzip);
-		commands = self.dbServerInfo.buildSqlDumpCommand(table, self.config.gzip)
+		if (not exists( self.wiki.config.gzip ) ):
+			raise BackupError("gzip command %s not found" % self.wiki.config.gzip);
+		commands = self.dbServerInfo.buildSqlDumpCommand(table, self.wiki.config.gzip)
 		return self.saveCommand(commands, outfile)
 
 	def saveSql(self, query, outfile):
 		"""Pass some SQL commands to the server for this DB and save output to a gzipped file."""
-		if (not exists( self.config.gzip ) ):
-			raise BackupError("gzip command %s not found" % self.config.gzip);
-		command = self.dbServerInfo.buildSqlCommand(query, self.config.gzip)
+		if (not exists( self.wiki.config.gzip ) ):
+			raise BackupError("gzip command %s not found" % self.wiki.config.gzip);
+		command = self.dbServerInfo.buildSqlCommand(query, self.wiki.config.gzip)
 		return self.saveCommand(command, outfile)
 
 	# returns 0 on success, 1 on error
@@ -1309,9 +1308,9 @@ class Runner(object):
 				# If we're re-running today's (or jobs from a given day's) dump, don't count it as one
 				# of the old dumps to keep... or delete it halfway through!
 				old = old[:-1]
-			if self.config.keep > 0:
+			if self.wiki.config.keep > 0:
 				# Keep the last few
-				old = old[:-(self.config.keep)]
+				old = old[:-(self.wiki.config.keep)]
 		if old:
 			for dump in old:
 				self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
@@ -1388,10 +1387,9 @@ class SymLinks(object):
 				os.symlink(relative, link)
 			
 class Feeds(object):
-	def __init__(self, wiki, dumpDir, config, dbName, debugfn, enabled):
+	def __init__(self, wiki, dumpDir, dbName, debugfn, enabled):
 		self.wiki = wiki
 		self.dumpDir = dumpDir
-		self.config = config
 		self.dbName = dbName
 		self.debugfn = debugfn
 		self._enabled = enabled
@@ -1408,7 +1406,7 @@ class Feeds(object):
 		filePath = self.dumpDir.webPath(file)
 		fileName = os.path.basename(filePath)
 		webPath = os.path.dirname(filePath)
-		rssText = self.config.readTemplate("feed.xml") % {
+		rssText = self.wiki.config.readTemplate("feed.xml") % {
 			"chantitle": file,
 			"chanlink": webPath,
 			"chandesc": "Wikimedia dump updates for %s" % self.dbName,
@@ -1418,7 +1416,7 @@ class Feeds(object):
 			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
 		directory = self.dumpDir.latestDir()
 		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
-		FileUtils.writeFile(directory, rssPath, rssText, self.config.fileperms)
+		FileUtils.writeFile(directory, rssPath, rssText, self.wiki.config.fileperms)
 
 
 class Dump(object):
@@ -1508,15 +1506,15 @@ class Dump(object):
                 outputFilename = runner.dumpDir.publicPath(outputFileBasename)
 		chunkNum = 0
 		recombines = []
-		if (not exists( runner.config.head ) ):
-			raise BackupError("head command %s not found" % runner.config.head);
-		head = runner.config.head
-		if (not exists( runner.config.tail ) ):
-			raise BackupError("tail command %s not found" % runner.config.tail);
-		tail = runner.config.tail
-		if (not exists( runner.config.grep ) ):
-			raise BackupError("grep command %s not found" % runner.config.grep);
-		grep = runner.config.grep
+		if (not exists( runner.wiki.config.head ) ):
+			raise BackupError("head command %s not found" % runner.wiki.config.head);
+		head = runner.wiki.config.head
+		if (not exists( runner.wiki.config.tail ) ):
+			raise BackupError("tail command %s not found" % runner.wiki.config.tail);
+		tail = runner.wiki.config.tail
+		if (not exists( runner.wiki.config.grep ) ):
+			raise BackupError("grep command %s not found" % runner.wiki.config.grep);
+		grep = runner.wiki.config.grep
 
 		# we assume the result is always going to be run in a subshell. 
 		# much quicker than this script trying to read output
@@ -1656,10 +1654,10 @@ class XmlStub(Dump):
 		current = self.buildCurrentOutputFilename(runner, chunk)
 		articles = self.buildArticlesOutputFilename(runner, chunk)
 
-		if (not exists( runner.config.php ) ):
-			raise BackupError("php command %s not found" % runner.config.php);
-		command = [ "%s" % runner.config.php,
-			    "-q", "%s/maintenance/dumpBackup.php" % runner.config.wikiDir,
+		if (not exists( runner.wiki.config.php ) ):
+			raise BackupError("php command %s not found" % runner.wiki.config.php);
+		command = [ "%s" % runner.wiki.config.php,
+			    "-q", "%s/maintenance/dumpBackup.php" % runner.wiki.config.wikiDir,
 			    "--wiki=%s" % runner.dbName,
 			    "--full", "--stub", "--report=10000",
 			    "%s" % runner.forceNormalOption(),
@@ -1774,11 +1772,11 @@ class RecombineXmlStub(XmlStub):
 				if not len(inputFiles):
 					self.setStatus("failed")
 					raise BackupError("No input files for %s found" % self.name)
-				if (not exists( runner.config.gzip ) ):
-					raise BackupError("gzip command %s not found" % runner.config.gzip);
-				compressionCommand = runner.config.gzip
-				compressionCommand = "%s > " % runner.config.gzip
-				uncompressionCommand = [ "%s" % runner.config.gzip, "-dc" ] 
+				if (not exists( runner.wiki.config.gzip ) ):
+					raise BackupError("gzip command %s not found" % runner.wiki.config.gzip);
+				compressionCommand = runner.wiki.config.gzip
+				compressionCommand = "%s > " % runner.wiki.config.gzip
+				uncompressionCommand = [ "%s" % runner.wiki.config.gzip, "-dc" ] 
 				recombineCommandString = self.buildRecombineCommandString(runner, inputFiles, outputFile, compressionCommand, uncompressionCommand )
 				recombineCommand = [ recombineCommandString ]
 				recombinePipeline = [ recombineCommand ]
@@ -1814,10 +1812,10 @@ class XmlLogging(Dump):
 	def run(self, runner):
 		self.cleanupOldFiles(runner)
 		logging = self.buildOutputFilename(runner)
-		if (not exists( runner.config.php ) ):
-			raise BackupError("php command %s not found" % runner.config.php);
-		command = [ "%s" % runner.config.php,
-			    "-q",  "%s/maintenance/dumpBackup.php" % runner.config.wikiDir,
+		if (not exists( runner.wiki.config.php ) ):
+			raise BackupError("php command %s not found" % runner.wiki.config.php);
+		command = [ "%s" % runner.wiki.config.php,
+			    "-q",  "%s/maintenance/dumpBackup.php" % runner.wiki.config.wikiDir,
 			    "--wiki=%s" % runner.dbName,
 			    "--logs", "--report=10000",
 			    "%s" % runner.forceNormalOption(),
@@ -1871,9 +1869,9 @@ class XmlDump(Dump):
 			commands.append(series)
 		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
 
-		if (not exists( runner.config.checkforbz2footer ) ):
-			raise BackupError("checkforbz2footer command %s not found" % runner.config.checkforbz2footer);
-		checkforbz2footer = "%s" % runner.config.checkforbz2footer
+		if (not exists( runner.wiki.config.checkforbz2footer ) ):
+			raise BackupError("checkforbz2footer command %s not found" % runner.wiki.config.checkforbz2footer);
+		checkforbz2footer = "%s" % runner.wiki.config.checkforbz2footer
 		if exists(checkforbz2footer):
 			# check to see if any of the output files are truncated
 			files = []
@@ -1905,9 +1903,9 @@ class XmlDump(Dump):
 	def buildFilters(self, runner, chunk = 0):
 		"""Construct the output filter options for dumpTextPass.php"""
 		xmlbz2 = self._path(runner, "bz2", chunk)
-		if (not exists( runner.config.bzip2 ) ):
-			raise BackupError("bzip2 command %s not found" % runner.config.bzip2);
-		if runner.config.bzip2[-6:] == "dbzip2":
+		if (not exists( runner.wiki.config.bzip2 ) ):
+			raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2);
+		if runner.wiki.config.bzip2[-6:] == "dbzip2":
 			bz2mode = "dbzip2"
 		else:
 			bz2mode = "bzip2"
@@ -1947,14 +1945,14 @@ class XmlDump(Dump):
 			prefetch = None
 
 		if self._spawn:
-			spawn = "--spawn=%s" % (runner.config.php)
+			spawn = "--spawn=%s" % (runner.wiki.config.php)
 		else:
 			spawn = None
 
-		if (not exists( runner.config.php ) ):
-			raise BackupError("php command %s not found" % runner.config.php);
-		dumpCommand = [ "%s" % runner.config.php,
-				"-q", "%s/maintenance/dumpTextPass.php" % runner.config.wikiDir,
+		if (not exists( runner.wiki.config.php ) ):
+			raise BackupError("php command %s not found" % runner.wiki.config.php);
+		dumpCommand = [ "%s" % runner.wiki.config.php,
+				"-q", "%s/maintenance/dumpTextPass.php" % runner.wiki.config.wikiDir,
 				"--wiki=%s" % runner.dbName,
 				"%s" % stubOption,
 				"%s" % prefetch,
@@ -1975,14 +1973,14 @@ class XmlDump(Dump):
 			return self._pageID[fileName]
 		pageID = None
 		pipeline = []
-		if (not exists( runner.config.bzip2 ) ):
-			raise BackupError("bzip2 command %s not found" % runner.config.bzip2);
-		uncompressionCommand = [ "%s" % runner.config.bzip2, "-dc", fileName ]
+		if (not exists( runner.wiki.config.bzip2 ) ):
+			raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2);
+		uncompressionCommand = [ "%s" % runner.wiki.config.bzip2, "-dc", fileName ]
 		pipeline.append(uncompressionCommand)
 		# warning: we figure any header (<siteinfo>...</siteinfo>) is going to be less than 2000 lines!
-		if (not exists( runner.config.head ) ):
-			raise BackupError("head command %s not found" % runner.config.head);
-		head = runner.config.head
+		if (not exists( runner.wiki.config.head ) ):
+			raise BackupError("head command %s not found" % runner.wiki.config.head);
+		head = runner.wiki.config.head
 		headEsc = MiscUtils.shellEscape(head)
 		pipeline.append([ head, "-2000"])
 		# without shell
@@ -2144,11 +2142,11 @@ class RecombineXmlDump(XmlDump):
 				if not len(inputFiles):
 					self.setStatus("failed")
 					raise BackupError("No input files for %s found" % self.name)
-				if (not exists( runner.config.bzip2 ) ):
-					raise BackupError("bzip2 command %s not found" % runner.config.bzip2);
-				compressionCommand = runner.config.bzip2
-				compressionCommand = "%s > " % runner.config.bzip2
-				uncompressionCommand = [ "%s" % runner.config.bzip2, "-dc" ] 
+				if (not exists( runner.wiki.config.bzip2 ) ):
+					raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2);
+				compressionCommand = runner.wiki.config.bzip2
+				compressionCommand = "%s > " % runner.wiki.config.bzip2
+				uncompressionCommand = [ "%s" % runner.wiki.config.bzip2, "-dc" ] 
 				recombineCommandString = self.buildRecombineCommandString(runner, inputFiles, outputFile, compressionCommand, uncompressionCommand )
 				recombineCommand = [ recombineCommandString ]
 				recombinePipeline = [ recombineCommand ]
@@ -2209,11 +2207,11 @@ class XmlRecompressDump(Dump):
 		xml7z = self.buildOutputFilename(runner, chunk)
 
 		# FIXME need shell escape
-		if (not exists( runner.config.bzip2 ) ):
-			raise BackupError("bzip2 command %s not found" % runner.config.bzip2);
-		if (not exists( runner.config.sevenzip ) ):
-			raise BackupError("7zip command %s not found" % runner.config.sevenzip);
-		commandPipe = [ [ "%s -dc %s | %s a -si %s"  % (runner.config.bzip2, xmlbz2, runner.config.sevenzip, xml7z) ] ]
+		if (not exists( runner.wiki.config.bzip2 ) ):
+			raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2);
+		if (not exists( runner.wiki.config.sevenzip ) ):
+			raise BackupError("7zip command %s not found" % runner.wiki.config.sevenzip);
+		commandPipe = [ [ "%s -dc %s | %s a -si %s"  % (runner.wiki.config.bzip2, xmlbz2, runner.wiki.config.sevenzip, xml7z) ] ]
 		commandSeries = [ commandPipe ]
 		return(commandSeries)
 
@@ -2321,10 +2319,10 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 				if not len(inputFiles):
 					self.setStatus("failed")
 					raise BackupError("No input files for %s found" % self.name)
-				if (not exists( runner.config.sevenzip ) ):
-					raise BackupError("sevenzip command %s not found" % runner.config.sevenzip);
-				compressionCommand = "%s a -si" % runner.config.sevenzip
-				uncompressionCommand = [ "%s" % runner.config.sevenzip, "e", "-so" ] 
+				if (not exists( runner.wiki.config.sevenzip ) ):
+					raise BackupError("sevenzip command %s not found" % runner.wiki.config.sevenzip);
+				compressionCommand = "%s a -si" % runner.wiki.config.sevenzip
+				uncompressionCommand = [ "%s" % runner.wiki.config.sevenzip, "e", "-so" ] 
 
 				recombineCommandString = self.buildRecombineCommandString(runner, files, outputFile, compressionCommand, uncompressionCommand )
 				recombineCommand = [ recombineCommandString ]
@@ -2345,12 +2343,12 @@ class AbstractDump(Dump):
 		self._chunks = chunks
 
         def buildCommand(self, runner, chunk = 0):
-		if (not exists( runner.config.php ) ):
-			raise BackupError("php command %s not found" % runner.config.php);
-		command = [ "%s" % runner.config.php,
-			    "-q", "%s/maintenance/dumpBackup.php" % runner.config.wikiDir,
+		if (not exists( runner.wiki.config.php ) ):
+			raise BackupError("php command %s not found" % runner.wiki.config.php);
+		command = [ "%s" % runner.wiki.config.php,
+			    "-q", "%s/maintenance/dumpBackup.php" % runner.wiki.config.wikiDir,
 			    "--wiki=%s" % runner.dbName,
-			    "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.config.wikiDir,
+			    "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.wiki.config.wikiDir,
 			    "--current", "--report=1000", "%s" % runner.forceNormalOption(),
 			    ]
 		for variant in self._variants(runner):
@@ -2466,10 +2464,10 @@ class RecombineAbstractDump(AbstractDump):
 				if not len(inputFiles):
 					self.setStatus("failed")
 					raise BackupError("No input files for %s found" % self.name)
-				if (not exists( runner.config.cat ) ):
-					raise BackupError("cat command %s not found" % runner.config.cat);
-				compressionCommand = "%s > " % runner.config.cat
-				uncompressionCommand = [ "%s" % runner.config.cat ] 
+				if (not exists( runner.wiki.config.cat ) ):
+					raise BackupError("cat command %s not found" % runner.wiki.config.cat);
+				compressionCommand = "%s > " % runner.wiki.config.cat
+				uncompressionCommand = [ "%s" % runner.wiki.config.cat ] 
 				recombineCommandString = self.buildRecombineCommandString(runner, inputFiles, outputFile, compressionCommand, uncompressionCommand, "<feed>" )
 				recombineCommand = [ recombineCommandString ]
 				recombinePipeline = [ recombineCommand ]
