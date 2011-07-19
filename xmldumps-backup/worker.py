@@ -747,6 +747,13 @@ class Checksummer(object):
 			realFileName = self._getChecksumFileName()
 			os.rename(tmpFileName, realFileName)
 
+	def cpMd5TmpFileToPermFile(self):
+		if (self._enabled):
+			tmpFileName = self._getChecksumFileNameTmp()
+			realFileName = self._getChecksumFileName()
+			text = FileUtils.readFile(tmpFileName)
+			FileUtils.writeFile(self._getMd5FileDirName(), realFileName, text, self.wiki.config.fileperms)
+
 	def getChecksumFileNameBasename(self):
 		return ("md5sums.txt")
 
@@ -779,6 +786,9 @@ class Checksummer(object):
 		if os.path.exists(path):
 			checksum = self._md5FileLine(path)
 			output.write(checksum)
+
+	def _getMd5FileDirName(self):
+		return os.path.join(self.wiki.publicDir(), self.wiki.date);
 
 class DumpDir(object):
 	def __init__(self, wiki, dbName, date):
@@ -1281,6 +1291,7 @@ class Runner(object):
 				else:
 					if not self.dryrun and not self._chunkToDo:
 						self.runUpdateItemFileInfo(item)
+						self.checksums.cpMd5TmpFileToPermFile()
 					self.lastFailed = False
 
 			self.status.updateStatusFiles("done")
