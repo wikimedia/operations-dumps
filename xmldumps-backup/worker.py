@@ -24,9 +24,6 @@ from subprocess import Popen, PIPE
 from WikiDump import FileUtils, MiscUtils, TimeUtils
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
 
-def xmlEscape(text):
-	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-
 class Logger(object):
 
 	def __init__(self, logFileName=None):
@@ -234,7 +231,6 @@ class DbServerInfo(object):
 				      
 
 class RunSimpleCommand(object):
-
 	# FIXME rewrite to not use popen2
 	def runAndReturn(command, logCallback = None):
 		"""Run a command and return the output as a string.
@@ -315,6 +311,146 @@ class PageAndEditStats(object):
 class BackupError(Exception):
 	pass
 
+class RunInfoFile(object):
+	def __init__(self, wiki, enabled):
+		self.wiki = wiki
+		self._enabled = enabled
+
+	def saveDumpRunInfoFile(self, text):
+		"""Write out a simple text file with the status for this wiki's dump."""
+		if (self._enabled):
+			try:
+				self._writeDumpRunInfoFile(text)
+			except:
+				print "Couldn't save dump run info file. Continuing anyways"
+
+	def statusOfOldDumpIsDone(self, runner, date, jobName, jobDesc):
+		oldDumpRunInfoFilename=self._getDumpRunInfoFileName(date)
+		status = self._getStatusForJobFromRunInfoFile(oldDumpRunInfoFilename, jobName)
+		if (status == "done"):
+			return 1
+		elif (not status == None):
+			# failure, in progress, some other useless thing
+			return 0
+
+		# ok, there was no info there to be had, try the index file. yuck.
+		indexFilename = os.path.join(runner.wiki.publicDir(), date, runner.config.perDumpIndex)
+		status = self._getStatusForJobFromIndexFile(indexFilename, jobDesc)
+		if (status == "done"):
+			return 1
+		else:
+			return 0
+
+	def getOldRunInfoFromFile(self):
+		# read the dump run info file in, if there is one, and get info about which dumps
+		# have already been run and whether they were successful
+		dumpRunInfoFileName = self._getDumpRunInfoFileName()
+		results = []
+		try:
+			infile = open(dumpRunInfoFileName,"r")
+			for line in infile:
+				results.append(self._getOldRunInfoFromLine(line))
+			infile.close
+			return results
+		except:
+			return False
+
+	#
+	# functions internal to the class
+	#
+	def _getDumpRunInfoFileName(self, date = None):
+		# sometimes need to get this info for an older run to check status of a file for
+		# possible prefetch
+		if (date):
+			return os.path.join(self.wiki.publicDir(), date, "dumpruninfo.txt")
+		else:
+			return os.path.join(self.wiki.publicDir(), self.wiki.date, "dumpruninfo.txt")
+
+	def _getDumpRunInfoDirName(self, date=None):
+		if (date):
+			return os.path.join(self.wiki.publicDir(), date);
+		else:
+			return os.path.join(self.wiki.publicDir(), self.wiki.date);
+
+	# format: name:%; updated:%; status:%
+	def _getOldRunInfoFromLine(self, line):
+		# get rid of leading/trailing/blanks
+		line = line.strip(" ")
+		line = line.replace("\n","")
+		fields = line.split(';',3)
+		dumpRunInfo = RunInfo()
+		for field in fields:
+			field = field.strip(" ")
+			(fieldName, separator, fieldValue)  = field.partition(':')
+			if (fieldName == "name"):
+				dumpRunInfo.setName(fieldValue)
+			elif (fieldName == "status"):
+				dumpRunInfo.setStatus(fieldValue,False)
+			elif (fieldName == "updated"):
+				dumpRunInfo.setUpdated(fieldValue)
+		return(dumpRunInfo)
+
+	def _writeDumpRunInfoFile(self, text):
+		directory = self._getDumpRunInfoDirName()
+		dumpRunInfoFilename = self._getDumpRunInfoFileName()
+		FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
+
+	# format: name:%; updated:%; status:%
+	def _getStatusForJobFromRunInfoFileLine(self, line, jobName):
+		# get rid of leading/trailing/embedded blanks
+		line = line.replace(" ","")
+		line = line.replace("\n","")
+		fields = line.split(';',3)
+		for field in fields:
+			(fieldName, separator, fieldValue)  = field.partition(':')
+			if (fieldName == "name"):
+				if (not fieldValue == jobName):
+					return None
+			elif (fieldName == "status"):
+				return fieldValue
+
+	def _getStatusForJobFromRunInfoFile(self, filename, jobName = ""):
+		# read the dump run info file in, if there is one, and find out whether
+		# a particular job (one step only, not a multiple piece job) has been
+		# already run and whether it was successful (use to examine status
+		# of step from some previous run)
+		try:
+			infile = open(filename,"r")
+			for line in infile:
+				result = self._getStatusForJobFromRunInfoFileLine(line, jobName)
+				if (not result == None):
+					return result
+			infile.close
+			return None
+		except:
+			return None
+
+	# find desc in there, look for "class='done'"
+	def _getStatusForJobFromIndexFileLine(self, line, desc):
+		if not(">"+desc+"<" in line):
+			return None
+		if "<li class='done'>" in line:
+			return "done"
+		else:
+			return "other"
+
+	def _getStatusForJobFromIndexFile(self, filename, desc):
+		# read the index file in, if there is one, and find out whether
+		# a particular job (one step only, not a multiple piece job) has been
+		# already run and whether it was successful (use to examine status
+		# of step from some previous run)
+		try:
+			infile = open(filename,"r")
+			for line in infile:
+				result = self._getStatusForJobFromIndexFileLine(line, desc)
+				if (not result == None):
+					return result
+			infile.close
+			return None
+		except:
+			return None
+
+
 class RunInfo(object):
 	def __init__(self, name="", status="", updated="", toBeRun = False):
 		self._name = name
@@ -347,8 +483,7 @@ class RunInfo(object):
 		self._toBeRun = toBeRun
 
 class DumpItemList(object):
-	
-	def __init__(self, wiki, prefetch, spawn, date, chunkInfo):
+	def __init__(self, wiki, prefetch, spawn, date, chunkToDo, singleJob, chunkInfo, runInfoFile):
 		self.date = date
 		self.wiki = wiki
 		self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
@@ -356,6 +491,17 @@ class DumpItemList(object):
 		self._prefetch = prefetch
 		self._spawn = spawn
 		self.chunkInfo = chunkInfo
+		self._chunkToDo = chunkToDo
+		self._singleJob = singleJob
+		self._runInfoFile = runInfoFile
+
+		if (self._singleJob and self._chunkToDo):
+			if (self._singleJob[-5:] == 'table' or 
+			    self._singleJob[-9:] == 'recombine' or 
+			    self._singleJob == 'noop' or 
+			    self._singleJob == 'xmlpagelogsdump' or
+			    self._singleJob == 'pagetitlesdump'):
+				raise BackupError("You cannot specify a chunk with the job %s, exiting.\n" % self._singleJob)
 
 		self.dumpItems = [PrivateTable("user", "usertable", "User account data."),
 			PrivateTable("watchlist", "watchlisttable", "Users' watchlist settings."),
@@ -390,12 +536,12 @@ class DumpItemList(object):
 
 			TitleDump("pagetitlesdump", "List of page titles"),
 
-			AbstractDump("abstractsdump","Extracted page abstracts for Yahoo", self.chunkInfo.getPagesPerChunkAbstract())]
+			AbstractDump("abstractsdump","Extracted page abstracts for Yahoo", self._getChunkToDo("abstractsdump"), self.chunkInfo.getPagesPerChunkAbstract())]
 
 		if (self.chunkInfo.chunksEnabled()):
 			self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.chunkInfo.getPagesPerChunkAbstract()))
 
-		self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self.chunkInfo.getPagesPerChunkHistory()))
+		self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._getChunkToDo("xmlstubsdump"), self.chunkInfo.getPagesPerChunkHistory()))
 		if (self.chunkInfo.chunksEnabled()):
 			self.dumpItems.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self.chunkInfo.getPagesPerChunkHistory()))
 
@@ -404,7 +550,7 @@ class DumpItemList(object):
 			XmlDump("articles",
 				"articlesdump",
 				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self._prefetch, self._spawn, self._getChunkToDo("articlesdump"), self.chunkInfo.getPagesPerChunkHistory()))
 		if (self.chunkInfo.chunksEnabled()):
 			self.dumpItems.append(RecombineXmlDump("articles","articlesdumprecombine", "<big><b>Recombine articles, templates, image descriptions, and primary meta-pages.</b></big>","This contains current versions of article content, and is the archive most mirror sites will probably want.", self.chunkInfo.getPagesPerChunkHistory()))
 
@@ -412,7 +558,7 @@ class DumpItemList(object):
 			XmlDump("meta-current",
 				"metacurrentdump",
 				"All pages, current versions only.",
-				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self._prefetch, self._spawn, self._getChunkToDo("metacurrentdump"), self.chunkInfo.getPagesPerChunkHistory()))
 			
 		if (self.chunkInfo.chunksEnabled()):
 			self.dumpItems.append(RecombineXmlDump("meta-current","metacurrentdumprecombine", "Recombine all pages, current versions only.","Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.chunkInfo.getPagesPerChunkHistory()))
@@ -432,7 +578,7 @@ class DumpItemList(object):
 					"metahistorybz2dump",
 					"All pages with complete page edit history (.bz2)",
 					"These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._prefetch, self._spawn, self.chunkInfo.getPagesPerChunkHistory()))
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._prefetch, self._spawn, self._getChunkToDo("metahistorybz2dump"), self.chunkInfo.getPagesPerChunkHistory()))
 			if (self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory()):
 				self.dumpItems.append(
 					RecombineXmlDump("meta-history",
@@ -445,7 +591,7 @@ class DumpItemList(object):
 					"metahistory7zdump",
 					"All pages with complete edit history (.7z)",
 					"These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self.chunkInfo.getPagesPerChunkHistory()))
+					"Suitable for archival and statistical use, most mirror sites won't want or need this.", self._getChunkToDo("metahistory7zdump"), self.chunkInfo.getPagesPerChunkHistory()))
 			if (self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory()):
 				self.dumpItems.append(
 					RecombineXmlRecompressDump("meta-history",
@@ -453,94 +599,21 @@ class DumpItemList(object):
 								   "Recombine all pages with complete edit history (.7z)",
 								   "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
 								   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.chunkInfo.getPagesPerChunkHistory()))
-		self.oldRunInfoRetrieved = self._getOldRunInfoFromFile()
-
-
-				      
-	# read in contents from dump run info file and stuff into dumpItems for later reference
-
-	# sometimes need to get this info for an older run to check status of a file for
-	# possible prefetch
-	def _getDumpRunInfoFileName(self, date=None):
-		if (date):
-			return os.path.join(self.wiki.publicDir(), date, "dumpruninfo.txt")
+		results = self._runInfoFile.getOldRunInfoFromFile()
+		if (results):
+			for runInfoObj in results:
+				self._setDumpItemRunInfo(runInfoObj)
+			self.oldRunInfoRetrieved = True
 		else:
-			return os.path.join(self.wiki.publicDir(), self.date, "dumpruninfo.txt")
-
-	def _getDumpRunInfoDirName(self, date=None):
-		if (date):
-			return os.path.join(self.wiki.publicDir(), date);
-		else:
-			return os.path.join(self.wiki.publicDir(), self.date);
-
-	def _setDumpItemRunInfo(self, runInfo):
-		if (not runInfo.name()):
-			return False
-		for item in self.dumpItems:
-			if (item.name() == runInfo.name()):
-				item.setStatus(runInfo.status(),False)
-				item.setUpdated(runInfo.updated())
-				item.setToBeRun(runInfo.toBeRun())
-				return True
-		return False
-
-	# format: name:%; updated:%; status:%
-	def _getOldRunInfoFromLine(self, line):
-		# get rid of leading/trailing/blanks
-		line = line.strip(" ")
-		line = line.replace("\n","")
-		fields = line.split(';',3)
-		dumpRunInfo = RunInfo()
-		for field in fields:
-			field = field.strip(" ")
-			(fieldName, separator, fieldValue)  = field.partition(':')
-			if (fieldName == "name"):
-				dumpRunInfo.setName(fieldValue)
-			elif (fieldName == "status"):
-				dumpRunInfo.setStatus(fieldValue,False)
-			elif (fieldName == "updated"):
-				dumpRunInfo.setUpdated(fieldValue)
-		self._setDumpItemRunInfo(dumpRunInfo)
-
-	def _getOldRunInfoFromFile(self):
-		# read the dump run info file in, if there is one, and get info about which dumps
-		# have already been run and whether they were successful
-		dumpRunInfoFileName = self._getDumpRunInfoFileName()
-		try:
-			infile = open(dumpRunInfoFileName,"r")
-			for line in infile:
-				self._getOldRunInfoFromLine(line)
-			infile.close
-			return True
-		except:
-			return False
-
-	# write dump run info file 
-	# (this file is rewritten with updates after each dumpItem completes)
-				      
-	def _reportDumpRunInfoLine(self, item):
-		# even if the item has never been run we will at least have "waiting" in the status
-		return "name:%s; status:%s; updated:%s" % (item.name(), item.status(), item.updated())
-
-	def _reportDumpRunInfo(self, done=False):
+			self.oldRunInfoRetrieved = False
+		
+	def reportDumpRunInfo(self, done=False):
 		"""Put together a dump run info listing for this database, with all its component dumps."""
 		runInfoLines = [self._reportDumpRunInfoLine(item) for item in self.dumpItems]
 		runInfoLines.reverse()
 		text = "\n".join(runInfoLines)
 		text = text + "\n"
 		return text
-
-	def writeDumpRunInfoFile(self, text):
-		directory = self._getDumpRunInfoDirName()
-		dumpRunInfoFilename = self._getDumpRunInfoFileName()
-		FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
-
-	def saveDumpRunInfoFile(self, done=False):
-		"""Write out a simple text file with the status for this wiki's dump."""
-		try:
-			self.writeDumpRunInfoFile(self._reportDumpRunInfo(done))
-		except:
-			print "Couldn't save dump run info file. Continuing anyways"
 
 	def allPossibleJobsDone(self):
 		for item in self.dumpItems:
@@ -583,7 +656,6 @@ class DumpItemList(object):
 				break
 
 	# see whether job needs previous jobs that have not completed successfully
-
 	def jobDoneSuccessfully(self, job):
 		for item in self.dumpItems:
 			if (item.name() == job):
@@ -622,29 +694,72 @@ class DumpItemList(object):
 				return False
 		return True
 				      
+	def _getChunkToDo(self, jobName):
+		if (self._singleJob):
+			if (self._singleJob == jobName):
+				return(self._chunkToDo)
+		return(False)
+
+	# read in contents from dump run info file and stuff into dumpItems for later reference
+	def _setDumpItemRunInfo(self, runInfo):
+		if (not runInfo.name()):
+			return False
+		for item in self.dumpItems:
+			if (item.name() == runInfo.name()):
+				item.setStatus(runInfo.status(),False)
+				item.setUpdated(runInfo.updated())
+				item.setToBeRun(runInfo.toBeRun())
+				return True
+		return False
+
+	# write dump run info file 
+	# (this file is rewritten with updates after each dumpItem completes)
+	def _reportDumpRunInfoLine(self, item):
+		# even if the item has never been run we will at least have "waiting" in the status
+		return "name:%s; status:%s; updated:%s" % (item.name(), item.status(), item.updated())
+
 class Checksummer(object):
-	def __init__(self,wiki,dumpDir):
+	def __init__(self,wiki,dumpDir, enabled = True):
 		self.wiki = wiki
 		self.dumpDir = dumpDir
 		self.timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
-	
-	def getChecksumFileNameBasename(self):
-		return ("md5sums.txt")
-
-	def getChecksumFileName(self):
-		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename()))
-
-	def getChecksumFileNameTmp(self):
-		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename() + "." + self.timestamp + ".tmp"))
+		self._enabled = enabled
 
 	def prepareChecksums(self):
 		"""Create a temporary md5 checksum file.
 		Call this at the start of the dump run, and move the file
 		into the final location at the completion of the dump run."""
-		checksumFileName = self.getChecksumFileNameTmp()
-		output = file(checksumFileName, "w")
+		if (self._enabled):
+			checksumFileName = self._getChecksumFileNameTmp()
+			output = file(checksumFileName, "w")
 
-	def md5File(self, filename):
+	def checksum(self, filename, runner):
+		"""Run checksum for an output file, and append to the list."""
+		if (self._enabled):
+			checksumFileName = self._getChecksumFileNameTmp()
+			output = file(checksumFileName, "a")
+			self._saveChecksum(filename, output, runner)
+			output.close()
+
+	def moveMd5FileIntoPlace(self):
+		if (self._enabled):
+			tmpFileName = self._getChecksumFileNameTmp()
+			realFileName = self._getChecksumFileName()
+			os.rename(tmpFileName, realFileName)
+
+	def getChecksumFileNameBasename(self):
+		return ("md5sums.txt")
+
+	#
+	# functions internal to the class
+	#
+	def _getChecksumFileName(self):
+		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename()))
+
+	def _getChecksumFileNameTmp(self):
+		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename() + "." + self.timestamp + ".tmp"))
+
+	def _md5File(self, filename):
 		summer = md5.new()
 		infile = file(filename, "rb")
 		bufsize = 4192 * 32
@@ -655,27 +770,15 @@ class Checksummer(object):
 		infile.close()
 		return summer.hexdigest()
 
-	def md5FileLine(self, filename):
-		return "%s  %s\n" % (self.md5File(filename), os.path.basename(filename))
+	def _md5FileLine(self, filename):
+		return "%s  %s\n" % (self._md5File(filename), os.path.basename(filename))
 
-	def saveChecksum(self, file, output, runner):
+	def _saveChecksum(self, file, output, runner):
 		runner.debug("Checksumming %s" % file)
 		path = self.dumpDir.publicPath(file)
 		if os.path.exists(path):
-			checksum = self.md5FileLine(path)
+			checksum = self._md5FileLine(path)
 			output.write(checksum)
-
-	def checksum(self, filename, runner):
-		"""Run checksum for an output file, and append to the list."""
-		checksumFileName = self.getChecksumFileNameTmp()
-		output = file(checksumFileName, "a")
-		self.saveChecksum(filename, output, runner)
-		output.close()
-
-	def moveMd5FileIntoPlace(self):
-		tmpFileName = self.getChecksumFileNameTmp()
-		realFileName = self.getChecksumFileName()
-		os.rename(tmpFileName, realFileName)
 
 class DumpDir(object):
 	def __init__(self, wiki, dbName, date):
@@ -711,7 +814,7 @@ class DumpDir(object):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-	def __init__(self, wiki, dumpDir, date, items, checksums, noticeFile = None, errorCallback=None):
+	def __init__(self, wiki, dumpDir, date, items, checksums, enabled, noticeFile = None, errorCallback=None):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -723,16 +826,48 @@ class Status(object):
 		self.noticeFile = noticeFile
 		self.errorCallback = errorCallback
 		self.failCount = 0
+		self._enabled = enabled
 
-	def saveStatusSummaryAndDetail(self, done=False):
+	def updateStatusFiles(self, done=False):
+		if self._enabled:
+			self._saveStatusSummaryAndDetail(done)
+		
+	def reportFailure(self):
+		if self._enabled:
+			if self.config.adminMail:
+				subject = "Dump failure for " + self.dbName
+				message = self.config.readTemplate("errormail.txt") % {
+					"db": self.dbName,
+					"date": self.date,
+					"time": TimeUtils.prettyTime(),
+					"url": "/".join((self.config.webRoot, self.dbName, self.date, ''))}
+				config.mail(subject, message)
+
+	# this is a per-dump-item report (well per file generated by the item)
+	# Report on the file size & item status of the current output and output a link if we are done
+	def reportFile(self, file, itemStatus):
+		filepath = self.dumpDir.publicPath(file)
+		if itemStatus == "in-progress" and exists (filepath):
+			size = FileUtils.prettySize(getsize(filepath))
+			return "<li class='file'>%s %s (written) </li>" % (file, size)
+		elif itemStatus == "done" and exists(filepath):
+			size = FileUtils.prettySize(getsize(filepath))
+			webpath = self.dumpDir.webPath(file)
+			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
+		else:
+			return "<li class='missing'>%s</li>" % file
+
+	#
+	# functions internal to the class
+	#
+	def _saveStatusSummaryAndDetail(self, done=False):
 		"""Write out an HTML file with the status for this wiki's dump 
 		and links to completed files, as well as a summary status in a separate file."""
 		try:
 			# Comprehensive report goes here
-			self.wiki.writePerDumpIndex(self.reportDatabaseStatusDetailed(done))
-
+			self.wiki.writePerDumpIndex(self._reportDatabaseStatusDetailed(done))
 			# Short line for report extraction goes here
-			self.wiki.writeStatus(self.reportDatabaseStatusSummary(done))
+			self.wiki.writeStatus(self._reportDatabaseStatusSummary(done))
 		except:
 			message = "Couldn't update status files. Continuing anyways"
 			if self.errorCallback:
@@ -740,47 +875,34 @@ class Status(object):
 			else:
 				print(message)
 
-	def updateStatusFiles(self, done=False):
-		self.saveStatusSummaryAndDetail(done)
-
-	def reportDatabaseStatusSummary(self, done=False):
+	def _reportDatabaseStatusSummary(self, done = False):
 		"""Put together a brief status summary and link for the current database."""
-		status = self.reportStatusSummaryLine(done)
+		status = self._reportStatusSummaryLine(done)
 		html = self.wiki.reportStatusLine(status)
 
 		activeItems = [x for x in self.items if x.status() == "in-progress"]
 		if activeItems:
-			return html + "<ul>" + "\n".join([self.reportItem(x) for x in activeItems]) + "</ul>"
+			return html + "<ul>" + "\n".join([self._reportItem(x) for x in activeItems]) + "</ul>"
 		else:
 			return html
 
-	def reportDatabaseStatusDetailed(self, done=False):
+	def _reportDatabaseStatusDetailed(self, done = False):
 		"""Put together a status page for this database, with all its component dumps."""
 		self.noticeFile.refreshNotice()
-		statusItems = [self.reportItem(item) for item in self.items]
+		statusItems = [self._reportItem(item) for item in self.items]
 		statusItems.reverse()
 		html = "\n".join(statusItems)
 		return self.config.readTemplate("report.html") % {
 			"db": self.dbName,
 			"date": self.date,
 			"notice": self.noticeFile.notice,
-			"status": self.reportStatusSummaryLine(done),
-			"previous": self.reportPreviousDump(done),
+			"status": self._reportStatusSummaryLine(done),
+			"previous": self._reportPreviousDump(done),
 			"items": html,
 			"checksum": self.dumpDir.webPath(self.checksums.getChecksumFileNameBasename()),
 			"index": self.config.index}
 
-	def reportFailure(self):
-		if self.config.adminMail:
-			subject = "Dump failure for " + self.dbName
-			message = self.config.readTemplate("errormail.txt") % {
-				"db": self.dbName,
-				"date": self.date,
-				"time": TimeUtils.prettyTime(),
-				"url": "/".join((self.config.webRoot, self.dbName, self.date, ''))}
-			config.mail(subject, message)
-
-	def reportPreviousDump(self, done):
+	def _reportPreviousDump(self, done):
 		"""Produce a link to the previous dump, if any"""
 		# get the list of dumps for this wiki in order, find me in the list, find the one prev to me.
 		# why? we might be rerunning a job from an older dumps. we might have two
@@ -805,7 +927,7 @@ class Status(object):
 			message = "previous dump from"
 		return "%s<a href=\"../%s/\">%s %s</a>" % (prefix, rawDate, message, prettyDate)
 				      
-	def reportStatusSummaryLine(self, done=False):
+	def _reportStatusSummaryLine(self, done=False):
 		if (done == "done"):
 			classes = "done"
 			text = "Dump complete"
@@ -824,12 +946,15 @@ class Status(object):
 			text += ", %d item%s failed" % (self.failCount, ess)
 		return "<span class='%s'>%s</span>" % (classes, text)
 
-	def reportItem(self, item):
+	def _reportItem(self, item):
 		"""Return an HTML fragment with info on the progress of this item."""
+		item.status()
+		item.updated()
+		item.description()
 		html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status(), item.updated(), item.status(), item.description())
 		if item.progress:
 			html += "<div class='progress'>%s</div>\n" % item.progress
-		files = item.listFiles(self)
+		files = item.listOutputFiles(self)
 		if files:
 			listItems = [self.reportFile(file, item.status()) for file in files]
 			html += "<ul>"
@@ -841,59 +966,53 @@ class Status(object):
 		html += "</li>"
 		return html
 
-	# this is a per-dump-item report (well per file generated by the item)
-	# Report on the file size & item status of the current output and output a link if we are done
-	def reportFile(self, file, itemStatus):
-		filepath = self.dumpDir.publicPath(file)
-		if itemStatus == "in-progress" and exists (filepath):
-			size = FileUtils.prettySize(getsize(filepath))
-			return "<li class='file'>%s %s (written) </li>" % (file, size)
-		elif itemStatus == "done" and exists(filepath):
-			size = FileUtils.prettySize(getsize(filepath))
-			webpath = self.dumpDir.webPath(file)
-			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, file, size)
-		else:
-			return "<li class='missing'>%s</li>" % file
-
 class NoticeFile(object):
-	def __init__(self, wiki, date, notice):
+	def __init__(self, wiki, date, notice, enabled):
 		self.wiki = wiki
 		self.date = date
 		self.notice = notice
+		self._enabled = enabled
+		self.writeNoticeFile()
 
-		noticeFile = self.getNoticeFilename()
-		# delnotice.  toss any existing file 
-		if self.notice == False:
-			if exists(noticeFile):
-				os.remove(noticeFile)
-			self.notice = ""
-		# addnotice, stuff notice in a file for other jobs etc
-		elif self.notice != "":
-			noticeDir = self.getNoticeDir()
-			FileUtils.writeFile(noticeDir, noticeFile, self.notice, self.wiki.config.fileperms)
-		# default case. if there is a file get the contents, otherwise
-		# we have empty contents, all good
-		else:
-			if exists(noticeFile):
-				self.notice = FileUtils.readFile(noticeFile)
-		
-	def getNoticeFilename(self):
-		return os.path.join(self.wiki.publicDir(), self.date, "notice.txt")
-
-	def getNoticeDir(self):
-		return os.path.join(self.wiki.publicDir(), self.date);
+	def writeNoticeFile(self):
+		if (self._enabled):
+			noticeFile = self._getNoticeFilename()
+			# delnotice.  toss any existing file 
+			if self.notice == False:
+				if exists(noticeFile):
+					os.remove(noticeFile)
+				self.notice = ""
+			# addnotice, stuff notice in a file for other jobs etc
+			elif self.notice != "":
+				noticeDir = self._getNoticeDir()
+				FileUtils.writeFile(noticeDir, noticeFile, self.notice, self.wiki.config.fileperms)
+			# default case. if there is a file get the contents, otherwise
+			# we have empty contents, all good
+			else:
+				if exists(noticeFile):
+					self.notice = FileUtils.readFile(noticeFile)
 
 	def refreshNotice(self):
 		# if the notice file has changed or gone away, we comply.
-		noticeFile = self.getNoticeFilename()
+		noticeFile = self._getNoticeFilename()
 		if exists(noticeFile):
 			self.notice = FileUtils.readFile(noticeFile)
 		else:
 			self.notice = ""
 
+
+	#
+	# functions internal to class
+	#
+	def _getNoticeFilename(self):
+		return os.path.join(self.wiki.publicDir(), self.date, "notice.txt")
+
+	def _getNoticeDir(self):
+		return os.path.join(self.wiki.publicDir(), self.date);
+
 class Runner(object):
 
-	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False):
+	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False):
 		self.wiki = wiki
 		self.config = wiki.config
 		self.dbName = wiki.dbName
@@ -905,6 +1024,23 @@ class Runner(object):
 		self.htmlNoticeFile = None
 		self.log = None
 		self.dryrun = dryrun
+		self._chunkToDo = chunkToDo
+		self._statusEnabled = True
+		self._checksummerEnabled = True
+		self._runInfoFileEnabled = True
+		self._symLinksEnabled = True
+		self._feedsEnabled = True
+		self._noticeFileEnabled = True
+
+		if self.dryrun or self._chunkToDo:
+			self._statusEnabled = False
+			self._checksummerEnabled = False
+			self._runInfoFileEnabled = False
+			self._symLinksEnabled = False
+			self._feedsEnabled = False
+			self._noticeFileEnabled = False
+		if self.dryrun:
+			self.loggingEnabled = False
 
 		if date:
 			# Override, continuing a past dump?
@@ -913,33 +1049,27 @@ class Runner(object):
 			self.date = TimeUtils.today()
 		wiki.setDate(self.date)
 
-		self.lastFailed = False
-
 		self.jobRequested = job
 		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.logAndPrint)
-
 		self.dumpDir = DumpDir(self.wiki, self.dbName, self.date)
 
-		# this must come after the dumpdir setup so we know which directory we are in 
-		# for the log file.
-		if (loggingEnabled and not self.dryrun):
+		self.lastFailed = False
+
+		# these must come after the dumpdir setup so we know which directory we are in 
+		if (loggingEnabled):
 			self.logFileName = self.dumpDir.publicPath(config.logFile)
 			self.makeDir(join(self.wiki.publicDir(), self.date))
 			self.log = Logger(self.logFileName)
 			thread.start_new_thread(self.logQueueReader,(self.log,))
-
-		# have to handle the notice file here instead of main, it goes in the per-run directory
-		if not dryrun:
-			self.htmlNoticeFile = NoticeFile(self.wiki, self.date, notice)
-
-		if not dryrun:
-			self.checksums = Checksummer(self.wiki, self.dumpDir)
+		self.runInfoFile = RunInfoFile(wiki,self._runInfoFileEnabled)
+		self.symLinks = SymLinks(self.wiki, self.dumpDir, self. date, self.logAndPrint, self.debug, self._symLinksEnabled)
+		self.feeds = Feeds(self.wiki,self.dumpDir,self.config, self.dbName, self.debug, self._feedsEnabled)
+		self.htmlNoticeFile = NoticeFile(self.wiki, self.date, notice, self._noticeFileEnabled)
+		self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled)
 
 		# some or all of these dumpItems will be marked to run
-		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self.chunkInfo);
-
-		if not self.dryrun:
-			self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self.htmlNoticeFile, self.logAndPrint)
+		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self.date, self._chunkToDo, self.jobRequested, self.chunkInfo, self.runInfoFile);
+		self.status = Status(self.wiki, self.dumpDir, self.date, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, self.htmlNoticeFile, self.logAndPrint)
 
 	def logQueueReader(self,log):
 		if not log:
@@ -1045,19 +1175,20 @@ class Runner(object):
 			self.lastFailed = True
 
 	def runUpdateItemFileInfo(self, item):
-		for f in item.listFiles(self):
+		for f in item.listOutputFiles(self):
 			print f
 			if exists(self.dumpDir.publicPath(f)):
 				# why would the file not exist? because we changed chunk numbers in the
 				# middle of a run, and now we list more files for the next stage than there
 				# were for earlier ones
-				self.saveSymlink(f)
-				self.saveFeed(f)
+				self.symLinks.saveSymlink(f)
+				self.feeds.saveFeed(f)
 				self.checksums.checksum(f, self)
 
 	def run(self):
 		if (self.jobRequested):
 			if ((not self.dumpItemList.oldRunInfoRetrieved) and (self.wiki.existsPerDumpIndex())):
+
 				# There was a previous run of all or part of this date, but...
 				# There was no old RunInfo to be had (or an error was encountered getting it)
 				# so we can't rerun a step and keep all the status information about the old run around.
@@ -1097,41 +1228,36 @@ class Runner(object):
 			self.cleanOldDumps()
 			self.showRunnerState("Starting backup of %s" % self.dbName)
 
-		files = self.listFilesFor(self.dumpItemList.dumpItems)
-
 		if (self.jobRequested):
-			if not self.dryrun:
-				self.checksums.prepareChecksums()
+			self.checksums.prepareChecksums()
 
 			for item in self.dumpItemList.dumpItems:
 				if (item.toBeRun()):
 					item.start(self)
-					if not self.dryrun:
-						self.status.updateStatusFiles()
-						self.dumpItemList.saveDumpRunInfoFile()
+					self.status.updateStatusFiles()
+					self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
 					try:
 						item.dump(self)
 					except Exception, ex:
 						self.debug("*** exception! " + str(ex))
 						item.setStatus("failed")
-					if item.status() == "failed" and not self.dryrun:
+					if item.status() == "failed" and not self.dryrun and not self._chunkToDo:
 						self.runHandleFailure()
 					else:
 						self.lastFailed = False
 				# this ensures that, previous run or new one, the old or new md5sums go to the file
-				if item.status() == "done" and not self.dryrun:
+				if item.status() == "done" and not self.dryrun and not self._chunkToDo:
 					self.runUpdateItemFileInfo(item)
 
-			if not self.dryrun:
-				if (self.dumpItemList.allPossibleJobsDone()):
-					self.status.updateStatusFiles("done")
-				else:
-					self.status.updateStatusFiles("partialdone")
-				self.dumpItemList.saveDumpRunInfoFile()
-
+			if (self.dumpItemList.allPossibleJobsDone()):
+				self.status.updateStatusFiles("done")
+			else:
+				self.status.updateStatusFiles("partialdone")
+			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+			if not self.dryrun and not self._chunkToDo:
 				# if any job succeeds we might as well make the sym link
 				if (self.status.failCount < 1):
-					self.completeDump(files)
+					self.completeDump()
 											
 			if (self.restart):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
@@ -1139,31 +1265,29 @@ class Runner(object):
 				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
 
 		else:
-			if not self.dryrun:
-				self.checksums.prepareChecksums()
+			self.checksums.prepareChecksums()
 
 			for item in self.dumpItemList.dumpItems:
 				item.start(self)
-				if not self.dryrun:
-					self.status.updateStatusFiles()
-					self.dumpItemList.saveDumpRunInfoFile()
+				self.status.updateStatusFiles()
+				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
 				try:
 					item.dump(self)
 				except Exception, ex:
 					self.debug("*** exception! " + str(ex))
 					item.setStatus("failed")
-				if item.status() == "failed" and not self.dryrun:
+				if item.status() == "failed" and not self.dryrun and not self._chunkToDo:
 					self.runHandleFailure()
 				else:
-					if not self.dryrun:
+					if not self.dryrun and not self._chunkToDo:
 						self.runUpdateItemFileInfo(item)
 					self.lastFailed = False
 
-			if not self.dryrun:
-				self.status.updateStatusFiles("done")
-				self.dumpItemList.saveDumpRunInfoFile()
+			self.status.updateStatusFiles("done")
+			if not self.dryrun and not self._chunkToDo:
+				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
 				if self.status.failCount < 1:
-					self.completeDump(files)
+					self.completeDump()
 											
 			self.showRunnerStateComplete()
 
@@ -1180,43 +1304,11 @@ class Runner(object):
 		if old:
 			for dump in old:
 				self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
-				if not self.dryrun:
+				if not self.dryrun and not self._chunkToDo:
 					base = os.path.join(self.wiki.publicDir(), dump)
 					shutil.rmtree("%s" % base)
 		else:
 			self.showRunnerState("No old dumps to purge.")
-
-	def listFilesFor(self, items):
-		files = []
-		for item in items:
-			for file in item.listFiles(self):
-				files.append(file)
-		return files
-
-
-	def lockFileName(self):
-		return self.dumpDir.publicPath("lock")
-
-	def doneFileName(self):
-		return self.dumpDir.publicPath("done")
-
-	def lock(self):
-		self.showRunnerState("Creating lock file.")
-		lockfile = self.lockFileName()
-		donefile = self.doneFileName()
-		if exists(lockfile):
-			raise BackupError("Lock file %s already exists" % lockfile)
-		if exists(donefile):
-			self.showRunnerState("Removing completion marker %s" % donefile)
-			os.remove(donefile)
-		try:
-			os.remove(lockfile)
-		except:
-			# failure? let it die
-			pass
-				      
-	def unlock(self):
-		self.showRunnerState("Marking complete.")
 
 	def showRunnerState(self, message):
 		self.debug(message)
@@ -1224,13 +1316,13 @@ class Runner(object):
 	def showRunnerStateComplete(self):
 		self.debug("SUCCESS: done.")
 
-	def completeDump(self, files):
+	def completeDump(self):
 		# note that it's possible for links in "latest" to point to 
 		# files from different runs, in which case the md5sums file
 		# will have accurate checksums for the run for which it was
 		# produced, but not the other files. FIXME
 		self.checksums.moveMd5FileIntoPlace()
-		self.saveSymlink(self.checksums.getChecksumFileNameBasename())
+		self.symLinks.saveSymlink(self.checksums.getChecksumFileNameBasename())
 
 	def makeDir(self, dir):
 		if exists(dir):
@@ -1239,34 +1331,67 @@ class Runner(object):
 			self.debug("Creating %s ..." % dir)
 			os.makedirs(dir)
 
+class SymLinks(object):
+	def __init__(self, wiki, dumpDir, date, logfn, debugfn, enabled):
+		self.wiki = wiki
+		self.dumpDir = dumpDir
+		self.date = date
+		self._enabled = enabled
+		self.logfn = logfn
+		self.debugfn = debugfn
+
+	def makeDir(self, dir):
+		if exists(dir):
+			self.debugfn("Checkdir dir %s ..." % dir)
+		else:
+			self.debugfn("Creating %s ..." % dir)
+			os.makedirs(dir)
+
 	def saveSymlink(self, file):
-		self.makeDir(join(self.wiki.publicDir(), 'latest'))
-		real = self.dumpDir.publicPath(file)
-		link = self.dumpDir.latestPath(file)
-		if exists(link) or os.path.islink(link):
-			if os.path.islink(link):
-				realfile = os.readlink(link)
-				# format of these links should be...  ../20110228/elwikidb-20110228-templatelinks.sql.gz
-				rellinkpattern = re.compile('^\.\./(20[0-9]+)/');
-				dateinlink = rellinkpattern.search(realfile)
-				if (dateinlink):
-					dateoflinkedfile = dateinlink.group(1)
-					dateinterval = int(self.date) - int(dateoflinkedfile)
+		if (self._enabled):
+			self.makeDir(join(self.wiki.publicDir(), 'latest'))
+			real = self.dumpDir.publicPath(file)
+			link = self.dumpDir.latestPath(file)
+			if exists(link) or os.path.islink(link):
+				if os.path.islink(link):
+					realfile = os.readlink(link)
+					# format of these links should be...  ../20110228/elwikidb-20110228-templatelinks.sql.gz
+					rellinkpattern = re.compile('^\.\./(20[0-9]+)/');
+					dateinlink = rellinkpattern.search(realfile)
+					if (dateinlink):
+						dateoflinkedfile = dateinlink.group(1)
+						dateinterval = int(self.date) - int(dateoflinkedfile)
+					else:
+						dateinterval = 0
+					# no file or it's older than ours... *then* remove the link
+					if not exists(os.path.realpath(link)) or dateinterval > 0:
+						self.debug("Removing old symlink %s" % link)
+						os.remove(link)
 				else:
-					dateinterval = 0
-				# no file or it's older than ours... *then* remove the link
-				if not exists(os.path.realpath(link)) or dateinterval > 0:
-					self.debug("Removing old symlink %s" % link)
-					os.remove(link)
-			else:
-				self.logAndPrint("What the hell dude, %s is not a symlink" % link)
-				raise BackupError("What the hell dude, %s is not a symlink" % link)
-		relative = FileUtils.relativePath(real, dirname(link))
-		# if we removed the link cause it's obsolete, make the new one
-		if exists(real) and not exists(link):
-			self.debug("Adding symlink %s -> %s" % (link, relative))
-			os.symlink(relative, link)
+					self.logfn("What the hell dude, %s is not a symlink" % link)
+					raise BackupError("What the hell dude, %s is not a symlink" % link)
+			relative = FileUtils.relativePath(real, dirname(link))
+			# if we removed the link cause it's obsolete, make the new one
+			if exists(real) and not exists(link):
+				self.debugfn("Adding symlink %s -> %s" % (link, relative))
+				os.symlink(relative, link)
 			
+class Feeds(object):
+	def __init__(self, wiki, dumpDir, config, dbName, debugfn, enabled):
+		self.wiki = wiki
+		self.dumpDir = dumpDir
+		self.config = config
+		self.dbName = dbName
+		self.debugfn = debugfn
+		self._enabled = enabled
+
+	def makeDir(self, dir):
+		if exists(dir):
+			self.debugfn("Checkdir dir %s ..." % dir)
+		else:
+			self.debugfn("Creating %s ..." % dir)
+			os.makedirs(dir)
+
 	def saveFeed(self, file):
 		self.makeDir(join(self.wiki.publicDir(), 'latest'))
 		filePath = self.dumpDir.webPath(file)
@@ -1283,6 +1408,7 @@ class Runner(object):
 		directory = self.dumpDir.latestDir()
 		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
 		FileUtils.writeFile(directory, rssPath, rssText, self.config.fileperms)
+
 
 class Dump(object):
 	def __init__(self, name, desc):
@@ -1326,7 +1452,7 @@ class Dump(object):
 		"""Optionally return additional text to appear under the heading."""
 		return None
 
-	def listFiles(self, runner):
+	def listOutputFiles(self, runner):
 		"""Return a list of filenames which should be exported and checksummed"""
 		return []
 
@@ -1356,7 +1482,7 @@ class Dump(object):
 			sys.stderr.write(line)
 		self.progress = line.strip()
 		runner.status.updateStatusFiles()
-		runner.dumpItemList.saveDumpRunInfoFile()
+		runner.runInfoFile.saveDumpRunInfoFile(runner.dumpItemList.reportDumpRunInfo())
 
 	def timeToWait(self):
 		# we use wait this many secs for a command to complete that
@@ -1462,7 +1588,7 @@ class PublicTable(Dump):
 		if (error):
 			raise BackupError("error dumping table %s" % self._table)
 
-	def listFiles(self, runner):
+	def listOutputFiles(self, runner):
 		return [self._file()]
 
 class PrivateTable(PublicTable):
@@ -1474,7 +1600,7 @@ class PrivateTable(PublicTable):
 	def _path(self, runner):
 		return runner.dumpDir.privatePath(self._file())
 
-	def listFiles(self, runner):
+	def listOutputFiles(self, runner):
 		"""Private table won't have public files to list."""
 		return []
 
@@ -1484,21 +1610,31 @@ class XmlStub(Dump):
 	A second pass will import text from prior dumps or the database to make
 	full files for the public."""
 				      
-	def __init__(self, name, desc, chunks = False):
+	def __init__(self, name, desc, chunkToDo, chunks = False):
 		Dump.__init__(self, name, desc)
+		self._chunkToDo = chunkToDo
 		self._chunks = chunks
 
 	def detail(self):
 		return "These files contain no page text, only revision metadata."
 
-	def listFiles(self, runner, unnumbered=False):
-		if (self._chunks) and not unnumbered:
-		        files = []
-			for i in range(1, len(self._chunks) + 1):
-				files.append("stub-meta-history%s.xml.gz" % i)
-				files.append("stub-meta-current%s.xml.gz" % i)
-				files.append("stub-articles%s.xml.gz" % i)
-			return files
+	def listOutputFiles(self, runner, unnumbered=False):
+		if (self._chunks):
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				files = []
+				files.append("stub-meta-history%s.xml.gz" % self._chunkToDo)
+				files.append("stub-meta-current%s.xml.gz" % self._chunkToDo)
+				files.append("stub-articles%s.xml.gz" % self._chunkToDo)
+				return files
+			else:
+				files = []
+				for i in range(1, len(self._chunks) + 1):
+					files.append("stub-meta-history%s.xml.gz" % i)
+					files.append("stub-meta-current%s.xml.gz" % i)
+					files.append("stub-articles%s.xml.gz" % i)
+				return files
 		else:
 			return ["stub-meta-history.xml.gz",
 				"stub-meta-current.xml.gz",
@@ -1578,10 +1714,17 @@ class XmlStub(Dump):
 	def run(self, runner):
 		commands = []
 		if self._chunks:
-			for i in range(1, len(self._chunks)+1):
-				self.cleanupOldFiles(runner,i)
-				series = self.buildCommand(runner, i)
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				self.cleanupOldFiles(runner,self._chunkToDo)
+				series = self.buildCommand(runner, self._chunkToDo)
 				commands.append(series)
+			else:
+				for i in range(1, len(self._chunks)+1):
+					self.cleanupOldFiles(runner,i)
+					series = self.buildCommand(runner, i)
+					commands.append(series)
 		else:
 			self.cleanupOldFiles(runner)
 			series = self.buildCommand(runner)
@@ -1592,20 +1735,24 @@ class XmlStub(Dump):
 
 class RecombineXmlStub(XmlStub):
 	def __init__(self, name, desc, chunks):
-		XmlStub.__init__(self, name, desc, chunks)
+		XmlStub.__init__(self, name, desc, False, chunks)
 		# this is here only so that a callback can capture output from some commands
 		# related to recombining files if we did parallel runs of the recompression
 		self._output = None
 
-	# oh crap we need to be able to produce a list of output files, what else? 
-	def listFiles(self, runner):
-		return(XmlStub.listFiles(self, runner, unnumbered=True))
+	def listInputFiles(self, runner):
+		return(XmlStub.listOutputFiles(self, runner))
+
+	def listOutputFiles(self, runner):
+		return ["stub-meta-history.xml.gz",
+			"stub-meta-current.xml.gz",
+			"stub-articles.xml.gz"]
 
 	def run(self, runner):
 		error=0
 		if (self._chunks):
-			files = XmlStub.listFiles(self,runner)
-			outputFileList = self.listFiles(runner)
+			files = self.listInputFiles(runner)
+			outputFileList = self.listOutputFiles(runner)
 			for outputFile in outputFileList:
 				inputFiles = []
 				for inFile in files:
@@ -1641,7 +1788,7 @@ class XmlLogging(Dump):
 	def detail(self):
 		return "This contains the log of actions performed on pages."
 
-	def listFiles(self, runner):
+	def listOutputFiles(self, runner):
 		return ["pages-logging.xml.gz"]
 
 	def cleanupOldFiles(self, runner):
@@ -1672,14 +1819,16 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, name, desc, detail, prefetch, spawn, chunks = False):
+	def __init__(self, subset, name, desc, detail, prefetch, spawn, chunkToDo, chunks = False):
 		Dump.__init__(self, name, desc)
 		self._subset = subset
 		self._detail = detail
+		self._desc = desc
 		self._prefetch = prefetch
 		self._spawn = spawn
 		self._chunks = chunks
 		self._pageID = {}
+		self._chunkToDo = chunkToDo
 
 	def detail(self):
 		"""Optionally return additional text to appear under the heading."""
@@ -1697,9 +1846,15 @@ class XmlDump(Dump):
 	def run(self, runner):
 		commands = []
 		if (self._chunks):
-			for i in range(1, len(self._chunks)+1):
-				series = self.buildCommand(runner, i)
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				series = self.buildCommand(runner, self._chunkToDo)
 				commands.append(series)
+			else:
+				for i in range(1, len(self._chunks)+1):
+					series = self.buildCommand(runner, i)
+					commands.append(series)
 		else:
 			series = self.buildCommand(runner)
 			commands.append(series)
@@ -1712,9 +1867,13 @@ class XmlDump(Dump):
 			# check to see if any of the output files are truncated
 			files = []
 			if (self._chunks):
-				for i in range(1, len(self._chunks)+1):
-					files.append( self._path(runner, 'bz2', i ) )
-				files.append( self._path(runner, 'bz2', i ) )
+				if (self._chunkToDo):
+					if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+						raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+					files.append( self._path(runner, 'bz2', self._chunkToDo ) )
+				else:
+					for i in range(1, len(self._chunks)+1):
+						files.append( self._path(runner, 'bz2', i ) )
 
 			for f in files:
 				pipeline = []
@@ -1900,7 +2059,7 @@ class XmlDump(Dump):
 					if realpath(old) == current:
 						runner.debug("skipping current dump for prefetch %s" % possible)
 						continue
-					if not self.statusOfOldDumpIsDone(runner, date):
+					if not runner.runInfoFile.statusOfOldDumpIsDone(runner, date, self.name, self._desc):
 						runner.debug("skipping incomplete or failed dump for prefetch %s" % possible)
 						continue
 					if (chunk) and (self.filenameHasChunk(possible, "bz2")):
@@ -1936,82 +2095,8 @@ class XmlDump(Dump):
 		runner.debug("Could not locate a prefetchable dump.")
 		return None
 
-	# find desc in there, look for "class='done'"
-	def _getStatusForJobFromIndexFileLine(self, line, desc):
-		if not(">"+desc+"<" in line):
-			return None
-		if "<li class='done'>" in line:
-			return "done"
-		else:
-			return "other"
-
-	def _getStatusForJobFromIndexFile(self, filename, desc):
-		# read the index file in, if there is one, and find out whether
-		# a particular job (one step only, not a multiple piece job) has been
-		# already run and whether it was successful (use to examine status
-		# of step from some previous run)
-		try:
-			infile = open(filename,"r")
-			for line in infile:
-				result = self._getStatusForJobFromIndexFileLine(line, desc)
-				if (not result == None):
-					return result
-			infile.close
-			return None
-		except:
-			return None
-
-	# format: name:%; updated:%; status:%
-	def _getStatusForJobFromRunInfoFileLine(self, line, jobName):
-		# get rid of leading/trailing/embedded blanks
-		line = line.replace(" ","")
-		line = line.replace("\n","")
-		fields = line.split(';',3)
-		for field in fields:
-			(fieldName, separator, fieldValue)  = field.partition(':')
-			if (fieldName == "name"):
-				if (not fieldValue == jobName):
-					return None
-			elif (fieldName == "status"):
-				return fieldValue
-
-	def _getStatusForJobFromRunInfoFile(self, filename, jobName = ""):
-		# read the dump run info file in, if there is one, and find out whether
-		# a particular job (one step only, not a multiple piece job) has been
-		# already run and whether it was successful (use to examine status
-		# of step from some previous run)
-		try:
-			infile = open(filename,"r")
-			for line in infile:
-				result = self._getStatusForJobFromRunInfoFileLine(line, jobName)
-				if (not result == None):
-					return result
-			infile.close
-			return None
-		except:
-			return None
-
-	def statusOfOldDumpIsDone(self, runner, date):
-		oldDumpRunInfoFilename=runner.dumpItemList._getDumpRunInfoFileName(date)
-		jobName = self.name()
-		status = self._getStatusForJobFromRunInfoFile(oldDumpRunInfoFilename, jobName)
-		if (status == "done"):
-			return 1
-		elif (not status == None):
-			# failure, in progress, some other useless thing
-			return 0
-
-		# ok, there was no info there to be had, try the index file. yuck.
-		indexFilename = os.path.join(runner.wiki.publicDir(), date, runner.config.perDumpIndex)
-		desc = self._desc
-		status = self._getStatusForJobFromIndexFile(indexFilename, desc)
-		if (status == "done"):
-			return 1
-		else:
-			return 0
-
-	def listFiles(self, runner, unnumbered = False):
-		if (self._chunks) and not unnumbered:
+	def listOutputFiles(self, runner):
+		if (self._chunks):
 			files = []
 			for i in range(1, len(self._chunks)+1):
 				files.append(self._file("bz2",i))
@@ -2022,19 +2107,22 @@ class XmlDump(Dump):
 class RecombineXmlDump(XmlDump):
 	def __init__(self, subset, name, desc, detail, chunks = False):
 		# no prefetch, no spawn
-		XmlDump.__init__(self, subset, name, desc, detail, None, None, chunks)
+		XmlDump.__init__(self, subset, name, desc, detail, None, None, False, chunks)
 		# this is here only so that a callback can capture output from some commands
 		# related to recombining files if we did parallel runs of the recompression
 		self._output = None
 
-	def listFiles(self, runner):
-		return(XmlDump.listFiles(self, runner, unnumbered=True))
+	def listInputFiles(self, runner):
+		return XmlDump.listOutputFiles(self,runner)
+
+	def listOutputFiles(self, runner):
+		return [ self._file("bz2",0) ]
 
 	def run(self, runner):
 		error=0
 		if (self._chunks):
-			files = XmlDump.listFiles(self,runner)
-			outputFileList = self.listFiles(runner)
+			files = self.listInputFiles(runner)
+			outputFileList = self.listOutputFiles(runner)
 			for outputFile in outputFileList:
 				inputFiles = []
 				for inFile in files:
@@ -2071,11 +2159,12 @@ class BigXmlDump(XmlDump):
 class XmlRecompressDump(Dump):
 	"""Take a .bz2 and recompress it as 7-Zip."""
 
-	def __init__(self, subset, name, desc, detail, chunks = False):
+	def __init__(self, subset, name, desc, detail, chunkToDo, chunks = False):
 		Dump.__init__(self, name, desc)
 		self._subset = subset
 		self._detail = detail
 		self._chunks = chunks
+		self._chunkToDo = chunkToDo
 
 	def detail(self):
 		"""Optionally return additional text to appear under the heading."""
@@ -2127,11 +2216,18 @@ class XmlRecompressDump(Dump):
 			raise BackupError("bz2 dump incomplete, not recompressing")
 		commands = []
 		if (self._chunks):
-			for i in range(1, len(self._chunks)+1):
-				# Clear prior 7zip attempts; 7zip will try to append an existing archive
-				self.cleanupOldFiles(runner, i)
-				series = self.buildCommand(runner, i)
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				self.cleanupOldFiles(runner, self._chunkToDo)
+				series = self.buildCommand(runner, self._chunkToDo)
 				commands.append(series)
+			else:
+				for i in range(1, len(self._chunks)+1):
+					# Clear prior 7zip attempts; 7zip will try to append an existing archive
+					self.cleanupOldFiles(runner, i)
+					series = self.buildCommand(runner, i)
+					commands.append(series)
 		else:
 			# Clear prior 7zip attempts; 7zip will try to append an existing archive
 			self.cleanupOldFiles(runner)
@@ -2141,10 +2237,17 @@ class XmlRecompressDump(Dump):
 		# temp hack force 644 permissions until ubuntu bug # 370618 is fixed - tomasz 5/1/2009
 		# some hacks aren't so temporary - atg 3 sept 2010
 		if (self._chunks):
-			for i in range(1, len(self._chunks)+1):
-				xml7z = self.buildOutputFilename(runner,i)
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				xml7z = self.buildOutputFilename(runner,self._chunkToDo)
 				if exists(xml7z):
 					os.chmod(xml7z, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH )
+			else:
+				for i in range(1, len(self._chunks)+1):
+					xml7z = self.buildOutputFilename(runner,i)
+					if exists(xml7z):
+						os.chmod(xml7z, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH )
 		else:
 				xml7z = self.buildOutputFilename(runner)
 				if exists(xml7z):
@@ -2152,12 +2255,19 @@ class XmlRecompressDump(Dump):
 		if (error):
 			raise BackupError("error recompressing bz2 file(s)")
 	
-	def listFiles(self, runner, unnumbered = False):
-		if (self._chunks) and not unnumbered:
-			files = []
-			for i in range(1, len(self._chunks)+1):
-				files.append(self._file("7z",i))
-			return files
+	def listOutputFiles(self, runner):
+		if (self._chunks):
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				files = []
+				files.append(self._file("7z",self._chunkToDo))
+				return files
+			else:
+				files = []
+				for i in range(1, len(self._chunks)+1):
+					files.append(self._file("7z",i))
+				return files
 		else:
 			return [ self._file("7z",0) ]
 
@@ -2166,17 +2276,19 @@ class XmlRecompressDump(Dump):
 
 class RecombineXmlRecompressDump(XmlRecompressDump):
 	def __init__(self, subset, name, desc, detail, chunks):
-		XmlRecompressDump.__init__(self, subset, name, desc, detail, chunks)
+		XmlRecompressDump.__init__(self, subset, name, desc, detail, False, chunks)
 		# this is here only so that a callback can capture output from some commands
 		# related to recombining files if we did parallel runs of the recompression
 		self._output = None
 
-	def listFiles(self, runner):
-		return(XmlRecompressDump.listFiles(self, runner, unnumbered=True))
+	def listInputFiles(self, runner):
+		return XmlRecompressDump.listOutputFiles(self,runner)
+
+	def listOutputFiles(self, runner):
+		return [ self._file("7z",0) ]
 
 	def cleanupOldFiles(self, runner):
-		files = self.listFiles(runner)
-		print "here is cleanup"
+		files = self.listOutputFiles(runner)
 		for filename in files:
 			filename = runner.dumpDir.publicPath(filename)
 			if exists(filename):
@@ -2186,8 +2298,8 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 		error = 0
 		if (self._chunks):
 			self.cleanupOldFiles(runner)
-			files = XmlRecompressDump.listFiles(self,runner)
-			outputFileList = self.listFiles(runner)
+			files = self.listInputFiles(runner)
+			outputFileList = self.listOutputFiles(runner)
 			for outputFile in outputFileList:
 				inputFiles = []
 				for inFile in files:
@@ -2216,8 +2328,9 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
 
-        def __init__(self, name, desc, chunks = False):
+        def __init__(self, name, desc, chunkToDo, chunks = False):
 		Dump.__init__(self, name, desc)
+		self._chunkToDo = chunkToDo
 		self._chunks = chunks
 
         def buildCommand(self, runner, chunk = 0):
@@ -2254,9 +2367,15 @@ class AbstractDump(Dump):
 	def run(self, runner):
 		commands = []
 		if (self._chunks):
-			for i in range(1, len(self._chunks)+1):
-				series = self.buildCommand(runner, i)
+			if (self._chunkToDo):
+				if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+					raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+				series = self.buildCommand(runner, self._chunkToDo)
 				commands.append(series)
+			else:
+				for i in range(1, len(self._chunks)+1):
+					series = self.buildCommand(runner, i)
+					commands.append(series)
 		else:
 			series = self.buildCommand(runner)
 		        commands.append(series)
@@ -2290,31 +2409,42 @@ class AbstractDump(Dump):
 		else:
 			return( "abstract-%s%s.xml" % (variant, chunkInfo) )
 
-	def listFiles(self, runner, unnumbered = False):
+	def listOutputFiles(self, runner):
 		files = []
 		for x in self._variants(runner):
-			if (self._chunks) and not unnumbered:
-				for i in range(1, len(self._chunks)+1):
-					files.append(self._variantFile(x, i))
+			if (self._chunks):
+				if (self._chunkToDo):
+					if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+						raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+					files.append(self._variantFile(x, self._chunkToDo))
+				else:
+					for i in range(1, len(self._chunks)+1):
+						files.append(self._variantFile(x, i))
 			else:
 				files.append(self._variantFile(x))
 		return files 
 
 class RecombineAbstractDump(AbstractDump):
 	def __init__(self, name, desc, chunks):
-		AbstractDump.__init__(self, name, desc, chunks)
+		AbstractDump.__init__(self, name, desc, False, chunks)
 		# this is here only so that a callback can capture output from some commands
 		# related to recombining files if we did parallel runs of the recompression
 		self._output = None
 
-	def listFiles(self, runner):
-		return(AbstractDump.listFiles(self,runner, unnumbered = True))
+	def listOutputFiles(self, runner):
+		files = []
+		for x in self._variants(runner):
+			files.append(self._variantFile(x))
+		return files 
+
+	def listInputFiles(self, runner):
+		return(AbstractDump.listOutputFiles(self,runner))
 
 	def run(self, runner):
 		error = 0
 		if (self._chunks):
-			files = AbstractDump.listFiles(self,runner)
-			outputFileList = self.listFiles(runner)
+			files = AbstractDump.listOutputFiles(self,runner)
+			outputFileList = self.listOutputFiles(runner)
 			for outputFile in outputFileList:
 				inputFiles = []
 				for inFile in files:
@@ -2354,11 +2484,11 @@ class TitleDump(Dump):
 		if (error):
 			raise BackupError("error dumping titles list")
 
-	def listFiles(self, runner):
+	def listOutputFiles(self, runner):
 		return ["all-titles-in-ns0.gz"]
 
 
-def findAndLockNextWiki(config):
+def findAndLockNextWiki(config, locksEnabled):
 	if config.halt:
 		print "Dump process halted by config."
 		return None
@@ -2371,12 +2501,16 @@ def findAndLockNextWiki(config):
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
 		try:
-			wiki.lock()
+			if (locksEnabled):
+				wiki.lock()
 			return wiki
 		except:
 			print "Couldn't lock %s, someone else must have got it..." % db
 			continue
 	return None
+
+def xmlEscape(text):
+	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 
 def usage(message = None):
 	if message:
@@ -2425,10 +2559,11 @@ if __name__ == "__main__":
 		log = None
 		htmlNotice = ""
 		dryrun = False
+		chunkToDo = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log'])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log', 'chunk=' ])
 		except:
 			usage("Unknown option specified")
 
@@ -2437,6 +2572,8 @@ if __name__ == "__main__":
 				date = val
 			elif opt == "--configfile":
 				configFile = val
+			elif opt == '--chunk':
+				chunkToDo = int(val)
 			elif opt == "--force":
 				forceLock = True
 			elif opt == "--noprefetch":
@@ -2455,7 +2592,7 @@ if __name__ == "__main__":
 				htmlNotice = val
 			elif opt == "--delnotice":
 				htmlNotice = False
-
+				
 		if dryrun and (len(remainder) == 0):
 			usage("--dryrun requires the name of a wikidb to be specified")
 		if jobRequested and (len(remainder) == 0):
@@ -2464,12 +2601,21 @@ if __name__ == "__main__":
 	       		usage("--force cannot be used with --job option")
 		if (restart and not jobRequested):
 			usage("--restartfrom requires --job and the job from which to restart")
+		if (chunkToDo and not jobRequested):
+			usage("--chunk option requires a specific job for which to rerun that chunk")
+		if (chunkToDo and restart):
+			usage("--chunk option can be specified only for one specific job")
 
 		# allow alternate config file
 		if (configFile):
 			config = WikiDump.Config(configFile)
 		else:
 			config = WikiDump.Config()
+
+		if dryrun or chunkToDo or (jobRequested and not restart):
+			locksEnabled = False
+		else:
+			locksEnabled = True
 
 		if dryrun:
 			print "***"
@@ -2478,22 +2624,20 @@ if __name__ == "__main__":
 
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
-			if not dryrun:
-				# if we are doing one piece only of the dump, we don't try to grab a lock
-				# unless told to. 
+			if locksEnabled:
 				if forceLock and wiki.isLocked():
 					wiki.unlock()
-				if restart or not jobRequested:
+				if locksEnabled:
 					wiki.lock()
 
 		else:
-			wiki = findAndLockNextWiki(config)
+			wiki = findAndLockNextWiki(config, locksEnabled)
 
 		if wiki:
 			# process any per-project configuration options
 			config.parseConfFilePerProject(wiki.dbName)
 
-			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging)
+			runner = Runner(wiki, date, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
@@ -2502,9 +2646,8 @@ if __name__ == "__main__":
 				print "Running %s..." % wiki.dbName
 			runner.run()
 			# if we are doing one piece only of the dump, we don't unlock either
-			if not dryrun:
-				if restart or not jobRequested:
-					wiki.unlock()
+			if locksEnabled:
+				wiki.unlock()
 		else:
 			print "No wikis available to run."
 	finally:
