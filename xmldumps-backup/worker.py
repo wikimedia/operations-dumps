@@ -1,7 +1,7 @@
 # Worker process, does the actual dumping
 
 import getopt
-import md5
+import hashlib
 import os
 import popen2
 import re
@@ -760,7 +760,7 @@ class Checksummer(object):
 		return (self.dumpDir.publicPath(self.getChecksumFileNameBasename() + "." + self.timestamp + ".tmp"))
 
 	def _md5File(self, filename):
-		summer = md5.new()
+		summer = hashlib.md5()
 		infile = file(filename, "rb")
 		bufsize = 4192 * 32
 		buffer = infile.read(bufsize)
