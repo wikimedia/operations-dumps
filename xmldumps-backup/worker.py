@@ -1021,7 +1021,6 @@ class NoticeFile(object):
 		return os.path.join(self.wiki.publicDir(), self.date);
 
 class Runner(object):
-
 	def __init__(self, wiki, date=None, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
@@ -1029,17 +1028,22 @@ class Runner(object):
 		self.spawn = spawn
 		self.chunkInfo = Chunk(wiki, self.dbName, self.logAndPrint)
 		self.restart = restart
-		self.loggingEnabled = loggingEnabled
 		self.htmlNoticeFile = None
 		self.log = None
 		self.dryrun = dryrun
 		self._chunkToDo = chunkToDo
+
+		self._loggingEnabled = loggingEnabled
 		self._statusEnabled = True
 		self._checksummerEnabled = True
 		self._runInfoFileEnabled = True
 		self._symLinksEnabled = True
 		self._feedsEnabled = True
 		self._noticeFileEnabled = True
+		self._makeDirEnabled = True
+		self._cleanOldDumpsEnabled = True
+		self._cleanupOldFilesEnabled = False
+		self._checkForTruncatedFilesEnabled = True
 
 		if self.dryrun or self._chunkToDo:
 			self._statusEnabled = False
@@ -1048,8 +1052,13 @@ class Runner(object):
 			self._symLinksEnabled = False
 			self._feedsEnabled = False
 			self._noticeFileEnabled = False
+			self._makeDirEnabled = False
+			self._cleanOldDumpsEnabled = False
+			self._cleanupOldFilesEnables = False
+
 		if self.dryrun:
-			self.loggingEnabled = False
+			self._loggingEnabled = False
+			self._checkForTruncatedFilesEnabled = False
 
 		if date:
 			# Override, continuing a past dump?
@@ -1065,7 +1074,7 @@ class Runner(object):
 		self.lastFailed = False
 
 		# these must come after the dumpdir setup so we know which directory we are in 
-		if (loggingEnabled):
+		if (self._loggingEnabled and self._makeDirEnabled):
 			self.logFileName = self.dumpDir.publicPath(self.wiki.config.logFile)
 			self.makeDir(join(self.wiki.publicDir(), self.date))
 			self.log = Logger(self.logFileName)
@@ -1088,7 +1097,7 @@ class Runner(object):
 			done = log.doJobOnLogQueue()
 		
 	def logAndPrint(self, message):
-		if hasattr(self,'log') and self.log and not self.dryrun:
+		if hasattr(self,'log') and self.log and self._loggingEnabled:
 			self.log.addToLogQueue("%s\n" % message)
 		print message
 
@@ -1098,9 +1107,8 @@ class Runner(object):
 		else:
 			return ""
 
-	def remove(self, filename):
-		if not self.dryrun:
-			os.remove(filename)
+	def removeFile(self, filename):
+		os.remove(filename)
 
 	# returns 0 on success, 1 on error
 	def saveTable(self, table, outfile):
@@ -1224,9 +1232,8 @@ class Runner(object):
 				# mark all the following jobs to run as well 
 				self.dumpItemList.markFollowingJobsToRun()
 
-		if not self.dryrun:
-			self.makeDir(join(self.wiki.publicDir(), self.date))
-			self.makeDir(join(self.wiki.privateDir(), self.date))
+		self.makeDir(join(self.wiki.publicDir(), self.date))
+		self.makeDir(join(self.wiki.privateDir(), self.date))
 
 		if (self.restart):
 			self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
@@ -1250,12 +1257,12 @@ class Runner(object):
 					except Exception, ex:
 						self.debug("*** exception! " + str(ex))
 						item.setStatus("failed")
-					if item.status() == "failed" and not self.dryrun and not self._chunkToDo:
+					if item.status() == "failed":
 						self.runHandleFailure()
 					else:
 						self.lastFailed = False
 				# this ensures that, previous run or new one, the old or new md5sums go to the file
-				if item.status() == "done" and not self.dryrun and not self._chunkToDo:
+				if item.status() == "done":
 					self.runUpdateItemFileInfo(item)
 
 			if (self.dumpItemList.allPossibleJobsDone()):
@@ -1263,10 +1270,9 @@ class Runner(object):
 			else:
 				self.status.updateStatusFiles("partialdone")
 			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-			if not self.dryrun and not self._chunkToDo:
-				# if any job succeeds we might as well make the sym link
-				if (self.status.failCount < 1):
-					self.completeDump()
+			# if any job succeeds we might as well make the sym link
+			if (self.status.failCount < 1):
+				self.completeDump()
 											
 			if (self.restart):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
@@ -1285,40 +1291,38 @@ class Runner(object):
 				except Exception, ex:
 					self.debug("*** exception! " + str(ex))
 					item.setStatus("failed")
-				if item.status() == "failed" and not self.dryrun and not self._chunkToDo:
+				if item.status() == "failed":
 					self.runHandleFailure()
 				else:
-					if not self.dryrun and not self._chunkToDo:
-						self.runUpdateItemFileInfo(item)
-						self.checksums.cpMd5TmpFileToPermFile()
+					self.runUpdateItemFileInfo(item)
+					self.checksums.cpMd5TmpFileToPermFile()
 					self.lastFailed = False
 
 			self.status.updateStatusFiles("done")
-			if not self.dryrun and not self._chunkToDo:
-				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-				if self.status.failCount < 1:
-					self.completeDump()
+			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+			if self.status.failCount < 1:
+				self.completeDump()
 											
 			self.showRunnerStateComplete()
 
 	def cleanOldDumps(self):
-		old = self.wiki.dumpDirs()
-		if old:
-			if old[-1] == self.date:
-				# If we're re-running today's (or jobs from a given day's) dump, don't count it as one
-				# of the old dumps to keep... or delete it halfway through!
-				old = old[:-1]
-			if self.wiki.config.keep > 0:
-				# Keep the last few
-				old = old[:-(self.wiki.config.keep)]
-		if old:
-			for dump in old:
-				self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
-				if not self.dryrun and not self._chunkToDo:
+		if self._cleanOldDumpsEnabled:
+			old = self.wiki.dumpDirs()
+			if old:
+				if old[-1] == self.date:
+					# If we're re-running today's (or jobs from a given day's) dump, don't count it as one
+					# of the old dumps to keep... or delete it halfway through!
+					old = old[:-1]
+				if self.wiki.config.keep > 0:
+					# Keep the last few
+					old = old[:-(self.wiki.config.keep)]
+			if old:
+				for dump in old:
+					self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
 					base = os.path.join(self.wiki.publicDir(), dump)
 					shutil.rmtree("%s" % base)
-		else:
-			self.showRunnerState("No old dumps to purge.")
+			else:
+				self.showRunnerState("No old dumps to purge.")
 
 	def showRunnerState(self, message):
 		self.debug(message)
@@ -1335,11 +1339,12 @@ class Runner(object):
 		self.symLinks.saveSymlink(self.checksums.getChecksumFileNameBasename())
 
 	def makeDir(self, dir):
-		if exists(dir):
-			self.debug("Checkdir dir %s ..." % dir)
-		else:
-			self.debug("Creating %s ..." % dir)
-			os.makedirs(dir)
+		if self._makeDirEnabled:
+			if exists(dir):
+				self.debug("Checkdir dir %s ..." % dir)
+			else:
+				self.debug("Creating %s ..." % dir)
+				os.makedirs(dir)
 
 class SymLinks(object):
 	def __init__(self, wiki, dumpDir, date, logfn, debugfn, enabled):
@@ -1351,11 +1356,12 @@ class SymLinks(object):
 		self.debugfn = debugfn
 
 	def makeDir(self, dir):
-		if exists(dir):
-			self.debugfn("Checkdir dir %s ..." % dir)
-		else:
-			self.debugfn("Creating %s ..." % dir)
-			os.makedirs(dir)
+		if (self._enabled):
+			if exists(dir):
+				self.debugfn("Checkdir dir %s ..." % dir)
+			else:
+				self.debugfn("Creating %s ..." % dir)
+				os.makedirs(dir)
 
 	def saveSymlink(self, file):
 		if (self._enabled):
@@ -1376,7 +1382,7 @@ class SymLinks(object):
 					# no file or it's older than ours... *then* remove the link
 					if not exists(os.path.realpath(link)) or dateinterval > 0:
 						self.debug("Removing old symlink %s" % link)
-						os.remove(link)
+						runner.removeFile(link)
 				else:
 					self.logfn("What the hell dude, %s is not a symlink" % link)
 					raise BackupError("What the hell dude, %s is not a symlink" % link)
@@ -1395,29 +1401,30 @@ class Feeds(object):
 		self._enabled = enabled
 
 	def makeDir(self, dir):
-		if exists(dir):
-			self.debugfn("Checkdir dir %s ..." % dir)
-		else:
-			self.debugfn("Creating %s ..." % dir)
-			os.makedirs(dir)
+		if (self._enabled):
+			if exists(dir):
+				self.debugfn("Checkdir dir %s ..." % dir)
+			else:
+				self.debugfn("Creating %s ..." % dir)
+				os.makedirs(dir)
 
 	def saveFeed(self, file):
-		self.makeDir(join(self.wiki.publicDir(), 'latest'))
-		filePath = self.dumpDir.webPath(file)
-		fileName = os.path.basename(filePath)
-		webPath = os.path.dirname(filePath)
-		rssText = self.wiki.config.readTemplate("feed.xml") % {
-			"chantitle": file,
-			"chanlink": webPath,
-			"chandesc": "Wikimedia dump updates for %s" % self.dbName,
-			"title": webPath,
-			"link": webPath,
-			"description": xmlEscape("<a href=\"%s\">%s</a>" % (filePath, fileName)),
-			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
-		directory = self.dumpDir.latestDir()
-		rssPath = self.dumpDir.latestPath(file + "-rss.xml")
-		FileUtils.writeFile(directory, rssPath, rssText, self.wiki.config.fileperms)
-
+		if (self._enabled):
+			self.makeDir(join(self.wiki.publicDir(), 'latest'))
+			filePath = self.dumpDir.webPath(file)
+			fileName = os.path.basename(filePath)
+			webPath = os.path.dirname(filePath)
+			rssText = self.wiki.config.readTemplate("feed.xml") % {
+				"chantitle": file,
+				"chanlink": webPath,
+				"chandesc": "Wikimedia dump updates for %s" % self.dbName,
+				"title": webPath,
+				"link": webPath,
+				"description": xmlEscape("<a href=\"%s\">%s</a>" % (filePath, fileName)),
+				"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
+			directory = self.dumpDir.latestDir()
+			rssPath = self.dumpDir.latestPath(file + "-rss.xml")
+			FileUtils.writeFile(directory, rssPath, rssText, self.wiki.config.fileperms)
 
 class Dump(object):
 	def __init__(self, name, desc):
@@ -1565,9 +1572,10 @@ class Dump(object):
 		return(recombineCommandString)
 
 	def cleanupOldFiles(self, runner, outputFileBasename):
-		outputFilename = self.buildOutputFilename(runner, outputFileBasename)
-		if exists(outputFilename):
-			runner.remove(outputFilename)
+		if (runner._cleanupOldFilesEnabled):
+			outputFilename = self.buildOutputFilename(runner, outputFileBasename)
+			if exists(outputFilename):
+				runner.removeFile(outputFilename)
 
 	def buildOutputFilename(self, runner, outputFileBasename):
 		return outputFilename
@@ -1685,10 +1693,11 @@ class XmlStub(Dump):
 		return(series)
 
 	def cleanupOldFiles(self, runner, chunk = 0):
-		fileList = self.buildOutputFilenames(runner, chunk)
-		for filename in fileList:
-			 if exists(filename):
-				runner.remove(filename)
+		if (runner._cleanupOldFilesEnabled):
+			fileList = self.buildOutputFilenames(runner, chunk)
+			for filename in fileList:
+				if exists(filename):
+					runner.removeFile(filename)
 
 	def buildHistoryOutputFilename(self, runner, chunk = 0):
 		if (chunk):
@@ -1801,9 +1810,10 @@ class XmlLogging(Dump):
 		return ["pages-logging.xml.gz"]
 
 	def cleanupOldFiles(self, runner):
-		logging = self.buildOutputFilename(runner)
-		if exists(logging):
-			runner.remove(logging)
+		if (runner._cleanupOldFilesEnabled):
+			logging = self.buildOutputFilename(runner)
+			if exists(logging):
+				runner.removeFile(logging)
 
 	def buildOutputFilename(self, runner):
 		logging = runner.dumpDir.publicPath("pages-logging.xml.gz")
@@ -1869,32 +1879,38 @@ class XmlDump(Dump):
 			commands.append(series)
 		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
 
-		if (not exists( runner.wiki.config.checkforbz2footer ) ):
-			raise BackupError("checkforbz2footer command %s not found" % runner.wiki.config.checkforbz2footer);
-		checkforbz2footer = "%s" % runner.wiki.config.checkforbz2footer
-		if exists(checkforbz2footer):
-			# check to see if any of the output files are truncated
-			files = []
-			if (self._chunks):
-				if (self._chunkToDo):
-					if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
-						raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
-					files.append( self._path(runner, 'bz2', self._chunkToDo ) )
-				else:
-					for i in range(1, len(self._chunks)+1):
-						files.append( self._path(runner, 'bz2', i ) )
+		truncationError = self.checkForTruncatedFiles(runner)
 
-			for f in files:
-				pipeline = []
-				pipeline.append([ checkforbz2footer, f ])
-				p = CommandPipeline(pipeline, quiet=True)
-				p.runPipelineAndGetOutput()
-				if not p.exitedSuccessfully():
-					runner.logAndPrint("file %s is truncated, moving out of the way" %f )
-					os.rename( f,  f + ".truncated" )
-					error = 1
-		if (error):
+		if (error or truncationError):
 			raise BackupError("error producing xml bz2 file(s) %s" % self._subset)
+
+	def checkForTruncatedFiles(self, runner):
+		if runner._checkForTruncatedFilesEnabled:
+			if (not exists( runner.wiki.config.checkforbz2footer ) ):
+				raise BackupError("checkforbz2footer command %s not found" % runner.wiki.config.checkforbz2footer);
+			checkforbz2footer = "%s" % runner.wiki.config.checkforbz2footer
+			if exists(checkforbz2footer):
+				# check to see if any of the output files are truncated
+				files = []
+				if (self._chunks):
+					if (self._chunkToDo):
+						if (self._chunkToDo < 1 or self._chunkToDo > len(self._chunks)):
+							raise BackupError("chunk option must be in range of available chunks to rerun, 1 through %s\n" % str(len(self._chunks)))
+						files.append( self._path(runner, 'bz2', self._chunkToDo ) )
+					else:
+						for i in range(1, len(self._chunks)+1):
+							files.append( self._path(runner, 'bz2', i ) )
+
+				for f in files:
+					pipeline = []
+					pipeline.append([ checkforbz2footer, f ])
+					p = CommandPipeline(pipeline, quiet=True)
+					p.runPipelineAndGetOutput()
+					if not p.exitedSuccessfully():
+						runner.logAndPrint("file %s is truncated, moving out of the way" %f )
+						os.renameFile( f,  f + ".truncated" )
+						return 1
+		return 0
 
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
@@ -2216,9 +2232,10 @@ class XmlRecompressDump(Dump):
 		return(commandSeries)
 
 	def cleanupOldFiles(self, runner, chunk = 0):
-		xml7z = self.buildOutputFilename(runner, chunk)
-		if exists(xml7z):
-			runner.remove(xml7z)
+		if (runner._cleanupOldFilesEnabled):
+			xml7z = self.buildOutputFilename(runner, chunk)
+			if exists(xml7z):
+				runner.removeFile(xml7z)
 
 	def run(self, runner):
 		if runner.lastFailed:
@@ -2297,11 +2314,12 @@ class RecombineXmlRecompressDump(XmlRecompressDump):
 		return [ self._file("7z",0) ]
 
 	def cleanupOldFiles(self, runner):
-		files = self.listOutputFiles(runner)
-		for filename in files:
-			filename = runner.dumpDir.publicPath(filename)
-			if exists(filename):
-				runner.remove(filename)
+		if (runner._cleanupOldFilesEnabled):
+			files = self.listOutputFiles(runner)
+			for filename in files:
+				filename = runner.dumpDir.publicPath(filename)
+				if exists(filename):
+					runner.removeFile(filename)
 
 	def run(self, runner):
 		error = 0
