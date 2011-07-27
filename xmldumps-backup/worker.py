@@ -1908,7 +1908,7 @@ class XmlDump(Dump):
 					p.runPipelineAndGetOutput()
 					if not p.exitedSuccessfully():
 						runner.logAndPrint("file %s is truncated, moving out of the way" %f )
-						os.renameFile( f,  f + ".truncated" )
+						os.rename( f,  f + ".truncated" )
 						return 1
 		return 0
 
