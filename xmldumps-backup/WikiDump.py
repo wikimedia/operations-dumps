@@ -20,7 +20,9 @@ class FileUtils(object):
 		return os.fdopen(fd, mode)
 
 	def writeFile(dirname, filename, text, perms = 0):
-		"""Write text to a file, as atomically as possible, via a temporary file in the same directory."""
+		"""Write text to a file, as atomically as possible, via a temporary file in a specified directory.
+		Arguments: dirname = where temp file is created, filename = full path to actual file, text = contents
+		to write to file, perms = permissions that the file will have after creation"""
 		
 		(fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
 		os.write(fd,text)
@@ -30,6 +32,19 @@ class FileUtils(object):
 		# This may fail across filesystems or on Windows.
 		# Of course nothing else will work on Windows. ;)
 		os.rename(tempFilename, filename)
+
+	def writeFileInPlace(filename, text, perms = 0):
+		"""Write text to a file, after opening it for write with truncation.
+		This assumes that only one process or thread accesses the given file at a time.
+		Arguments: filename = full path to actual file, text = contents
+		to write to file, perms = permissions that the file will have after creation,
+		if it did not exist already"""
+		
+		file = open(filename, "wt")
+		file.write(text)
+		file.close()
+		if (perms):
+			os.chmod(filename,perms)
 
 	def readFile(filename):
 		"""Read text from a file in one fell swoop."""
@@ -75,6 +90,7 @@ class FileUtils(object):
 	fileAge = staticmethod(fileAge)
 	atomicCreate = staticmethod(atomicCreate)
 	writeFile = staticmethod(writeFile)
+	writeFileInPlace = staticmethod(writeFileInPlace)
 	readFile = staticmethod(readFile)
 	splitPath = staticmethod(splitPath)
 	relativePath = staticmethod(relativePath)
@@ -140,7 +156,6 @@ class Config(object):
 			#"wiki": {
 			"dblist": "",
 			"privatelist": "",
-			"biglist": "",
 			"flaggedrevslist": "",
 #			"dir": "",
 			"forcenormal": "0",
@@ -149,6 +164,7 @@ class Config(object):
 			#"output": {
 			"public": "/dumps/public",
 			"private": "/dumps/private",
+			"temp":"/dumps/temp",
 			"webroot": "http://localhost/dumps",
 			"index": "index.html",
 			"templatedir": home,
@@ -194,6 +210,9 @@ class Config(object):
 			"pagesPerChunkAbstract" : False,
 			# whether or not to recombine the history pieces
 			"recombineHistory" : "1",
+			# do we write out checkpoint files at regular intervals? (article/metacurrent/metahistory
+			# dumps only.)
+			"checkpointTime" : "0",
 			}
 		self.conf = ConfigParser.SafeConfigParser(defaults)
 		self.conf.read(self.files)
@@ -213,7 +232,6 @@ class Config(object):
 		self.dbList = MiscUtils.dbList(self.conf.get("wiki", "dblist"))
 		self.skipDbList = MiscUtils.dbList(self.conf.get("wiki", "skipdblist"))
 		self.privateList = MiscUtils.dbList(self.conf.get("wiki", "privatelist"))
-		self.bigList = MiscUtils.dbList(self.conf.get("wiki", "biglist"))
 		self.flaggedRevsList = MiscUtils.dbList(self.conf.get("wiki", "flaggedrevslist"))
 		self.wikiDir = self.conf.get("wiki", "dir")
 		self.forceNormal = self.conf.getint("wiki", "forceNormal")
@@ -225,6 +243,7 @@ class Config(object):
 			self.conf.add_section('output')
 		self.publicDir = self.conf.get("output", "public")
 		self.privateDir = self.conf.get("output", "private")
+		self.tempDir = self.conf.get("output", "temp")
 		self.webRoot = self.conf.get("output", "webroot")
 		self.index = self.conf.get("output", "index")
 		self.templateDir = self.conf.get("output", "templateDir")
@@ -279,6 +298,7 @@ class Config(object):
 		self.revsPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","revsPerChunkHistory",0)
 		self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkAbstract",0)
 		self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks","recombineHistory",1)
+		self.checkpointTime = self.getOptionForProjectOrDefault(conf, "chunks","checkpointTime",1)
 
 	def getOptionForProjectOrDefault(self, conf, sectionName, itemName, isInt):
 		if (conf.has_section(self.projectName)):
@@ -366,9 +386,6 @@ class Wiki(object):
 	def isPrivate(self):
 		return self.dbName in self.config.privateList
 	
-	def isBig(self):
-		return self.dbName in self.config.bigList
-
 	def hasFlaggedRevs(self):
 		return self.dbName in self.config.flaggedRevsList
 	
@@ -395,7 +412,7 @@ class Wiki(object):
 	
 	def privateDir(self):
 		return os.path.join(self.config.privateDir, self.dbName)
-	
+
 	def webDir(self):
 		return "/".join((self.config.webRoot, self.dbName))
 	
@@ -437,7 +454,7 @@ class Wiki(object):
 	def writePerDumpIndex(self, html):
 		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
-		FileUtils.writeFile(directory, index, html, self.config.fileperms)
+		FileUtils.writeFileInPlace(index, html, self.config.fileperms)
 	
 	def existsPerDumpIndex(self):
 		index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
@@ -446,7 +463,7 @@ class Wiki(object):
 	def writeStatus(self, message):
 		directory = os.path.join(self.publicDir(), self.date)
 		index = os.path.join(self.publicDir(), self.date, "status.html")
-		FileUtils.writeFile(directory, index, message, self.config.fileperms)
+		FileUtils.writeFileInPlace(index, message, self.config.fileperms)
 	
 	def statusLine(self):
 		date = self.latestDump()
