@@ -9,6 +9,7 @@ import signal
 import Queue
 import thread
 import fcntl
+import threading
 
 from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
@@ -380,6 +381,98 @@ class CommandSeries(object):
 			if (self.allCommandsCompleted() and not len(self._processesToPoll)):
 				break
 
+class ProcessMonitor(threading.Thread):
+	def __init__(self, timeout, queue, outputQueue, defaultCallbackInterval,
+		     callbackStderr, callbackStdout, callbackTimed,
+		     callbackStderrArg, callbackStdoutArg, callbackTimedArg):
+		threading.Thread.__init__(self)
+		self.timeout = timeout
+		self.queue = queue
+		self.outputQueue = outputQueue
+		self._defaultCallbackInterval = defaultCallbackInterval
+		self._callbackStderr = callbackStderr
+		self._callbackStdout = callbackStdout
+		self._callbackTimed = callbackTimed
+		self._callbackStderrArg = callbackStderrArg
+		self._callbackStdoutArg = callbackStdoutArg
+		self._callbackTimedArg = callbackTimedArg
+
+	# one of these as a thread to monitor each command series.
+	def run(self):
+		series = self.queue.get()
+		while series.processProducingOutput():
+			p = series.processProducingOutput()
+			poller = select.poll()
+			poller.register(p.stderr,select.POLLIN|select.POLLPRI)
+			fderr = p.stderr.fileno()
+			flerr = fcntl.fcntl(fderr, fcntl.F_GETFL)
+			fcntl.fcntl(fderr, fcntl.F_SETFL, flerr | os.O_NONBLOCK)
+			if (p.stdout):
+				poller.register(p.stdout,select.POLLIN|select.POLLPRI)
+				fdToStream = { p.stdout.fileno(): p.stdout, p.stderr.fileno(): p.stderr }
+				fdout = p.stdout.fileno()
+				flout = fcntl.fcntl(fdout, fcntl.F_GETFL)
+				fcntl.fcntl(fdout, fcntl.F_SETFL, flout | os.O_NONBLOCK)
+			else:
+				fdToStream = { p.stderr.fileno(): p.stderr }
+
+			commandCompleted = False
+
+			waited = 0
+			while not commandCompleted:
+				waiting = poller.poll(self.timeout)
+				if (waiting):
+					for (fd,event) in waiting:
+						series.inProgressPipeline().setPollState(event)
+						if series.inProgressPipeline().checkPollReadyForRead():
+							out = os.read(fd,1024)
+							if out:
+								if fd == p.stderr.fileno():
+									self.outputQueue.put(OutputQueueItem(OutputQueueItem.getStderrChannel(),out))
+								elif fd == p.stdout.fileno():
+									self.outputQueue.put(OutputQueueItem(OutputQueueItem.getStdoutChannel(),out))
+							else:
+								# possible eof? what would cause this?
+								pass
+						elif series.inProgressPipeline().checkForPollErrors():
+							poller.unregister(fd)
+							# FIXME if it closed prematurely and then runs for hours to completion
+							# we will get no updates here...
+							p.wait()
+							# FIXME put the returncode someplace?
+							print "returned from %s with %s" % (p.pid, p.returncode)
+							commandCompleted = True
+
+				waited = waited + self.timeout
+				if waited > self._defaultCallbackInterval and self._callbackTimed:
+					if (self._callbackTimedArg):
+						self._callbackTimed(self._callbackTimedArg)
+					else:
+						self._callbackTimed()
+					waited = 0
+
+			# run next command in series, if any
+			series.continueCommands()
+
+		# completed the whole series. time to go home.
+		self.queue.task_done()
+
+class OutputQueueItem(object):
+	def __init__(self, channel, contents):
+		self.channel = channel
+		self.contents = contents
+		self.stdoutChannel = OutputQueueItem.getStdoutChannel()
+		self.stderrChannel = OutputQueueItem.getStderrChannel()
+
+	def getStdoutChannel():
+		return 1
+
+	def getStderrChannel():
+		return 2
+
+	getStdoutChannel = staticmethod(getStdoutChannel)
+	getStderrChannel = staticmethod(getStderrChannel)
+
 class CommandsInParallel(object):
 	"""Run a pile of commandSeries in parallel ( e.g. dump articles 1 to 100K, 
 	dump articles 100K+1 to 200K, ...).  This takes as arguments: a list of series 
@@ -406,6 +499,8 @@ class CommandsInParallel(object):
 		self._callbackStdoutArg = callbackStdoutArg
 		self._callbackTimedArg = callbackTimedArg
 		self._commandSeriesQueue = Queue.Queue()
+		self._outputQueue = Queue.Queue()
+		self._normalThreadCount = threading.activeCount()
 
 		# number millisecs we will wait for select.poll()
 		self._defaultPollTime = 500
@@ -418,83 +513,11 @@ class CommandsInParallel(object):
 		for series in self._commandSerieses:
 			series.startCommands()
 
-	# one of these as a thread to monitor each command series.
-	def seriesMonitor(self, timeout, queue):
-		series = queue.get()
-		while series.processProducingOutput():
-			p = series.processProducingOutput()
-			poller = select.poll()
-			poller.register(p.stderr,select.POLLIN|select.POLLPRI)
-			fderr = p.stderr.fileno()
-			flerr = fcntl.fcntl(fderr, fcntl.F_GETFL)
-			fcntl.fcntl(fderr, fcntl.F_SETFL, flerr | os.O_NONBLOCK)
-			if (p.stdout):
-				poller.register(p.stdout,select.POLLIN|select.POLLPRI)
-				fdToStream = { p.stdout.fileno(): p.stdout, p.stderr.fileno(): p.stderr }
-				fdout = p.stdout.fileno()
-				flout = fcntl.fcntl(fdout, fcntl.F_GETFL)
-				fcntl.fcntl(fdout, fcntl.F_SETFL, flout | os.O_NONBLOCK)
-			else:
-				fdToStream = { p.stderr.fileno(): p.stderr }
-
-			commandCompleted = False
-
-			waited = 0
-			while not commandCompleted:
-				waiting = poller.poll(self._defaultPollTime)
-				if (waiting):
-					for (fd,event) in waiting:
-						series.inProgressPipeline().setPollState(event)
-						if series.inProgressPipeline().checkPollReadyForRead():
-							out = os.read(fd,1024)
-							if out:
-								if fd == p.stderr.fileno():
-									if self._callbackStderr:
-										if (self._callbackStderrArg):
-											self._callbackStderr(self._callbackStderrArg, out)
-										else:
-											self._callbackStderr(out)
-									else:
-										sys.stderr.write(out)   
-								elif fd == p.stdout.fileno():
-									if self._callbackStdout:
-										if (self._callbackStdoutArg):
-											self._callbackStdout(self._callbackStdoutArg, out)
-										else:
-											self._callbackStdout(out)
-									else:
-										sys.stderr.write(out)   
-							else:
-								# possible eof? what would cause this?
-								pass
-						elif series.inProgressPipeline().checkForPollErrors():
-							poller.unregister(fd)
-							# FIXME if it closed prematurely and then runs for hours to completion
-							# we will get no updates here...
-							p.wait()
-							# FIXME put the returncode someplace?
-							print "returned from %s with %s" % (p.pid, p.returncode)
-							commandCompleted = True
-
-				waited = waited + self._defaultPollTime
-				if waited > self._defaultCallbackInterval and self._callbackTimed:
-					if (self._callbackTimedArg):
-						self._callbackTimed(self._callbackTimedArg)
-					else:
-						self._callbackTimed()
-					waited = 0
-
-			# run next command in series, if any
-			series.continueCommands()
-
-		# completed the whole series. time to go home.
-		queue.task_done()
-
-
 	def setupOutputMonitoring(self):
 		for series in self._commandSerieses:
 			self._commandSeriesQueue.put(series)
-			thread.start_new_thread(self.seriesMonitor, (500, self._commandSeriesQueue))
+			t = ProcessMonitor(500, self._commandSeriesQueue, self._outputQueue, self._defaultCallbackInterval,self._callbackStderr,self._callbackStdout,self._callbackTimed,self._callbackStderrArg,self._callbackStdoutArg,self._callbackTimedArg)
+			t.start()
 
 	def allCommandsCompleted(self):
 		"""Check if all series have run to completion."""
@@ -517,10 +540,40 @@ class CommandsInParallel(object):
 				commands.extend(series.exitedWithErrors())
 		return(commands)
 
+	def watchOutputQueue(self):
+		done = False
+		while not done:
+			# check the number of threads active, if they are all gone we are done
+			if threading.activeCount() == self._normalThreadCount:
+				done = True
+			output = None
+			try:
+				output = self._outputQueue.get(True, 1)
+			except:
+				pass
+			if output:
+				if output.channel == OutputQueueItem.getStdoutChannel():
+					if self._callbackStdout:
+						if (self._callbackStdoutArg):
+							self._callbackStdout(self._callbackStdoutArg, output.contents)
+						else:
+							self._callbackStdout(output.contents)
+					else:
+						sys.stderr.write(output.contents) 
+				else: # output channel is stderr
+					if self._callbackStderr:
+						if (self._callbackStderrArg):
+							self._callbackStderr(self._callbackStderrArg, output.contents)
+						else:
+							self._callbackStderr(output.contents)
+					else:
+						sys.stderr.write(output.contents)   
+
 	def runCommands(self):
 		self.startCommands()
 		self.setupOutputMonitoring()
-		self._commandSeriesQueue.join()
+		self.watchOutputQueue()
+#		self._commandSeriesQueue.join()
 
 
 def testcallback(output = None):
@@ -558,5 +611,3 @@ if __name__ == "__main__":
 		print "w00t!"
 	else:
 		print "big bummer!"
-
-
