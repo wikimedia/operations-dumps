@@ -395,7 +395,7 @@ class RunInfoFile(object):
 		directory = self._getDumpRunInfoDirName()
 		dumpRunInfoFilename = self._getDumpRunInfoFileName()
 #		FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
-		FileUtils.writeFileInPlace(self.wiki.config.tempDir, dumpRunInfoFilename, text, self.wiki.config.fileperms)
+		FileUtils.writeFileInPlace(dumpRunInfoFilename, text, self.wiki.config.fileperms)
 
 	# format: name:%; updated:%; status:%
 	def _getStatusForJobFromRunInfoFileLine(self, line, jobName):
@@ -973,6 +973,29 @@ class DumpFilename(object):
 		"""Constructor.  Arguments: the full file name including the chunk, the extension, etc BUT NOT the dir name. """
 		self.filename = filename
 
+		self.dbName = None
+		self.date = None
+		self.dumpName = None
+
+		self.basename = None
+		self.fileExt = None
+		self.fileType = None
+
+		self.filePrefix = ""
+		self.filePrefixLength = 0
+
+		self.isChunkFile = False
+		self.chunk = None
+		self.chunkInt = 0
+
+		self.isCheckpointFile = False
+		self.checkpoint = None
+		self.firstPageID = None
+		self.lastPageID = None
+
+		self.isTempFile = False
+		self.temp = None
+
 		# example filenames:
 		# elwikidb-20110729-all-titles-in-ns0.gz
 		# elwikidb-20110729-abstract.xml
@@ -983,31 +1006,13 @@ class DumpFilename(object):
 		if self.filename.endswith("-tmp"):
 			self.isTempFile = True
 			self.temp = "-tmp"
-		else:
-			self.isTempFile = False
-			self.temp = None
 
 		if ('.' in self.filename):
 			(fileBase, self.fileExt) = self.filename.rsplit('.',1)
 			if (self.temp):
 				self.fileExt = self.fileExt[:-4];
 		else:
-			self.dbName = None
-			self.date = None
-			self.dumpName = None
-			self.filePrefix = ""
-			self.filePrefixLength = 0
-			self.isChunkFile = False
-			self.isCheckpointFile = False
-			self.checkpoint = None
-			self.firstPageID = None
-			self.lastPageID = None
-			self.isTempFile = False
-			self.fileExt = None
-			self.fileType = None
 			return False
-
-		# FIXME could have -tmp at the end, when do we look for that??
 
 		if not self.isExt(self.fileExt):
 			self.fileType = self.fileExt
@@ -1019,35 +1024,17 @@ class DumpFilename(object):
 
 		# some files are not of this form, we skip them
 		if not '-' in fileBase:
-			self.dbName = None
-			self.date = None
-			self.dumpName = None
-			self.filePrefix = ""
-			self.filePrefixLength = 0
-			self.isChunkFile = False
-			self.isCheckpointFile = False
-			self.checkpoint = None
-			self.firstPageID = None
-			self.lastPageID = None
-			self.isTempFile = False
-			self.temp = None
 			return False
 
 		(self.dbName, self.date, self.dumpName) = fileBase.split('-',2)
 		if not self.date or not self.dumpName:
-			self.dbName = None
-			self.date = None
 			self.dumpName = fileBase
-			self.filePrefix = ""
-			self.filePrefixLength = 0
 		else:
 			self.filePrefix = "%s-%s-" % (self.dbName, self.date)
 			self.filePrefixLength = len(self.filePrefix)
 
 		if self.filename.startswith(self.filePrefix):
 			self.basename = self.filename[self.filePrefixLength:]
-		else:
-			self.basename = None
 
 		self.checkpointPattern = "-p(?P<first>[0-9]+)p(?P<last>[0-9]+)\." + self.fileExt + "$"
 		self.compiledCheckpointPattern = re.compile(self.checkpointPattern)
@@ -1060,11 +1047,6 @@ class DumpFilename(object):
 			self.checkpoint = "p" + self.firstPageID + "p" + self.lastPageID
 			if self.fileType and self.fileType.endswith("-" + self.checkpoint):
 				self.fileType = self.fileType[:-1 * ( len(self.checkpoint) + 1 ) ]
-		else:
-			self.isCheckpointFile = False
-			self.checkpoint = None
-			self.firstPageID = None
-			self.lastPageID = None
 
 		self.chunkPattern = "(?P<chunk>[0-9]+)$"
 		self.compiledChunkPattern = re.compile(self.chunkPattern)
@@ -1075,10 +1057,6 @@ class DumpFilename(object):
 			self.chunkInt = int(self.chunk)
 			# the dumpName has the chunk in it so lose it
 			self.dumpName = self.dumpName.rstrip('0123456789')
-		else:
-			self.isChunkFile = False
-			self.chunk = None
-			self.chunkInt = 0
 
 		return True
 
