@@ -6,40 +6,45 @@ As of March 2007, the architecture has been split into two parts:
 
 === Worker ===
 
-Each dump machine runs a worker process which continuously generates dumps.
+Each dump machine runs a worker process, a shell script which continuously 
+calls a python script to generate a dump for the next available wiki.
 At each iteration, the set of wikis is ordered by last dump date, and the
 least-recently-touched wiki is selected.
 
-Workers are kept from stomping on each other by creating a lock file in
-the private dump directory. To aid in administration, the lock file contains
+There are two directory trees used by the dumps processes, one for public
+tables and files of public wikis, and one for private wikis or for private 
+tables and files (such as the user table) of public wikis.
+
+Workers (the python scripts) are kept from stomping on each other by creating 
+a lock file in the private dump directory for the specific wiki. The lock file contains
 the hostname and process ID of the worker process holding the lock.
 
 Lock files are touched every 10 seconds while the process runs, and removed
 at the end.
 
-On each iteration, the script and configuration are reloaded, so additions
-to the database list or dump code will be made available without manually
-restarting things.
-
+On each iteration, a new copy of the python script is run, which reads its
+configuration files from scratch, so additions to the database list files or 
+changes to the dupm script introduced during the middle of one dump will
+go into effect at the start of the next dump.
 
 === Monitor ===
 
-One master machine runs the monitor process, which periodically sweeps all
-wikis for their current status. This accomplishes two tasks:
+One server runs the monitor process, which periodically sweeps all
+public dump directories (one per wiki) for their current status. This accomplishes two tasks:
 
 * The index page is updated with a summary of dump states
-* Aborted dumps are detected and cleaned up
+* Aborted dumps are detected and cleaned up (how complete is this?)
 
 A lock file that has not been touched in some time is detected as stale,
 indicating that the worker process holding the lock has died. The status
 for that dump can then be updated from running to stopped, and the lock
-file is removed so that the wiki will get redumped later.
+file is removed so that the wiki will get dumped again later.
 
-
-== Code files ==
+== Code ==
 
 worker.py
-- Runs a dump for the least-recently dumped wiki in the stack.
+- Runs a dump for the least-recently dumped wiki in the stack, or the desired wiki
+  can be specified from the command line
 
 monitor.py
 - Generates the site-wide index summary and removes stale locks.
@@ -47,7 +52,16 @@ monitor.py
 WikiDump.py
 - Shared classes and functions
 
+CommandManagement.py
+- Classes for running multiple commands at the same time, used for running some phases
+  of the dumps in multiple pieces at the same time, for speed
 
+mwbzutils/
+- Library of utilities for working with bzip2 files, used for locating
+  an arbitrary XML page in a dump file, checking that the file was written
+  out completely without truncation, and other tools.  See the README in
+  the directory for more details.
+ 
 == Configuration ==
 
 Configuration is done with an INI-style configuration file wikidump.conf.
