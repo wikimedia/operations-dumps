@@ -395,7 +395,7 @@ class RunInfoFile(object):
 		directory = self._getDumpRunInfoDirName()
 		dumpRunInfoFilename = self._getDumpRunInfoFileName()
 #		FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
-		FileUtils.writeFile(self.wiki.config.tempDir, dumpRunInfoFilename, text, self.wiki.config.fileperms)
+		FileUtils.writeFileInPlace(self.wiki.config.tempDir, dumpRunInfoFilename, text, self.wiki.config.fileperms)
 
 	# format: name:%; updated:%; status:%
 	def _getStatusForJobFromRunInfoFileLine(self, line, jobName):
@@ -1646,7 +1646,7 @@ class Runner(object):
 				print "This means that the status information about the old run will be lost, and"
 				print "only the information about the current (and future) runs will be kept."
 				reply = raw_input("Continue anyways? [y/N]: ")
-				if (not reply in "y", "Y"):
+				if (not reply in [ "y", "Y" ]):
 					raise RuntimeError( "No run information available for previous dump, exiting" )
 			if (not self.wiki.existsPerDumpIndex()):
 				# AFAWK this is a new run (not updating or rerunning an old run), 
