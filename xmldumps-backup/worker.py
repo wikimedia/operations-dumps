@@ -2750,12 +2750,12 @@ class XmlDump(Dump):
 			prefetch = "--prefetch=%s" % (source)
 		else:
 			runner.showRunnerState("... building %s %s XML dump, no text prefetch..." % (self._subset, chunkinfo))
-			prefetch = None
+			prefetch = ""
 
 		if self._spawn:
 			spawn = "--spawn=%s" % (runner.wiki.config.php)
 		else:
-			spawn = None
+			spawn = ""
 
 		if (not exists( runner.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % runner.wiki.config.php)
@@ -2764,8 +2764,8 @@ class XmlDump(Dump):
 			checkpointTime = "--maxtime=%s" % (runner.wiki.config.checkpointTime)
 			checkpointFile = "--checkpointfile=%s" % outputFile.newFilename(outputFile.dumpName, outputFile.fileType, outputFile.fileExt, outputFile.date, outputFile.chunk, "p%sp%s", None)
 		else:
-			checkpointTime = None
-			checkpointFile = None
+			checkpointTime = ""
+			checkpointFile = ""
 		dumpCommand = [ "%s" % runner.wiki.config.php,
 				"-q", "%s/maintenance/dumpTextPass.php" % runner.wiki.config.wikiDir,
 				"--wiki=%s" % runner.dbName,
@@ -2777,6 +2777,7 @@ class XmlDump(Dump):
 				"--report=1000",
 				"%s" % spawn ]
 	
+		dumpCommand = filter(None, dumpCommand) 
 		command = dumpCommand
 		filters = self.buildFilters(runner, outputFile)
 		eta = self.buildEta(runner)
