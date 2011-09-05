@@ -1831,7 +1831,7 @@ class SymLinks(object):
 				link = os.path.join(latestDir,f)
 				if os.path.islink(link):
 					realfile = os.readlink(link)
-					if not exists(realfile):
+					if not exists(os.path.join(latestDir,realfile)):
 						os.remove(link)
 
 class Feeds(object):
