@@ -505,6 +505,7 @@ class DumpItemList(object):
 			if (self._singleJob[-5:] == 'table' or 
 			    self._singleJob[-9:] == 'recombine' or 
 			    self._singleJob == 'noop' or 
+			    self._singleJob == 'latestlinks' or 
 			    self._singleJob == 'xmlpagelogsdump' or
 			    self._singleJob == 'pagetitlesdump' or
 			    self._singleJob.endswith('recombine')):
@@ -514,6 +515,7 @@ class DumpItemList(object):
 			if (self._singleJob[-5:] == 'table' or 
 			    self._singleJob[-9:] == 'recombine' or 
 			    self._singleJob == 'noop' or 
+			    self._singleJob == 'latestlinks' or 
 			    self._singleJob == 'xmlpagelogsdump' or
 			    self._singleJob == 'pagetitlesdump' or
 			    self._singleJob == 'abstractsdump' or
@@ -651,11 +653,12 @@ class DumpItemList(object):
 				if (item.name() == job):
 					item.setToBeRun(True)
 					return True
-		if job == "noop":
+		if job == "noop" or job == "latestlinks":
 			return True
 		print "No job of the name specified exists. Choose one of the following:"
-		print "noop (runs no job but rewrites md5sums file and resets latest links"
-		print "tables (includes all items below that end in 'table'"
+		print "noop (runs no job but rewrites md5sums file and resets latest links)"
+		print "latestlinks (runs no job but resets latest links)"
+		print "tables (includes all items below that end in 'table')"
 		for item in self.dumpItems:
 			print "%s " % item.name()
 	        return False
@@ -1518,6 +1521,22 @@ class Runner(object):
 			self._cleanupOldFilesEnabled = False
 
 		self.jobRequested = job
+
+		if self.jobRequested == "latestlinks":
+			self._statusEnabled = False
+			self._checksummerEnabled = False
+			self._runInfoFileEnabled = False
+			self._noticeFileEnabled = False
+			self._makeDirEnabled = False
+			self._cleanOldDumpsEnabled = False
+			self._cleanupOldFilesEnabled = False
+			self._checkForTruncatedFilesEnabled = False
+
+		if self.jobRequested == "noop":
+			self._cleanOldDumpsEnabled = False
+			self._cleanupOldFilesEnabled = False
+			self._checkForTruncatedFilesEnabled = False
+				
 		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.logAndPrint)
 		self.dumpDir = DumpDir(self.wiki, self.dbName)
 
@@ -1877,7 +1896,7 @@ class Feeds(object):
 			for f in files:
 				if f.endswith("-rss.xml"):
 					filename = f[:-8];
-					link = os.path.join(latestDir,filename)
+					link = os.path.join(latestDir,f)
 					if not exists(link):
 						os.remove(os.path.join(latestDir,f))
 
