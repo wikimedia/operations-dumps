@@ -1822,7 +1822,8 @@ class SymLinks(object):
 		if (self._enabled):
 			self.makeDir(self.dumpDir.latestDir())
 			realfile = self.dumpDir.filenamePublicPath(dumpFile)
-			link = os.path.join(self.dumpDir.latestDir(), dumpFile.filename)
+			latestFilename = dumpFile.newFilename(dumpFile.dumpName, dumpFile.fileType, dumpFile.fileExt, 'latest', dumpFile.chunk, dumpFile.checkpoint, dumpFile.temp)
+			link = os.path.join(self.dumpDir.latestDir(), latestFilename)
 			if exists(link) or os.path.islink(link):
 				if os.path.islink(link):
 					realfile = os.readlink(link)
