@@ -1792,6 +1792,35 @@ class Runner(object):
 		dumpFile = DumpFilename(self.wiki, None, self.checksums.getChecksumFileNameBasename())
 		self.symLinks.saveSymlink(dumpFile)
 		self.symLinks.cleanupSymLinks()
+
+		for item in self.dumpItemList.dumpItems:
+			dumpNames = item.getDumpName()
+			if type(dumpNames).__name__!='list':
+				dumpNames = [ dumpNames ]
+
+			if (item._chunksEnabled):
+				# if there is a specific chunk, we want to only clear out
+				# old files for that piece, because new files for the other
+				# pieces may not have been generated yet.
+				chunk = item._chunkToDo
+			else:
+				chunk = None
+
+			checkpoint = None
+			if (item._checkpointsEnabled):
+				if (item.checkpointFile):
+					# if there's a specific checkpoint file we are
+					# rerunning, we would only clear out old copies
+					# of that very file. meh. how likely is it that we 
+					# have one? these files are time based and the start/end pageids
+					# are going to fluctuate. whatever
+					cf = DumpFilename(self.wiki)
+					cf.newFromFilename(item.checkpointFile)
+					checkpoint = cf.checkpoint
+
+			for d in dumpNames:
+				self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint )
+
 		self.feeds.cleanupFeeds()
 
 	def makeDir(self, dir):
@@ -1826,10 +1855,15 @@ class SymLinks(object):
 			link = os.path.join(self.dumpDir.latestDir(), latestFilename)
 			if exists(link) or os.path.islink(link):
 				if os.path.islink(link):
-					realfile = os.readlink(link)
+					oldrealfile = os.readlink(link)
 					# format of these links should be...  ../20110228/elwikidb-20110228-templatelinks.sql.gz
 					rellinkpattern = re.compile('^\.\./(20[0-9]+)/')
-					dateinterval = int(self.wiki.date) - int(dumpFile.date)
+					dateinlink = rellinkpattern.search(oldrealfile)
+					if (dateinlink):
+						dateoflinkedfile = dateinlink.group(1)
+						dateinterval = int(self.wiki.date) - int(dateoflinkedfile)
+					else:
+						dateinterval = 0
 					# no file or it's older than ours... *then* remove the link
 					if not exists(os.path.realpath(link)) or dateinterval > 0:
 						self.debugfn("Removing old symlink %s" % link)
@@ -1852,6 +1886,34 @@ class SymLinks(object):
 				if os.path.islink(link):
 					realfile = os.readlink(link)
 					if not exists(os.path.join(latestDir,realfile)):
+						os.remove(link)
+
+	# if the args are False or None, we remove all the old links for all values of the arg.
+	# example: if chunk is False or None then we remove all old values for all chunks
+	# "old" means "older than the specified datestring".
+	def removeSymLinksFromOldRuns(self, dateString, dumpName=None, chunk=None, checkpoint=None):
+		# fixme this needs to do more work if there are chunks or checkpoint files linked in here from 
+		# earlier dates. checkpoint ranges change, and configuration of chunks changes too, so maybe
+		# old files still exist and the links need to be removed because we have newer files for the
+		# same phase of the dump.
+		if (self._enabled):
+			latestDir = self.dumpDir.latestDir()
+			files = os.listdir(latestDir)
+			for f in files:
+				link = os.path.join(latestDir,f)
+				if os.path.islink(link):
+					realfile = os.readlink(link)
+					fileObj = DumpFilename(self.dumpDir._wiki)
+					fileObj.newFromFilename(os.path.basename(realfile))
+					if fileObj.date < dateString:
+						# fixme check that these are ok if the value is None
+						if dumpName and (fileObj.dumpName != dumpName):
+							continue
+						if chunk and (fileObj.chunk != chunk):
+							continue
+						if checkpoint and (fileObj.checkpoint != checkpoint):
+							continue
+						self.debugfn("Removing old symlink %s -> %s" % (link, realfile))
 						os.remove(link)
 
 class Feeds(object):
@@ -1884,7 +1946,8 @@ class Feeds(object):
 				"description": xmlEscape("<a href=\"%s\">%s</a>" % (filenameAndPath, fileObj.filename)),
 				"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime()) }
 			directory = self.dumpDir.latestDir()
-			rssPath = os.path.join(self.dumpDir.latestDir(), fileObj.basename + "-rss.xml")
+			rssPath = os.path.join(self.dumpDir.latestDir(), self.dbName + "-latest-" + fileObj.basename + "-rss.xml")
+			self.debugfn( "adding rss feed file %s " % rssPath )
 			FileUtils.writeFile(self.wiki.config.tempDir, rssPath, rssText, self.wiki.config.fileperms)
 
 	def cleanupFeeds(self):
@@ -1896,9 +1959,10 @@ class Feeds(object):
 			files = os.listdir(latestDir)
 			for f in files:
 				if f.endswith("-rss.xml"):
-					filename = f[:-8];
-					link = os.path.join(latestDir,f)
+					filename = f[:-8]
+					link = os.path.join(latestDir,filename)
 					if not exists(link):
+						self.debugfn("Removing old rss feed %s for link %s" % (os.path.join(latestDir,f), link))
 						os.remove(os.path.join(latestDir,f))
 
 class Dump(object):
@@ -1919,6 +1983,8 @@ class Dump(object):
 			self._checkpointsEnabled = False
 		if not hasattr(self, 'checkpointFile'):
 			self.checkpointFile = False
+		if not hasattr(self, '_chunkToDo'):
+			self._chunkToDo = False
 
 	def name(self):
 		return self.runInfo.name()
@@ -1996,7 +2062,6 @@ class Dump(object):
 				runner.log.addToLogQueue(line)
 			sys.stderr.write(line)
 		self.progress = line.strip()
-		# FIXME test this a lot!! does the updateStatus work?
 		runner.status.updateStatusFiles()
 		runner.runInfoFile.saveDumpRunInfoFile(runner.dumpItemList.reportDumpRunInfo())
 
@@ -2392,7 +2457,6 @@ class Dump(object):
 			files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
 			files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
 		else:
-			# fixme this should be a list
 			# we will pass list of chunks or chunkToDo, or False, depending on the job setup.
 			files.extend(self.listRegularFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
 		return files
@@ -2532,7 +2596,6 @@ class XmlStub(Dump):
 		return files
 
 	def listOutputFilesForCleanup(self, dumpDir):
-		# fixme should this pass a list instead of one item? 
 		dumpNames =  self.listDumpNames()
 		files = []
 		files.extend(Dump.listOutputFilesForCleanup(self, dumpDir, dumpNames))
@@ -2549,7 +2612,6 @@ class XmlStub(Dump):
 		if (not exists( runner.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-		# fixme we have a list of all the files for all three dumpNames, we want to split them up by dumpName. oops.
 		articlesFile = runner.dumpDir.filenamePublicPath(f)
 		historyFile = runner.dumpDir.filenamePublicPath(DumpFilename(runner.wiki, f.date, self.historyDumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint, f.temp))
 		currentFile = runner.dumpDir.filenamePublicPath(DumpFilename(runner.wiki, f.date, self.currentDumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint, f.temp))
@@ -2724,7 +2786,6 @@ class XmlDump(Dump):
 		self.cleanupOldFiles(runner.dumpDir)
 		# just get the files pertaining to our dumpName, which is *one* of articles, pages-current, pages-history.
 		# stubs include all of them together.
-		# FIXME this needs some other jobname here. uuuggghhh and how would this job know what that is? bah
 		if not self.dumpName.startswith(self.getDumpNameBase()):
 			raise BackupError("dumpName %s of unknown form for this job" % self.dumpName)
 		dumpName = self.dumpName[len(self.getDumpNameBase()):]
@@ -2822,7 +2883,6 @@ class XmlDump(Dump):
 
 		if (self.checkpointFile):
 			outputFile = f
-			print "outputFile is ", outputFile.filename
 		elif (self._checkpointsEnabled):
 			# we write a temp file, it will be checkpointed every so often.
 			outputFile = DumpFilename(self.wiki, f.date, self.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, temp = True)
@@ -2935,11 +2995,10 @@ class XmlDump(Dump):
 		        for fileObj in fileList:
 				firstPageIdInFile = int(fileObj.firstPageID)
 
-				# fixme what do we do here? this could be very expensive. is that
-				# worth it??
+				# fixme what do we do here? this could be very expensive. is that worth it??
 				if not fileObj.lastPageID:
 					# (b) nasty hack, see (a)
-					# it's not a chekcpoint fle or we'd have the pageid in the filename
+					# it's not a checkpoint fle or we'd have the pageid in the filename
 					# so... temporary hack which will give expensive results
 					# if chunk file, and it's the last chunk, put none
 					# if it's not the last chunk, get the first pageid in the next chunk and subtract 1
@@ -3184,7 +3243,6 @@ class XmlRecompressDump(Dump):
 			files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
 			files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
 		else:
-			# fixme this should be a list
 			# we will pass list of chunks or chunkToDo, or False, depending on the job setup.
 			files.extend(self.listRegularFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
 		return files
@@ -3264,7 +3322,6 @@ class AbstractDump(Dump):
 		return "xml"
 
 	def getFileExt(self):
-		# fixme no file extension, see what this means for everything
 		return ""
 
         def buildCommand(self, runner, f):
@@ -3396,7 +3453,6 @@ class RecombineAbstractDump(Dump):
 
 	def run(self, runner):
 		error = 0
-		# FIXME check this code
 		files = self.itemForRecombine.listOutputFilesForInput(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir)
 		for outputFile in outputFileList:
