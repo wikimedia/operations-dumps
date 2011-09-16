@@ -609,7 +609,7 @@ class DumpItemList(object):
 					  "metahistory7zdump",
 					  "All pages with complete edit history (.7z)",
 					  "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-					  "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistorybz2dump'), self.wiki, self._getChunkToDo("metahistory7zdump"), self.chunkInfo.getPagesPerChunkHistory(), self.checkpointFile))
+					  "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistorybz2dump'), self.wiki, self._getChunkToDo("metahistory7zdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile))
 		if (self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory()):
 			self.dumpItems.append(
 				RecombineXmlRecompressDump("metahistory7zdumprecombine",
@@ -1814,9 +1814,7 @@ class Runner(object):
 					# of that very file. meh. how likely is it that we 
 					# have one? these files are time based and the start/end pageids
 					# are going to fluctuate. whatever
-					cf = DumpFilename(self.wiki)
-					cf.newFromFilename(item.checkpointFile)
-					checkpoint = cf.checkpoint
+					checkpoint = item.checkpointFile.checkpoint
 
 			for d in dumpNames:
 				self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint )
@@ -3135,7 +3133,7 @@ class BigXmlDump(XmlDump):
 class XmlRecompressDump(Dump):
 	"""Take a .bz2 and recompress it as 7-Zip."""
 
-	def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks = False, checkpoints = False):
+	def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None):
 		self._subset = subset
 		self._detail = detail
 		self._chunks = chunks
@@ -3146,6 +3144,7 @@ class XmlRecompressDump(Dump):
 		self.itemForRecompression = itemForRecompression
 		if checkpoints:
 			self._checkpointsEnabled = True
+		self.checkpointFile = checkpointFile
 		Dump.__init__(self, name, desc)
 
 	def getDumpName(self):
@@ -3182,7 +3181,11 @@ class XmlRecompressDump(Dump):
 		commands = []
 		# Remove prior 7zip attempts; 7zip will try to append to an existing archive
 		self.cleanupOldFiles(runner.dumpDir)
-		if self._chunksEnabled and not self._chunkToDo:
+		if self.checkpointFile:
+			outputFile = DumpFilename(self.wiki, None, self.checkpointFile.dumpName, self.checkpointFile.fileType, self.fileExt, self.checkpointFile.chunk, self.checkpointFile.checkpoint) 
+			series = self.buildCommand(runner, [ outputFile ])
+			commands.append(series)
+		elif self._chunksEnabled and not self._chunkToDo:
 			# must set up each parallel job separately, they may have checkpoint files that
 			# need to be processed in series, it's a special case
 			for i in range(1, len(self._chunks)+1):
