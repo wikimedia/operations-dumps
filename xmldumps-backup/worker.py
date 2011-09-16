@@ -485,7 +485,7 @@ class RunInfo(object):
 		self._toBeRun = toBeRun
 
 class DumpItemList(object):
-	def __init__(self, wiki, prefetch, spawn, chunkToDo, checkpointFile, singleJob, chunkInfo, runInfoFile, dumpDir):
+	def __init__(self, wiki, prefetch, spawn, chunkToDo, checkpointFile, singleJob, chunkInfo, pageIDRange, runInfoFile, dumpDir):
 		self.wiki = wiki
 		self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
 		self._prefetch = prefetch
@@ -496,6 +496,8 @@ class DumpItemList(object):
 		self._singleJob = singleJob
 		self._runInfoFile = runInfoFile
 		self.dumpDir = dumpDir
+		self.pageIDRange = pageIDRange
+
 		if self.wiki.config.checkpointTime:
 			checkpoints = True
 		else:
@@ -570,7 +572,7 @@ class DumpItemList(object):
 			XmlDump("articles",
 				"articlesdump",
 				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
-				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("articlesdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile))
+				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("articlesdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
 		if (self.chunkInfo.chunksEnabled()):
 			self.dumpItems.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, image descriptions, and primary meta-pages.</b></big>","This contains current versions of article content, and is the archive most mirror sites will probably want.",  self.findItemByName('articlesdump')))
 		
@@ -578,7 +580,7 @@ class DumpItemList(object):
 			XmlDump("meta-current",
 				"metacurrentdump",
 				"All pages, current versions only.",
-				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("metacurrentdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile))
+				"Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("metacurrentdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
 			
 		if (self.chunkInfo.chunksEnabled()):
 			self.dumpItems.append(RecombineXmlDump("metacurrentdumprecombine", "Recombine all pages, current versions only.","Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.findItemByName('metacurrentdump')))
@@ -597,7 +599,7 @@ class DumpItemList(object):
 				   "metahistorybz2dump",
 				   "All pages with complete page edit history (.bz2)",
 				   "These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-				   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("metahistorybz2dump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile))
+				   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("metahistorybz2dump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
 		if (self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory()):
 			self.dumpItems.append(
 				RecombineXmlDump("metahistorybz2dumprecombine",
@@ -1470,7 +1472,7 @@ class NoticeFile(object):
 		return os.path.join(self.wiki.publicDir(), self.wiki.date)
 
 class Runner(object):
-	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None):
+	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
@@ -1482,8 +1484,9 @@ class Runner(object):
 		self.dryrun = dryrun
 		self._chunkToDo = chunkToDo
 		self.checkpointFile = None
+		self.pageIDRange = pageIDRange
 
-		if (checkpointFile):
+		if (self.checkpointFile):
 			f = DumpFilename(self.wiki)
 			f.newFromFilename(checkpointFile)
 			# we should get chunk if any
@@ -1518,6 +1521,27 @@ class Runner(object):
 		if self.dryrun:
 			self._loggingEnabled = False
 			self._checkForTruncatedFilesEnabled = False
+			self._cleanupOldFilesEnabled = False
+
+		if self.checkpointFile:
+			self._statusEnabled = False
+			self._checksummerEnabled = False
+			self._runInfoFileEnabled = False
+			self._symLinksEnabled = False
+			self._feedsEnabled = False
+			self._noticeFileEnabled = False
+			self._makeDirEnabled = False
+			self._cleanOldDumpsEnabled = False
+
+		if self.pageIDRange:
+			self._statusEnabled = False
+			self._checksummerEnabled = False
+			self._runInfoFileEnabled = False
+			self._symLinksEnabled = False
+			self._feedsEnabled = False
+			self._noticeFileEnabled = False
+			self._makeDirEnabled = False
+			self._cleanOldDumpsEnabled = False
 			self._cleanupOldFilesEnabled = False
 
 		self.jobRequested = job
@@ -1557,7 +1581,7 @@ class Runner(object):
 		self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled)
 
 		# some or all of these dumpItems will be marked to run
-		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.chunkInfo, self.runInfoFile, self.dumpDir)
+		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.chunkInfo, self.pageIDRange, self.runInfoFile, self.dumpDir)
 		self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, self.htmlNoticeFile, self.logAndPrint)
 
 	def logQueueReader(self,log):
@@ -1705,11 +1729,11 @@ class Runner(object):
 					item.start(self)
 					self.status.updateStatusFiles()
 					self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-#					try:
-					item.dump(self)
-#					except Exception, ex:
-#						self.debug("*** exception! " + str(ex))
-#						item.setStatus("failed")
+					try:
+						item.dump(self)
+					except Exception, ex:
+						self.debug("*** exception! " + str(ex))
+						item.setStatus("failed")
 					if item.status() == "failed":
 						self.runHandleFailure()
 					else:
@@ -1739,11 +1763,11 @@ class Runner(object):
 				item.start(self)
 				self.status.updateStatusFiles()
 				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-#				try:
-				item.dump(self)
-#				except Exception, ex:
-#					self.debug("*** exception! " + str(ex))
-#					item.setStatus("failed")
+				try:
+					item.dump(self)
+				except Exception, ex:
+					self.debug("*** exception! " + str(ex))
+					item.setStatus("failed")
 				if item.status() == "failed":
 					self.runHandleFailure()
 				else:
@@ -2041,11 +2065,11 @@ class Dump(object):
 				      
 	def dump(self, runner):
 		"""Attempt to run the operation, updating progress/status info."""
-#		try:
-		self.run(runner)
-#		except Exception, ex:
-#			self.setStatus("failed")
-#			raise ex
+		try:
+			self.run(runner)
+		except Exception, ex:
+			self.setStatus("failed")
+			raise ex
 		self.setStatus("done")
 
 	def run(self, runner):
@@ -2668,6 +2692,12 @@ class RecombineXmlStub(Dump):
 	def listDumpNames(self):
 		return self.itemForXmlStubs.listDumpNames()
 
+	def listOutputFilesToPublish(self, dumpDir):
+		dumpNames =  self.listDumpNames()
+		files = []
+		files.extend(Dump.listOutputFilesToPublish(self, dumpDir, dumpNames))
+		return files
+
 	def getFileType(self):
 		return self.itemForXmlStubs.getFileType()
 
@@ -2744,7 +2774,7 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, name, desc, detail, itemForStubs,  prefetch, spawn, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None):
+	def __init__(self, subset, name, desc, detail, itemForStubs,  prefetch, spawn, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None, pageIDRange = None):
 		self._subset = subset
 		self._detail = detail
 		self._desc = desc
@@ -2764,6 +2794,7 @@ class XmlDump(Dump):
 		if self.checkpointFile:
 			# we don't checkpoint the checkpoint file.
 			self._checkpointsEnabled = False
+		self.pageIDRange = pageIDRange
 
 		Dump.__init__(self, name, desc)
 
@@ -2802,6 +2833,8 @@ class XmlDump(Dump):
 				raise BackupError("Trouble finding stub files for xml dump run")
 
 		if self.checkpointFile:
+			# fixme this should be an input file, not the output checkpoint file. move
+			# the code out of buildCommand that does the conversion and put it here.
 			series = self.buildCommand(runner, self.checkpointFile)
 			commands.append(series)
 		else:
@@ -2868,7 +2901,11 @@ class XmlDump(Dump):
 			command2 =  "%s > %s" % (self.wiki.config.bzip2, outputFilePath ) 
 		else:
 			raise BackupError("unknown stub file extension %s" % inputFile.fileExt)
-		command = [ command1 + ( "| %s %s %s |" % (self.wiki.config.writeuptopageid, startPageID, endPageID) ) + command2 ]
+		if (endPageID):
+			command = [ command1 + ( "| %s %s %s |" % (self.wiki.config.writeuptopageid, startPageID, endPageID) ) + command2 ]
+		else:
+			# no lastpageid? read up to eof of the specific stub file that's used for input
+			command = [ command1 + ( "| %s %s |" % (self.wiki.config.writeuptopageid, startPageID) ) + command2 ]
 
 		pipeline = [ command ]
 		series = [ pipeline ]
@@ -2890,7 +2927,7 @@ class XmlDump(Dump):
 
 		# Page and revision data pulled from this skeleton dump...
 		# FIXME we need the stream wrappers for proper use of writeupto. this is a hack.
-		if (self.checkpointFile):
+		if (self.checkpointFile or self.pageIDRange):
 			# fixme I now have this code in a couple places, make it a function.
 			if not self.dumpName.startswith(self.getDumpNameBase()):
 				raise BackupError("dumpName %s of unknown form for this job" % self.dumpName)
@@ -2900,6 +2937,7 @@ class XmlDump(Dump):
 				if s.endswith(dumpName):
 					stubDumpName = s
 
+		if (self.checkpointFile):
 			stubInputFilename = self.checkpointFile.newFilename(stubDumpName, self.itemForStubs.getFileType(), self.itemForStubs.getFileExt(), self.checkpointFile.date, self.checkpointFile.chunk)
 			stubInputFile = DumpFilename(self.wiki)
 			stubInputFile.newFromFilename(stubInputFilename)
@@ -2907,6 +2945,22 @@ class XmlDump(Dump):
 			stubOutputFile = DumpFilename(self.wiki)
 			stubOutputFile.newFromFilename(stubOutputFilename)
 			self.writePartialStub(stubInputFile, stubOutputFile, self.checkpointFile.firstPageID, str(int(self.checkpointFile.lastPageID) + 1))
+			stubOption = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir, stubOutputFile.filename)
+		elif (self.pageIDRange):
+			# two cases. redoing a specific chunk, OR no chunks, redoing the whole output file. ouch, hope it isn't huge.
+			if (self._chunkToDo or not self._chunksEnabled):
+				stubInputFile = f
+
+			stubOutputFilename = stubInputFile.newFilename(stubDumpName, self.itemForStubs.getFileType(), self.itemForStubs.getFileExt(), stubInputFile.date, stubInputFile.chunk, stubInputFile.checkpoint)
+			stubOutputFile = DumpFilename(self.wiki)
+			stubOutputFile.newFromFilename(stubOutputFilename)
+			if (',' in self.pageIDRange):
+				( firstPageID, lastPageID ) = self.pageIDRange.split(',',2)
+			else:
+				firstPageID = self.pageIDRange
+				lastPageID = None
+			self.writePartialStub(stubInputFile, stubOutputFile, firstPageID, lastPageID)
+
 			stubOption = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir, stubOutputFile.filename)
 		else:
 			stubOption = "--stub=gzip:%s" % runner.dumpDir.filenamePublicPath(f)
@@ -3594,10 +3648,11 @@ if __name__ == "__main__":
 		dryrun = False
 		chunkToDo = False
 		checkpointFile = None
+		pageIDRange = None
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log', 'chunk=', 'checkpoint=' ])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log', 'chunk=', 'checkpoint=', 'pageidrange=' ])
 		except:
 			usage("Unknown option specified")
 
@@ -3628,7 +3683,9 @@ if __name__ == "__main__":
 				htmlNotice = val
 			elif opt == "--delnotice":
 				htmlNotice = False
-				
+			elif opt == "--pageidrange":
+				pageIDRange = val
+
 		if dryrun and (len(remainder) == 0):
 			usage("--dryrun requires the name of a wikidb to be specified")
 		if jobRequested and (len(remainder) == 0):
@@ -3644,7 +3701,11 @@ if __name__ == "__main__":
 		if checkpointFile and (len(remainder) == 0):
 			usage("--checkpoint option requires the name of a wikidb to be specified")
 		if checkpointFile and not jobRequested:
-			usage("--chekcpoint option requires --job and the job from which to restart")
+			usage("--checkpoint option requires --job and the job from which to restart")
+		if pageIDRange and not jobRequested:
+			usage("--pageidrange option requires --job and the job from which to restart")
+		if pageIDRange and checkpointFile:
+			usage("--pageidrange option cannot be used with --checkpoint option")
 
 		# allow alternate config file
 		if (configFile):
@@ -3681,7 +3742,7 @@ if __name__ == "__main__":
 				date = TimeUtils.today()
 			wiki.setDate(date)
 
-			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile)
+			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
