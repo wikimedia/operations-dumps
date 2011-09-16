@@ -11,11 +11,12 @@ typedef enum { None, StartHeader, StartPage, AtPageID, WriteMem, Write, EndPage,
 #define MAXHEADERLEN 524289
 
 void usage(char *me) {
-  fprintf(stderr,"Usage: %s startPageID endPageID\n",me);
+  fprintf(stderr,"Usage: %s startPageID [endPageID]\n",me);
   fprintf(stderr,"Copies the contents of an XML file starting with and including startPageID\n");
   fprintf(stderr,"and up to but not including endPageID. This program is used in processing XML\n");
   fprintf(stderr,"dump files that were only partially written, as well as in writing partial\n");
   fprintf(stderr,"stub files for reruns of those dump files.\n");
+  fprintf(stderr,"If endPageID is ommitted, all pages starting from startPageID will be copied.\n");
 }
 
 /* note that even if we have only read a partial line
@@ -38,7 +39,7 @@ States setState (char *line, States currentState, int startPageID, int endPageID
   else if (currentState == StartPage && (!strncmp(line, "<id>", 4))) {
     /* dig the id out, format is <id>num</id> */
     pageID = atoi(line+4);
-    if (pageID >= endPageID) {
+    if (endPageID && (pageID >= endPageID)) {
       return(AtLastPageID);
     }
     else if (pageID >= startPageID) {
@@ -118,7 +119,7 @@ int main(int argc,char **argv) {
      length of time. */
   char mem[MAXHEADERLEN];
 
-  if (argc != 3) {
+  if (argc < 2 || argc > 3) {
     usage(argv[0]);
     exit(-1);
   }
@@ -133,16 +134,18 @@ int main(int argc,char **argv) {
     usage(argv[0]);
     exit(-1);
   }
-  endPageID = strtol(argv[2], &nonNumeric, 10);
-  if (endPageID == 0 || 
-      *nonNumeric != 0 ||
-      nonNumeric == (char *) &endPageID || 
-      errno != 0) {
-    fprintf (stderr,"The value you entered for endPageID must be a positive integer.\n");
-    usage(argv[0]);
-    exit(-1);
+  if (argc == 3) {
+    endPageID = strtol(argv[2], &nonNumeric, 10);
+    if (endPageID == 0 || 
+	*nonNumeric != 0 ||
+	nonNumeric == (char *) &endPageID || 
+	errno != 0) {
+      fprintf (stderr,"The value you entered for endPageID must be a positive integer.\n");
+      usage(argv[0]);
+      exit(-1);
+    }
   }
-
+  
   while (fgets(line, sizeof(line)-1, stdin) != NULL) {
     text=line;
     while (*text && isspace(*text))
