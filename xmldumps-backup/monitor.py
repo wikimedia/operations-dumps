@@ -41,7 +41,11 @@ def generateIndex():
 	
 def updateIndex():
 	outputFileName = os.path.join(config.publicDir, config.index)
-	WikiDump.dumpFile(outputFileName, generateIndex())
+	tempFilename = outputFileName + ".tmp"
+	file = open(tempFilename, "wt")
+	file.write(generateIndex())
+	file.close()
+	os.rename(tempFilename, outputFileName)
 
 if __name__ == "__main__":
 	updateIndex()
