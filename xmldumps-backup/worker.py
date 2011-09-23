@@ -154,6 +154,20 @@ class Chunk(object, ):
 				return 0
 			return chunks
 
+class MultiVersion(object):
+	def MWScriptAsString(config, maintenanceScript):
+		return(" ".join(MultiVersion.MWScriptAsArray(config, maintenanceScript)))
+
+	def MWScriptAsArray(config, maintenanceScript):
+		MWScriptLocation = os.path.join(config.wikiDir,"..","multiversion","MWScript.php")
+		if exists(MWScriptLocation):
+			return [ MWScriptLocation, maintenanceScript ]
+		else:
+			return [ "%s/maintenance/%s" % (config.wikiDir, maintenanceScript) ]
+
+	MWScriptAsString = staticmethod(MWScriptAsString)
+	MWScriptAsArray = staticmethod(MWScriptAsArray)
+
 class DbServerInfo(object):
 	def __init__(self, wiki, dbName, errorCallback = None):
 		self.wiki = wiki
@@ -165,8 +179,14 @@ class DbServerInfo(object):
 		# if this fails what do we do about it? Not a bleeping thing. *ugh* FIXME!!
 		if (not exists( self.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % self.wiki.config.php)
-		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % MiscUtils.shellEscape((
-			self.wiki.config.php, self.wiki.config.wikiDir, self.dbName))
+		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "getSlaveServer.php")
+#		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % MiscUtils.shellEscape((
+		for i in range(0,len(commandList)):
+			phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
+			dbName = MiscUtils.shellEscape(self.dbName)
+			commandList[i] = MiscUtils.shellEscape(commandList[i])
+			command = " ".join(commandList)
+			command = "%s -q %s --wiki=%s --group=dump" % (phpCommand, command, dbName)
 		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 
 	def selectDatabaseServer(self):
@@ -226,8 +246,14 @@ class DbServerInfo(object):
 		# FIXME later full path
 		if (not exists( self.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % self.wiki.config.php)
-		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % MiscUtils.shellEscape((
-			self.wiki.config.php, self.wiki.config.wikiDir, self.dbName))
+		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "eval.php")
+#		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % MiscUtils.shellEscape((
+		for i in range(0,len(commandList)):
+			phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
+			dbName = MiscUtils.shellEscape(self.dbName)
+			commandList[i] = MiscUtils.shellEscape(commandList[i])
+			command = " ".join(commandList)
+			command = "echo 'print $wgDBprefix; ' | %s -q %s --wiki=%s" % (phpCommand, command, dbName)
 		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 				      
 
@@ -2637,15 +2663,17 @@ class XmlStub(Dump):
 		articlesFile = runner.dumpDir.filenamePublicPath(f)
 		historyFile = runner.dumpDir.filenamePublicPath(DumpFilename(runner.wiki, f.date, self.historyDumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint, f.temp))
 		currentFile = runner.dumpDir.filenamePublicPath(DumpFilename(runner.wiki, f.date, self.currentDumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint, f.temp))
-		command = [ "%s" % runner.wiki.config.php,
-			    "-q", "%s/maintenance/dumpBackup.php" % runner.wiki.config.wikiDir,
-			    "--wiki=%s" % runner.dbName,
-			    "--full", "--stub", "--report=10000",
-			    "%s" % runner.forceNormalOption(),
-			    "--output=gzip:%s" % historyFile,
-			    "--output=gzip:%s" % currentFile,
-			    "--filter=latest", "--output=gzip:%s" % articlesFile,
-			    "--filter=latest", "--filter=notalk", "--filter=namespace:!NS_USER" ]
+		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
+		command = [ "%s" % runner.wiki.config.php, "-q" ]
+		command.extend(scriptCommand)
+		command.extend(["--wiki=%s" % runner.dbName,
+				"--full", "--stub", "--report=10000",
+				"%s" % runner.forceNormalOption(),
+				"--output=gzip:%s" % historyFile,
+				"--output=gzip:%s" % currentFile,
+				"--filter=latest", "--output=gzip:%s" % articlesFile,
+				"--filter=latest", "--filter=notalk", "--filter=namespace:!NS_USER"
+				])
 
 		if (f.chunk):
 			# set up start end end pageids for this piece
@@ -2760,12 +2788,13 @@ class XmlLogging(Dump):
 		logging = runner.dumpDir.filenamePublicPath(files[0])
 		if (not exists( runner.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % runner.wiki.config.php)
-		command = [ "%s" % runner.wiki.config.php,
-			    "-q",  "%s/maintenance/dumpBackup.php" % runner.wiki.config.wikiDir,
-			    "--wiki=%s" % runner.dbName,
+		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
+		command = [ "%s" % runner.wiki.config.php, "-q" ]
+		command.extend(scriptCommand)
+		command.extend(["--wiki=%s" % runner.dbName,
 			    "--logs", "--report=10000",
 			    "%s" % runner.forceNormalOption(),
-			    "--output=gzip:%s" % logging ]
+			    "--output=gzip:%s" % logging ])
 		pipeline = [ command ]
 		series = [ pipeline ]
 		error = runner.runCommand([ series ], callbackStderr=self.progressCallback, callbackStderrArg=runner)
@@ -2839,6 +2868,7 @@ class XmlDump(Dump):
 			commands.append(series)
 		else:
 			for f in inputFiles:
+				print "input file ", f.filename, "for buildcommand from xml dump"
 				# we should convert the input file to an output file I guess
 				# we write regular files
 				outputFile = DumpFilename(self.wiki, f.date, f.dumpName, f.fileType, self.fileExt)
@@ -3003,16 +3033,18 @@ class XmlDump(Dump):
 		else:
 			checkpointTime = ""
 			checkpointFile = ""
-		dumpCommand = [ "%s" % self.wiki.config.php,
-				"-q", "%s/maintenance/dumpTextPass.php" % self.wiki.config.wikiDir,
-				"--wiki=%s" % runner.dbName,
-				"%s" % stubOption,
-				"%s" % prefetch,
-				"%s" % runner.forceNormalOption(),
-				"%s" % checkpointTime,
-				"%s" % checkpointFile,
-				"--report=1000",
-				"%s" % spawn ]
+		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpTextPass.php")
+		dumpCommand = [ "%s" % self.wiki.config.php, "-q" ]
+		dumpCommand.extend(scriptCommand)
+		dumpCommand.extend(["--wiki=%s" % runner.dbName,
+				    "%s" % stubOption,
+				    "%s" % prefetch,
+				    "%s" % runner.forceNormalOption(),
+				    "%s" % checkpointTime,
+				    "%s" % checkpointFile,
+				    "--report=1000",
+				    "%s" % spawn 
+				    ])
 	
 		dumpCommand = filter(None, dumpCommand) 
 		command = dumpCommand
@@ -3384,12 +3416,13 @@ class AbstractDump(Dump):
         def buildCommand(self, runner, f):
 		if (not exists( runner.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % runner.wiki.config.php)
-		command = [ "%s" % runner.wiki.config.php,
-			    "-q", "%s/maintenance/dumpBackup.php" % runner.wiki.config.wikiDir,
-			    "--wiki=%s" % runner.dbName,
+		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
+		command = [ "%s" % runner.wiki.config.php, "-q" ]
+		command.extend(scriptCommand)
+		command.extend([ "--wiki=%s" % runner.dbName,
 			    "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.wiki.config.wikiDir,
 			    "--current", "--report=1000", "%s" % runner.forceNormalOption(),
-			    ]
+			    ])
 
 		for v in self._variants():
 			variantOption = self._variantOption(v)
