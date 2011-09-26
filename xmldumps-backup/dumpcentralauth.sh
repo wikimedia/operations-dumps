@@ -16,9 +16,13 @@ if [ -z "$wikiadmin" -o -z "$wikipass" -o -z "$private" -o -z "$mysqldump" -o -z
 	echo "exiting..."
 	exit 1
 fi
-dbcluster=`grep centralauth /apache/common/php/wmf-config/db.php | awk -F"'" ' { print $4 }'`
-wiki=`grep $dbcluster /apache/common/php/wmf-config/db.php | grep wiki | head -1 | awk -F"'" ' { print $2 }'`
-host=`echo 'echo wfGetLB()->getServerName(0);' | php /apache/common/php/maintenance/eval.php $wiki`
+if [ ! -f "/apache/common/wmf-config/db.php" ]; then
+	echo "failed to find db.php, exiting..."
+	exit 1
+fi
+dbcluster=`grep centralauth /apache/common/wmf-config/db.php | awk -F"'" ' { print $4 }'`
+wiki=`grep $dbcluster /apache/common/wmf-config/db.php | grep wiki | head -1 | awk -F"'" ' { print $2 }'`
+host=`echo 'echo wfGetLB()->getServerName(0);' | php /apache/common/multiversion/MWScript.php eval.php $wiki`
 if [ -z "$dbcluster" -o -z "$wiki" -o -z "$host" ]; then
 	echo "can't locate db server for centralauth, exiting."
 	exit 1
