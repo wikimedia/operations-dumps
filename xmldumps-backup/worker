@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# number of failures of worker.py in a row before we decide
+# something serious is broken and we refuse to run
+MAXFAILS=3
+failures=0
+
 WIKIDUMP_BASE=`dirname "$0"`
 
 if [ ! -z "$1" ]; then
@@ -7,7 +12,7 @@ if [ ! -z "$1" ]; then
 fi
 
 while true; do
-    if [ -e "maintenance.txt" ]; then
+    if [ -e "$WIKIDUMP_BASE/maintenance.txt" ]; then
 	echo "in maintenance mode, sleeping 5 minutes"
 	sleep 300
     else
@@ -15,6 +20,13 @@ while true; do
 	    python $WIKIDUMP_BASE/worker.py "--configfile" "$configFile"
 	else
 	    python $WIKIDUMP_BASE/worker.py
+	fi
+	if [ $? -ne 0 ]; then
+	    failures=$(($failures+1))
+	    if [ $failures -gt $MAXFAILS ]; then
+		echo "more than $MAXFAILS failures in a row, halting."
+		exit 1
+	    fi
 	fi
 	echo "sleeping"
 	sleep 30

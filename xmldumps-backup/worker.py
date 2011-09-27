@@ -1832,6 +1832,12 @@ class Runner(object):
 											
 			self.showRunnerStateComplete()
 
+		# let caller know if this was a successful run
+		if self.status.failCount > 0:
+			return False
+		else:
+			return True
+
 	def cleanOldDumps(self):
 		if self._cleanOldDumpsEnabled:
 			old = self.wiki.dumpDirs()
@@ -3706,6 +3712,7 @@ if __name__ == "__main__":
 		chunkToDo = False
 		checkpointFile = None
 		pageIDRange = None
+		result = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
@@ -3806,11 +3813,16 @@ if __name__ == "__main__":
 				print "Running %s, job %s..." % (wiki.dbName, jobRequested)
 			else:
 				print "Running %s..." % wiki.dbName
-			runner.run()
+			result = runner.run()
 			# if we are doing one piece only of the dump, we don't unlock either
 			if locksEnabled:
 				wiki.unlock()
 		else:
 			print "No wikis available to run."
+			result = True
 	finally:
 		WikiDump.cleanup()
+	if result == False:
+		sys.exit(1)
+	else:
+		sys.exit(0)
