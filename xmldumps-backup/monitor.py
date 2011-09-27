@@ -3,6 +3,8 @@
 import os
 import sys
 import WikiDump
+from os.path import exists
+from WikiDump import FileUtils
 
 # can specify name of alternate config file
 if (sys.argv[1]):
@@ -32,6 +34,8 @@ def generateIndex():
 	
 	if running:
 		status = "Dumps are in progress..."
+	elif exists("maintenance.txt"):
+		status = FileUtils.readFile("maintenance.txt")
 	else:
 		status = "Dump process is idle."
 	

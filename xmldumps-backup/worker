@@ -7,11 +7,16 @@ if [ ! -z "$1" ]; then
 fi
 
 while true; do
-    if [ ! -z "$configFile" ]; then
-	python $WIKIDUMP_BASE/worker.py "--configfile" "$configFile"
+    if [ -e "maintenance.txt" ]; then
+	echo "in maintenance mode, sleeping 5 minutes"
+	sleep 300
     else
-	python $WIKIDUMP_BASE/worker.py
+	if [ ! -z "$configFile" ]; then
+	    python $WIKIDUMP_BASE/worker.py "--configfile" "$configFile"
+	else
+	    python $WIKIDUMP_BASE/worker.py
+	fi
+	echo "sleeping"
+	sleep 30
     fi
-    echo "sleeping"
-    sleep 30
 done
