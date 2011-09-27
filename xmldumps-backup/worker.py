@@ -24,6 +24,26 @@ from subprocess import Popen, PIPE
 from WikiDump import FileUtils, MiscUtils, TimeUtils
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
 
+class Maintenance(object):
+
+	def inMaintenanceMode():
+		"""Use this to let callers know that we really should not
+		be running.  Callers should try to exit the job
+		they are running as soon as possible."""
+		return exists("maintenance.txt")
+
+	def exitIfInMaintenanceMode(message = None):
+		"""Call this from possible exit points of running jobs
+		in order to exit if we need to"""
+		if Maintenance.inMaintenanceMode():
+			if message:
+				raise BackupError(message)
+			else:
+				raise BackupError("In maintenance mode, exiting.")
+			
+	inMaintenanceMode = staticmethod(inMaintenanceMode)
+	exitIfInMaintenanceMode = staticmethod(exitIfInMaintenanceMode)
+	
 class Logger(object):
 
 	def __init__(self, logFileName=None):
@@ -1735,6 +1755,8 @@ class Runner(object):
 				# mark all the following jobs to run as well 
 				self.dumpItemList.markFollowingJobsToRun()
 
+		Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName )
+
 		self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
 		self.makeDir(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
@@ -1752,6 +1774,8 @@ class Runner(object):
 
 			for item in self.dumpItemList.dumpItems:
 				if (item.toBeRun()):
+					Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, self.jobRequested ) )
+
 					item.start(self)
 					self.status.updateStatusFiles()
 					self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
