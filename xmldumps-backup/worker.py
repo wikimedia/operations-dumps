@@ -179,14 +179,26 @@ class MultiVersion(object):
 		return(" ".join(MultiVersion.MWScriptAsArray(config, maintenanceScript)))
 
 	def MWScriptAsArray(config, maintenanceScript):
-		MWScriptLocation = os.path.join(config.wikiDir,"..","multiversion","MWScript.php")
+		MWScriptLocation = os.path.join(config.wikiDir,"multiversion","MWScript.php")
 		if exists(MWScriptLocation):
 			return [ MWScriptLocation, maintenanceScript ]
 		else:
 			return [ "%s/maintenance/%s" % (config.wikiDir, maintenanceScript) ]
 
+	def MWVersion(config, dbName):
+		getVersionLocation = os.path.join(config.wikiDir,"multiversion","getMWVersion")
+		if exists(getVersionLocation):
+			# run the command for the wiki and get the version
+			command =  getVersionLocation + " " +  dbName
+			version = RunSimpleCommand.runAndReturn(command)
+			if version:
+				version = version.rstrip()
+				return version
+		return None
+
 	MWScriptAsString = staticmethod(MWScriptAsString)
 	MWScriptAsArray = staticmethod(MWScriptAsArray)
+	MWVersion = staticmethod(MWVersion)
 
 class DbServerInfo(object):
 	def __init__(self, wiki, dbName, errorCallback = None):
@@ -200,7 +212,6 @@ class DbServerInfo(object):
 		if (not exists( self.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % self.wiki.config.php)
 		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "getSlaveServer.php")
-#		command = "%s -q %s/maintenance/getSlaveServer.php --wiki=%s --group=dump" % MiscUtils.shellEscape((
 		for i in range(0,len(commandList)):
 			phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
 			dbName = MiscUtils.shellEscape(self.dbName)
@@ -267,7 +278,6 @@ class DbServerInfo(object):
 		if (not exists( self.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % self.wiki.config.php)
 		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "eval.php")
-#		command = "echo 'print $wgDBprefix; ' | %s -q %s/maintenance/eval.php --wiki=%s" % MiscUtils.shellEscape((
 		for i in range(0,len(commandList)):
 			phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
 			dbName = MiscUtils.shellEscape(self.dbName)
@@ -891,11 +901,14 @@ class DumpDir(object):
 		if not date:
 			date = self._wiki.date
 		directory = os.path.join(self._wiki.publicDir(), date)
-		dirTimeStamp = os.stat(directory).st_mtime
-		if (not date in self._dirCache or dirTimeStamp > self._dirCacheTime[date]):
-			return True
+		if exists(directory):
+			dirTimeStamp = os.stat(directory).st_mtime
+			if (not date in self._dirCache or dirTimeStamp > self._dirCacheTime[date]):
+				return True
+			else:
+				return False
 		else:
-			return False
+			return True
 
 	# warning: date can also be "latest"
 	def getFilesInDir(self, date = None):
@@ -903,15 +916,18 @@ class DumpDir(object):
 			date = self._wiki.date
 		if (self.dirCacheOutdated(date)):
 			directory = os.path.join(self._wiki.publicDir(),date)
-			dirTimeStamp = os.stat(directory).st_mtime
-			files = os.listdir(directory)
-			fileObjs = []
-			for f in files:
-				fileObj = DumpFilename(self._wiki)
-				fileObj.newFromFilename(f)
-				fileObjs.append(fileObj)
-			self._dirCache[date] = fileObjs
-			self._dirCacheTime[date] = dirTimeStamp
+			if exists(directory):
+				dirTimeStamp = os.stat(directory).st_mtime
+				files = os.listdir(directory)
+				fileObjs = []
+				for f in files:
+					fileObj = DumpFilename(self._wiki)
+					fileObj.newFromFilename(f)
+					fileObjs.append(fileObj)
+				self._dirCache[date] = fileObjs
+				self._dirCacheTime[date] = dirTimeStamp
+			else:
+				self._dirCache[date] = []
 		return(self._dirCache[date])
 
 	# list all files that exist, filtering by the given args. 
@@ -1874,32 +1890,33 @@ class Runner(object):
 		self.symLinks.cleanupSymLinks()
 
 		for item in self.dumpItemList.dumpItems:
-			dumpNames = item.getDumpName()
-			if type(dumpNames).__name__!='list':
-				dumpNames = [ dumpNames ]
+			if (item.toBeRun()):
+				dumpNames = item.getDumpName()
+				if type(dumpNames).__name__!='list':
+					dumpNames = [ dumpNames ]
 
-			if (item._chunksEnabled):
-				# if there is a specific chunk, we want to only clear out
-				# old files for that piece, because new files for the other
-				# pieces may not have been generated yet.
-				chunk = item._chunkToDo
-			else:
-				chunk = None
+				if (item._chunksEnabled):
+					# if there is a specific chunk, we want to only clear out
+					# old files for that piece, because new files for the other
+					# pieces may not have been generated yet.
+					chunk = item._chunkToDo
+				else:
+					chunk = None
 
-			checkpoint = None
-			if (item._checkpointsEnabled):
-				if (item.checkpointFile):
-					# if there's a specific checkpoint file we are
-					# rerunning, we would only clear out old copies
-					# of that very file. meh. how likely is it that we 
-					# have one? these files are time based and the start/end pageids
-					# are going to fluctuate. whatever
-					checkpoint = item.checkpointFile.checkpoint
+				checkpoint = None
+				if (item._checkpointsEnabled):
+					if (item.checkpointFile):
+						# if there's a specific checkpoint file we are
+						# rerunning, we would only clear out old copies
+						# of that very file. meh. how likely is it that we 
+						# have one? these files are time based and the start/end pageids
+						# are going to fluctuate. whatever
+						checkpoint = item.checkpointFile.checkpoint
 
-			for d in dumpNames:
-				self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint )
+				for d in dumpNames:
+					self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint )
 
-		self.feeds.cleanupFeeds()
+				self.feeds.cleanupFeeds()
 
 	def makeDir(self, dir):
 		if self._makeDirEnabled:
@@ -1974,6 +1991,7 @@ class SymLinks(object):
 		# earlier dates. checkpoint ranges change, and configuration of chunks changes too, so maybe
 		# old files still exist and the links need to be removed because we have newer files for the
 		# same phase of the dump.
+
 		if (self._enabled):
 			latestDir = self.dumpDir.latestDir()
 			files = os.listdir(latestDir)
@@ -2854,7 +2872,6 @@ class XmlDump(Dump):
 			# we don't checkpoint the checkpoint file.
 			self._checkpointsEnabled = False
 		self.pageIDRange = pageIDRange
-
 		Dump.__init__(self, name, desc)
 
 	def getDumpNameBase(self):
@@ -2898,9 +2915,6 @@ class XmlDump(Dump):
 			commands.append(series)
 		else:
 			for f in inputFiles:
-				print "input file ", f.filename, "for buildcommand from xml dump"
-				# we should convert the input file to an output file I guess
-				# we write regular files
 				outputFile = DumpFilename(self.wiki, f.date, f.dumpName, f.fileType, self.fileExt)
 				series = self.buildCommand(runner, f)
 				commands.append(series)
@@ -3449,10 +3463,15 @@ class AbstractDump(Dump):
 		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
 		command = [ "%s" % runner.wiki.config.php, "-q" ]
 		command.extend(scriptCommand)
+		version = MultiVersion.MWVersion(runner.wiki.config, runner.dbName)
+		if version:
+			abstractFilterCommand = "--plugin=AbstractFilter:%s/%s/extensions/ActiveAbstract/AbstractFilter.php" % (runner.wiki.config.wikiDir, version)
+		else:
+			abstractFilterCommand = "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.wiki.config.wikiDir
 		command.extend([ "--wiki=%s" % runner.dbName,
-			    "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.wiki.config.wikiDir,
-			    "--current", "--report=1000", "%s" % runner.forceNormalOption(),
-			    ])
+				 abstractFilterCommand,
+				 "--current", "--report=1000", "%s" % runner.forceNormalOption(),
+				 ])
 
 		for v in self._variants():
 			variantOption = self._variantOption(v)
