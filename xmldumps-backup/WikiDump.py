@@ -87,6 +87,17 @@ class FileUtils(object):
 		else:
 			return FileUtils._prettySize(size / 1024.0, quanta[1:])
 
+	def fileInfo(path):
+		"""Return a tuple of date/time and size of a file, or None, None"""
+		try:
+			timestamp = time.gmtime(os.stat(path).st_mtime)
+			timestamp = time.strftime("%Y-%m-%d %H:%M:%S",timestamp)
+			size = os.path.getsize(path)
+			return (timestamp, size)
+		except:
+			raise
+			return(None, None)
+
 	fileAge = staticmethod(fileAge)
 	atomicCreate = staticmethod(atomicCreate)
 	writeFile = staticmethod(writeFile)
@@ -96,6 +107,7 @@ class FileUtils(object):
 	relativePath = staticmethod(relativePath)
 	prettySize = staticmethod(prettySize)
 	_prettySize = staticmethod(_prettySize)
+	fileInfo = staticmethod(fileInfo)
 
 class TimeUtils(object):
 
