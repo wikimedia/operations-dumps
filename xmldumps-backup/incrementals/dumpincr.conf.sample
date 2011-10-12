@@ -1,0 +1,32 @@
+# sample configuration file
+
+[wiki]
+mediawiki=/src/mediawiki/118wmf1/1.18wmf1
+allwikislist=/home/backups/incrementals/all.dblist
+privatewikislist=/home/backups/incrementals/private.dblist
+closedwikislist=/home/backups/incrementals/closed.dblist
+
+[output]
+incrementalsdir=/dumps/public/incr
+templatedir=/home/backups/incrementals
+temp=/dumps/temp
+webroot=http://localhost/mydumps
+fileperms=0644
+# minimum number of seconds from revision creation 
+# til it can be dumped
+delay=43200
+
+[database]
+user=dbuser
+password=leet
+
+[tools]
+php=/usr/bin/php
+mysql=/usr/bin/mysql
+gzip=/usr/bin/gzip
+bzip2=/usr/bin/bzip2
+checkforbz2footer=/usr/local/bin/checkforbz2footer
+writeuptopageid=/usr/local/bin/writeuptopageid
+
+[cleanup]
+keep=20
