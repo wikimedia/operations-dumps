@@ -9,6 +9,7 @@ from os.path import exists
 import socket
 import subprocess
 from subprocess import Popen, PIPE
+import shutil
 
 class ContentFile(object):
     def __init__(self, config, date, wikiName):
@@ -360,8 +361,8 @@ class IncDumpDirs(object):
         if old:
             if old[-1] == date:
                 old = old[:-1]
-                if self._config.keep > 0:
-                    old = old[:-(self._config.keep)]
+            if self._config.keep > 0:
+                old = old[:-(self._config.keep)]
             for dump in old:
                 toRemove = os.path.join(self.incrDir.getIncDirNoDate(self.wikiName), dump)
                 shutil.rmtree("%s" % toRemove)
