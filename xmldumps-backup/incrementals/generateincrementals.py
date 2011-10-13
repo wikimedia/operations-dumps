@@ -261,6 +261,7 @@ if __name__ == "__main__":
 
     if len(remainder) > 0:
         dump = IncrDump(config, date, remainder[0], doStubs, doRevs, dryrun, verbose)
+        dump.doOneWiki()
     else:
         dump = IncrDumpLoop(config, date, doStubs, doRevs, dryrun, verbose)
         dump.doAllWikisTilDone(3)
