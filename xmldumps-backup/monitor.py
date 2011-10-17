@@ -6,12 +6,6 @@ import WikiDump
 from os.path import exists
 from WikiDump import FileUtils
 
-# can specify name of alternate config file
-if (sys.argv[1]):
-	config = WikiDump.Config(sys.argv[1])
-else:
-	config = WikiDump.Config()
-
 def generateIndex():
 	running = False
 	states = []
@@ -52,4 +46,10 @@ def updateIndex():
 	os.rename(tempFilename, outputFileName)
 
 if __name__ == "__main__":
+	# can specify name of alternate config file
+	if (len(sys.argv) > 2):
+		config = WikiDump.Config(sys.argv[1])
+	else:
+		config = WikiDump.Config()
+
 	updateIndex()
