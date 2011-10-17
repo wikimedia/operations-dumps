@@ -47,7 +47,7 @@ def updateIndex():
 
 if __name__ == "__main__":
 	# can specify name of alternate config file
-	if (len(sys.argv) > 2):
+	if (len(sys.argv) >= 2):
 		config = WikiDump.Config(sys.argv[1])
 	else:
 		config = WikiDump.Config()
