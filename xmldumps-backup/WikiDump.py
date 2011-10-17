@@ -95,7 +95,6 @@ class FileUtils(object):
 			size = os.path.getsize(path)
 			return (timestamp, size)
 		except:
-			raise
 			return(None, None)
 
 	fileAge = staticmethod(fileAge)
@@ -429,6 +428,16 @@ class Wiki(object):
 
 	def webDir(self):
 		return "/".join((self.config.webRoot, self.dbName))
+
+	def webDirRelative(self):
+		webRootRelative = self.webDir()
+		i = webRootRelative.find("://")
+		if i >= 0:
+			  webRootRelative = webRootRelative[i:]
+		i = webRootRelative.find("/")
+		if i >= 0:
+			  webRootRelative = webRootRelative[i:]
+		return webRootRelative
 	
 	# Actions!
 	

@@ -897,6 +897,14 @@ class DumpDir(object):
 			dateString = self._wiki.date
 		return os.path.join(self._wiki.webDir(), dateString, dumpFile.filename)
 
+
+	def webPathRelative(self, dumpFile, dateString = None):
+		"""Given a DumpFilename object produce the url relative to the docroot for the filename for the date of
+		the dump for the selected database."""
+		if (not dateString):
+			dateString = self._wiki.date
+		return os.path.join(self._wiki.webDirRelative(), dateString, dumpFile.filename)
+
 	def dirCacheOutdated(self, date):
 		if not date:
 			date = self._wiki.date
@@ -1375,8 +1383,8 @@ class Status(object):
 		if itemStatus == "in-progress":
 			return "<li class='file'>%s %s (written) </li>" % (fileObj.filename, size)
 		elif itemStatus == "done":
-			webpath = self.dumpDir.webPath(fileObj)
-			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath, fileObj.filename, size)
+			webpathRelative = self.dumpDir.webPathRelative(fileObj)
+			return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpathRelative, fileObj.filename, size)
 		else:
 			return "<li class='missing'>%s</li>" % fileObj.filename
 
@@ -1423,7 +1431,7 @@ class Status(object):
 			"status": self._reportStatusSummaryLine(done),
 			"previous": self._reportPreviousDump(done),
 			"items": html,
-			"checksum": self.dumpDir.webPath(f),
+			"checksum": self.dumpDir.webPathRelative(f),
 			"index": self.wiki.config.index}
 
 	def _reportPreviousDump(self, done):
