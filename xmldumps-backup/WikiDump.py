@@ -427,16 +427,19 @@ class Wiki(object):
 		return os.path.join(self.config.privateDir, self.dbName)
 
 	def webDir(self):
-		return "/".join((self.config.webRoot, self.dbName))
+		webRoot = self.config.webRoot
+		if webRoot[-1] == '/':
+			webRoot = webRoot[:-1]
+		return "/".join((webRoot, self.dbName))
 
 	def webDirRelative(self):
 		webRootRelative = self.webDir()
 		i = webRootRelative.find("://")
 		if i >= 0:
-			  webRootRelative = webRootRelative[i:]
+			webRootRelative = webRootRelative[i+3:]
 		i = webRootRelative.find("/")
 		if i >= 0:
-			  webRootRelative = webRootRelative[i:]
+			webRootRelative = webRootRelative[i:]
 		return webRootRelative
 	
 	# Actions!
