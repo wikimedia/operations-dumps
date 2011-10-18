@@ -186,4 +186,4 @@ else
     exit 1
 fi
 
-
+/usr/bin/rsync --list-only --files-from="$outputfile" "$publicdir" dummy  > "$outputfile".rsync
