@@ -85,11 +85,10 @@ class StatusInfo(object):
         self.statusFile = StatusFile(self._config, self.date, self.wikiName)
 
     def getStatus(self, date = None):
+        status = ""
         if exists(self.statusFile.getPath(date)):
             status = FileUtils.readFile(self.statusFile.getPath(date)).rstrip()
-            if status == "done":
-                return True
-        return False
+        return(status)
 
     def setStatus(self, status):
         FileUtils.writeFileInPlace(self.statusFile.getPath(),status, self._config.fileperms)
