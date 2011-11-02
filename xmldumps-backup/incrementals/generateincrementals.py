@@ -27,7 +27,7 @@ class DumpResults(object):
         self.OK = 0
 
 class IncrDump(object):
-    def __init__(self,config, date, wikiName, doStubs, doRevs, dryrun, verbose):
+    def __init__(self,config, date, wikiName, doStubs, doRevs, dryrun, verbose, forcerun):
         self._config = config
         self.date = date
         self.wikiName = wikiName
@@ -35,6 +35,7 @@ class IncrDump(object):
         self.doStubs = doStubs
         self.doRevs = doRevs
         self.dryrun = dryrun
+        self.forcerun = forcerun
         self.maxRevIDFile = MaxRevIDFile(self._config, self.date, self.wikiName)
         self.statusInfo = StatusInfo(self._config, self.date, self.wikiName)
         self.stubFile = StubFile(self._config, self.date, self.wikiName)
@@ -54,7 +55,7 @@ class IncrDump(object):
             if not exists(self.incrDir.getIncDir(self.wikiName)):
                 os.makedirs(self.incrDir.getIncDir(self.wikiName))
             status = self.statusInfo.getStatus()
-            if status == "done":
+            if status == "done" and not forcerun:
                 if (self.verbose):
                     print "wiki",self.wikiName,"skipped, adds/changes dump already complete"
                 return retCodes.OK
@@ -170,20 +171,21 @@ class IncrDump(object):
            return False
 
 class IncrDumpLoop(object):
-    def __init__(self, config, date, doStubs, doRevs, dryrun, verbose):
+    def __init__(self, config, date, doStubs, doRevs, dryrun, verbose, forcerun):
         self._config = config
         self.date = date
         self.doStubs = doStubs
         self.doRevs = doRevs
         self.dryrun = dryrun
         self.verbose = verbose
+        self.forcerun = forcerun
 
     def doRunOnAllWikis(self):
         retCodes = DumpResults()
         failures = 0
         todos = 0
         for w in self._config.allWikisList:
-            dump = IncrDump(config, date, w, doStubs, doRevs, dryrun, self.verbose)
+            dump = IncrDump(self._config, self.date, w, self.doStubs, self.doRevs, self.dryrun, self.verbose, self.forcerun)
             result = dump.doOneWiki()
             if result == retCodes.FAILED:
                 failures = failures + 1
@@ -212,6 +214,7 @@ def usage(message = None):
         print "--configfile:  Specify an alternate config file to read. Default file is 'dumpincr.conf' in the current directory."
         print "--date:        (Re)run incremental of a given date (use with care)."
         print "--dryrun:      Don't actually dump anything but print the commands that would be run."
+        print "--forcerun:    Do the run even if there is already a successful run in place."
         print "--revsonly:    Do only the stubs part of the dumps."
         print "--stubsonly:   Do only the revision text part of the dumps."
         print "--verbose:     Print error messages and other informative messages (normally the"
@@ -227,10 +230,11 @@ if __name__ == "__main__":
     doRevs = True
     dryrun = False
     verbose = False
+    forcerun = False
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 ['date=', 'configfile=', 'stubsonly', 'revsonly', 'dryrun', 'verbose' ])
+                                                 ['date=', 'configfile=', 'stubsonly', 'revsonly', 'dryrun', 'verbose', 'forcerun' ])
     except:
         usage("Unknown option specified")
 
@@ -247,6 +251,8 @@ if __name__ == "__main__":
             dryrun = True
         elif opt == "--verbose":
             verbose = True
+        elif opt == "--forcerun":
+            forcerun = True
         
     if not doRevs and not doStubs:
         usage("You may not specify stubsonly and revsonly options together.")
@@ -263,5 +269,5 @@ if __name__ == "__main__":
         dump = IncrDump(config, date, remainder[0], doStubs, doRevs, dryrun, verbose)
         dump.doOneWiki()
     else:
-        dump = IncrDumpLoop(config, date, doStubs, doRevs, dryrun, verbose)
+        dump = IncrDumpLoop(config, date, doStubs, doRevs, dryrun, verbose, forcerun)
         dump.doAllWikisTilDone(3)
