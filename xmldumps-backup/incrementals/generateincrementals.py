@@ -73,10 +73,25 @@ class IncrDump(object):
                 if not dryrun:
                     self.incrDumpsDirs.cleanupOldIncrDumps(self.date)
                 maxRevID = self.getMaxRevIdFromFile()
+		if (self.verbose):
+                    if maxRevID:
+                        print "maxRevID is ", maxRevID
+                    else:
+                        print "no maxRevID found"
                 prevDate = self.incrDumpsDirs.getPrevIncrDate(self.date)
+		if (self.verbose):
+                    if prevDate:
+                        print "prevDate is", prevDate
+                    else:
+                        print "no prevDate found"
                 prevRevID = None
                 if prevDate:
-                    prevRevID = self.getMaxRevIdFromFile(prevDate)
+		    prevRevID = self.getMaxRevIdFromFile(prevDate)
+		    if (self.verbose):
+		    	if prevRevID:
+                            print "prevRevId is ", prevRevID
+		    	else:
+                            print "no prevRevID found"
                 if not prevRevID:
                     prevRevID = str(int(maxRevID) - 10)
                     if int(prevRevID) < 1:
@@ -266,7 +281,7 @@ if __name__ == "__main__":
         date = TimeUtils.today()
 
     if len(remainder) > 0:
-        dump = IncrDump(config, date, remainder[0], doStubs, doRevs, dryrun, verbose)
+        dump = IncrDump(config, date, remainder[0], doStubs, doRevs, dryrun, verbose, forcerun)
         dump.doOneWiki()
     else:
         dump = IncrDumpLoop(config, date, doStubs, doRevs, dryrun, verbose, forcerun)
