@@ -1834,6 +1834,7 @@ class Runner(object):
 			self.checksums.prepareChecksums()
 
 			for item in self.dumpItemList.dumpItems:
+				Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, item.name() ) )
 				item.start(self)
 				self.status.updateStatusFiles()
 				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
