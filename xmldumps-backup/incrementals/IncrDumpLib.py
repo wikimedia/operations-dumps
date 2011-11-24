@@ -385,10 +385,16 @@ class IncDumpDirs(object):
                         previous = dump
         return previous
 
-    def getLatestIncrDate(self):
+    def getLatestIncrDate(self, ok = False):
         # find the most recent incr dump 
         dirs = self.getIncDumpDirs()
         if dirs:
-            return(dirs[-1])
+            if ok:
+                for dump in dirs:
+                    statusInfo = StatusInfo(self._config, dump, self.wikiName)
+                    if statusInfo.getStatus(dump) == "done":
+                        return dump
+            else:
+                return(dirs[-1])
         else:
             return(None)

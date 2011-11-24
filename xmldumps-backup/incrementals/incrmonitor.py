@@ -54,7 +54,7 @@ class Index(object):
             if date:
                 incrDate = date
 	    else:
-                incrDate = self.incrDumpsDirs.getLatestIncrDate()
+                incrDate = self.incrDumpsDirs.getLatestIncrDate(True)
             if not incrDate:
                 if (self.verbose):
                     print "No dump for wiki ", w
