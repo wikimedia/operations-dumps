@@ -26,8 +26,9 @@ class Link(object):
     makeLink = staticmethod(makeLink)
 
 class Index(object):
-    def __init__(self, config, verbose):
+    def __init__(self, config, date, verbose):
         self._config = config
+        self.date = date
         self.indexFile = IndexFile(self._config)
         self.incrDir = IncrementDir(self._config)
         self.verbose = verbose
@@ -37,6 +38,8 @@ class Index(object):
         for w in self._config.allWikisList:
             result = self.doOneWiki(w)
             if result:
+                if (self.verbose):
+                    print "result for wiki ", w, "is ", result
                 text = text + "<li>"+ result + "</li>\n"
         indexText = self._config.readTemplate("incrs-index.html") %  { "items" : text }
         FileUtils.writeFileInPlace(self.indexFile.getPath(), indexText, self._config.fileperms)
@@ -48,8 +51,10 @@ class Index(object):
                 if (self.verbose):
                     print "No dump for wiki ", w
                     next
-
-            incrDate = self.incrDumpsDirs.getLatestIncrDate()
+            if date:
+                incrDate = date
+	    else:
+                incrDate = self.incrDumpsDirs.getLatestIncrDate()
             if not incrDate:
                 if (self.verbose):
                     print "No dump for wiki ", w
@@ -69,7 +74,8 @@ class Index(object):
             except:
                 if (self.verbose):
                     traceback.print_exc(file=sys.stdout)
-                return "Error encountered, no information available for wiki", w
+                    print "Error encountered, no information available for wiki", w
+                return "Error encountered, no information available for wiki" + w
 
             try:
                 wikinameText = "<strong>%s</strong>" % w
@@ -85,17 +91,19 @@ class Index(object):
                     revsText = "revs: %s (size %s)" %  (Link.makeLink(os.path.join(w, incrDate, revs.getFileName()),revsDate), revsSize)
                 else:
                     revsText = None
+		otherRunsText = "other runs: %s" % Link.makeLink(w,w)
                 if statContents:
                     statText = "(%s)" % (statContents)
                 else:
                     statText = None
 
                 wikiInfo = " ".join( filter( None, [ wikinameText, lockText, statText ] ) ) + "<br />"
-                wikiInfo = wikiInfo + " &nbsp;&nbsp; " + " |  ".join( filter( None, [ stubText, revsText ] ))
+                wikiInfo = wikiInfo + " &nbsp;&nbsp; " + " |  ".join( filter( None, [ stubText, revsText, otherRunsText ] ))
             except:
                 if (self.verbose):
                     traceback.print_exc(file=sys.stdout)
-                return "Error encountered formatting information for wiki", w
+                    print "Error encountered formatting information for wiki", w
+                return "Error encountered formatting information for wiki" + w
                 
             return wikiInfo
 
@@ -103,25 +111,29 @@ def usage(message = None):
     if message:
         print message
         print "Usage: python monitor.py [options] [wikidbname]"
-        print "Options: --configfile, --verbose"
+        print "Options: --configfile, --date, --verbose"
         print "--configfile:  Specify an alternate config file to read. Default file is 'dumpincr.conf' in the current directory."
+        print "--date:        Look at runs starting on specified date or earler"
         print "--verbose:     Print error messages and other informative messages (normally the"
         print "               script runs silently)."
         sys.exit(1)
             
 if __name__ == "__main__":
     configFile = False
+    date = False
     verbose = False
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 ['configfile=', 'verbose' ])
+                                                 ['configfile=', 'date=', 'verbose' ])
     except:
         usage("Unknown option specified")
 
     for (opt, val) in options:
         if opt == "--configfile":
             configFile = val
+        elif opt == "--date":
+            date=val
         elif opt == '--verbose':
             verbose = True
 
@@ -130,5 +142,5 @@ if __name__ == "__main__":
     else:
         config = Config()
 
-    index = Index(config, verbose)
+    index = Index(config, date, verbose)
     index.doAllWikis()
