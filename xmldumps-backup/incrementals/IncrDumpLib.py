@@ -366,9 +366,10 @@ class IncDumpDirs(object):
                 toRemove = os.path.join(self.incrDir.getIncDirNoDate(self.wikiName), dump)
                 shutil.rmtree("%s" % toRemove)
 
-    def getPrevIncrDate(self, date):
+    def getPrevIncrDate(self, date, ok = False):
         # find the most recent incr dump before the
-        # specified date that completed successfully
+        # specified date
+        # if "ok" is True, find most recent dump that completed successfully
         previous = None
         old = self.getIncDumpDirs()
         if old:
@@ -376,8 +377,11 @@ class IncDumpDirs(object):
                 if dump == date:
                     return previous
                 else:
-                    statusInfo = StatusInfo(self._config, dump, self.wikiName)
-                    if statusInfo.getStatus(dump) == "done":
+                    if ok:
+                        statusInfo = StatusInfo(self._config, dump, self.wikiName)
+                        if statusInfo.getStatus(dump) == "done":
+                            previous = dump
+                    else:
                         previous = dump
         return previous
 
