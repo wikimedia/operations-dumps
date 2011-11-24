@@ -74,6 +74,7 @@ class IncrDump(object):
                     self.incrDumpsDirs.cleanupOldIncrDumps(self.date)
                 maxRevID = self.getMaxRevIdFromFile()
 		if (self.verbose):
+                    print "Doing run for wiki: ",self.wikiName
                     if maxRevID:
                         print "maxRevID is ", maxRevID
                     else:
