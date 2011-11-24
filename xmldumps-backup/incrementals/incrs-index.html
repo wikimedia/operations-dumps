@@ -65,18 +65,20 @@
 		for documentation on the provided data formats.
 	</p>
 	<p>
-	  Here's the big fat disclaimer.
+	  <strong>Here's the big fat disclaimer.</strong>
 	</p>
 	<p>
-	  This service is experimental.  At any time it may not be working, for a day, a week or a month.
+	  <em>This service is experimental.</em>  At any time it may not be working, for a day, a week or a month.
 	  It is not intended to replace the full XML dumps.  We don't expect users to be able to construct
-	  full dumps of a given date from the incrementals and an older dump.
+	  full dumps of a given date from the incrementals and an older dump.  We don't guarantee that the data
+	  included in these dumps is complete, or correct, or won't break your Xbox.  In short: don't blame us (but
+	  do get on the email list and send mail: see <a href="https://lists.wikimedia.org/mailman/listinfo/xmldatadumps-l">xmldatadumps-l</a>).
 	</p>
 	<p>
 	  The data provided in these files is ''partial data''.  To be precise: 
 	  <ul>
 	    <li>* Revisions included in these dumps are not up to the minute.  We write out those that were
-	    created up to 18 hours ago; this gives local editing communities time to delete revisions 
+	    created up to 12 hours ago; this gives local editing communities time to delete revisions 
 	    with sensitive information, vulgarities and other vandalism, etc.</li>
 	    <li>* New pages entered for the first time during the time interval are included</li>
 	    <li>* Revisions of undeleted pages will be included only if new revision IDs need to be assigned to 
@@ -85,7 +87,8 @@
 	    <li>* Imported revisions will be included if they were imported during the time interval, since they
 	    will have new revisions IDs.</li>
 	    <li>* As with all dumps, hidden revisions or more generally revisions not readable by the general public
-	      are not provided.</li>
+	    are not provided.</li>
+	    <li>* When a wiki is closed, it no longer shows up in this list.</li>
 	  </ul>
 	</p>
 	<p>
@@ -104,7 +107,19 @@
 	  you get articles, user pages, discussion pages, etc.  If you want articles only, you will need to write a
 	  filter to grab just those entries.
 	</p>
-	<h2>Adds/changes dump listing</h2>
+	<p>
+	  The md5sums.txt file contains the md5 hash of the stubs file and the revs file, so that downloaders can verify
+	  the integrity of the files after download.
+	</p>
+	<p>
+	  The file maxrevid.txt contains the largest revision ID on the project at the time we checked, which should be the 
+	  same as the timestamp of that file. 
+	</p>
+	<p>
+	  The file status.txt, if it exists, will contain the value "done" in cases where the run is complete and was 
+	  successful.
+	</p>
+	<h2>Adds/changes dump listing (links to latest complete run)</h2>
 	<ul>
 		%(items)s
 	</ul>
