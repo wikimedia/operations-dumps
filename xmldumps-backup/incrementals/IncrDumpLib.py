@@ -10,6 +10,7 @@ import socket
 import subprocess
 from subprocess import Popen, PIPE
 import shutil
+import time
 
 class ContentFile(object):
     def __init__(self, config, date, wikiName):
@@ -114,6 +115,18 @@ class Lock(object):
         except:
             return False
 
+    def isStaleLock(self):
+        if not self.isLocked():
+            return False
+        try:
+            timestamp = os.stat(self.lockFile.getPath()).st_mtime
+        except:
+            return False
+        if (time.time() - timestamp) > self._config.staleInterval:
+            return True
+        else:
+            return False
+            
     def unlock(self):
         os.remove(self.lockFile.getPath())
 
@@ -161,6 +174,7 @@ class Config(object):
             "webroot": "http://localhost/dumps/incr",
             "fileperms": "0640",
             "delay": "43200",
+            "maxrevidstaleinterval": "3600",
             #"database": {
             "user": "root",
             "password": "",
@@ -206,6 +220,8 @@ class Config(object):
         self.fileperms = int(self.fileperms,0)
         self.delay = self.conf.get("output", "delay")
         self.delay = int(self.delay,0)
+        self.staleInterval = self.conf.get("output", "maxrevidstaleinterval")
+        self.staleInterval = int(self.staleInterval,0)
 
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')

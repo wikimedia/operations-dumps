@@ -40,11 +40,12 @@ class MaxRevID(object):
         return exists(self.maxRevIdFile.getPath())
 
 class MaxIDDump(object):
-    def __init__(self,config, date, verbose):
+    def __init__(self,config, date, verbose, cleanupStale):
         self._config = config
         self.date = date
         self.incrDir = IncrementDir(self._config, self.date)
         self.verbose = verbose
+        self.cleanupStale = cleanupStale
 
     def doOneWiki(self, w):
         success = True
@@ -52,7 +53,23 @@ class MaxIDDump(object):
             if not exists(self.incrDir.getIncDir(w)):
                 os.makedirs(self.incrDir.getIncDir(w))
             lock = MaxRevIDLock(self._config, self.date, w)
-            if lock.getLock():
+            lockResult = lock.getLock()
+            if not lockResult:
+                if (self.verbose):
+                    print "failed to get lock for wiki", w
+                if lock.isStaleLock():
+                    if (self.verbose):
+                        print "lock is stale for wiki", w
+                    # this option should be given to one process only, or you could have trouble.
+                    if (self.cleanupStale):
+                        lock.unlock()
+                        lockResult = lock.getLock()
+                        if (self.verbose):
+                            print "stale lock removed and trying again to get for wiki", w
+            if lockResult:
+                if (self.verbose):
+                    print "got lock ",lock.lockFile.getFileName()
+                    print "checking max rev id for wiki", w
                 try:
                     maxRevID = MaxRevID(self._config, w, self.date)
                     if not maxRevID.exists():
@@ -66,10 +83,10 @@ class MaxIDDump(object):
             else:
                 if (self.verbose):
                     print "Wiki ", w, "failed to get lock."
-                    traceback.print_exc(file=sys.stdout)
+                success = False
         if success:
             if (self.verbose):
-                print "Success!  Wiki", w, "adds/changes dump complete."
+                print "Success!  Wiki", w, "rev max id for adds/changes dump complete."
         return success
 
     def doRunOnAllWikis(self):
@@ -96,11 +113,13 @@ def usage(message = None):
         print message
         print "Usage: python generateincrementals.py [options] [wikidbname]"
         print "Options: --configfile, --date, --verbose"
-        print "--configfile:  Specify an alternate config file to read. Default file is 'dumpincr.conf' in the current directory."
-        print "--date:        (Re)run incremental of a given date (use with care)."
-        print "--verbose:     Print error messages and other informative messages (normally the"
-        print "               script runs silently)."
-        print "wikiname:      Run the dumps only for the specific wiki."
+        print "--configfile:   Specify an alternate config file to read. Default file is 'dumpincr.conf' in the current directory."
+        print "--cleanupstale: Clean up stale lock files as they are encountered.  Only one process running should ever have this"
+        print "                option set."
+        print "--date:         (Re)run incremental of a given date (use with care)."
+        print "--verbose:      Print error messages and other informative messages (normally the"
+        print "                script runs silently)."
+        print "wikiname:       Run the dumps only for the specific wiki."
         sys.exit(1)
 
 if __name__ == "__main__":
@@ -108,10 +127,11 @@ if __name__ == "__main__":
     result = False
     date = None
     verbose = False
+    cleanupStale = False
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 ['date=', 'configfile=', 'verbose' ])
+                                                 ['date=', 'configfile=', 'verbose', 'cleanupstale' ])
     except:
         usage("Unknown option specified")
 
@@ -122,6 +142,8 @@ if __name__ == "__main__":
             configFile = val
         elif opt == "--verbose":
             verbose = True
+        elif opt == "--cleanupstale":
+            cleanupStale = True
 
     if (configFile):
         config = Config(configFile)
@@ -131,7 +153,7 @@ if __name__ == "__main__":
     if not date:
         date = TimeUtils.today()
 
-    dump = MaxIDDump(config, date, verbose)
+    dump = MaxIDDump(config, date, verbose, cleanupStale)
     if len(remainder) > 0:
         dump.doOneWiki(remainder[0])
     else:
