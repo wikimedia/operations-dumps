@@ -1,0 +1,16 @@
+These scripts were written so we could get some notion of what was going on with thumbs, given that
+we don't keep logs and the host is i/o-bound so we can't just do a pile of finds.
+
+I can't imagine they will be useful to someone else but they might be useful to us sometime, who knows
+
+stats on the thumbs files on the filesystem:
+* go to (for example) commons/thumb/0/00, run an ls --sort=none, capture results into some file
+* cat the input of that to python listThumbFilesByDir.py and save the output of that to a file
+* filter it as needed for crap names, results into 0-00-files.txt.nobad
+* now you can run the following: do-dateanal-dates-created.sh  do-dateanal-dates.sh  do-pixel-sizes.sh
+  they will create a little pile of files aug*txt sept*txt etc.  
+
+stats on googlebot requests:
+* go to locke, zcat sample*log*gz | grep "Googlebot-Image" and gzip the output into googlebot-image-requests.gz
+* now you can run check-all-dates.sh and it produces a small pile of output files 
+
