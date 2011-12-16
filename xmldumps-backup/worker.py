@@ -18,6 +18,7 @@ import WikiDump
 import CommandManagement
 import Queue
 import thread
+import traceback
 
 from os.path import exists
 from subprocess import Popen, PIPE
@@ -369,9 +370,10 @@ class BackupError(Exception):
 	pass
 
 class RunInfoFile(object):
-	def __init__(self, wiki, enabled):
+	def __init__(self, wiki, enabled, verbose = False):
 		self.wiki = wiki
 		self._enabled = enabled
+		self.verbose = verbose
 
 	def saveDumpRunInfoFile(self, text):
 		"""Write out a simple text file with the status for this wiki's dump."""
@@ -379,6 +381,9 @@ class RunInfoFile(object):
 			try:
 				self._writeDumpRunInfoFile(text)
 			except:
+				if (self.verbose):
+					exc_type, exc_value, exc_traceback = sys.exc_info()
+					print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 				print "Couldn't save dump run info file. Continuing anyways"
 
 	def statusOfOldDumpIsDone(self, runner, date, jobName, jobDesc):
@@ -410,6 +415,9 @@ class RunInfoFile(object):
 			infile.close
 			return results
 		except:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			return False
 
 	#
@@ -481,6 +489,9 @@ class RunInfoFile(object):
 			infile.close
 			return None
 		except:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			return None
 
 	# find desc in there, look for "class='done'"
@@ -506,6 +517,9 @@ class RunInfoFile(object):
 			infile.close
 			return None
 		except:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			return None
 
 
@@ -591,11 +605,11 @@ class DumpItemList(object):
 			#PrivateTable("filearchive", "filearchivetable", "Deleted image data"),
 
 			PublicTable("site_stats", "sitestatstable", "A few statistics such as the page count."),
-			PublicTable("image", "imagetable", "Metadata on current versions of uploaded images."),
-			PublicTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded images."),
+			PublicTable("image", "imagetable", "Metadata on current versions of uploaded media/files."),
+			PublicTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded media/files."),
 			PublicTable("pagelinks", "pagelinkstable", "Wiki page-to-page link records."),
 			PublicTable("categorylinks", "categorylinkstable", "Wiki category membership link records."),
-			PublicTable("imagelinks", "imagelinkstable", "Wiki image usage records."),
+			PublicTable("imagelinks", "imagelinkstable", "Wiki media/files usage records."),
 			PublicTable("templatelinks", "templatelinkstable", "Wiki template inclusion link records."),
 			PublicTable("externallinks", "externallinkstable", "Wiki external URL link records."),
 			PublicTable("langlinks", "langlinkstable", "Wiki interlanguage link records."),
@@ -627,10 +641,10 @@ class DumpItemList(object):
 		self.dumpItems.append(
 			XmlDump("articles",
 				"articlesdump",
-				"<big><b>Articles, templates, image descriptions, and primary meta-pages.</b></big>",
+				"<big><b>Articles, templates, media/file descriptions, and primary meta-pages.</b></big>",
 				"This contains current versions of article content, and is the archive most mirror sites will probably want.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("articlesdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
 		if (self.chunkInfo.chunksEnabled()):
-			self.dumpItems.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, image descriptions, and primary meta-pages.</b></big>","This contains current versions of article content, and is the archive most mirror sites will probably want.",  self.findItemByName('articlesdump')))
+			self.dumpItems.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, media/file descriptions, and primary meta-pages.</b></big>","This contains current versions of article content, and is the archive most mirror sites will probably want.",  self.findItemByName('articlesdump')))
 		
 		self.dumpItems.append(
 			XmlDump("meta-current",
@@ -801,9 +815,10 @@ class DumpItemList(object):
 		return "name:%s; status:%s; updated:%s" % (item.name(), item.status(), item.updated())
 
 class Checksummer(object):
-	def __init__(self,wiki,dumpDir, enabled = True):
+	def __init__(self,wiki,dumpDir, enabled = True, verbose = False):
 		self.wiki = wiki
 		self.dumpDir = dumpDir
+		self.verbose = verbose
 		self.timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
 		self._enabled = enabled
 
@@ -821,7 +836,7 @@ class Checksummer(object):
 			checksumFileName = self._getChecksumFileNameTmp()
 			output = file(checksumFileName, "a")
 			runner.debug("Checksumming %s" % fileObj.filename)
-			dumpfile = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj))
+			dumpfile = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj),None,self.verbose)
 			checksum = dumpfile.md5Sum()
 			if checksum != None:
 				output.write( "%s  %s\n" % (checksum, fileObj.filename))
@@ -1196,7 +1211,7 @@ class DumpFile(file):
                           looking for page and id tags, wihout other tags in between. (hmm)
 	filename          full filename with directory
 	"""
-	def __init__(self, wiki, filename, fileObj = None):
+	def __init__(self, wiki, filename, fileObj = None, verbose = False):
 		"""takes full filename including path"""
 		self._wiki = wiki
 		self.filename = filename
@@ -1337,6 +1352,9 @@ class DumpFile(file):
 		try:
 			os.rename(self.filename, os.path.join(self.dirname,newname))
 		except:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			raise BackupError("failed to rename file %s" % self.filename)
 
 		self.filename = os.path.join(self.dirname,newname)
@@ -1344,7 +1362,7 @@ class DumpFile(file):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-	def __init__(self, wiki, dumpDir, items, checksums, enabled, noticeFile = None, errorCallback=None):
+	def __init__(self, wiki, dumpDir, items, checksums, enabled, noticeFile = None, errorCallback=None, verbose = False):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
 		self.dumpDir = dumpDir
@@ -1353,6 +1371,7 @@ class Status(object):
 		self.noticeFile = noticeFile
 		self.errorCallback = errorCallback
 		self.failCount = 0
+		self.verbose = verbose
 		self._enabled = enabled
 
 	def updateStatusFiles(self, done=False):
@@ -1400,6 +1419,9 @@ class Status(object):
 			# Short line for report extraction goes here
 			self.wiki.writeStatus(self._reportDatabaseStatusSummary(done))
 		except:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			message = "Couldn't update status files. Continuing anyways"
 			if self.errorCallback:
 				self.errorCallback(message)
@@ -1449,6 +1471,9 @@ class Status(object):
 			else:
 				raise(ValueException)
 		except:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			return "No prior dumps of this database stored."
 		prettyDate = TimeUtils.prettyDate(rawDate)
 		if done:
@@ -1542,7 +1567,7 @@ class NoticeFile(object):
 		return os.path.join(self.wiki.publicDir(), self.wiki.date)
 
 class Runner(object):
-	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None):
+	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None, verbose = False):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
@@ -1553,8 +1578,9 @@ class Runner(object):
 		self.log = None
 		self.dryrun = dryrun
 		self._chunkToDo = chunkToDo
-		self.checkpointFile = None
+		self.checkpointFile = checkpointFile
 		self.pageIDRange = pageIDRange
+		self.verbose = verbose
 
 		if (self.checkpointFile):
 			f = DumpFilename(self.wiki)
@@ -1611,8 +1637,7 @@ class Runner(object):
 			self._feedsEnabled = False
 			self._noticeFileEnabled = False
 			self._makeDirEnabled = False
-			self._cleanOldDumpsEnabled = False
-			self._cleanupOldFilesEnabled = False
+			self._cleanupOldFilesEnabled = True
 
 		self.jobRequested = job
 
@@ -1644,15 +1669,15 @@ class Runner(object):
 			self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
 			self.log = Logger(self.logFileName)
 			thread.start_new_thread(self.logQueueReader,(self.log,))
-		self.runInfoFile = RunInfoFile(wiki,self._runInfoFileEnabled)
+		self.runInfoFile = RunInfoFile(wiki,self._runInfoFileEnabled, self.verbose)
 		self.symLinks = SymLinks(self.wiki, self.dumpDir, self.logAndPrint, self.debug, self._symLinksEnabled)
 		self.feeds = Feeds(self.wiki,self.dumpDir, self.dbName, self.debug, self._feedsEnabled)
 		self.htmlNoticeFile = NoticeFile(self.wiki, notice, self._noticeFileEnabled)
-		self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled)
+		self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled, self.verbose)
 
 		# some or all of these dumpItems will be marked to run
 		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.chunkInfo, self.pageIDRange, self.runInfoFile, self.dumpDir)
-		self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, self.htmlNoticeFile, self.logAndPrint)
+		self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, self.htmlNoticeFile, self.logAndPrint, self.verbose)
 
 	def logQueueReader(self,log):
 		if not log:
@@ -1806,7 +1831,11 @@ class Runner(object):
 					try:
 						item.dump(self)
 					except Exception, ex:
-						self.debug("*** exception! " + str(ex))
+						exc_type, exc_value, exc_traceback = sys.exc_info()
+						if (self.verbose):
+							print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+						else:
+							self.debug("*** exception! " + str(ex))
 						item.setStatus("failed")
 					if item.status() == "failed":
 						self.runHandleFailure()
@@ -1824,7 +1853,13 @@ class Runner(object):
 			# if any job succeeds we might as well make the sym link
 			if (self.status.failCount < 1):
 				self.completeDump()
-											
+
+			# special case...
+			if self.jobRequested == "latestlinks":
+				if (self.dumpItemList.allPossibleJobsDone()):
+					self.symLinks.removeSymLinksFromOldRuns(self.wiki.date)
+					self.feeds.cleanupFeeds()
+
 			if (self.restart):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
 			else:
@@ -1841,7 +1876,11 @@ class Runner(object):
 				try:
 					item.dump(self)
 				except Exception, ex:
-					self.debug("*** exception! " + str(ex))
+					exc_type, exc_value, exc_traceback = sys.exc_info()
+					if (self.verbose):
+						print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+					else:
+						self.debug("*** exception! " + str(ex))
 					item.setStatus("failed")
 				if item.status() == "failed":
 					self.runHandleFailure()
@@ -2071,8 +2110,9 @@ class Feeds(object):
 						os.remove(os.path.join(latestDir,f))
 
 class Dump(object):
-	def __init__(self, name, desc):
+	def __init__(self, name, desc, verbose = False):
 		self._desc = desc
+		self.verbose = verbose
 		self.progress = ""
 		self.runInfo = RunInfo(name,"waiting","")
 		self.dumpName = self.getDumpName()
@@ -2151,6 +2191,9 @@ class Dump(object):
 		try:
 			self.run(runner)
 		except Exception, ex:
+			if (self.verbose):
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			self.setStatus("failed")
 			raise ex
 		self.setStatus("done")
@@ -2860,7 +2903,7 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
-	def __init__(self, subset, name, desc, detail, itemForStubs,  prefetch, spawn, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None, pageIDRange = None):
+	def __init__(self, subset, name, desc, detail, itemForStubs,  prefetch, spawn, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None, pageIDRange = None, verbose = False):
 		self._subset = subset
 		self._detail = detail
 		self._desc = desc
@@ -2941,7 +2984,7 @@ class XmlDump(Dump):
 			else:
 				files = self.listRegularFilesPerChunkExisting(runner.dumpDir, self.getChunkList(), [ self.dumpName ])
 			for f in files:
-				f = DumpFile(self.wiki,runner.dumpDir.filenamePublicPath(f))
+				f = DumpFile(self.wiki,runner.dumpDir.filenamePublicPath(f), None, self.verbose)
 				if (f.checkIfTruncated()):
 					runner.logAndPrint("file %s is truncated, moving out of the way" % f.filename )
 					f.rename( f.filename + ".truncated" )
@@ -3125,7 +3168,7 @@ class XmlDump(Dump):
 				if fileObj.isChunkFile and fileObj.chunkInt > maxchunks:
 					maxchunks = fileObj.chunkInt
 				if not fileObj.firstPageID:
-					f = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj, date), fileObj)
+					f = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj, date), fileObj, self.verbose)
 					fileObj.firstPageID = f.findFirstPageIDInFile()
 
                         # get the files that cover our range
@@ -3218,6 +3261,28 @@ class XmlDump(Dump):
 
 		runner.debug("Could not locate a prefetchable dump.")
 		return None
+
+	def listOutputFilesForCleanup(self, dumpDir, dumpNames = None):
+		files = Dump.listOutputFilesForCleanup(self, dumpDir, dumpNames)
+		filesToReturn = []
+		if self.pageIDRange:
+			if (',' in self.pageIDRange):
+				( firstPageID, lastPageID ) = self.pageIDRange.split(',',2)
+				firstPageID = int(firstPageID)
+				lastPageID = int(lastPageID)
+			else:
+				firstPageID = int(self.pageIDRange)
+				lastPageID = None
+			# filter any checkpoint files, removing from the list any with
+			# page range outside of the page range this job will cover
+			for f in files:
+				if f.isCheckpointFile:
+					if not firstPageID or (f.firstPageID and (int(f.firstPageID) >= firstPageID)):
+						if not lastPageID or (f.lastPageID and (int(f.lastPageID) <= lastPageID)):
+							filesToReturn.append(f)
+				else:
+					filesToReturn.append(f)
+		return filesToReturn
 
 class RecombineXmlDump(XmlDump):
 	def __init__(self, name, desc, detail, itemForXmlDumps):
@@ -3690,7 +3755,11 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log"
+	print "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log"
+	print "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the"
+	print "               rest of the job for the appropriate chunk if chunks are configured"
+	print "               or for the all the rest of the revisions if no chunks are configured;"
+	print "               only for jobs articlesdump, metacurrentdump, metahistorybz2dump."
 	print "--checkpoint:  Specify the name of the checkpoint file to rerun (requires --job,"
 	print "               depending on the file this may imply --chunk)"
 	print "--chunk:       Specify the number of the chunk to rerun (use with a specific job"
@@ -3721,6 +3790,8 @@ def usage(message = None):
 	print "--restartfrom: Do all jobs after the one specified via --job, including that one"
 	print "--log:         Log progress messages and other output to logfile in addition to"
 	print "               the usual console output"
+	print "--verbose:     Print lots of stuff (includes printing full backtraces for any exception)"
+	print "               This is used primarily for debugging"
 
 	sys.exit(1)
 
@@ -3738,13 +3809,15 @@ if __name__ == "__main__":
 		htmlNotice = ""
 		dryrun = False
 		chunkToDo = False
+		afterCheckpoint = False
 		checkpointFile = None
 		pageIDRange = None
 		result = False
+		verbose = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'log', 'chunk=', 'checkpoint=', 'pageidrange=' ])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'verbose' ])
 		except:
 			usage("Unknown option specified")
 
@@ -3759,6 +3832,9 @@ if __name__ == "__main__":
 				chunkToDo = int(val)
 			elif opt == "--force":
 				forceLock = True
+			elif opt == '--aftercheckpoint':
+				afterCheckpoint = True
+				checkpointFile = val
 			elif opt == "--noprefetch":
 				prefetch = False
 			elif opt == "--nospawn":
@@ -3777,6 +3853,8 @@ if __name__ == "__main__":
 				htmlNotice = False
 			elif opt == "--pageidrange":
 				pageIDRange = val
+			elif opt == "--verbose":
+				verbose = True
 
 		if dryrun and (len(remainder) == 0):
 			usage("--dryrun requires the name of a wikidb to be specified")
@@ -3834,7 +3912,20 @@ if __name__ == "__main__":
 				date = TimeUtils.today()
 			wiki.setDate(date)
 
-			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange)
+			if (afterCheckpoint):
+				f = DumpFilename(wiki) 
+				f.newFromFilename(checkpointFile)
+				if not f.isCheckpointFile:
+					usage("--aftercheckpoint option requires the name of a checkpoint file, bad filename provided")
+				pageIDRange = str( int(f.lastPageID) + 1 )
+				chunkToDo = f.chunkInt
+				# now we don't need this. 
+				checkpointFile = None
+				afterCheckpointJobs = [ 'articlesdump', 'metacurrentdump', 'metahistorybz2dump' ]
+				if not jobRequested or not jobRequested in [ 'articlesdump', 'metacurrentdump', 'metahistorybz2dump' ]:
+					usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(afterCheckpointJobs))
+					
+			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, verbose)
 			if (restart):
 				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
 			elif (jobRequested):
