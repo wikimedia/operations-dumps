@@ -226,12 +226,12 @@ int get_page_id_from_rev_id_via_api(long int rev_id, int fin) {
        format: 
        <?xml version="1.0"?><api><query><pages><page pageid="6215" ns="0" title="hystérique" /></pages></query></api>
     */
-    match_page_id_expr = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
+    match_page_id_expr = (regmatch_t *)malloc(sizeof(regmatch_t)*3);
     res = regcomp(&compiled_page_id_expr, page_id_expr, REG_EXTENDED);
 
-    if (regexec(&compiled_page_id_expr, buffer,  2,  match_page_id_expr, 0 ) == 0) {
-      if (match_page_id_expr[1].rm_so >=0) {
-	page_id = atol(buffer + match_page_id_expr[1].rm_so);
+    if (regexec(&compiled_page_id_expr, buffer,  3,  match_page_id_expr, 0 ) == 0) {
+      if (match_page_id_expr[2].rm_so >=0) {
+	page_id = atol(buffer + match_page_id_expr[2].rm_so);
       }
     }
     return(page_id);
@@ -250,13 +250,13 @@ int get_page_id_from_rev_id_via_api(long int rev_id, int fin) {
       0 if no pageid found,
       -1 on error
 */
-int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, int use_api, int use_stub, char *stubfilename) {
+int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, int use_api, int use_stub, char *stubfilename, int verbose) {
   int res;
   regmatch_t *match_page, *match_page_id, *match_rev, *match_rev_id;
   regex_t compiled_page, compiled_page_id, compiled_rev, compiled_rev_id;
   int length=5000; /* output buffer size */
   char *page = "<page>";
-  char *page_id = "<page>\n[ ]+<title>[^<]+</title>\n[ ]+<id>([0-9]+)</id>\n"; 
+  char *page_id = "<page>\n[ ]+<title>[^<]+</title>\n([ ]+<ns>[0-9]+</ns>\n)?[ ]+<id>([0-9]+)</id>\n"; 
   char *rev = "<revision>";
   char *rev_id_expr = "<revision>\n[ ]+<id>([0-9]+)</id>\n";
 
@@ -275,7 +275,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, 
   res = regcomp(&compiled_rev_id, rev_id_expr, REG_EXTENDED);
 
   match_page = (regmatch_t *)malloc(sizeof(regmatch_t)*1);
-  match_page_id = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
+  match_page_id = (regmatch_t *)malloc(sizeof(regmatch_t)*3);
   match_rev = (regmatch_t *)malloc(sizeof(regmatch_t)*1);
   match_rev_id = (regmatch_t *)malloc(sizeof(regmatch_t)*2);
 
@@ -288,21 +288,23 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, 
   bfile.bytes_read = 0;
 
   if (find_first_bz2_block_from_offset(&bfile, fin, position, FORWARD) <= (off_t)0) {
-    /* fprintf(stderr,"failed to find block in bz2file (1)\n"); */
+    if (verbose) fprintf(stderr,"failed to find block in bz2file after offset %"PRId64" (1)\n", position);
     return(-1);
   }
 
+  if (verbose) fprintf(stderr,"found first block in bz2file after offset %"PRId64"\n", position);
+
   while (!get_buffer_of_uncompressed_data(b, fin, &bfile, FORWARD) && (! bfile.eof)) {
     buffer_count++;
+    if (verbose >=2) fprintf(stderr,"buffers read: %d\n", buffer_count);
     if (bfile.bytes_written) {
-      while (regexec(&compiled_page_id, (char *)b->next_to_read,  2,  match_page_id, 0 ) == 0) {
-	if (match_page_id[1].rm_so >=0) {
-	  /* write page_id to stderr */
-	  /*
-	    fwrite(b->next_to_read+match_page_id[1].rm_so, sizeof(unsigned char), match_page_id[1].rm_eo - match_page_id[1].rm_so, stderr);
+      while (regexec(&compiled_page_id, (char *)b->next_to_read,  3,  match_page_id, 0 ) == 0) {
+	if (match_page_id[2].rm_so >=0) {
+	  if (verbose){
+	    fwrite(b->next_to_read+match_page_id[2].rm_so, sizeof(unsigned char), match_page_id[2].rm_eo - match_page_id[2].rm_so, stderr);
 	    fwrite("\n",1,1,stderr);
-	  */
-	  pinfo->page_id = atoi((char *)(b->next_to_read+match_page_id[1].rm_so));
+	  }
+	  pinfo->page_id = atoi((char *)(b->next_to_read+match_page_id[2].rm_so));
 	  pinfo->position = bfile.block_start;
 	  pinfo->bits_shifted = bfile.bits_shifted;
 	  return(1);
@@ -337,6 +339,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, 
 	   hopefully that doesn't take forever. 
 	*/
 	if (buffer_count>(20000000/BUFINSIZE) && rev_id) {
+	  if (verbose) fprintf(stderr, "passed cutoff for using api\n");
 	  if (use_api) {
 	    page_id_found = get_page_id_from_rev_id_via_api(rev_id, fin);
 	  }
@@ -420,7 +423,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, 
 
    return value from guess, or -1 on error. 
  */
-int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, int use_stub, char *stubfilename) {
+int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, int use_stub, char *stubfilename, int verbose) {
   int res;
   off_t new_position;
   off_t interval;
@@ -434,7 +437,8 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, i
   if (interval == (off_t)0) {
     interval = (off_t)1;
   }
-  /*  fprintf(stderr,"interval size is %"PRId64", left end %"PRId64", right end %"PRId64", last val %d\n",interval, iinfo->left_end, iinfo->right_end, iinfo->last_value); */
+  if (verbose) 
+    fprintf(stderr,"interval size is %"PRId64", left end %"PRId64", right end %"PRId64", last val %d\n",interval, iinfo->left_end, iinfo->right_end, iinfo->last_value);
   /* if we're this close, we'll check this value and be done with it */
   if (iinfo->right_end -iinfo->left_end < (off_t)2) {
     new_position = iinfo->left_end;
@@ -442,18 +446,18 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, i
   }
   else {
     if (iinfo->last_value < iinfo->value_wanted) {
-      /*      fprintf(stderr,"resetting left end\n"); */
+      if (verbose >=2) fprintf(stderr,"resetting left end\n");
       iinfo->left_end = iinfo->last_position;
       new_position = iinfo->last_position + interval;
     }
     /* iinfo->last_value > iinfo->value_wanted */
     else {
-      /*      fprintf(stderr,"resetting right end\n"); */
+      if (verbose >=2) fprintf(stderr,"resetting right end\n");
       iinfo->right_end = iinfo->last_position;
       new_position = iinfo->last_position - interval;
     }
   }
-  res = get_first_page_id_after_offset(fin, new_position, pinfo, use_api, use_stub, stubfilename);
+  res = get_first_page_id_after_offset(fin, new_position, pinfo, use_api, use_stub, stubfilename, verbose);
   if (res >0) {
     /* caller wants the new value */
     iinfo->last_value = pinfo->page_id;
@@ -470,17 +474,18 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, i
     }
     /* in theory we were moving towards beginning of file, should not have issues, so bail here */
     else { 
-      /* fprintf(stderr,"something very broken, giving up\n"); */
+      if (verbose) fprintf(stderr,"something very broken, giving up\n");
       return(-1);
     }
   }
 }
 
+
 void usage(char *whoami, char *message) {
   if (message) {
     fprintf(stderr,message);
   }
-  fprintf(stderr,"usage: %s --filename file --pageid id [--useapi]\n", whoami);
+  fprintf(stderr,"usage: %s --filename file --pageid id [--stubfile] [--useapi] [--verbose]\n", whoami);
   exit(1);
 }
 
@@ -514,6 +519,7 @@ int main(int argc, char **argv) {
   int optindex=0;
   int use_api = 0;
   int use_stub = 0;
+  int verbose = 0;
   int optc;
   char *stubfile=NULL;
 
@@ -521,12 +527,13 @@ int main(int argc, char **argv) {
     {"filename", 1, 0, 'f'},
     {"pageid", 1, 0, 'p'},
     {"useapi", 0, 0, 'a'},
+    {"verbose", 0, 0, 'v'},
     {"stubfile", 1, 0, 's'},
     {NULL, 0, NULL, 0}
   };
 
   while (1) {
-    optc=getopt_long_only(argc,argv,"filename:pageid:useapi:stubfile", optvalues, &optindex);
+    optc=getopt_long_only(argc,argv,"filename:pageid:useapi:stubfile:verbose", optvalues, &optindex);
     if (optc=='f') {
      filename=optarg;
     }
@@ -540,6 +547,8 @@ int main(int argc, char **argv) {
       use_stub=1;
       stubfile = optarg;
     }
+    else if (optc=='v') 
+      verbose++;
     else if (optc==-1) break;
     else usage(argv[0],"unknown option or other error\n");
   }
@@ -570,7 +579,7 @@ int main(int argc, char **argv) {
   iinfo.right_end = file_size;
   iinfo.value_wanted = page_id;
 
-  res = get_first_page_id_after_offset(fin, (off_t)0, &pinfo, use_api, use_stub, stubfile);
+  res = get_first_page_id_after_offset(fin, (off_t)0, &pinfo, use_api, use_stub, stubfile, verbose);
   if (res > 0) {
     iinfo.last_value = pinfo.page_id;
     iinfo.last_position = (off_t)0;
@@ -580,12 +589,13 @@ int main(int argc, char **argv) {
     exit(1);
   }
   if (pinfo.page_id == page_id) {
-      fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
-      exit(0);
+    if (verbose) fprintf(stderr,"found the page id right away, no iterations needed.\n");
+    fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
+    exit(0);
   }
 
   while (1) {
-    res = do_iteration(&iinfo, fin, &pinfo, use_api, use_stub, stubfile);
+    res = do_iteration(&iinfo, fin, &pinfo, use_api, use_stub, stubfile, verbose);
     /* things to check: bad return? interval is 0 bytes long? */
     if (iinfo.left_end == iinfo.right_end) {
       fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
