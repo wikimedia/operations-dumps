@@ -42,6 +42,18 @@ findpageidinbz2xml    - Given a bzipped and possibly truncated file, and a page 
 			     position:xxxxx pageid:nnn
 			It exits with 0 on success, -1 on error.
 
+recompresszml         - Reads an xml stream of pages and writes multiple bz2 compressed
+		        streams, concatenated, to stdout, with the specified number of 
+		        pages per stream. The mediawiki site info header is in its
+			own bz2 stream.  Each stream can be extracted as a separate file
+			by an appropriate tool, checking for the byte-aligned string "BZh91AY&SY"
+			and a following <page> tag (after uncompressing the first chunk
+			of data after that string).  Alternatively, a tool can seek to
+			the location of one of the streams in order to find a particular
+			page.  An index of file-offset:page-id:page-title lines
+			is written to a specified file if desired; the index file will be
+			bz2 compressed if the filename given ends with .bz2.
+
 Library routines:
 
 mwbz2lib.c            - various utility functions (bitmasks, shifting and comparing bytes,

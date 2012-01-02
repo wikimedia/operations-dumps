@@ -29,7 +29,8 @@ OBJSBZ= bzlibfuncs.o
 all: checkforbz2footer \
 	dumpbz2filefromoffset \
 	dumplastbz2block \
-	findpageidinbz2xml
+	findpageidinbz2xml \
+	recompressxml
 
 dumplastbz2block: $(OBJSBZ) mwbzlib.o dumplastbz2block.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o dumplastbz2block dumplastbz2block.o mwbzlib.o  $(OBJSBZ) -lbz2
@@ -43,20 +44,26 @@ checkforbz2footer: $(OBJSBZ) mwbzlib.o checkforbz2footer.o
 dumpbz2filefromoffset: $(OBJSBZ) mwbzlib.o dumpbz2filefromoffset.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o dumpbz2filefromoffset dumpbz2filefromoffset.o mwbzlib.o $(OBJSBZ) -lbz2
 
-install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset
+recompressxml: $(OBJSBZ) recompressxml.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o recompressxml recompressxml.o -lbz2
+
+install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset recompressxml
 	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
 	cp -f dumplastbz2block $(PREFIX)/bin/dumplastbz2block
 	cp -f findpageidinbz2xml $(PREFIX)/bin/findpageidinbz2xml
 	cp -f checkforbz2footer $(PREFIX)/bin/checkforbz2footer
 	cp -f dumpbz2filefromoffset $(PREFIX)/bin/dumpbz2filefromoffset
+	cp -f recompressxml $(PREFIX)/bin/recompressxml
 	chmod a+x $(PREFIX)/bin/dumplastbz2block
 	chmod a+x $(PREFIX)/bin/findpageidinbz2xml
 	chmod a+x $(PREFIX)/bin/checkforbz2footer
 	chmod a+x $(PREFIX)/bin/dumpbz2filefromoffset
+	chmod a+x $(PREFIX)/bin/recompressxml
 
 clean: 
 	rm -f *.o *.a dumplastbz2block findpageidinbz2xml \
-		checkforbz2footer dumpbz2filefromoffset
+		checkforbz2footer dumpbz2filefromoffset \
+		recompressxml
 
 bzlibfuncs.o: bzlibfuncs.c bzlib.h bzlib_private.h
 	$(CC) $(CFLAGS) -c bzlibfuncs.c
@@ -72,6 +79,8 @@ checkforbz2footer.o: checkforbz2footer.c
 	$(CC) $(CFLAGS) -c checkforbz2footer.c
 dumpbz2filefromoffset.o: dumpbz2filefromoffset.c
 	$(CC) $(CFLAGS) -c dumpbz2filefromoffset.c
+recompressxml.o: recompressxml.c
+	$(CC) $(CFLAGS) -c recompressxml.c
 
 distclean: clean
 
@@ -80,6 +89,7 @@ dist:
 	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)
 	tar cvf $(DISTNAME).tar \
+	   $(DISTNAME)/recompressxml.c \
 	   $(DISTNAME)/dumplastbz2block.c \
 	   $(DISTNAME)/findpageidinbz2xml.c \
 	   $(DISTNAME)/checkforbz2footer.c \
