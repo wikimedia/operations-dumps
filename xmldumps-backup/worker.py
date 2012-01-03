@@ -688,6 +688,19 @@ class DumpItemList(object):
 							   "Recombine all pages with complete edit history (.7z)",
 							   "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
 							   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistory7zdump'), self.wiki))
+		# doing this only for recombined/full articles dump
+		if (self.chunkInfo.chunksEnabled()):
+			inputForMultistream = "articlesdumprecombine"
+		else:
+			inputForMultistream = "articlesdump"
+		self.dumpItems.append(
+			XmlMultiStreamDump("articles",
+					   "articlesmultistreamdump",
+					   "Articles, templates, media/file descriptions, and primary meta-pages, in multiple bz2 streams, 100 pages per stream",
+					   "This contains current versions of article content, in concatenated bz2 streams, 100 pages per stream, plus a separate" +
+					   "index of page titles/ids and offsets into the file.  Useful for offline readers, or for parallel processing of pages.",
+					   self.findItemByName(inputForMultistream), self.wiki, None))
+
 		results = self._runInfoFile.getOldRunInfoFromFile()
 		if (results):
 			for runInfoObj in results:
@@ -3325,6 +3338,161 @@ class RecombineXmlDump(XmlDump):
 
 		if (error):
 			raise BackupError("error recombining xml bz2 files")
+
+class XmlMultiStreamDump(XmlDump):
+#class XmlRecompressDump(Dump):
+	"""Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
+
+	def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None):
+		self._subset = subset
+		self._detail = detail
+		self._chunks = chunks
+		if self._chunks:
+			self._chunksEnabled = True
+		self._chunkToDo = chunkToDo
+		self.wiki = wiki
+		self.itemForRecompression = itemForRecompression
+		if checkpoints:
+			self._checkpointsEnabled = True
+		self.checkpointFile = checkpointFile
+		Dump.__init__(self, name, desc)
+
+	def getDumpName(self):
+		return "pages-" + self._subset
+
+	def getFileType(self):
+		return "xml"
+
+	def getFileExt(self):
+		return "bz2"
+
+	def getDumpNameMultistream(self, name):
+		return name + "-multistream"
+
+	def getDumpNameMultistreamIndex(self, name):
+		return self.getDumpNameMultistream(name) + "-index"
+
+	def getFileMultistreamName(self, f):
+		"""assuming that f is the name of an input file,
+		return the name of the associated multistream output file"""
+		return DumpFilename(self.wiki, f.date, self.getDumpNameMultistream(f.dumpName), f.fileType, self.fileExt, f.chunk, f.checkpoint, f.temp) 
+
+	def getFileMultistreamIndexName(self, f):
+		"""assuming that f is the name of a multistream output file,
+		return the name of the associated index file"""
+		return DumpFilename(self.wiki, f.date, self.getDumpNameMultistreamIndex(f.dumpName), f.fileType, self.fileExt, f.chunk, f.checkpoint, f.temp) 
+
+	# output files is a list of checkpoint files, otherwise it is a list of one file. 
+	# checkpoint files get done one at a time. we can't really do parallel recompression jobs of 
+	# 200 files, right?
+	def buildCommand(self, runner, outputFiles):
+		# FIXME need shell escape
+		if (not exists( self.wiki.config.bzip2 ) ):
+			raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
+		if (not exists( self.wiki.config.recompressxml ) ):
+			raise BackupError("recompressxml command %s not found" % self.wiki.config.recompressxml)
+
+		commandSeries = []
+		for f in outputFiles:
+			inputFile = DumpFilename(self.wiki, None, f.dumpName, f.fileType, self.itemForRecompression.fileExt, f.chunk, f.checkpoint) 
+			outfile = runner.dumpDir.filenamePublicPath(self.getFileMultistreamName(f))
+			outfileIndex = runner.dumpDir.filenamePublicPath(self.getFileMultistreamIndexName(f))
+			infile = runner.dumpDir.filenamePublicPath(inputFile)
+			commandPipe = [ [ "%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s"  % (self.wiki.config.bzip2, infile, self.wiki.config.recompressxml, outfileIndex, outfile) ] ]
+			commandSeries.append(commandPipe)
+		return(commandSeries)
+
+	def run(self, runner):
+		if runner.lastFailed:
+			raise BackupError("bz2 dump incomplete, not recompressing")
+		commands = []
+		self.cleanupOldFiles(runner.dumpDir)
+		if self.checkpointFile:
+			outputFile = DumpFilename(self.wiki, None, self.checkpointFile.dumpName, self.checkpointFile.fileType, self.fileExt, self.checkpointFile.chunk, self.checkpointFile.checkpoint) 
+			series = self.buildCommand(runner, [ outputFile ])
+			commands.append(series)
+		elif self._chunksEnabled and not self._chunkToDo:
+			# must set up each parallel job separately, they may have checkpoint files that
+			# need to be processed in series, it's a special case
+			for i in range(1, len(self._chunks)+1):
+				outputFiles = self.listOutputFilesForBuildCommand(runner.dumpDir, i)
+				series = self.buildCommand(runner, outputFiles)
+				commands.append(series)
+		else:
+			outputFiles = self.listOutputFilesForBuildCommand(runner.dumpDir)
+			series = self.buildCommand(runner, outputFiles)
+			commands.append(series)
+			
+		error = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+		if (error):
+			raise BackupError("error recompressing bz2 file(s)")
+
+	# shows all files possible if we don't have checkpoint files. without temp files of course
+	def listOutputFilesToPublish(self, dumpDir):
+		files = []
+		inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
+		for f in inputFiles:
+			files.append(self.getFileMultistreamName(f))
+			files.append(self.getFileMultistreamIndexName(f))
+		return files
+
+	# shows all files possible if we don't have checkpoint files. without temp files of course
+	# only the chunks we are actually supposed to do (if there is a limit)
+	def listOutputFilesToCheckForTruncation(self, dumpDir):
+		files = []
+		inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
+		for f in inputFiles:
+			if self._chunkToDo and f.chunkInt != self._chunkToDo:
+				continue
+			files.append(self.getFileMultistreamName(f))
+			files.append(self.getFileMultistreamIndexName(f))
+		return files
+
+	# shows all files possible if we don't have checkpoint files. no temp files.
+	# only the chunks we are actually supposed to do (if there is a limit)
+	def listOutputFilesForBuildCommand(self, dumpDir, chunk = None):
+		files = []
+		inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
+		for f in inputFiles:
+			# if this param is set it takes priority
+			if chunk and f.chunkInt != chunk:
+				continue
+			elif self._chunkToDo and f.chunkInt != self._chunkToDo:
+				continue
+			# we don't convert these names to the final output form, we'll do that in the build command
+			# (i.e. add "multistream" and "index" to them)
+			files.append(DumpFilename(self.wiki, f.date, f.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, f.temp))
+		return files
+
+	# shows all files possible if we don't have checkpoint files. should include temp files 
+	# does just the chunks we do if there is a limit
+	def listOutputFilesForCleanup(self, dumpDir, dumpNames = None):
+		# some stages (eg XLMStubs) call this for several different dumpNames
+		if (dumpNames == None):
+			dumpNames = [ self.dumpName ]
+		multistreamNames = []
+		for d in dumpNames:
+			multistreamNames.extend( [ self.getDumpNameMultistream(d), self.getDumpNameMultistreamIndex(d) ] )
+
+		files = []
+		if (self.itemForRecompression._checkpointsEnabled):
+			# we will pass list of chunks or chunkToDo, or False, depending on the job setup.
+			files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), multistreamNames))
+			files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), multistreamNames))
+		else:
+			# we will pass list of chunks or chunkToDo, or False, depending on the job setup.
+			files.extend(self.listRegularFilesPerChunkExisting(dumpDir, self.getChunkList(), multistreamNames))
+		return files
+
+	# must return all output files that could be produced by a full run of this stage, 
+	# not just whatever we happened to produce (if run for one chunk, say)
+	def listOutputFilesForInput(self, dumpDir):
+		files = []
+		inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
+		for f in inputFiles:
+			files.append(self.getFileMultistreamName(f))
+			files.append(self.getFileMultistreamIndexName(f))
+		return files
 
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy

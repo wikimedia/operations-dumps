@@ -203,6 +203,7 @@ class Config(object):
 			"grep": "/bin/grep",
 			"checkforbz2footer": "/usr/local/bin/checkforbz2footer",
 			"writeuptopageid": "/usr/local/bin/writeuptopageid",
+			"recompressxml": "/usr/local/bin/recompressxml",
 			#"cleanup": {
 			"keep": "3",
 			#"chunks": {
@@ -284,6 +285,7 @@ class Config(object):
 		self.grep = self.conf.get("tools", "grep")
 		self.checkforbz2footer = self.conf.get("tools","checkforbz2footer")
 		self.writeuptopageid = self.conf.get("tools","writeuptopageid")
+		self.recompressxml = self.conf.get("tools","recompressxml")
 
 		if not self.conf.has_section('cleanup'):
 			self.conf.add_section('cleanup')
