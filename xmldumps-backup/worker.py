@@ -801,6 +801,14 @@ class DumpItemList(object):
 		if ((job == "metahistorybz2dump") or (job == "metacurrentdump") or (job == "articlesdump")):
 			if (not self.jobDoneSuccessfully("xmlstubsdump")):
 				return False
+		if (job == "articlesmultistreamdump"):
+			if (self.chunkInfo.chunksEnabled()):
+				if (not self.jobDoneSuccessfully("articlesdumprecombine")):
+					return False
+			else:
+				if (not self.jobDoneSuccessfully("articlesdump")):
+					return False
+
 		return True
 				      
 	def _getChunkToDo(self, jobName):
