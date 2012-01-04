@@ -84,7 +84,7 @@ recompressxml.o: recompressxml.c
 
 distclean: clean
 
-DISTNAME=mwbzutils-0.0.2
+DISTNAME=mwbzutils-0.0.3
 dist: 
 	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)
