@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <string.h>
 
-typedef enum { None, StartHeader, StartPage, AtPageID, WriteMem, Write, EndPage, AtLastPageID } States;
+typedef enum { None, StartHeader, EndHeader, StartPage, AtPageID, WriteMem, Write, EndPage, AtLastPageID } States;
 
 /* assume the header is never going to be longer than 1000 x 80 4-byte characters... how many
    namespaces will one project want? */
@@ -29,8 +29,19 @@ void usage(char *me) {
 States setState (char *line, States currentState, int startPageID, int endPageID) {
   int pageID = 0;
 
+  if (currentState == EndHeader) {
+    /* if we have junk after the header we don't write it.
+     commands like dumpbz2filefromoffset can produce such streams. */
+    if (strncmp(line,"<page>",6)) {
+      return(None);
+    }
+  }
+
   if (!strncmp(line,"<mediawiki",10)) {
     return(StartHeader);
+  }
+  else if (!strncmp(line,"</siteinfo>",11)) {
+    return(EndHeader);
   }
   else if (!strncmp(line,"<page>",6)) {
     return(StartPage);
@@ -87,7 +98,7 @@ void clearMemoryIfNeeded(char *mem, States state) {
 
 /* returns 1 on success, 0 on error */
 int writeIfNeeded(char *line, States state) {
-  if (state == StartHeader || state == WriteMem || state == Write || state == EndPage) {
+  if (state == StartHeader || state == EndHeader || state == WriteMem || state == Write || state == EndPage) {
     return(fwrite(line,strlen(line),1,stdout));
   }
 }
