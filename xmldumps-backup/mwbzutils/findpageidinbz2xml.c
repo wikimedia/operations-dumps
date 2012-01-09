@@ -41,7 +41,7 @@ int init_and_read_first_buffer_bz2_file(bz_info_t *bfile, int fin) {
     return(0);
   }
   else {
-    fprintf(stderr,"failed to find the next frigging block marker\n");
+    fprintf(stderr,"Failed to find the next block marker\n");
     return(-1);
   }
 }
@@ -91,7 +91,7 @@ char *get_hostname_from_xml_header(int fin) {
 	if (match_base_expr[1].rm_so >=0) {
 	  hostname_length = match_base_expr[1].rm_eo - match_base_expr[1].rm_so;
 	  if (hostname_length > sizeof(hostname)) {
-	    fprintf(stderr,"very long hostname, giving up\n");
+	    fprintf(stderr,"Very long hostname, giving up\n");
 	    break;
 	  }
 	  else {
@@ -339,7 +339,7 @@ int get_first_page_id_after_offset(int fin, off_t position, page_info_t *pinfo, 
 	   hopefully that doesn't take forever. 
 	*/
 	if (buffer_count>(20000000/BUFINSIZE) && rev_id) {
-	  if (verbose) fprintf(stderr, "passed cutoff for using api\n");
+	  if (verbose) fprintf(stderr, "passed retries cutoff for using api\n");
 	  if (use_api) {
 	    page_id_found = get_page_id_from_rev_id_via_api(rev_id, fin);
 	  }
@@ -442,19 +442,23 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, i
   /* if we're this close, we'll check this value and be done with it */
   if (iinfo->right_end -iinfo->left_end < (off_t)2) {
     new_position = iinfo->left_end;
+    if (verbose >= 2) fprintf(stderr," choosing new position (1) %"PRId64"\n",new_position);
     iinfo->right_end = iinfo->left_end;
   }
   else {
     if (iinfo->last_value < iinfo->value_wanted) {
-      if (verbose >=2) fprintf(stderr,"resetting left end\n");
+      if (verbose >= 2) fprintf(stderr,"resetting left end\n");
       iinfo->left_end = iinfo->last_position;
       new_position = iinfo->last_position + interval;
+      if (verbose >= 2) fprintf(stderr," choosing new position (2) %"PRId64"\n",new_position);
     }
     /* iinfo->last_value > iinfo->value_wanted */
     else {
       if (verbose >=2) fprintf(stderr,"resetting right end\n");
       iinfo->right_end = iinfo->last_position;
       new_position = iinfo->last_position - interval;
+      if (new_position < 0) new_position = 0;
+      if (verbose >= 2) fprintf(stderr," choosing new position (3) %"PRId64"\n",new_position);
     }
   }
   res = get_first_page_id_after_offset(fin, new_position, pinfo, use_api, use_stub, stubfilename, verbose);
@@ -550,7 +554,7 @@ int main(int argc, char **argv) {
     else if (optc=='v') 
       verbose++;
     else if (optc==-1) break;
-    else usage(argv[0],"unknown option or other error\n");
+    else usage(argv[0],"Unknown option or other error\n");
   }
 
   if (! filename || ! page_id) {
@@ -558,12 +562,12 @@ int main(int argc, char **argv) {
   }
 
   if (page_id <1) {
-    usage(argv[0], "please specify a page_id >= 1.\n");
+    usage(argv[0], "Please specify a page_id >= 1.\n");
   }
 
   fin = open (filename, O_RDONLY);
   if (fin < 0) {
-    fprintf(stderr,"failed to open file %s for read\n", argv[1]);
+    fprintf(stderr,"Failed to open file %s for read\n", argv[1]);
     exit(1);
   }
 
@@ -585,7 +589,7 @@ int main(int argc, char **argv) {
     iinfo.last_position = (off_t)0;
   }
   else {
-    fprintf(stderr,"failed to get anything useful from the beginning of the file even, bailing.\n");
+    fprintf(stderr,"Failed to find any page from start of file, exiting\n");
     exit(1);
   }
   if (pinfo.page_id == page_id) {
@@ -593,17 +597,25 @@ int main(int argc, char **argv) {
     fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
     exit(0);
   }
-
+  if (pinfo.page_id > page_id) {
+    fprintf(stderr,"Page requested is less than first page id in file\n");
+    exit(-1);
+  }
   while (1) {
     res = do_iteration(&iinfo, fin, &pinfo, use_api, use_stub, stubfile, verbose);
-    /* things to check: bad return? interval is 0 bytes long? */
-    if (iinfo.left_end == iinfo.right_end) {
-      fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
-      exit(0);
-    }
-    else if (res < 0) {
-      fprintf(stderr,"broken and quitting\n");
+    if (res < 0) {
+      fprintf(stderr,"Error encountered during search\n");
       exit(-1);
+    }
+    else if (iinfo.left_end == iinfo.right_end) {
+      if ( pinfo.page_id <= page_id) {
+	fprintf(stdout,"position:%"PRId64" page_id:%d\n",pinfo.position, pinfo.page_id);
+	exit(0);
+      }
+      else {
+	fprintf(stderr,"File does not contain requested page id\n");
+	exit(-1);
+      }
     }
   }
   exit(0);
