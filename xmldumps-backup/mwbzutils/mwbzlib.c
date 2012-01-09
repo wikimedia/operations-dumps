@@ -313,7 +313,7 @@ int init_bz2_file(bz_info_t *bfile, int fin, int direction) {
   }
   seekresult = lseek(fin, bfile->position, SEEK_SET);
   if (seekresult == (off_t)-1) {
-    fprintf(stderr,"lseek of file to %"PRId64" failed (7)\n",bfile->position);
+    fprintf(stderr,"lseek of file to %"PRId64" failed (9)\n",bfile->position);
     return(-1);
   }
 
@@ -682,7 +682,7 @@ off_t find_first_bz2_block_from_offset(bz_info_t *bfile, int fin, off_t position
 	/* leave the file at the right position */
 	seekresult = lseek(fin, bfile->block_start, SEEK_SET);
 	if (seekresult == (off_t)-1) {
-	  fprintf(stderr,"lseek of file to %"PRId64" failed (7)\n",bfile->position);
+	  fprintf(stderr,"lseek of file to %"PRId64" failed (8)\n",bfile->position);
 	  return(-1);
 	}
 	bfile->position = seekresult;
