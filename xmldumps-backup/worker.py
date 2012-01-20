@@ -1685,7 +1685,7 @@ class Runner(object):
 		# these must come after the dumpdir setup so we know which directory we are in 
 		if (self._loggingEnabled and self._makeDirEnabled):
 			fileObj = DumpFilename(self.wiki)
-			fileObj.newFromfilename(self.wiki.config.logFile)
+			fileObj.newFromFilename(self.wiki.config.logFile)
 			self.logFileName = self.dumpDir.filenamePublicPath(fileObj)
 			self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
 			self.log = Logger(self.logFileName)
