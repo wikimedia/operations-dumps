@@ -1,14 +1,43 @@
 #!/bin/bash
 
-# number of failures of worker.py in a row before we decide
+# default number of failures of worker.py in a row before we decide
 # something serious is broken and we refuse to run
 MAXFAILS=3
-failures=0
+# default: don't pass special config file
+CONFIGFILE=""
+# default: no logging to file
+LOG=""
 
+failures=0
 WIKIDUMP_BASE=`dirname "$0"`
 
-if [ ! -z "$1" ]; then
-    configFile="$1"
+while [ $# -gt 0 ]; do
+    if [ $1 == "--configfile" ]; then
+	CONFIGFILE="$2"
+	shift; shift
+    elif [ $1 == "--maxfails" ]; then
+	MAXFAILS="$2"
+	shift; shift
+    elif [ $1 == "--log" ]; then
+	LOG=true
+	shift;
+    else
+	echo "$0: Unknown option $1"
+	echo "Usage: $0 [--configfile filename] [--log] [--maxfails num]"
+	echo "--configfile   use specified file for config file (default: wikidump.conf)"
+	echo "--log          write log of (almost) everything written to stderr (default: no logging)"
+	echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
+	exit 1
+    fi
+done
+
+# set up the command
+pythonargs=( "$WIKIDUMP_BASE/worker.py" )
+if [ ! -z "$CONFIGFILE" ]; then
+    pythonargs=( "${pythonargs[@]}" "--configfile" "$CONFIGFILE" )
+fi
+if [ ! -z "$LOG" ]; then
+    pythonargs=( "${pythonargs[@]}" "--log" )
 fi
 
 while true; do
@@ -16,17 +45,16 @@ while true; do
 	echo "in maintenance mode, sleeping 5 minutes"
 	sleep 300
     else
-	if [ ! -z "$configFile" ]; then
-	    python $WIKIDUMP_BASE/worker.py "--configfile" "$configFile"
-	else
-	    python $WIKIDUMP_BASE/worker.py
-	fi
+	echo python ${pythonargs[@]}
+	python ${pythonargs[@]}
 	if [ $? -ne 0 ]; then
 	    failures=$(($failures+1))
 	    if [ $failures -gt $MAXFAILS ]; then
 		echo "more than $MAXFAILS failures in a row, halting."
 		exit 1
 	    fi
+	else
+	    failures=0
 	fi
 	echo "sleeping"
 	sleep 30
