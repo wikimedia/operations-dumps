@@ -1383,7 +1383,7 @@ class DumpFile(file):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-	def __init__(self, wiki, dumpDir, items, checksums, enabled, noticeFile = None, errorCallback=None, verbose = False):
+	def __init__(self, wiki, dumpDir, items, checksums, enabled, email = True, noticeFile = None, errorCallback=None, verbose = False):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
 		self.dumpDir = dumpDir
@@ -1394,13 +1394,14 @@ class Status(object):
 		self.failCount = 0
 		self.verbose = verbose
 		self._enabled = enabled
+		self.email = email
 
 	def updateStatusFiles(self, done=False):
 		if self._enabled:
 			self._saveStatusSummaryAndDetail(done)
 		
 	def reportFailure(self):
-		if self._enabled:
+		if self._enabled and self.email:
 			if self.wiki.config.adminMail:
 				subject = "Dump failure for " + self.dbName
 				message = self.wiki.config.readTemplate("errormail.txt") % {
@@ -1698,7 +1699,12 @@ class Runner(object):
 
 		# some or all of these dumpItems will be marked to run
 		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.chunkInfo, self.pageIDRange, self.runInfoFile, self.dumpDir)
-		self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, self.htmlNoticeFile, self.logAndPrint, self.verbose)
+		# only send email failure notices for full runs
+		if (self.jobRequested):
+			email = False
+		else:
+			email = True
+		self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, email, self.htmlNoticeFile, self.logAndPrint, self.verbose)
 
 	def logQueueReader(self,log):
 		if not log:
