@@ -406,7 +406,7 @@ class IncDumpDirs(object):
         dirs = self.getIncDumpDirs()
         if dirs:
             if ok:
-                for dump in dirs:
+                for dump in reversed(dirs):
                     statusInfo = StatusInfo(self._config, dump, self.wikiName)
                     if statusInfo.getStatus(dump) == "done":
                         return dump
