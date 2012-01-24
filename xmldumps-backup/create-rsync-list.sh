@@ -180,7 +180,6 @@ if [ -f "$outputfile" ]; then
 fi
 if [ -f "$outputfile.tmp" ]; then
     mv "$outputfile.tmp" "$outputfile"
-    exit 0
 else
     echo "$0: no output file created. Something is wrong."
     exit 1
