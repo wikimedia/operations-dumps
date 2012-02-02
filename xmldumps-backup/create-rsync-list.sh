@@ -5,6 +5,7 @@
 # are not n successful dumps available.  
 
 # Options:
+# dirsonly    -- list only the directories to include
 # dumpsnumber -- number of dumps to list
 # outputfile  -- path to file in which to write the list
 # configfile  -- path to config file used to generate dumps
@@ -12,6 +13,7 @@
 usage() {
     echo "Usage: $0 --dumpsnumber n --outputfile filename --configfile filename --rsyncprefix path"
     echo 
+    echo "  dirsonly          list only directories to include"
     echo "  dumpsnumber       number of dumps to list"
     echo "  outputfile        name of file to which we will write iw action list"
     echo "  configfile        name of configuration file for dump generation"
@@ -21,6 +23,7 @@ usage() {
     echo 
     echo "For example:"
     echo "   $0 --dumpsnumber 5 --outputfile /data/dumps/public/dumpsfiles_for_rsync.txt --configfile wikidump.conf.testing"
+
     exit 1
 }
 
@@ -74,22 +77,34 @@ listdumpsforproject() {
     done
 }
 
+list_dir_only() {
+    if [ "$rsyncprefix" == "false" ]; then
+	ls -d $d 2>/dev/null >> $outputfile.tmp
+    else
+	ls -d $d 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+    fi
+}
+
 list_files_in_dir() {
     if [ ! -f "$outputfile.tmp" ]; then
 	touch $outputfile.tmp
     fi
-    if [ "$rsyncprefix" == "false" ]; then
-	ls $d/*.gz 2>/dev/null >> $outputfile.tmp
-	ls $d/*.bz2 2>/dev/null >> $outputfile.tmp
-	ls $d/*.7z 2>/dev/null >> $outputfile.tmp
-	ls $d/*.html 2>/dev/null >> $outputfile.tmp
-	ls $d/*.txt 2>/dev/null >> $outputfile.tmp
+    if [ "$dirsonly" == false ]; then
+	if [ "$rsyncprefix" == "false" ]; then
+	    ls $d/*.gz 2>/dev/null >> $outputfile.tmp
+	    ls $d/*.bz2 2>/dev/null >> $outputfile.tmp
+	    ls $d/*.7z 2>/dev/null >> $outputfile.tmp
+	    ls $d/*.html 2>/dev/null >> $outputfile.tmp
+	    ls $d/*.txt 2>/dev/null >> $outputfile.tmp
+	else
+	    ls $d/*.gz 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	    ls $d/*.bz2 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	    ls $d/*.7z 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	    ls $d/*.html 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	    ls $d/*.txt 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	fi
     else
-	ls $d/*.gz 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
-	ls $d/*.bz2 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
-	ls $d/*.7z 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
-	ls $d/*.html 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
-	ls $d/*.txt 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	list_dir_only
     fi
 }
 
@@ -121,7 +136,7 @@ get_list_of_files() {
     fi
 }
     
-if [ "$#" -lt "4" -o "$#" -gt "8" ]; then
+if [ "$#" -lt "4" -o "$#" -gt "9" ]; then
     usage
 fi
 
@@ -129,21 +144,28 @@ dumpsnumber=""
 outputfile=""
 configfile="wikidump.conf"
 rsyncprefix="false"
+dirsonly="false"
 
 while [ $# -gt 0 ]; do
-    if [ $1 == "--dumpsnumber" ]; then
+    if [ $1 == "--dirsonly" ]; then
+	dirsonly="true"
+	shift
+    elif [ $1 == "--dumpsnumber" ]; then
 	dumpsnumber="$2"
+	shift; shift
     elif [ $1 == "--outputfile" ]; then
 	outputfile="$2"
+	shift; shift
     elif [ $1 == "--configfile" ]; then
 	configfile="$2"
+	shift; shift
     elif [ $1 == "--rsyncprefix" ]; then
 	rsyncprefix="$2"
+	shift; shift
     else
 	echo "$0: Unknown option $1"
 	usage
     fi
-    shift; shift
 done
 
 check_args
