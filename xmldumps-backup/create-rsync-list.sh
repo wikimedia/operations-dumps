@@ -96,12 +96,14 @@ list_files_in_dir() {
 	    ls $d/*.7z 2>/dev/null >> $outputfile.tmp
 	    ls $d/*.html 2>/dev/null >> $outputfile.tmp
 	    ls $d/*.txt 2>/dev/null >> $outputfile.tmp
+	    ls $d/.xml 2>/dev/null >> $outputfile.tmp
 	else
 	    ls $d/*.gz 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
 	    ls $d/*.bz2 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
 	    ls $d/*.7z 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
 	    ls $d/*.html 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
 	    ls $d/*.txt 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	    ls $d/*.xml 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
 	fi
     else
 	list_dir_only
