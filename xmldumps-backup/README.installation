@@ -5,8 +5,9 @@
 * PHP 2.5 or greater
 * A fully functional MediaWiki installation with some data in it (depends on 
   mysql and a functioning webserver)
+* Installed ActiveAbstract extension for MediaWiki
 * The applications gzip, bzip2, 7zip version 4.58 or better
-* Command line utilities head, tail, cat
+* Command line utilities head, tail, cat, grep
 * Build the utfnormal php module, located in svn:
     This depends on swig and libicu-dev, install those.
     svn co http://svn.wikimedia.org/svnroot/mediawiki/trunk/extensions/normal/
@@ -26,6 +27,9 @@ for the currently running versions with parallelization and various command
 line arguments:
 
   svn co http://svn.wikimedia.org/svnroot/mediawiki/branches/ariel/xmldumps-backup backups
+
+Build the programs in the mwbzutils subdirectory, and move back to the
+backups directory afterwards.
 
 Copy the file wikidump.conf.sample to wikidump.conf and edit the values 
 appropriately; see the file README.config for information on the format of the 
