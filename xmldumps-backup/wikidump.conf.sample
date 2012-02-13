@@ -29,6 +29,8 @@ mysqldump=/usr/bin/mysqldump
 gzip=/usr/bin/gzip
 bzip2=/usr/bin/bzip2
 sevenzip=/usr/bin/7za
+checkforbz2footer=/usr/local/bin/checkforbz2footer		  
+recompressxml=/usr/local/bin/recompressxml
 
 [cleanup]
 keep=10
