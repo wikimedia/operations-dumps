@@ -1,5 +1,7 @@
 This is the script for generating data dumps for Wikimedia's public wikis.
 
+NOTE: this file need a serious update as of Feb 2012.
+
 == Architecture ==
 
 As of March 2007, the architecture has been split into two parts:
