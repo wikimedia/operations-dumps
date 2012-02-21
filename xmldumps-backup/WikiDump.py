@@ -24,6 +24,12 @@ class FileUtils(object):
 		Arguments: dirname = where temp file is created, filename = full path to actual file, text = contents
 		to write to file, perms = permissions that the file will have after creation"""
 		
+		if not os.path.isdir(dirname):
+			try:
+				os.makedirs(dirname)
+			except:
+				raise IOError("The given directory '%s' is neither a directory nor can it be created" % dirname)
+				
 		(fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
 		os.write(fd,text)
 		os.close(fd)
