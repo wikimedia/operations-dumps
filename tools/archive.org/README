@@ -1,0 +1,90 @@
+This is the archiveuploader script which we use to upload dumps to archive.org
+via their S3-style api.  
+
+Notes: 
+
+This is used only for dumps.  It does things like try to determine the language
+of the project dumped by polling the en wikipedia SiteMatrix. 
+
+Setup:
+
+Create a config file.  It should contain the access and secret key needed for
+access to the archive.org api, the url to the SiteMatrix for your projects, 
+and the full path to the name of the file where the SiteMatrix information
+will be cached.   See archiveuploader.conf.sample for an example.
+If you don't need multiple config files, put it in the default place: 
+"archiveuploader.conf.sample" in the working directory of the script.
+
+Make sure curl is installed on your system and a pointer to its location
+is also in the config file.
+
+If you are not uploading to WMF items (buckets)... i.e. you are 
+an individual user uploading to some other bucket, you'll need to 
+add to the configuration file a pointer to the license covering
+the content of your files, the creator of the dumps, and the download
+location of the dumps.
+
+By default the dbname of your project is assumed to be the same 
+as the itemname that will appear in S3 urls.  If you don't want
+this to be the case, you can specify a format string in the config
+file, putting %%s in the string in the spot where the dbname would go.
+See the sample config file for an example.
+
+If you are not a WMF uploader, you may also want to have a fixed prefix
+or suffix in each item name specifying your organization, or some other unique
+string so that your item names (bucket names) don't conflict with
+those of other uploaders.
+
+Files to be uploaded:
+
+We use this uploading a full directory of dumps tarred up into a 
+single file, with a name like elwiktionary-20060703.tar
+Obviously this only works for smaller projects.
+
+We haven't decided how to handle large (*cough*enwiki*cough*) projects
+yet.  S3 does support multi-part uploads so we may check that out.
+
+The intent is that all files of one project are uploaded to a single
+item (bucket) for that project.  You may want to upload based on month and
+year rather than project; we don't provide support for that yet.
+
+Testing:
+
+Set up a tarball of the dumped tables and xml files of a project for
+a given date. Run the script without arguments to see a detailed
+help message about its invocation.  
+
+If you have put all of your auth information in the config file, 
+you should be able to create the item with the command 
+  python archiveuploader.py --createitem dbnamehere 
+to create the initial item.  The dbname should be the actual dbname of the 
+project with the dump you'll be uploading.  *The item name is created from
+the dbname using the itemnameformat entry in the config file.*
+
+You can go view your item on archive.org in a few minutes; things
+wind up in a todo queue which you can check here (must log in via
+web interface, no xml or json output available either):
+  http://www.archive.org/catalog.php?justme=1
+Completed jobs are listed here: 
+  http://www.archive.org/catalog.php?history=1&justme=1&history=1
+
+If the metadata loks wrong, you can try to tweak it by altering
+the config file settings, and then update the item by
+  python archiveuploader.py --updateitem dbnamehere 
+
+Now you're ready to add objects (files) to the item (bucket).
+You can see what the script thinks it should do: 
+  python archiveuploader.py --uploadobject dbnamehere --objectname objectnamehere --filename pathtofiletoupload --dryrun --verbose
+
+If that all looks sensible, you can try uploading a file:
+  python archiveuploader.py --uploadobject dbnamehere --objectname objectnamehere --filename pathtofiletoupload
+
+As before you can check on the progress of the upload here:
+  http://www.archive.org/catalog.php?justme=1
+
+You can list your objects (files) in an item:
+  python archiveuploader.py --listobjects dbnamehere
+
+You can also list all your items:
+  python archiveuploader.py --listitems
+

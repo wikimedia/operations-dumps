@@ -1,0 +1,31 @@
+#sample configuration file
+
+[auth]
+accesskey=blahblahblahblah
+secretkey=blehblehblehbleh
+
+[output]
+# location where we will cache the sitematrix information,
+# used to guess the local lnguage code and name and the 
+# project name for each db. 
+sitematrixfile=/home/backup/archiveuploading/sitematrixcache.txt
+
+[web]
+# the full url to api.php of the project from which we will
+# retrieve sitematrix information, i.e the list of all projects 
+# and languages known
+# items uploaded will use the language name translated into
+# english if you use this url; if you want that translation to be
+# in some other language than english, point this to a project
+# in that language.
+apiurl=http://en.wikipedia.org/w/api.php
+
+curl=/usr/bin/curl
+# replace %%s with the dbname to get the itemname
+# that you want to show up in the s3 url
+itemnameformat=wmf-dumps-%%s
+licenseurl=http://wikimediafoundation.org/wiki/Terms_of_Use
+creator=the Wikimedia Foundation
+# used only in the description of items created; if your dumps
+# are from somewhere else, point this to their website
+downloadurl=http://dumps.wikimedia.org
