@@ -5,6 +5,8 @@ import xml.sax
 import os
 import codecs
 import traceback
+import re
+import hashlib
 import subprocess
 from subprocess import Popen, PIPE
 import ConfigParser
@@ -244,6 +246,10 @@ class ArchiveUploader(object):
         happily with json output."""
         return "%sdetails/%s?output=json" % (self.getArchiveBaseUrl(), self.itemName)
 
+    def getObjectUrl(self, objectName, fileName):
+        """Returns the curl arguments needed for the url of an object (file) S3-style"""
+        return "%s/%s" % ( self.getArchiveItemUrl(), objectName )
+
     def getLocationCurlArg(self):
         """Returns the argument that causes curl to follow all redirects"""
         return [ "--location" ]
@@ -257,11 +263,18 @@ class ArchiveUploader(object):
         the authentication header with accesskey and secret key, and
         the url to the object (file) as an S3 url."""
         args = self.getS3AuthCurlArgs()
-        args.extend( ['--upload-file', fileName, "%s/%s" % ( self.getArchiveItemUrl(), objectName ) ] )
+        args.extend( ['--upload-file', fileName, self.getObjectUrl() ] )
         return args
 
     def getQuietCurlArg(self):
         return [ "-s" ]
+
+    def getNoDeriveCurlArg(self):
+        """This tag tells archive.org not to try to derive a bunch of other
+        formats from this file (which it would do for videos, for example).
+        We've been requested to add this since our files have no derivative
+        formats."""
+        return [ "--header", "x-archive-queue-derive:0" ]
 
     def getHeadReqCurlArgs(self):
         """Returns the curl arguments needed to do head request and write 
@@ -269,6 +282,11 @@ class ArchiveUploader(object):
         args = self.getQuietCurlArg()
         args.extend([ "--write-out", "%{http_code}", "-X", "HEAD" ] )
         return args
+
+    def getHeadWithOutputCurlArgs(self):
+        """Returns the curl arguments needed to do head request and write 
+        out everything"""
+        return [ "--head" ]
  
     def getItemCreationCurlArgs(self):
         """Returns the curl arguments needed to put an empty file; 
@@ -361,11 +379,65 @@ class ArchiveUploader(object):
             raise ArchiveUploaderError("No such item " + self.itemName + " exists, http error code " + self.existence + ", giving up.")
         curlCommand = [ self.config.curl ];
         curlCommand.extend(self.getLocationCurlArg())
+        curlCommand.extend(self.getNoDeriveCurlArg())
         curlCommand.extend(self.getObjectUploadCurlArgs(objectName, fileName))
         if (self.dryrun):
             self.showCommand(curlCommand)
         else:
             self.doCurlCommand(curlCommand)
+
+    def verifyObject(self, objectName, fileName):
+        """Verify an object (file) in a given bucket (item) by checking etag
+        from server and md5sum of local file. Args:
+        objectName -- name of the object as it appears in the S3-style url
+        fileName   -- path to corresponding local file"""
+
+        self.checkIfItemExists()
+        if self.existence != "200":
+            raise ArchiveUploaderError("No such item " + self.itemName + " exists, http error code " + self.existence + ", giving up.")
+        curlCommand = [ self.config.curl ];
+        curlCommand.extend(self.getLocationCurlArg())
+        curlCommand.extend(self.getHeadWithOutputCurlArgs())
+        curlCommand.append(self.getObjectUrl(objectName, fileName))
+        if (self.dryrun):
+            self.showCommand(curlCommand)
+        else:
+            result = self.doCurlCommand(curlCommand, True)
+            md5sumFromEtag = self.getEtagValue(result)
+            if not md5sumFromEtag:
+                print "no Etag in server output, received:"
+                print result
+                sys.exit(1)
+            md5sumFromLocalFile = self.getMd5sumOfFile(fileName)
+            if verbose:
+                print "Etag: ", md5sumFromEtag, "md5 of local file: ", md5sumFromLocalFile
+            if md5sumFromEtag == md5sumFromLocalFile:
+                if verbose:
+                    print "File verified ok."
+            else:
+                raise ArchiveUploaderError("File verification FAILED.")
+
+    def getEtagValue(self, text):
+        # format: ETag: "8ea7c3551a74098b49fbfea49b1ee9e1"
+        lines = text.split('\n')
+        etagExpr = re.compile('^ETag:\s+"([abcdef0-9]+)"')
+        for l in lines:
+            etagMatch = etagExpr.match(l)
+            if etagMatch:
+                return etagMatch.group(1)
+        return None
+
+    def getMd5sumOfFile(self, fileName):
+        summer = hashlib.md5()
+        infile = file(fileName, "rb")
+        # really? could this be bigger?? consider 20GB files.
+        bufsize = 4192 * 32
+        buffer = infile.read(bufsize)
+        while buffer:
+            summer.update(buffer)
+            buffer = infile.read(bufsize)
+        infile.close()
+        return summer.hexdigest()
 
     def checkIfItemExists(self):
         """Check it the item (bucket) exists, returning True if it exists
@@ -682,6 +754,8 @@ def usage(message = None):
     print "--updateitem <item>:   The metadata for the specified item will be updated."
     print "--uploadobject <item>: An object will be created by uploading to the specified item the file"
     print "                       given by --filename.  Requires the --objectName option."
+    print "--verifyobject <item>: An object in an item will be verified by checking its md5sum locally and on"
+    print "                       the server.  Requires the --objectName and the --filename options."
     print "--listitems:           List all items belonging to the account identified by the --accesskey"
     print "                       and --secretkey options."
     print "--showitem <item>:     Show metadata about the specified item."
@@ -706,6 +780,7 @@ if __name__ == "__main__":
     createItem = False
     updateItem = False
     uploadObject = False
+    verifyObject = False
     configFile = None
     fileName = None
     listItems = False
@@ -715,7 +790,7 @@ if __name__ == "__main__":
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-            ['accesskey=', 'secretkey=', 'createitem=', 'updateitem=', 'uploadobject=', 'objectname=', 'filename=', 'configfile=', 'listitems', 'showitem=', 'listobjects=', 'dryrun', 'verbose' ])
+            ['accesskey=', 'secretkey=', 'createitem=', 'updateitem=', 'uploadobject=', 'objectname=', 'filename=', 'configfile=', 'listitems', 'showitem=', 'listobjects=', 'verifyobject=', 'dryrun', 'verbose' ])
     except:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
@@ -729,6 +804,9 @@ if __name__ == "__main__":
         elif opt == '--uploadobject':
             itemName = val
             uploadObject = True
+        elif opt == '--verifyobject':
+            itemName = val
+            verifyObject = True
         elif opt == '--objectname':
             objectName = val
         elif opt == '--createitem':
@@ -757,13 +835,13 @@ if __name__ == "__main__":
     if len(remainder):
         usage("Error: unknown option specified.")
 
-    if uploadObject and not fileName:
-        usage("Error: a filename for upload must be specified with --objectname.")
+    if (uploadObject or verifyObject) and not fileName:
+        usage("Error: a filename for upload or verification must be specified with --uploadobject/--verifyobject.")
 
-    if uploadObject and not objectName:
-        usage("Error: the option --objectname must be specified with --uploadobject.")
+    if (uploadObject or verifyObject) and not objectName:
+        usage("Error: the option --objectname must be specified with --uploadobject/--verifyobject.")
 
-    actionOptsCount = len(filter(None, [ createItem, updateItem, uploadObject, listItems, listObjects, showItem ]))
+    actionOptsCount = len(filter(None, [ createItem, updateItem, uploadObject, verifyObject, listItems, listObjects, showItem ]))
 
     if actionOptsCount > 1:
         usage("Error: conflicting action options specified.")
@@ -784,15 +862,24 @@ if __name__ == "__main__":
     archiveUploader = ArchiveUploader(config, archiveKey, itemName, verbose, dryrun)
     
     if uploadObject:
-        archiveUploader.uploadObject(objectName, fileName)
+        result = archiveUploader.uploadObject(objectName, fileName)
+    elif verifyObject:
+        result = archiveUploader.verifyObject(objectName, fileName)
     elif createItem:
-        archiveUploader.createItem()
+        result = archiveUploader.createItem()
     elif updateItem:        
-        archiveUploader.updateItem()
+        result = archiveUploader.updateItem()
     elif listItems:
+        result = False
         archiveUploader.listAllItems()
     elif listObjects:
+        result = False
         archiveUploader.listObjects()
     elif showItem:
+        result = False
         archiveUploader.showItem()
+    if result:
+        print "Failed."
+    else:
+        print "Successful."
 
