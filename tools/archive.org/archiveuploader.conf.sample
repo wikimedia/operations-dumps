@@ -3,6 +3,11 @@
 [auth]
 accesskey=blahblahblahblah
 secretkey=blehblehblehbleh
+# you only need these if you are going to use this to check
+# things in the job queue, i.e. items/objects you have submitted
+# that are undergoing further processing by archive.org
+username=MeMeMeMe
+password=extremelys3krit
 
 [output]
 # location where we will cache the sitematrix information,

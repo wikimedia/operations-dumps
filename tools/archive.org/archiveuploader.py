@@ -44,6 +44,8 @@ class ArchiveUploaderConfig(object):
             #"auth": {
             "accesskey": "",
             "secretkey": "",
+            "username": "",
+            "password": "",
             #"output": {
             "sitematrixfile": "",
             #"web": {
@@ -64,6 +66,8 @@ class ArchiveUploaderConfig(object):
         corresponding defaults."""
         self.accessKey = self.conf.get("auth", "accesskey")
         self.secretKey = self.conf.get("auth", "secretkey")
+        self.username = self.conf.get("auth", "username")
+        self.password = self.conf.get("auth", "password")
         self.siteMatrixFile = self.conf.get("output", "sitematrixfile")
         self.apiUrl = self.conf.get("web", "apiurl")
         self.curl = self.conf.get("web", "curl")
@@ -228,6 +232,7 @@ class ArchiveUploader(object):
         self.dbName = self.itemName
         if self.config.itemNameFormat:
             self.itemName = self.config.itemNameFormat % self.dbName
+        self.sessionCookies = None
 
     def getArchiveBaseS3Url(self):
         """Returns location of the base url for archive.org S3 requests"""
@@ -250,6 +255,15 @@ class ArchiveUploader(object):
         """Returns the curl arguments needed for the url of an object (file) S3-style"""
         return "%s/%s" % ( self.getArchiveItemUrl(), objectName )
 
+    def getLoginFormUrl(self):
+        """Returns the url of the login form for archive.org"""
+        return "%saccount/login.php"% self.getArchiveBaseUrl()
+
+    def getArchiveItemStatusUrl(self):
+        """Returns the url of the status of an item (whether there are
+        any related things in the job queue) for archive.org"""
+        return '%scatalog.php?history=1&identifier=%s' % ( self.getArchiveBaseUrl(), self.itemName )
+
     def getLocationCurlArg(self):
         """Returns the argument that causes curl to follow all redirects"""
         return [ "--location" ]
@@ -257,6 +271,18 @@ class ArchiveUploader(object):
     def getS3AuthCurlArgs(self):
         """Returns the arguments needed for auth to the archive.org S3 api"""
         return [ "--header", self.archiveKey.getAuthHeader() ]
+
+    def getLoginFormCurlArgs(self):
+        """Returns the arguments needed for auth to the archive.org S3 api"""
+        return [ "--data-urlencode", "username=%s" % self.config.username, "--data-urlencode", 
+                 "password=%s" % self.config.password, 
+                 '--data-urlencode', 'remember=CHECKED', '--data-urlencode', 'submit=Log in' ]
+
+    def getRestOfIckyLoginCurlArgs(self):
+        """Returns some bizarre arguments needed for archive.org login
+        partly cause we want to get thecookies without all the html, partly
+        cause login failes without this 'test cookie', how is that possible? >_<"""
+        return [ '-s', '-c', '-', '-b', 'test-cookie=1', '-o', '/dev/null' ]
 
     def getObjectUploadCurlArgs(self, objectName, fileName):
         """Returns the curl arguments needed for upload of a file S3-style:
@@ -268,6 +294,9 @@ class ArchiveUploader(object):
 
     def getQuietCurlArg(self):
         return [ "-s" ]
+
+    def getCookieCurlArgs(self):
+        return [ "-b" , self.sessionCookies ]
 
     def getNoDeriveCurlArg(self):
         """This tag tells archive.org not to try to derive a bunch of other
@@ -288,6 +317,11 @@ class ArchiveUploader(object):
         out everything"""
         return [ "--head" ]
  
+    def getShowHeadersCurlArg(self):
+        """Returns the curl argument needed to do a normal (post or
+        get) request and show the headers along with the output"""
+        return [ "--include" ]
+
     def getItemCreationCurlArgs(self):
         """Returns the curl arguments needed to put an empty file; 
         this is used for updating or creating an item (bucket)."""
@@ -600,6 +634,117 @@ class ArchiveUploader(object):
         else:
             print "No metadata for", self.itemName, "is available."
 
+    def logIn(self):
+        if not self.sessionCookies:
+            curlCommand = [ self.config.curl ];
+        curlCommand.extend(self.getLoginFormCurlArgs())
+        curlCommand.extend(self.getRestOfIckyLoginCurlArgs())
+        curlCommand.append(self.getLoginFormUrl())
+        if (self.dryrun):
+            self.showCommand(curlCommand)
+        else:
+            output = self.doCurlCommand(curlCommand, True)
+            if (self.verbose):
+                print "About to dig cookie out of login response:"
+                print output
+                self.sessionCookies = self.getLoginCookies(output)
+                if not self.sessionCookies:
+                    raise ArchiveUploaderError("Login failed.")
+
+    def getLoginCookies(self, text):
+        """Get cookie out of the text returned from the 
+        archive.org login form. gahhhh"""
+        # format: .archive.org^ITRUE^I/^IFALSE^I1361562342^Ilogged-in-sig^Isomehugenumberhere
+        # .archive.org^ITRUE^I/^IFALSE^I1361562342^Ilogged-in-user^Ijohndoe%40wikimedia.org$
+        # plus others which we will ignore.
+        cookies = []
+        lines = text.split('\n')
+        for l in lines:
+            if (not len(l)) or (l[0] == '#'):
+                continue
+            parts = l.split('\t')
+            print parts
+            if parts[5] == 'logged-in-user':
+                cookies.append( "%s=%s" % (parts[5], parts[6]) )
+            elif parts[5] == 'logged-in-sig':
+                cookies.append( "%s=%s" % (parts[5], parts[6]) )
+        if (len(cookies)):
+            return '; '.join(cookies)
+        else:
+            return None
+
+    def showItemStatus(self):
+        """Show the status of an item (bucket): which objects (files) are waiting
+        on further action from archive.org."""
+        self.logIn()
+        curlCommand = [ self.config.curl ];
+        curlCommand.extend(self.getLocationCurlArg())
+        if (not self.verbose):
+            curlCommand.extend(self.getQuietCurlArg())
+        curlCommand.extend(self.getCookieCurlArgs())
+        curlCommand.append(self.getArchiveItemStatusUrl())
+        if (self.dryrun):
+            self.showCommand(curlCommand)
+        else:
+            output = self.doCurlCommand(curlCommand, True)
+            self.showItemStatusFromHtml(output)
+
+    def stripHidden(self, cell):
+        start = cell.find('<span class="catHidden">')
+        if start != -1:
+            index = start + 1
+            openTags = 1
+            spanOpenOrCloseExpr = re.compile('(<span[^>]+>|</span>)')
+            # find index of first occurrence and what was matched, so we can see if it was open or close tag
+            while openTags:
+                spanMatch = spanOpenOrCloseExpr.search(cell[index:])
+                if spanMatch:
+                    tagFound = spanMatch.group(1)
+                    index = spanMatch.start(1) + index
+                    if tagFound == '</span>':
+                        openTags = openTags -1
+                    else:
+                        openTags = openTags + 1
+                else:
+                    # bad html. just toss the rest of the cell
+                    openTags = 0
+                    index = -1
+            # now we have the index where we found the close tag for us. 
+            # toss everything up to that, we'll lose the actual close tag when we 
+            # toss the rest of the html
+            cell = cell[:start] + cell[index:]
+        return cell
+
+    def showItemStatusFromHtml(self, text):
+        """Wade through the html output to find information
+        about each job we have requested and its status.
+        THIS IS UGLY and guaranteed to break in the future
+        but hey, there's no json output available, nor xml."""
+        htmlTagExpr = re.compile('(<[^>]+>)+')
+        # get the headers for the table of tasks
+        start = text.find('<tr><th><b><a href="/catalog.php?history=1&identifier=')
+        if start >= 0:
+            end = text.find('<!--task_ids: -->',start)
+            content = text[start:end]
+            print "content is", content
+            lines = content.split('</th>')
+            lines = [ re.sub(htmlTagExpr,'',line).strip() for line in lines if line.find('<th><b><a href="/catalog.php?history=1&identifier=') != -1 ]
+            print ' | '.join(filter(None, lines))
+
+        # get the tasks themselves
+        start = text.find('<!--task_ids: -->')
+        if start < 0:
+            raise ArchiveUploaderError("Can't locate the beginning of the item status information in the html output.")
+        end = text.find('</table>',start)
+        content = text[start:end]
+        lines = content.split('</tr>')
+
+        for line in lines:
+            line = line.replace('\n','')
+            cells = line.split('</td>')
+            cellsToPrint = [ re.sub(htmlTagExpr,'',self.stripHidden(cell)).strip() for cell in cells ]
+            print ' | '.join(filter(None,cellsToPrint))
+
 class ListObjectsCH(xml.sax.ContentHandler):
     """Read contents from a request to list all objects (files)
     in a given item (bucket)"""
@@ -747,28 +892,29 @@ def usage(message = None):
 
     print "Usage: python archiveuploader.py [options]"
     print "Mandatory options: --accesskey, --secretkey"
-    print "--accesskey <key>:     The access key from archive.org used to create items and upload objects."
-    print "--secretkey <key>:     The secret key corresponding to the access key described above."
+    print "--accesskey <key>:       The access key from archive.org used to create items and upload objects."
+    print "--secretkey <key>:       The secret key corresponding to the access key described above."
     print "Action options (choose one):"
-    print "--createitem <item>:   The item specified will be created. Fails if item already exists."
-    print "--updateitem <item>:   The metadata for the specified item will be updated."
-    print "--uploadobject <item>: An object will be created by uploading to the specified item the file"
-    print "                       given by --filename.  Requires the --objectName option."
-    print "--verifyobject <item>: An object in an item will be verified by checking its md5sum locally and on"
-    print "                       the server.  Requires the --objectName and the --filename options."
-    print "--listitems:           List all items belonging to the account identified by the --accesskey"
-    print "                       and --secretkey options."
-    print "--showitem <item>:     Show metadata about the specified item."
-    print "--listobjects <item>:  List all objects in the specified item."
+    print "--createitem <item>:     The item specified will be created. Fails if item already exists."
+    print "--updateitem <item>:     The metadata for the specified item will be updated."
+    print "--uploadobject <item>:   An object will be created by uploading to the specified item the file"
+    print "                         given by --filename.  Requires the --objectName option."
+    print "--verifyobject <item>:   An object in an item will be verified by checking its md5sum locally and on"
+    print "                         the server.  Requires the --objectName and the --filename options."
+    print "--listitems:             List all items belonging to the account identified by the --accesskey"
+    print "                         and --secretkey options."
+    print "--showitem <item>:       Show metadata about the specified item."
+    print "--showitemstatus <item>: Show pending tasks related to the specified item."
+    print "--listobjects <item>:    List all objects in the specified item."
     print "Other options:"
-    print "--configfile <file>:   Name of optional configuration file with access keys, etc."
-    print "--dryrun:              Don't create or update items or objects but show the commands that would"
-    print "                       be run.  This option also means that updates to the sitematrix cache file"
-    print "                       will not be done, although it will be read from if it exists, and the"
-    print "                       MediaWiki instance will be queried via the api as well, if needed."
-    print "--filename <file>:     The full path to the file to upload, when --uploadobject is specified."
-    print "--objectname <object>: The name of an object as it is to appear in a aurl."
-    print "--verbose:             Display progress bars and other output."
+    print "--configfile <file>:     Name of optional configuration file with access keys, etc."
+    print "--dryrun:                Don't create or update items or objects but show the commands that would"
+    print "                         be run.  This option also means that updates to the sitematrix cache file"
+    print "                         will not be done, although it will be read from if it exists, and the"
+    print "                         MediaWiki instance will be queried via the api as well, if needed."
+    print "--filename <file>:       The full path to the file to upload, when --uploadobject is specified."
+    print "--objectname <object>:   The name of an object as it is to appear in a aurl."
+    print "--verbose:               Display progress bars and other output."
     sys.exit(1)
 
 if __name__ == "__main__":
@@ -786,11 +932,12 @@ if __name__ == "__main__":
     listItems = False
     listObjects = False
     showItem = False
+    showItemStatus = False
     dryrun = False
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-            ['accesskey=', 'secretkey=', 'createitem=', 'updateitem=', 'uploadobject=', 'objectname=', 'filename=', 'configfile=', 'listitems', 'showitem=', 'listobjects=', 'verifyobject=', 'dryrun', 'verbose' ])
+            ['accesskey=', 'secretkey=', 'createitem=', 'updateitem=', 'uploadobject=', 'objectname=', 'filename=', 'configfile=', 'listitems', 'showitem=', 'showitemstatus=', 'listobjects=', 'verifyobject=', 'dryrun', 'verbose' ])
     except:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
@@ -823,6 +970,9 @@ if __name__ == "__main__":
         elif opt == '--showitem':
             itemName = val
             showItem = True
+        elif opt == '--showitemstatus':
+            itemName = val
+            showItemStatus = True
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--filename":
@@ -841,7 +991,7 @@ if __name__ == "__main__":
     if (uploadObject or verifyObject) and not objectName:
         usage("Error: the option --objectname must be specified with --uploadobject/--verifyobject.")
 
-    actionOptsCount = len(filter(None, [ createItem, updateItem, uploadObject, verifyObject, listItems, listObjects, showItem ]))
+    actionOptsCount = len(filter(None, [ createItem, updateItem, uploadObject, verifyObject, listItems, listObjects, showItem, showItemStatus ]))
 
     if actionOptsCount > 1:
         usage("Error: conflicting action options specified.")
@@ -878,6 +1028,9 @@ if __name__ == "__main__":
     elif showItem:
         result = False
         archiveUploader.showItem()
+    elif showItemStatus:
+        result = False
+        archiveUploader.showItemStatus()
     if result:
         print "Failed."
     else:
