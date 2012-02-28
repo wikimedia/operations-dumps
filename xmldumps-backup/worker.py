@@ -3354,7 +3354,6 @@ class RecombineXmlDump(XmlDump):
 			raise BackupError("error recombining xml bz2 files")
 
 class XmlMultiStreamDump(XmlDump):
-#class XmlRecompressDump(Dump):
 	"""Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
 
 	def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None):
@@ -3377,6 +3376,9 @@ class XmlMultiStreamDump(XmlDump):
 	def getFileType(self):
 		return "xml"
 
+	def getIndexFileType(self):
+		return "txt"
+
 	def getFileExt(self):
 		return "bz2"
 
@@ -3394,7 +3396,7 @@ class XmlMultiStreamDump(XmlDump):
 	def getFileMultistreamIndexName(self, f):
 		"""assuming that f is the name of a multistream output file,
 		return the name of the associated index file"""
-		return DumpFilename(self.wiki, f.date, self.getDumpNameMultistreamIndex(f.dumpName), f.fileType, self.fileExt, f.chunk, f.checkpoint, f.temp) 
+		return DumpFilename(self.wiki, f.date, self.getDumpNameMultistreamIndex(f.dumpName), self.getIndexFileType(), self.fileExt, f.chunk, f.checkpoint, f.temp) 
 
 	# output files is a list of checkpoint files, otherwise it is a list of one file. 
 	# checkpoint files get done one at a time. we can't really do parallel recompression jobs of 
