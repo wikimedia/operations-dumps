@@ -1402,7 +1402,7 @@ class Status(object):
 		
 	def reportFailure(self):
 		if self._enabled and self.email:
-			if self.wiki.config.adminMail:
+			if self.wiki.config.adminMail and self.wiki.config.adminMail.lower() != 'nomail':
 				subject = "Dump failure for " + self.dbName
 				message = self.wiki.config.readTemplate("errormail.txt") % {
 					"db": self.dbName,

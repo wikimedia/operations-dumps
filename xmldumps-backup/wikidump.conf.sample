@@ -17,6 +17,10 @@ webroot=http://localhost/mydumps
 
 [reporting]
 staleage=3600
+# set this to 'nomail' to disable email notification on dump failure
+adminmail=dumpsadmin@myhost.com
+mailfrom=root@localhost
+smtpserver=smtp.myisp.com
 
 [database]
 user=root
