@@ -142,7 +142,7 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 
   char *pageTitle = NULL;
   int pageId = 0;
-  enum States{WantPage,WantPageTitle,WantPageId,FoundCompletePageInfo};
+  enum States{WantPage,WantPageTitle,WantPageId};
   int state = WantPage;
 
   /* init bzip compression stuff */
@@ -188,11 +188,10 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 	  fprintf(stderr,"checking for page id tag\n");
 	}
 	pageId = hasId(inBuf);
-	if (pageId) {
-	  state = FoundCompletePageInfo;
+	if (! pageId) {
+	  continue;
 	}
-      }
-      if (state == FoundCompletePageInfo) {
+	state = WantPage;
 	if (indexcompressed) {
 	  if (verbose) {
 	    fprintf(stderr,"writing line to compressed index file\n");
@@ -216,7 +215,6 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 	  }
 	  fprintf(indexfd,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
 	}
-	state = WantPage;
 	pageId = 0;
 	pageTitle = NULL;
       }
