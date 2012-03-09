@@ -3,7 +3,6 @@
 import getopt
 import hashlib
 import os
-import popen2
 import re
 import sys
 import time
@@ -287,24 +286,22 @@ class DbServerInfo(object):
 			return "-p" + self.wiki.config.dbPassword
 
 class RunSimpleCommand(object):
-	# FIXME rewrite to not use popen2
 	def runAndReturn(command, logCallback = None):
 		"""Run a command and return the output as a string.
 		Raises BackupError on non-zero return code."""
-		# FIXME convert all these calls so they just use runCommand now
 		retval = 1
 		retries=0
 		maxretries=3
-		proc = popen2.Popen4(command, 64)
-		output = proc.fromchild.read()
-		retval = proc.wait()
+		proc = Popen(command, bufsize=64, shell = True, stdout = PIPE, stderr = PIPE)
+		output, error = proc.communicate()
+		retval = proc.returncode
 		while (retval and retries < maxretries):
 			if logCallback:
 				logCallback("Non-zero return code from '%s'" % command)
 			time.sleep(5)
-			proc = popen2.Popen4(command, 64)
-			output = proc.fromchild.read()
-			retval = proc.wait()
+			proc = Popen(command, bufsize=64, shell = True, stdout = PIPE, stderr = PIPE)
+			output, error = proc.communicate()
+			retval = proc.returncode
 			retries = retries + 1
 		if retval:
 			if logCallback:
