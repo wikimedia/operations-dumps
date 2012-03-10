@@ -188,35 +188,34 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 	  fprintf(stderr,"checking for page id tag\n");
 	}
 	pageId = hasId(inBuf);
-	if (! pageId) {
-	  continue;
-	}
-	state = WantPage;
-	if (indexcompressed) {
-	  if (verbose) {
-	    fprintf(stderr,"writing line to compressed index file\n");
-	  }
-	  sprintf(inBuf_indx,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
-	  strm_indx.next_in = inBuf_indx;
-	  strm_indx.avail_in = strlen(inBuf_indx);
-	  do {
-	    if (verbose > 2) {
-	      fprintf(stderr,"bytes left to read for index compression: %d\n",strm_indx.avail_in);
+	if (pageId) {
+	  state = WantPage;
+	  if (indexcompressed) {
+	    if (verbose) {
+	      fprintf(stderr,"writing line to compressed index file\n");
 	    }
-	    strm_indx.next_out = outBuf_indx;
-	    strm_indx.avail_out = 8192;
-	    BZ2_bzCompress ( &strm_indx, BZ_RUN );
-	    fwrite(outBuf_indx,sizeof(outBuf_indx)-strm_indx.avail_out,1,indexfd);
-	  } while (strm_indx.avail_in >0);
-	}
-	else {
-	  if (verbose) {
-	    fprintf(stderr,"writing line to index file\n");
+	    sprintf(inBuf_indx,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
+	    strm_indx.next_in = inBuf_indx;
+	    strm_indx.avail_in = strlen(inBuf_indx);
+	    do {
+	      if (verbose > 2) {
+		fprintf(stderr,"bytes left to read for index compression: %d\n",strm_indx.avail_in);
+	      }
+	      strm_indx.next_out = outBuf_indx;
+	      strm_indx.avail_out = 8192;
+	      BZ2_bzCompress ( &strm_indx, BZ_RUN );
+	      fwrite(outBuf_indx,sizeof(outBuf_indx)-strm_indx.avail_out,1,indexfd);
+	    } while (strm_indx.avail_in >0);
 	  }
-	  fprintf(indexfd,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
+	  else {
+	    if (verbose) {
+	      fprintf(stderr,"writing line to index file\n");
+	    }
+	    fprintf(indexfd,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
+	  }
+	  pageId = 0;
+	  pageTitle = NULL;
 	}
-	pageId = 0;
-	pageTitle = NULL;
       }
     }
     do {
