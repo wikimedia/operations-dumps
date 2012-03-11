@@ -273,7 +273,7 @@ class DbServerInfo(object):
 		p = CommandPipeline(command, quiet=True)
 		p.runPipelineAndGetOutput()
 		# fixme best to put the return code someplace along with any errors....
-		if (p.output()):
+		if p.exitedSuccessfully() and (p.output()):
 			return(p.output())
 		else:
 			return None
