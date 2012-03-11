@@ -1325,7 +1325,7 @@ class DumpFile(file):
 		output = self.getFirst500Lines()
 		if (output):
 			pageData = output
-			titleAndIDPattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '<id>(?P<pageid>\d+?)</id>')
+			titleAndIDPattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '(<ns>[0-9]+</ns>\s*)?' + '<id>(?P<pageid>\d+?)</id>')
 			result = titleAndIDPattern.search(pageData)
 			if (result):
 				self.firstPageID = result.group('pageid')
