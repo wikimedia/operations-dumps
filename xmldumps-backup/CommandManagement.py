@@ -183,6 +183,25 @@ class CommandPipeline(object):
 			return self.pipelineString()
 		return None
 
+	# Checks the exit values of the individual commands in the
+	# pipeline
+	#
+	# If each command exited with 0, None is returned.
+	# Otherwise, a list is returned, whose entries are pairs
+	# containing the error, and the command (as passed to the
+	# constructor)
+	def getFailedCommandsWithExitValue(self):
+		"""yields failed commands of a pipeline, along with exit values"""
+		failedCommands = []
+		for index, exitValue in enumerate( self._exitValues ):
+			if exitValue != 0:
+				failedCommands.append( [ exitValue, self._commands[index] ] );
+
+		if len(failedCommands):
+			return failedCommands
+
+		return None
+
 	def processToPoll(self):
 		return self._lastProcessInPipe
 
