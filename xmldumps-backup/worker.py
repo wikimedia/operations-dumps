@@ -1348,9 +1348,9 @@ class DumpFile(file):
 				self.isTruncated = False
 		else:
 			if self.fileObj.fileExt == 'gz':
-				command = [ "%s -dc %s > /dev/null" % (self._wiki.config.gzip, self.filename ) ]
+				pipeline = [ "%s -dc %s > /dev/null" % (self._wiki.config.gzip, self.filename ) ]
 			elif self.fileObj.fileExt == '7z':
-				command = [ "%s e -so %s > /dev/null" % (self._wiki.config.sevenzip, self.filename ) ]
+				pipeline = [ "%s e -so %s > /dev/null" % (self._wiki.config.sevenzip, self.filename ) ]
 			else:
 				# we do't know how to handle this type of file.
 				return self.isTruncated
