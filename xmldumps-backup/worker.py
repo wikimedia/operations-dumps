@@ -1286,7 +1286,8 @@ class DumpFile(file):
 		# without shell
 		p = CommandPipeline(pipeline, quiet=True)
 		p.runPipelineAndGetOutput()
-		self.firstLines = p.output()
+		if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, pipeline[0] ]]:
+			self.firstLines = p.output()
 		return(self.firstLines)
 
 	# unused
@@ -2299,9 +2300,11 @@ class Dump(object):
 			# without shell
 			p = CommandPipeline(pipeline, quiet=True)
 			p.runPipelineAndGetOutput()
-			if (p.output()):
+			if (p.output()) and (p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, uncompressThisFile ]] ):
 				(headerEndNum, junk) = p.output().split(":",1)
 				# get headerEndNum
+			else:
+				raise BackupError( "Could not find 'end of header' marker for %s" % f )
 			recombine = " ".join(uncompressThisFile)
 			headerEndNum = int(headerEndNum) + 1
 			if (chunkNum == 1):
