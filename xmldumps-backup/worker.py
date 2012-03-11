@@ -1334,18 +1334,14 @@ class DumpFile(file):
 	def checkIfTruncated(self):
 		if self.isTruncated:
 			return self.isTruncated
+
+		# Setting up the pipeline depending on the file extension
 		if self.fileObj.fileExt == "bz2":
 			if (not exists( self._wiki.config.checkforbz2footer ) ):
 				raise BackupError("checkforbz2footer command %s not found" % runner.wiki.config.checkforbz2footer)
 			checkforbz2footer = self._wiki.config.checkforbz2footer
 			pipeline = []
 			pipeline.append([ checkforbz2footer, self.filename ])
-			p = CommandPipeline(pipeline, quiet=True)
-			p.runPipelineAndGetOutput()
-			if not p.exitedSuccessfully():
-				self.isTruncated = True
-			else:
-				self.isTruncated = False
 		else:
 			if self.fileObj.fileExt == 'gz':
 				command = [ "%s -dc %s > /dev/null" % (self._wiki.config.gzip, self.filename ) ]
@@ -1354,12 +1350,11 @@ class DumpFile(file):
 			else:
 				# we do't know how to handle this type of file.
 				return self.isTruncated
-			p = CommandPipeline(pipeline, quiet=True)
-			p.runPipelineAndGetOutput()
-			if not p.exitedSuccessfully():
-				self.isTruncated = False
-			else:
-				self.isTruncated = True
+
+		# Run the perpared pipeline
+		p = CommandPipeline(pipeline, quiet=True)
+		p.runPipelineAndGetOutput()
+		self.isTruncated = not p.exitedSuccessfully()
 
 		return self.isTruncated
 
