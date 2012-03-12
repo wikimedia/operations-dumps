@@ -3198,34 +3198,48 @@ class XmlDump(Dump):
 
                         # get the files that cover our range
 		        for fileObj in fileList:
-				firstPageIdInFile = int(fileObj.firstPageID)
+				# If some of the fileObjs in fileList could not be properly be parsed, some of
+				# the (int) conversions below will fail. However, it is of little use to us,
+				# which conversion failed. /If any/ conversion fails, it means, that that we do
+				# not understand how to make sense of the current fileObj. Hence we cannot use 
+				# it as prefetch object and we have to drop it, to avoid passing a useless file
+				# to the text pass. (This could days as of a comment below, but by not passing
+				# a likely useless file, we have to fetch more texts from the database)
+				#
+				# Therefore try...except-ing the whole block is sufficient: If whatever error
+				# occurs, we do not abort, but skip the file for prefetch.
+				try:
+					# If we could properly parse 
+					firstPageIdInFile = int(fileObj.firstPageID)
 
-				# fixme what do we do here? this could be very expensive. is that worth it??
-				if not fileObj.lastPageID:
-					# (b) nasty hack, see (a)
-					# it's not a checkpoint fle or we'd have the pageid in the filename
-					# so... temporary hack which will give expensive results
-					# if chunk file, and it's the last chunk, put none
-					# if it's not the last chunk, get the first pageid in the next chunk and subtract 1
-					# if not chunk, put none.
-					if fileObj.isChunkFile and fileObj.chunkInt < maxchunks:
-						for f in fileList:
-							if f.chunkInt == fileObj.chunkInt + 1:
-								# not true!  this could be a few past where it really is
-								# (because of deleted pages that aren't included at all)
-								fileObj.lastPageID = str(int(f.firstPageID) - 1)
-				if fileObj.lastPageID:
-					lastPageIdInFile = int(fileObj.lastPageID)
-				else:
-					lastPageIdInFile = None
+					# fixme what do we do here? this could be very expensive. is that worth it??
+					if not fileObj.lastPageID:
+						# (b) nasty hack, see (a)
+						# it's not a checkpoint fle or we'd have the pageid in the filename
+						# so... temporary hack which will give expensive results
+						# if chunk file, and it's the last chunk, put none
+						# if it's not the last chunk, get the first pageid in the next chunk and subtract 1
+						# if not chunk, put none.
+						if fileObj.isChunkFile and fileObj.chunkInt < maxchunks:
+							for f in fileList:
+								if f.chunkInt == fileObj.chunkInt + 1:
+									# not true!  this could be a few past where it really is
+									# (because of deleted pages that aren't included at all)
+									fileObj.lastPageID = str(int(f.firstPageID) - 1)
+					if fileObj.lastPageID:
+						lastPageIdInFile = int(fileObj.lastPageID)
+					else:
+						lastPageIdInFile = None
 				
-				# FIXME there is no point in including files that have just a few rev ids in them
-				# that we need, and having to read through the whole file... could take
-				# hours or days (later it won't matter, right? but until a rewrite, this is important)
-				# also be sure that if a critical page is deleted by the time we try to figure out ranges,
-				# that we don't get hosed
-				if ( firstPageIdInFile <= int(startPageID) and (lastPageIdInFile == None or lastPageIdInFile >= int(startPageID)) ) or ( firstPageIdInFile >= int(startPageID) and ( endPageID == None or firstPageIdInFile <= int(endPageID) ) ):
-			                possibles.append(fileObj)
+						# FIXME there is no point in including files that have just a few rev ids in them
+						# that we need, and having to read through the whole file... could take
+						# hours or days (later it won't matter, right? but until a rewrite, this is important)
+						# also be sure that if a critical page is deleted by the time we try to figure out ranges,
+						# that we don't get hosed
+					if ( firstPageIdInFile <= int(startPageID) and (lastPageIdInFile == None or lastPageIdInFile >= int(startPageID)) ) or ( firstPageIdInFile >= int(startPageID) and ( endPageID == None or firstPageIdInFile <= int(endPageID) ) ):
+						possibles.append(fileObj)
+				except:
+					runner.debug( "Could not make sense of %s for prefetch. Format update? Corrupt file?" % fileObj.filename )
 		return possibles
 		
 	# this finds the content file or files from the first previous successful dump
