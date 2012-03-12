@@ -2271,6 +2271,9 @@ class Dump(object):
 		for u in compressionCommand:
 			u = MiscUtils.shellEscape(u)
 
+		if not files:
+			raise BackupError("No files for the recombine step found in %s." % self.name())
+
 		for fileObj in files:
 			# uh oh FIXME
 #			f = MiscUtils.shellEscape(fileObj.filename)
