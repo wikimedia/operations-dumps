@@ -2,14 +2,24 @@
 
 * Python 2.5 or greater, with the select module on an OS that supports
   polling on pipes (this excludes Windows).
-* PHP 2.5 or greater
+* PHP 5.3 or greater, with the following enabled, at minimum: 
+    --with-mysql --with-zlib --with-bz2 --with-iconv --enable-mbstring
+    --with-pcre-regex --enable-xmlreader --enable-xml --with-mhash
+  A number of these are defaults for PHP 5.3 and later. You can check your php
+  configuration with the command php-config.  Depending on your distribution you
+  may need to install various modules separately, for example php-xml. For more 
+  information on MediaWiki with PHP, see http://www.mediawiki.org/wiki/PHP_configuration
 * A fully functional MediaWiki installation with some data in it (depends on 
-  mysql and a functioning webserver)
+  mysql server and client and a functioning webserver)
 * Installed ActiveAbstract extension for MediaWiki
-* The applications gzip, bzip2, 7zip version 4.58 or better
+* The applications gzip, bzip2, 7zip version 4.58 or better, the library libxml2
 * Command line utilities head, tail, cat, grep
 * Build the utfnormal php module, located in svn:
-    This depends on swig and libicu-dev, install those.
+    Make sure you have a working c++ compiler installed.
+    You need the php development libraries and hedears installed (for most
+    linux distributions a package named php-devel or something similar).
+    Utfnormal depends on swig and the development headers and library for libicu
+    (for most linux distros a package named libicu-devel or similar), install those.
     svn co http://svn.wikimedia.org/svnroot/mediawiki/trunk/extensions/normal/
     cd normal; make
     install the file php_utfnormal.so in the php extension directory (typically 
@@ -19,21 +29,40 @@
 
 ===Setup
 
-Check out the scripts from 
-http://svn.wikimedia.org/svnroot/mediawiki/trunk/backup/
-for trunk copies, but 
-http://svn.wikimedia.org/svnroot/mediawiki/branches/ariel/xmldumps-backup
-for the currently running versions with parallelization and various command 
-line arguments:
+Our backup scripts are now in our git repository, yay!  The version in trunk is stable
+but quite old; the version in the ariel branch is the currently deployed code
+with parallelization and various other features.
 
-  svn co http://svn.wikimedia.org/svnroot/mediawiki/branches/ariel/xmldumps-backup backups
+To get the current code:
 
-Build the programs in the mwbzutils subdirectory, and move back to the
-backups directory afterwards.
+git clone https://gerrit.wikimedia.org/r/p/operations/dumps.git
+cd dumps
+git checkout ariel
 
-Copy the file wikidump.conf.sample to wikidump.conf and edit the values 
-appropriately; see the file README.config for information on the format of the 
-configuration file and the options specified.
+Build the programs in the mwbzutils subdirectory. First install bzip2 and its 
+development headers and library (for a typical linux distro something like bzip2-devel).
+Then,
+
+cd xmldumps-backup/mwbzutils
+make
+make install
+
+This will install them to /usr/local/bin.  If you want to install them somewhere
+else you'll need to copy them by hand.
+
+Copy the dumps scripts, templates and the sample configuration to the location from 
+where you'll be running them. 
+
+Scripts:
+CommandManagement.py WikiDump.py worker.py monitor.py
+Templates:
+download-index.html dvd.html legal.html progress.html report.html errormail.txt
+Sample config:
+wikidump.conf.sample
+
+In the directory where you copied the scripts, copy the file wikidump.conf.sample 
+to wikidump.conf and edit the values appropriately; see the file README.config 
+for information on the format of the configuration file and the options specified.
 
 ===Testing
 

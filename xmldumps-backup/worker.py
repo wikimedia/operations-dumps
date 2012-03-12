@@ -206,10 +206,12 @@ class DbServerInfo(object):
 		self.wiki = wiki
 		self.dbName = dbName
 		self.errorCallback = errorCallback
-		self.selectDatabaseServer()
-
-	def defaultServer(self):
-		# if this fails what do we do about it? Not a bleeping thing. *ugh* FIXME!!
+		self.dBTablePrefix = None
+		self.getDefaultServerAndDBprefix()
+		
+	def getDefaultServerAndDBprefix(self):
+		"""Get the name of a slave server for our cluster; also get 
+		the prefix for all tables for the specific wiki ($wgDBprefix)"""
 		if (not exists( self.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % self.wiki.config.php)
 		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "getSlaveServer.php")
@@ -218,12 +220,23 @@ class DbServerInfo(object):
 			dbName = MiscUtils.shellEscape(self.dbName)
 			commandList[i] = MiscUtils.shellEscape(commandList[i])
 			command = " ".join(commandList)
-			command = "%s -q %s --wiki=%s --group=dump" % (phpCommand, command, dbName)
-		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
-
-	def selectDatabaseServer(self):
-		self.dbServer = self.defaultServer()
-
+			command = "%s -q %s --wiki=%s --group=dump --globals" % (phpCommand, command, dbName)
+		results = RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
+		if not results:
+			raise BackupError("Failed to get database connection information for %s, bailing." % self.wiki.config.php)
+		# first line is the server, the second is an array of the globals, we need the db table prefix out of those
+		lines = results.splitlines()
+		self.dbServer = lines[0]
+		#       [wgDBprefix] => 
+		wgdbprefixPattern = re.compile("\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
+		for l in lines:
+			match = wgdbprefixPattern.match(l)
+			if match:
+				self.dBTablePrefix = match.group('prefix').strip()
+		if self.dBTablePrefix == None:
+			# if we didn't see this in the globals list, something is broken.
+			raise BackupError("Failed to get database table prefix for %s, bailing." % self.wiki.config.php)
+			
 	def buildSqlCommand(self, query, pipeto = None):
 		"""Put together a command to execute an sql query to the server for this DB."""
 		if (not exists( self.wiki.config.mysql ) ):
@@ -250,7 +263,7 @@ class DbServerInfo(object):
 			       "%s" % self.passwordOption(), "--opt", "--quick", 
 			       "--skip-add-locks", "--skip-lock-tables", 
 			       "%s" % self.dbName, 
-			       "%s" % self.getDBTablePrefix() + table ] ]
+			       "%s" % self.dBTablePrefix + table ] ]
 		if (pipeto):
 			command.append([ pipeto ])
 		return command
@@ -272,21 +285,6 @@ class DbServerInfo(object):
 			return None
 		else:
 			return "-p" + self.wiki.config.dbPassword
-
-	def getDBTablePrefix(self):
-		"""Get the prefix for all tables for the specific wiki ($wgDBprefix)"""
-		# FIXME later full path
-		if (not exists( self.wiki.config.php ) ):
-			raise BackupError("php command %s not found" % self.wiki.config.php)
-		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "eval.php")
-		for i in range(0,len(commandList)):
-			phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
-			dbName = MiscUtils.shellEscape(self.dbName)
-			commandList[i] = MiscUtils.shellEscape(commandList[i])
-			command = " ".join(commandList)
-			command = "echo 'print $wgDBprefix; ' | %s -q %s --wiki=%s" % (phpCommand, command, dbName)
-		return RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
-				      
 
 class RunSimpleCommand(object):
 	# FIXME rewrite to not use popen2
