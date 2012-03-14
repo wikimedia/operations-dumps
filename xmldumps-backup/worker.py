@@ -1481,6 +1481,10 @@ class Status(object):
 			# don't wrap around to the newest dump in the list!
 			if (meIndex > 0):
 				rawDate = dumpsInOrder[meIndex-1]
+			elif (meIndex == 0):
+				# We are the first item in the list. This is not an error, but there is no
+				# previous dump
+				return "No prior dumps of this database stored."
 			else:
 				raise(ValueException)
 		except:
