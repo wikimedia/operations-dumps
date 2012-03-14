@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAIn///KE\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 968,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-14T13:01:56Z",
+      "side": 1,
+      "message": "Should we drop this line, as it is the only occurrence of _oldcache?",
+      "revId": "7d8867d4684912c5a42f66f57a0c5fc5996f8eaf",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
