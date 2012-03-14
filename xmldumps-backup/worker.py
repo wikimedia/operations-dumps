@@ -403,6 +403,10 @@ class RunInfoFile(object):
 		# have already been run and whether they were successful
 		dumpRunInfoFileName = self._getDumpRunInfoFileName()
 		results = []
+
+		if not os.path.exists(dumpRunInfoFileName):
+			return False
+
 		try:
 			infile = open(dumpRunInfoFileName,"r")
 			for line in infile:
