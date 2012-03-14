@@ -2208,12 +2208,12 @@ class Dump(object):
 		"""Attempt to run the operation, updating progress/status info."""
 		try:
 			self.run(runner)
-		except Exception, ex:
+		except Exception:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
 				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
 			self.setStatus("failed")
-			raise ex
+			raise
 		self.setStatus("done")
 
 	def run(self, runner):
