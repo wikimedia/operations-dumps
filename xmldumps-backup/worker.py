@@ -964,7 +964,19 @@ class DumpDir(object):
 					fileObj.newFromFilename(f)
 					fileObjs.append(fileObj)
 				self._dirCache[date] = fileObjs
-				self._dirCacheTime[date] = dirTimeStamp
+				# The directory listing should get cached. However, some tyical file
+				# system's (eg. ext2, ext3) mtime's resolution is 1s. If we would
+				# unconditionally cache, it might happen that we cache at x.1 seconds
+				# (with mtime x). If a new file is added to the filesystem at x.2,
+				# the directory's mtime would still be set to x. Hence we would not
+				# detect that the cache needs to be purged. Therefore, we cache only,
+				# if adding a file now would yield a /different/ mtime.
+				if time.time() >= dirTimeStamp + 1:
+					self._dirCacheTime[date] = dirTimeStamp
+				else:
+					# By setting _dirCacheTime to 0, we provoke an outdated cache
+					# on the next check. Hence, we effectively do not cache.
+					self._dirCacheTime[date] = 0
 			else:
 				self._dirCache[date] = []
 		return(self._dirCache[date])
