@@ -382,10 +382,11 @@ class IncDumpDirs(object):
                 toRemove = os.path.join(self.incrDir.getIncDirNoDate(self.wikiName), dump)
                 shutil.rmtree("%s" % toRemove)
 
-    def getPrevIncrDate(self, date, ok = False):
+    def getPrevIncrDate(self, date, ok = False, revidok = False):
         # find the most recent incr dump before the
         # specified date
         # if "ok" is True, find most recent dump that completed successfully
+        # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
         previous = None
         old = self.getIncDumpDirs()
         if old:
@@ -397,6 +398,12 @@ class IncDumpDirs(object):
                         statusInfo = StatusInfo(self._config, dump, self.wikiName)
                         if statusInfo.getStatus(dump) == "done":
                             previous = dump
+                    elif revidok:
+                        maxRevIDFile = MaxRevIDFile(self._config, dump, self.wikiName)
+                        if exists(maxRevIDFile.getPath()):
+                            revid = FileUtils.readFile(maxRevIDFile.getPath().rstrip())
+                            if int(revid) > 0:
+                                previous = dump
                     else:
                         previous = dump
         return previous
