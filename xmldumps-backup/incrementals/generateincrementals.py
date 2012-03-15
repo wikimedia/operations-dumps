@@ -79,7 +79,8 @@ class IncrDump(object):
                         print "maxRevID is ", maxRevID
                     else:
                         print "no maxRevID found"
-                prevDate = self.incrDumpsDirs.getPrevIncrDate(self.date)
+                # get the previous run with a max rev id file in it
+                prevDate = self.incrDumpsDirs.getPrevIncrDate(self.date, revidok = True)
 		if (self.verbose):
                     if prevDate:
                         print "prevDate is", prevDate
