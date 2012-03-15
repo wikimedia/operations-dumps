@@ -214,12 +214,12 @@ class DbServerInfo(object):
 		if (not exists( self.wiki.config.php ) ):
 			raise BackupError("php command %s not found" % self.wiki.config.php)
 		commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "getSlaveServer.php")
+		phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
+		dbName = MiscUtils.shellEscape(self.dbName)
 		for i in range(0,len(commandList)):
-			phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
-			dbName = MiscUtils.shellEscape(self.dbName)
 			commandList[i] = MiscUtils.shellEscape(commandList[i])
-			command = " ".join(commandList)
-			command = "%s -q %s --wiki=%s --group=dump --globals" % (phpCommand, command, dbName)
+		command = " ".join(commandList)
+		command = "%s -q %s --wiki=%s --group=dump --globals" % (phpCommand, command, dbName)
 		results = RunSimpleCommand.runAndReturn(command, self.errorCallback).strip()
 		if not results:
 			raise BackupError("Failed to get database connection information for %s, bailing." % self.wiki.config.php)
