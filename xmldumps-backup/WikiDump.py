@@ -253,7 +253,7 @@ class Config(object):
 		self.privateList = MiscUtils.dbList(self.conf.get("wiki", "privatelist"))
 		self.flaggedRevsList = MiscUtils.dbList(self.conf.get("wiki", "flaggedrevslist"))
 		self.wikiDir = self.conf.get("wiki", "dir")
-		self.forceNormal = self.conf.getint("wiki", "forceNormal")
+		self.forceNormal = self.conf.getint("wiki", "forcenormal")
 		self.halt = self.conf.getint("wiki", "halt")
 
 		self.dbList = list(set(self.dbList) - set(self.skipDbList))
@@ -275,7 +275,7 @@ class Config(object):
 		self.adminMail = self.conf.get("reporting", "adminmail")
 		self.mailFrom = self.conf.get("reporting", "mailfrom")
 		self.smtpServer = self.conf.get("reporting", "smtpserver")
-		self.staleAge = self.conf.getint("reporting", "staleAge")
+		self.staleAge = self.conf.getint("reporting", "staleage")
 		
 		if not self.conf.has_section('tools'):
 			self.conf.add_section('tools')
