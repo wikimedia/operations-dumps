@@ -265,7 +265,7 @@ class Config(object):
 		self.tempDir = self.conf.get("output", "temp")
 		self.webRoot = self.conf.get("output", "webroot")
 		self.index = self.conf.get("output", "index")
-		self.templateDir = self.conf.get("output", "templateDir")
+		self.templateDir = self.conf.get("output", "templatedir")
 		self.perDumpIndex = self.conf.get("output", "perdumpindex")
 		self.logFile = self.conf.get("output", "logfile")
 		self.fileperms = self.conf.get("output", "fileperms")
