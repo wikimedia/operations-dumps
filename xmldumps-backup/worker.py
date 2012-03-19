@@ -1699,7 +1699,7 @@ class Runner(object):
 			fileObj = DumpFilename(self.wiki)
 			fileObj.newFromFilename(self.wiki.config.logFile)
 			self.logFileName = self.dumpDir.filenamePrivatePath(fileObj)
-			self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
+			self.makeDir(os.path.join(self.wiki.privateDir(), self.wiki.date))
 			self.log = Logger(self.logFileName)
 			thread.start_new_thread(self.logQueueReader,(self.log,))
 		self.runInfoFile = RunInfoFile(wiki,self._runInfoFileEnabled, self.verbose)
