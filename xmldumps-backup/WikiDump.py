@@ -232,6 +232,8 @@ class Config(object):
 			# do we write out checkpoint files at regular intervals? (article/metacurrent/metahistory
 			# dumps only.)
 			"checkpointTime" : "0",
+			#"otherformats": {
+			"multistream" : "0",
 			}
 		self.conf = ConfigParser.SafeConfigParser(defaults)
 		self.conf.read(self.files)
@@ -320,6 +322,10 @@ class Config(object):
 		self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkAbstract",0)
 		self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks","recombineHistory",1)
 		self.checkpointTime = self.getOptionForProjectOrDefault(conf, "chunks","checkpointTime",1)
+	
+		if not self.conf.has_section('otherformats'):
+			self.conf.add_section('otherformats')
+		self.multistreamEnabled = self.getOptionForProjectOrDefault(conf, 'otherformats', 'multistream', 1)
 
 	def getOptionForProjectOrDefault(self, conf, sectionName, itemName, isInt):
 		if (conf.has_section(self.projectName)):

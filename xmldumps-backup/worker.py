@@ -688,12 +688,13 @@ class DumpItemList(object):
 							   "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
 							   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistory7zdump'), self.wiki))
 		# doing this only for recombined/full articles dump
-		if (self.chunkInfo.chunksEnabled()):
-			inputForMultistream = "articlesdumprecombine"
-		else:
-			inputForMultistream = "articlesdump"
-		self.dumpItems.append(
-			XmlMultiStreamDump("articles",
+		if self.wiki.config.multistreamEnabled:
+			if (self.chunkInfo.chunksEnabled()):
+				inputForMultistream = "articlesdumprecombine"
+			else:
+				inputForMultistream = "articlesdump"
+			self.dumpItems.append(
+				XmlMultiStreamDump("articles",
 					   "articlesmultistreamdump",
 					   "Articles, templates, media/file descriptions, and primary meta-pages, in multiple bz2 streams, 100 pages per stream",
 					   "This contains current versions of article content, in concatenated bz2 streams, 100 pages per stream, plus a separate" +
