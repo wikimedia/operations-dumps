@@ -1802,8 +1802,8 @@ class Runner(object):
 		if self.status.failCount < 1:
 			# Email the site administrator just once per database
 			self.status.reportFailure()
-			self.status.failCount += 1
-			self.lastFailed = True
+		self.status.failCount += 1
+		self.lastFailed = True
 
 	def runUpdateItemFileInfo(self, item):
 		# this will include checkpoint files if they are enabled.
