@@ -3451,8 +3451,8 @@ class XmlMultiStreamDump(XmlDump):
 		return(commandSeries)
 
 	def run(self, runner):
-		if runner.lastFailed:
-			raise BackupError("bz2 dump incomplete, not recompressing")
+		if self.itemForRecompression.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecompression.name())
 		commands = []
 		self.cleanupOldFiles(runner.dumpDir)
 		if self.checkpointFile:
@@ -3596,8 +3596,8 @@ class XmlRecompressDump(Dump):
 		return(commandSeries)
 
 	def run(self, runner):
-		if runner.lastFailed:
-			raise BackupError("bz2 dump incomplete, not recompressing")
+		if self.itemForRecompression.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecompression.name())
 		commands = []
 		# Remove prior 7zip attempts; 7zip will try to append to an existing archive
 		self.cleanupOldFiles(runner.dumpDir)
