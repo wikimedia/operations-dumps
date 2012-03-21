@@ -2873,6 +2873,8 @@ class RecombineXmlStub(Dump):
 		return self.itemForXmlStubs.getDumpName()
 
 	def run(self, runner):
+		if self.itemForXmlStubs.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForXmlStubs.name())
 		error=0
 		files = self.itemForXmlStubs.listOutputFilesForInput(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir, self.listDumpNames())
@@ -2976,6 +2978,8 @@ class XmlDump(Dump):
 		return "bz2"
 
 	def run(self, runner):
+		if self.itemForStubs.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForStubs.name())
 		commands = []
 		self.cleanupOldFiles(runner.dumpDir)
 		# just get the files pertaining to our dumpName, which is *one* of articles, pages-current, pages-history.
@@ -3357,6 +3361,8 @@ class RecombineXmlDump(XmlDump):
 		return self.itemForXmlDumps.getDumpName()
 
 	def run(self, runner):
+		if self.itemForXmlDumps.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForXmlDumps.name())
 		files = self.itemForXmlDumps.listOutputFilesForInput(runner.dumpDir)
 		outputFiles = self.listOutputFilesForBuildCommand(runner.dumpDir)
 		if (len(outputFiles) > 1):
@@ -3697,6 +3703,8 @@ class RecombineXmlRecompressDump(Dump):
                 return self.itemForRecombine.getDumpName()
 
 	def run(self, runner):
+		if self.itemForRecombine.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecombine.name())
 		error = 0
 		self.cleanupOldFiles(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir)
@@ -3877,6 +3885,8 @@ class RecombineAbstractDump(Dump):
                 return self.itemForRecombine.getDumpName()
 
 	def run(self, runner):
+		if self.itemForRecombine.status() != "done":
+			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecombine.name())
 		error = 0
 		files = self.itemForRecombine.listOutputFilesForInput(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir)
