@@ -3,7 +3,7 @@
 if [ ! -z "$1" ]; then
 	configfile="$1"
 else
-	configfile="/backups-atg/wikidump.conf"
+	configfile="/backups/dumps/production/confs/wikidump.conf"
 fi
 wikiadmin=`egrep "^user=" "$configfile" | awk -Fuser= '{ print $2 }'`
 wikipass=`egrep "^password=" "$configfile" | awk -Fpassword= '{ print $2 }'`
