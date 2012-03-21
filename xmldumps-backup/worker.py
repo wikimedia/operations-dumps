@@ -1698,8 +1698,6 @@ class Runner(object):
 		self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.logAndPrint)
 		self.dumpDir = DumpDir(self.wiki, self.dbName)
 
-		self.lastFailed = False
-
 		# these must come after the dumpdir setup so we know which directory we are in 
 		if (self._loggingEnabled and self._makeDirEnabled):
 			fileObj = DumpFilename(self.wiki)
@@ -1803,7 +1801,6 @@ class Runner(object):
 			# Email the site administrator just once per database
 			self.status.reportFailure()
 		self.status.failCount += 1
-		self.lastFailed = True
 
 	def runUpdateItemFileInfo(self, item):
 		# this will include checkpoint files if they are enabled.
@@ -1885,7 +1882,6 @@ class Runner(object):
 			if item.status() == "done":
 				self.checksums.cpMd5TmpFileToPermFile()
  				self.runUpdateItemFileInfo(item)
-				self.lastFailed = False
 			else:
 				# Here for example status is "failed". But maybe also
 				# "in-progress", if an item chooses to override dump(...) and
