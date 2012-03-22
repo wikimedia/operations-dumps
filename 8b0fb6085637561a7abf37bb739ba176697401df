@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAIn//+aA\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1854,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 1,
+      "message": "Before this commit cleanOldDumps was run for all runs, except for \"--job\" runs without an existing index.html.\n\nHowever, cleanOldDumps does not consider index.html. It just considers dumpDirs.\nAnd the function properly handles an already existing dumpDir with today\u0027s date.\n\nAfter this commit cleanOldDumps is run on all invocations. This adds a not measurable performance penalty for --job runs having a dumpdir with todays date.\n\nHowever, it greatly improves the readability of the invocation of cleanOldDumps.\nFurthermore, now all invocations of cleanOldDumps are just below the makeDir lines (1850/1851). Hence, it is obvious that the dump now exists /before/ the invocation.",
+      "revId": "8b0fb6085637561a7abf37bb739ba176697401df",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAIn//+aE\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1856,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 1,
+      "message": "The following if cascade has been rearranged to meet the if cascade at the end of this function. Hence, we see more easily see that they are the same and serve the same purpose.",
+      "revId": "8b0fb6085637561a7abf37bb739ba176697401df",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAIn//+Z0\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1884,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 1,
+      "message": "We swapped the positive and negative branch of the following \u0027if\u0027, to be more defensive.",
+      "revId": "8b0fb6085637561a7abf37bb739ba176697401df",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAIn//+Zk\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1919,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 1,
+      "message": "This if is not necessary, but decouples the \"latestlinks\" case above from the informing about status below.\n\nThereby we improve readability, as the above block does one thing completely.\nAnd also the below block does one thing completely.",
+      "revId": "8b0fb6085637561a7abf37bb739ba176697401df",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}

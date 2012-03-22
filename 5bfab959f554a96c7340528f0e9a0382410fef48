@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAIn//+ak\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1835,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 0,
+      "message": "cleaning up of old dumps is not /re/moved, but moved a bit furter down and merged with other branches",
+      "revId": "5bfab959f554a96c7340528f0e9a0382410fef48",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAIn//+Z4\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1870,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 0,
+      "message": "self.jobRequested is no longer required, as even in the case where self.jobRequested does not hold (i.e.: a complete dump), toBeRun() is set on all jobs that need to be run (see a previous commit)",
+      "revId": "5bfab959f554a96c7340528f0e9a0382410fef48",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAIn//+Zs\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1889,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 0,
+      "message": "The above \u0027if\u0027 is taken away, as it is good to execute the nested block even for complete runs.",
+      "revId": "5bfab959f554a96c7340528f0e9a0382410fef48",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAIn//+Zo\u003d",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 1899,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-03-22T20:21:25Z",
+      "side": 0,
+      "message": "The positive \u0027if\u0027 branch is a more robust variant of the negative branch. Hence, I eliminated the \u0027if\u0027 and used the robust variant for both branches.",
+      "revId": "5bfab959f554a96c7340528f0e9a0382410fef48",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
