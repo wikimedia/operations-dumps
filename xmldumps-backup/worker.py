@@ -2756,6 +2756,7 @@ class XmlStub(Dump):
 		self.articlesDumpName = "stub-articles"
 		if checkpoints:
 			self._checkpointsEnabled = True
+		self._checkTruncation = True
 		Dump.__init__(self, name, desc)
 
 	def detail(self):
