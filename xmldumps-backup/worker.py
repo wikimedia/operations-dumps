@@ -2178,6 +2178,7 @@ class Dump(object):
 					raise BackupError("Required job %s not marked as done, not starting job %s" % ( prerequisiteItem.name(),self.name() ) )
 
 			self.run(runner)
+			self.postRun(runner)
 		except Exception:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -2188,6 +2189,10 @@ class Dump(object):
 
 	def run(self, runner):
 		"""Actually do something!"""
+		pass
+
+	def postRun(self, runner):
+		"""Common tasks to run after performing this item's actual dump"""
 		pass
 
 	def progressCallback(self, runner, line=""):
