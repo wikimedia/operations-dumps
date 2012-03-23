@@ -2111,6 +2111,12 @@ class Dump(object):
 			self._chunkToDo = False
 		if not hasattr(self, '_prerequisiteItems'):
 			self._prerequisiteItems = []
+		if not hasattr(self, '_checkTruncation'):
+			# Automatic checking for truncation of produced files is
+			# (due to dumpDir handling) only possible for public dir 
+			# right now. So only set this to True, when all files of
+			# the item end in the public dir.
+			self._checkTruncation = False
 
 	def name(self):
 		return self.runInfo.name()
@@ -2195,7 +2201,42 @@ class Dump(object):
 
 	def postRun(self, runner):
 		"""Common tasks to run after performing this item's actual dump"""
-		pass
+		# Checking for truncated files
+		truncatedFilesCount = self.checkForTruncatedFiles(runner)
+		if truncatedFilesCount:
+			raise BackupError("Encountered %d truncated files for %s" % ( truncatedFilesCount, self.dumpName ) )
+	
+	def checkForTruncatedFiles(self, runner):
+		"""Returns the number of files that have been detected to be truncated. This function expects that all files to check for truncation live in the public dir"""
+		ret = 0
+
+		if not runner._checkForTruncatedFilesEnabled or not self._checkTruncation:
+			return ret
+
+		# dfn is the DumpFilename
+		# df  is the DumpFile
+		for dfn in self.listOutputFilesToCheckForTruncation(runner.dumpDir):
+			df = DumpFile(runner.wiki, runner.dumpDir.filenamePublicPath(dfn), dfn );
+
+			fileTruncated=True;				
+			if exists(df.filename):
+				if df.checkIfTruncated():
+					# The file exists and is truncated, we move it out of the way
+					df.rename( df.filename + ".truncated" )
+					
+					# We detected a failure and could abort right now. However,
+					# there might still be some further chunk files, that are good.
+					# Hence, we go on treating the remaining files and in the end
+					# /all/ truncated files have been moved out of the way. So we
+					# see, which chunks (instead of the whole job) need a rerun.
+				else:
+					# The file exists and is not truncated. Heck, it's a good file!
+					fileTruncated=False
+					
+			if fileTruncated:
+				ret+=1
+
+		return ret
 
 	def progressCallback(self, runner, line=""):
 		"""Receive a status line from a shellout and update the status files."""
@@ -2669,6 +2710,14 @@ class PublicTable(Dump):
 class PrivateTable(PublicTable):
 	"""Hidden table dumps for private data."""
 
+	def __init__(self, table, name, desc):
+		# Truncation checks require output to public dir, hence we
+		# cannot use them. The default would be 'False' anyways, but
+		# if that default changes, we still cannot use automatic
+		# truncation checks.
+		self._checkTruncation = False
+		PublicTable.__init__(self, table, name, desc)
+
 	def description(self):
 		return self._desc + " (private)"
 
@@ -2932,6 +2981,7 @@ class XmlDump(Dump):
 			self._checkpointsEnabled = False
 		self.pageIDRange = pageIDRange
 		self._prerequisiteItems = [ self.itemForStubs ]
+		self._checkTruncation = True
 		Dump.__init__(self, name, desc)
 
 	def getDumpNameBase(self):
@@ -2980,24 +3030,8 @@ class XmlDump(Dump):
 				commands.append(series)
 
 		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
-		truncationError = self.checkForTruncatedFiles(runner)
-		if (error or truncationError):
+		if error:
 			raise BackupError("error producing xml file(s) %s" % self.dumpName)
-
-	def checkForTruncatedFiles(self, runner):
-		if runner._checkForTruncatedFilesEnabled:
-			# check to see if any of the output files are truncated
-			if self._checkpointsEnabled:
-				files = self.listCheckpointFilesPerChunkExisting(runner.dumpDir, self.getChunkList(), [ self.dumpName ])
-			else:
-				files = self.listRegularFilesPerChunkExisting(runner.dumpDir, self.getChunkList(), [ self.dumpName ])
-			for f in files:
-				f = DumpFile(self.wiki,runner.dumpDir.filenamePublicPath(f), None, self.verbose)
-				if (f.checkIfTruncated()):
-					runner.logAndPrint("file %s is truncated, moving out of the way" % f.filename )
-					f.rename( f.filename + ".truncated" )
-					return 1
-		return 0
 
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
