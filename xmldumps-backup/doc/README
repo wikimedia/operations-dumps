@@ -1,0 +1,17 @@
+Supplementary documentation of xmldumps-backup.
+
+The basic documentation can be found in
+  ../README
+.
+
+Within this doc directory, we provide supplementary documentation
+material used for reading and understanding the code.
+This directory contains:
+
+* README - This file.
+
+* class-diagram-dumps-2012-03-23.pdf - A diagram showing the relation
+  between dump classes and dumped files (Horrible abuse of UML)
+
+* class-diagram-dumps.zargo - The ArgoUML source for
+  class-diagram-dumps-2012-03-23.pdf (Horrible abuse of UML)
