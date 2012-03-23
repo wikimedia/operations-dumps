@@ -2875,6 +2875,12 @@ class RecombineXmlStub(Dump):
 		files.extend(Dump.listOutputFilesToPublish(self, dumpDir, dumpNames))
 		return files
 
+	def listOutputFilesToCheckForTruncation(self, dumpDir):
+		dumpNames =  self.listDumpNames()
+		files = []
+		files.extend(Dump.listOutputFilesToCheckForTruncation(self, dumpDir, dumpNames))
+		return files
+
 	def getFileType(self):
 		return self.itemForXmlStubs.getFileType()
 
