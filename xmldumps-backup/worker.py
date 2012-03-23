@@ -1357,9 +1357,11 @@ class DumpFile(file):
 			pipeline.append([ checkforbz2footer, self.filename ])
 		else:
 			if self.fileObj.fileExt == 'gz':
-				pipeline = [ "%s -dc %s > /dev/null" % (self._wiki.config.gzip, self.filename ) ]
+				pipeline = [ [ self._wiki.config.gzip, "-dc", self.filename, ">", "/dev/null" ] ]
 			elif self.fileObj.fileExt == '7z':
-				pipeline = [ "%s e -so %s > /dev/null" % (self._wiki.config.sevenzip, self.filename ) ]
+				# Note that 7z does return 0, if archive contains
+				# garbage /after/ the archive end
+				pipeline = [ [ self._wiki.config.sevenzip, "e", "-so", self.filename, ">", "/dev/null" ] ]
 			else:
 				# we do't know how to handle this type of file.
 				return self.isTruncated
