@@ -27,6 +27,11 @@ while [ $# -gt 0 ]; do
 	echo "--configfile   use specified file for config file (default: wikidump.conf)"
 	echo "--log          write log of (almost) everything written to stderr (default: no logging)"
 	echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
+	echo 
+	echo "If the file $WIKIDUMP_BASE/maintenance.txt is present, no more jobs will be run, and"
+	echo "this script will check the status again in 5 minutes."
+	echo "If the file $WIKIDUMP_BASE/exit.txt is present, no more new jobs will be started and"
+	echo "this script will terminate."
 	exit 1
     fi
 done
@@ -42,8 +47,11 @@ fi
 
 while true; do
     if [ -e "$WIKIDUMP_BASE/maintenance.txt" ]; then
-	echo "in maintenance mode, sleeping 5 minutes"
+	echo "in maintenance mode (see 'maintenance.txt'), sleeping 5 minutes"
 	sleep 300
+    elif [ -e "$WIKIDUMP_BASE/exit.txt" ]; then
+	echo "exit requested, remove 'exit.txt' to continue normal operations."
+	exit 0
     else
 	echo python ${pythonargs[@]}
 	python ${pythonargs[@]}
