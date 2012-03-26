@@ -757,6 +757,11 @@ class DumpItemList(object):
 				for j in range(i,len(self.dumpItems)):
 					self.dumpItems[j].setToBeRun(True)
 				break
+
+	def markAllJobsToRun(self):
+		"""Marks each and every job to be run"""
+		for item in self.dumpItems:
+			item.setToBeRun( True )
 					      
 	def findItemByName(self, name):
 		for item in self.dumpItems:
@@ -1842,6 +1847,8 @@ class Runner(object):
 			if (restart):
 				# mark all the following jobs to run as well 
 				self.dumpItemList.markFollowingJobsToRun()
+		else:
+			self.dumpItemList.markAllJobsToRun();
 
 		Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName )
 
@@ -1960,7 +1967,7 @@ class Runner(object):
 
 		for item in self.dumpItemList.dumpItems:
 			if (item.toBeRun()):
-				dumpNames = item.getDumpName()
+				dumpNames = item.listDumpNames()
 				if type(dumpNames).__name__!='list':
 					dumpNames = [ dumpNames ]
 
@@ -2192,6 +2199,11 @@ class Dump(object):
 		"""Return the dumpName as it appears in output files for this phase of the dump
 		e.g. pages-meta-history, all-titles-in-ns0, etc"""
 		return ""
+
+	def listDumpNames(self):
+		"""Returns a list of names as they appear in output files for this phase of the dump
+		e.g. [ pages-meta-history ], or [ stub-meta-history, stub-meta-current, stub-articles], etc"""
+		return [ self.getDumpName() ]
 
 	def getFileExt(self):
 		"""Return the extension of output files for this phase of the dump
@@ -3385,6 +3397,10 @@ class XmlMultiStreamDump(XmlDump):
 
 	def getDumpName(self):
 		return "pages-" + self._subset
+
+	def listDumpNames(self):
+		d = self.getDumpName();
+		return [ self.getDumpNameMultistream(d), self.getDumpNameMultistreamIndex(d) ];
 
 	def getFileType(self):
 		return "xml"
