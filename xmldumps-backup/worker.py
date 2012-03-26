@@ -1832,11 +1832,6 @@ class Runner(object):
 				reply = raw_input("Continue anyways? [y/N]: ")
 				if (not reply in [ "y", "Y" ]):
 					raise RuntimeError( "No run information available for previous dump, exiting" )
-			if (not self.wiki.existsPerDumpIndex()):
-				# AFAWK this is a new run (not updating or rerunning an old run), 
-				# so we should see about cleaning up old dumps
-				self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
-				self.cleanOldDumps()
 
 			if (not self.dumpItemList.markDumpsToRun(self.jobRequested)):
 			# probably no such job
@@ -1855,19 +1850,22 @@ class Runner(object):
 		self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
 		self.makeDir(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
-		if (self.restart):
-			self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
-		elif (self.jobRequested):
-			self.logAndPrint("Preparing for job %s of %s" % (self.jobRequested, self.dbName))
+		self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
+		self.cleanOldDumps()
+
+		# Informing what kind backup work we are about to do
+		if (self.jobRequested):
+			if (self.restart):
+				self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
+			else:
+				self.logAndPrint("Preparing for job %s of %s" % (self.jobRequested, self.dbName))
 		else:
-			self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
-			self.cleanOldDumps()
 			self.showRunnerState("Starting backup of %s" % self.dbName)
 
 		self.checksums.prepareChecksums()
 		
 		for item in self.dumpItemList.dumpItems:
-			if (self.jobRequested) and not (item.toBeRun()):
+			if not (item.toBeRun()):
 				continue
 
 			Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, item.name() ) )
@@ -1883,26 +1881,26 @@ class Runner(object):
 				else:
 					self.debug("*** exception! " + str(ex))
 				item.setStatus("failed")
-			if item.status() == "failed":
-				self.runHandleFailure()
-			else:
-				if not (self.jobRequested):
-					self.runUpdateItemFileInfo(item)
-					self.checksums.cpMd5TmpFileToPermFile()
+
+			if item.status() == "done":
+				self.checksums.cpMd5TmpFileToPermFile()
+ 				self.runUpdateItemFileInfo(item)
 				self.lastFailed = False
-
-			if (self.jobRequested):
-				# this ensures that, previous run or new one, the old or new md5sums go to the file
-				if item.status() == "done":
-					self.runUpdateItemFileInfo(item)
-
-		if (self.jobRequested):
-			if (self.dumpItemList.allPossibleJobsDone()):
-				self.status.updateStatusFiles("done")
 			else:
-				self.status.updateStatusFiles("partialdone")
-		else:
+				# Here for example status is "failed". But maybe also
+				# "in-progress", if an item chooses to override dump(...) and
+				# forgets to set the status. This is a failure as well.
+				self.runHandleFailure()
+
+		if (self.dumpItemList.allPossibleJobsDone()):
+			# All jobs are either in status "done" or "failed"
 			self.status.updateStatusFiles("done")
+		else:
+			# This may happen if we start a dump now and abort before all items are
+			# done. Then some are left for example in state "waiting". When
+			# afterwards running a specific job, all (but one) of the jobs
+			# previously in "waiting" are still in status "waiting"
+			self.status.updateStatusFiles("partialdone")
 
 		self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
 											
@@ -1917,6 +1915,8 @@ class Runner(object):
 					self.symLinks.removeSymLinksFromOldRuns(self.wiki.date)
 					self.feeds.cleanupFeeds()
 
+		# Informing about completion
+		if (self.jobRequested):
 			if (self.restart):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
 			else:
@@ -1931,6 +1931,9 @@ class Runner(object):
 			return True
 
 	def cleanOldDumps(self):
+		"""Removes all but the wiki.config.keep last dumps of this wiki.
+		If there is already a directory for todays dump, this is omitted in counting and
+		not removed."""
 		if self._cleanOldDumpsEnabled:
 			old = self.wiki.dumpDirs()
 			if old:
