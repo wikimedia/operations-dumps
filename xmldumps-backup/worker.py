@@ -769,53 +769,6 @@ class DumpItemList(object):
 				return item
 		return None
 
-	# see whether job needs previous jobs that have not completed successfully
-	def jobDoneSuccessfully(self, job):
-		for item in self.dumpItems:
-			if (item.name() == job):
-				if (item.status() == "done"):
-					return True
-				else:
-					return False
-		return False
-
-	def checkJobDependencies(self, job):
-		# dump of any pages meta history etc requires stubs.
-		# recompress requires earlier bz2.
-		if (job == "abstractsdumprecombine"):
-			if (not self.jobDoneSuccessfully("abstractsdump")):
-				return False
-		if (job == "xmlstubsdumprecombine"):
-			if (not self.jobDoneSuccessfully("xmlstubsdump")):
-				return False
-		if (job == "articlesdumprecombine"):
-			if (not self.jobDoneSuccessfully("articlesdump")):
-				return False
-		if (job == "metacurrentdumprecombine"):
-			if (not self.jobDoneSuccessfully("metacurrentdump")):
-				return False
-		if (job == "metahistory7zdumprecombine"):
-			if (not self.jobDoneSuccessfully("metahistory7zdump")):
-				return False
-		if (job == "metahistorybz2dumprecombine"):
-			if (not self.jobDoneSuccessfully("metahistorybz2dump")):
-				return False
-		if (job == "metahistory7zdump"):
-			if (not self.jobDoneSuccessfully("xmlstubsdump") or not self.jobDoneSuccessfully("metahistorybz2dump")):
-				return False
-		if ((job == "metahistorybz2dump") or (job == "metacurrentdump") or (job == "articlesdump")):
-			if (not self.jobDoneSuccessfully("xmlstubsdump")):
-				return False
-		if (job == "articlesmultistreamdump"):
-			if (self.chunkInfo.chunksEnabled()):
-				if (not self.jobDoneSuccessfully("articlesdumprecombine")):
-					return False
-			else:
-				if (not self.jobDoneSuccessfully("articlesdump")):
-					return False
-
-		return True
-				      
 	def _getChunkToDo(self, jobName):
 		if (self._singleJob):
 			if (self._singleJob == jobName):
@@ -1833,9 +1786,6 @@ class Runner(object):
 			if (not self.dumpItemList.markDumpsToRun(self.jobRequested)):
 			# probably no such job
 				raise RuntimeError( "No job marked to run, exiting" )
-			# job has dependent steps that weren't already run
-			if (not self.dumpItemList.checkJobDependencies(self.jobRequested)):
-				raise RuntimeError( "Job dependencies not run beforehand, exiting" )
 			if (restart):
 				# mark all the following jobs to run as well 
 				self.dumpItemList.markFollowingJobsToRun()
