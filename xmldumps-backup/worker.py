@@ -1857,42 +1857,53 @@ class Runner(object):
 			self.cleanOldDumps()
 			self.showRunnerState("Starting backup of %s" % self.dbName)
 
-		if (self.jobRequested):
-			self.checksums.prepareChecksums()
+		self.checksums.prepareChecksums()
+		
+		for item in self.dumpItemList.dumpItems:
+			if (self.jobRequested) and not (item.toBeRun()):
+				continue
 
-			for item in self.dumpItemList.dumpItems:
-				if (item.toBeRun()):
-					Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, self.jobRequested ) )
+			Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, item.name() ) )
+			item.start(self)
+			self.status.updateStatusFiles()
+			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+			try:
+				item.dump(self)
+			except Exception, ex:
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				if (self.verbose):
+					print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				else:
+					self.debug("*** exception! " + str(ex))
+				item.setStatus("failed")
+			if item.status() == "failed":
+				self.runHandleFailure()
+			else:
+				if not (self.jobRequested):
+					self.runUpdateItemFileInfo(item)
+					self.checksums.cpMd5TmpFileToPermFile()
+				self.lastFailed = False
 
-					item.start(self)
-					self.status.updateStatusFiles()
-					self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-					try:
-						item.dump(self)
-					except Exception, ex:
-						exc_type, exc_value, exc_traceback = sys.exc_info()
-						if (self.verbose):
-							print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
-						else:
-							self.debug("*** exception! " + str(ex))
-						item.setStatus("failed")
-					if item.status() == "failed":
-						self.runHandleFailure()
-					else:
-						self.lastFailed = False
+			if (self.jobRequested):
 				# this ensures that, previous run or new one, the old or new md5sums go to the file
 				if item.status() == "done":
 					self.runUpdateItemFileInfo(item)
 
+		if (self.jobRequested):
 			if (self.dumpItemList.allPossibleJobsDone()):
 				self.status.updateStatusFiles("done")
 			else:
 				self.status.updateStatusFiles("partialdone")
-			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-			# if any job succeeds we might as well make the sym link
-			if (self.status.failCount < 1):
-				self.completeDump()
+		else:
+			self.status.updateStatusFiles("done")
 
+		self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+											
+		# if any job succeeds we might as well make the sym link
+		if (self.status.failCount < 1):
+			self.completeDump()
+
+		if (self.jobRequested):
 			# special case...
 			if self.jobRequested == "latestlinks":
 				if (self.dumpItemList.allPossibleJobsDone()):
@@ -1903,36 +1914,7 @@ class Runner(object):
 				self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
 			else:
 				self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
-
 		else:
-			self.checksums.prepareChecksums()
-
-			for item in self.dumpItemList.dumpItems:
-				Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, item.name() ) )
-				item.start(self)
-				self.status.updateStatusFiles()
-				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-				try:
-					item.dump(self)
-				except Exception, ex:
-					exc_type, exc_value, exc_traceback = sys.exc_info()
-					if (self.verbose):
-						print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
-					else:
-						self.debug("*** exception! " + str(ex))
-					item.setStatus("failed")
-				if item.status() == "failed":
-					self.runHandleFailure()
-				else:
-					self.runUpdateItemFileInfo(item)
-					self.checksums.cpMd5TmpFileToPermFile()
-					self.lastFailed = False
-
-			self.status.updateStatusFiles("done")
-			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-			if self.status.failCount < 1:
-				self.completeDump()
-											
 			self.showRunnerStateComplete()
 
 		# let caller know if this was a successful run
