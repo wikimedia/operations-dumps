@@ -214,7 +214,7 @@ class Config(object):
             self.conf.add_section('output')
         self.incrementalsDir = self.conf.get("output", "incrementalsdir")
         self.tempDir = self.conf.get("output", "temp")
-        self.templateDir = self.conf.get("output", "templateDir")
+        self.templateDir = self.conf.get("output", "templatedir")
         self.webRoot = self.conf.get("output", "webroot")
         self.fileperms = self.conf.get("output", "fileperms")
         self.fileperms = int(self.fileperms,0)
