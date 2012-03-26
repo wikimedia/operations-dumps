@@ -2157,6 +2157,8 @@ class Dump(object):
 			self.checkpointFile = False
 		if not hasattr(self, '_chunkToDo'):
 			self._chunkToDo = False
+		if not hasattr(self, '_prerequisiteItems'):
+			self._prerequisiteItems = []
 
 	def name(self):
 		return self.runInfo.name()
@@ -2221,6 +2223,10 @@ class Dump(object):
 	def dump(self, runner):
 		"""Attempt to run the operation, updating progress/status info."""
 		try:
+			for prerequisiteItem in self._prerequisiteItems:
+				if prerequisiteItem.status() != "done":
+					raise BackupError("Required job %s not marked as done, not starting job %s" % ( prerequisiteItem.name(),self.name() ) )
+
 			self.run(runner)
 		except Exception:
 			if (self.verbose):
@@ -2847,6 +2853,7 @@ class XmlStub(Dump):
 class RecombineXmlStub(Dump):
 	def __init__(self, name, desc, itemForXmlStubs):
 		self.itemForXmlStubs = itemForXmlStubs
+		self._prerequisiteItems = [ self.itemForXmlStubs ]
 		Dump.__init__(self, name, desc)
 		# the input may have checkpoints but the output will not.
 		self._checkpointsEnabled = False
@@ -2873,8 +2880,6 @@ class RecombineXmlStub(Dump):
 		return self.itemForXmlStubs.getDumpName()
 
 	def run(self, runner):
-		if self.itemForXmlStubs.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForXmlStubs.name())
 		error=0
 		files = self.itemForXmlStubs.listOutputFilesForInput(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir, self.listDumpNames())
@@ -2963,6 +2968,7 @@ class XmlDump(Dump):
 			# we don't checkpoint the checkpoint file.
 			self._checkpointsEnabled = False
 		self.pageIDRange = pageIDRange
+		self._prerequisiteItems = [ self.itemForStubs ]
 		Dump.__init__(self, name, desc)
 
 	def getDumpNameBase(self):
@@ -2978,8 +2984,6 @@ class XmlDump(Dump):
 		return "bz2"
 
 	def run(self, runner):
-		if self.itemForStubs.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForStubs.name())
 		commands = []
 		self.cleanupOldFiles(runner.dumpDir)
 		# just get the files pertaining to our dumpName, which is *one* of articles, pages-current, pages-history.
@@ -3344,6 +3348,7 @@ class RecombineXmlDump(XmlDump):
 		# no prefetch, no spawn
 		self.itemForXmlDumps = itemForXmlDumps
 		self._detail = detail
+		self._prerequisiteItems = [ self.itemForXmlDumps ]
 		Dump.__init__(self, name, desc)
 		# the input may have checkpoints but the output will not.
 		self._checkpointsEnabled = False
@@ -3361,8 +3366,6 @@ class RecombineXmlDump(XmlDump):
 		return self.itemForXmlDumps.getDumpName()
 
 	def run(self, runner):
-		if self.itemForXmlDumps.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForXmlDumps.name())
 		files = self.itemForXmlDumps.listOutputFilesForInput(runner.dumpDir)
 		outputFiles = self.listOutputFilesForBuildCommand(runner.dumpDir)
 		if (len(outputFiles) > 1):
@@ -3398,6 +3401,7 @@ class XmlMultiStreamDump(XmlDump):
 		if checkpoints:
 			self._checkpointsEnabled = True
 		self.checkpointFile = checkpointFile
+		self._prerequisiteItems = [ self.itemForRecompression ]
 		Dump.__init__(self, name, desc)
 
 	def getDumpName(self):
@@ -3453,8 +3457,6 @@ class XmlMultiStreamDump(XmlDump):
 		return(commandSeries)
 
 	def run(self, runner):
-		if self.itemForRecompression.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecompression.name())
 		commands = []
 		self.cleanupOldFiles(runner.dumpDir)
 		if self.checkpointFile:
@@ -3567,6 +3569,7 @@ class XmlRecompressDump(Dump):
 		if checkpoints:
 			self._checkpointsEnabled = True
 		self.checkpointFile = checkpointFile
+		self._prerequisiteItems = [ self.itemForRecompression ]
 		Dump.__init__(self, name, desc)
 
 	def getDumpName(self):
@@ -3598,8 +3601,6 @@ class XmlRecompressDump(Dump):
 		return(commandSeries)
 
 	def run(self, runner):
-		if self.itemForRecompression.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecompression.name())
 		commands = []
 		# Remove prior 7zip attempts; 7zip will try to append to an existing archive
 		self.cleanupOldFiles(runner.dumpDir)
@@ -3688,6 +3689,7 @@ class RecombineXmlRecompressDump(Dump):
 		self._desc = desc
 		self.wiki = wiki
 		self.itemForRecombine = itemForRecombine
+		self._prerequisiteItems = [ self.itemForRecombine ]
 		Dump.__init__(self, name, desc)
 		# the input may have checkpoints but the output will not.
 		self._checkpointsEnabled = False
@@ -3703,8 +3705,6 @@ class RecombineXmlRecompressDump(Dump):
                 return self.itemForRecombine.getDumpName()
 
 	def run(self, runner):
-		if self.itemForRecombine.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecombine.name())
 		error = 0
 		self.cleanupOldFiles(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir)
@@ -3871,6 +3871,7 @@ class RecombineAbstractDump(Dump):
 	def __init__(self, name, desc, itemForRecombine):
 		# no chunkToDo, no chunks generally (False, False), even though input may have it
 		self.itemForRecombine = itemForRecombine
+		self._prerequisiteItems = [ self.itemForRecombine ]
 		Dump.__init__(self, name, desc)
 		# the input may have checkpoints but the output will not.
 		self._checkpointsEnabled = False
@@ -3885,8 +3886,6 @@ class RecombineAbstractDump(Dump):
                 return self.itemForRecombine.getDumpName()
 
 	def run(self, runner):
-		if self.itemForRecombine.status() != "done":
-			raise BackupError("Required job %s not marked as done, not recompressing" % self.itemForRecombine.name())
 		error = 0
 		files = self.itemForRecombine.listOutputFilesForInput(runner.dumpDir)
 		outputFileList = self.listOutputFilesForBuildCommand(runner.dumpDir)
