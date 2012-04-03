@@ -15,12 +15,19 @@ class Job(object):
         self.jobId = jobId # this must be unique across all jobs
         self.contents = jobContents
         self.done = False
+        self.failed = False
 
     def markDone(self):
         self.done = True
 
+    def markFailed(self):
+        self.failed = True
+
     def checkIfDone(self):
         return self.done
+
+    def checkIfFailed(self):
+        return self.failed
 
 class RsyncJob(Job):
     datePattern = re.compile('^20[0-9]{6}$')
@@ -201,9 +208,11 @@ class DirDeleter(object):
         """given a file list, we need to see if we are done with
         one project and on to the next, which things we rsynced and
         which not, and delete the ones not (i.e. left over from previous
-        run and we don't want them now)"""
+        run and we don't want them now); failed rsyncs may not have
+        completed normally so we won't do deletions for a project
+        with failed jobs"""
         for project in job.rsyncedByJob.keys():
-            ids = [ self.jobList[jobId] for jobId in self.jobsPerProject[project] if not self.jobList[jobId].checkIfDone() ]
+            ids = [ self.jobList[jobId] for jobId in self.jobsPerProject[project] if not self.jobList[jobId].checkIfDone() or self.jobList[jobId].checkIfFailed() ]
             if not len(ids):
                 self.doDeletes(project)
 
@@ -306,6 +315,7 @@ class JobHandler(object):
         """override this with a function that processes
         contents as desired"""
         print contents
+        return False
 
 class Rsyncer(JobHandler):
     """all the info about rsync you ever wanted to know but were afraid to ask..."""
@@ -318,10 +328,10 @@ class Rsyncer(JobHandler):
         self.cmd = Command(verbose, dryrun)
 
     def doJob(self, contents):
-        self.doRsync(contents)
+        return self.doRsync(contents)
 
     def doRsync(self, files):
-        command = [ "rsync" ]
+        command = [ "/usr/bin/rsync" ]
         command.extend([ "--files-from", "-" ])
         command.extend( self.rsyncArgs )
         command.extend([ self.rsyncRemotePath,  self.localPath ])
@@ -334,8 +344,8 @@ class Rsyncer(JobHandler):
             MirrorMsg.display("running %s" % commandString)
         if self.dryrun or self.verbose:
             MirrorMsg.display("with input:\n" + '\n'.join(files) + '\n', True)
-        self.cmd.runCommand(command, shell = False, inputText = '\n'.join(files) + '\n')
-        
+        return self.cmd.runCommand(command, shell = False, inputText = '\n'.join(files) + '\n')
+
 class JobQueueHandler(threading.Thread):
     def __init__(self, jQ, handler, verbose, dryrun):
         threading.Thread.__init__(self)
@@ -352,8 +362,11 @@ class JobQueueHandler(threading.Thread):
             self.doJob(job)
 
     def doJob(self, job):
-        self.handler.doJob(job.contents)
-        job.markDone()
+        result = self.handler.doJob(job.contents)
+        if result:
+            job.markFailed()
+        else:
+            job.markDone()
         self.jQ.notifyJobDone(job.jobId)
 
 class JobQueue(object):
@@ -410,6 +423,10 @@ class JobQueue(object):
                 MirrorMsg.display("retrieved from the job queue: %s\n" % job.jobId)
             return job
             
+    def notifyJobDone(self, jobId):
+        self.notifyQueue.put_nowait(jobId)
+        self.todoQueue.task_done()
+
     def notifyJobDone(self, jobId):
         self.notifyQueue.put_nowait(jobId)
         self.todoQueue.task_done()
@@ -473,9 +490,12 @@ class Command(object):
             print output
 
         if proc.returncode:
-            raise MirrorError("command '%s failed with return code %s and error %s" 
+            MirrorMsg.warn("command '%s failed with return code %s and error %s\n"
                               % ( commandString, proc.returncode,  error ) )
-        
+
+        # let the caller decide whether to bail or not
+        return proc.returncode
+
 class MirrorError(Exception):
     pass
 
@@ -531,7 +551,9 @@ class Mirror(object):
         # would do).  we will turn on verbosity though if
         # dryrun was set
         cmd = Command(self.verbose or self.dryrun, False)
-        cmd.runCommand(command, shell = False)
+        result = cmd.runCommand(command, shell = False)
+        if result:
+            raise MirrorError("Failed to get list of files for rsync\n")
 
     def processRsyncFileList(self):
         f = open(self.getFullLocalPath(self.rsyncFileList))
