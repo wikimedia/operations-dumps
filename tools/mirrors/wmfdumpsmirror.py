@@ -423,13 +423,9 @@ class JobQueue(object):
             
     def notifyJobDone(self, jobId):
         self.notifyQueue.put_nowait(jobId)
-        # FIXME this does not exist now :-( maybe we don't need it?
-#        self.todoQueue.task_done()
 
     def notifyJobDone(self, jobId):
         self.notifyQueue.put_nowait(jobId)
-        # FIXME this does not exist now :-( maybe we don't need it?
-#        self.todoQueue.task_done()
 
     def addToJobQueue(self,job=None):
         if (job):
