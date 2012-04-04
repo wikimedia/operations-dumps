@@ -4,12 +4,6 @@
 # per project that were successful, adding failed dumps to the list if there
 # are not n successful dumps available.  
 
-# Options:
-# dirsonly    -- list only the directories to include
-# dumpsnumber -- number of dumps to list
-# outputfile  -- path to file in which to write the list
-# configfile  -- path to config file used to generate dumps
-
 usage() {
     echo "Usage: $0 --dumpsnumber n --outputfile filename --configfile filename --rsyncprefix path"
     echo 
@@ -18,6 +12,8 @@ usage() {
     echo "  outputfile        name of file to which we will write iw action list"
     echo "  configfile        name of configuration file for dump generation"
     echo "                    (default value: wikidump.conf)"
+    echo "  mandatoryfiles    include in the list the wmf mandatory files each"
+    echo "                    mirror should have"
     echo "  rsyncprefix       path to substitute in place of the public path supplied"
     echo "                    in the configuration file, if needed"
     echo 
@@ -54,6 +50,20 @@ check_args() {
     fi
 }
 
+list_mandatory_files() {
+    # these are wmf files we need the mirrors to pick up regardless.
+    if [ ! -f "$outputfile.tmp" ]; then
+	touch $outputfile.tmp
+    fi
+    files="legal.html"
+    for f in $files; do
+	if [ "$rsyncprefix" == "false" ]; then
+	    ls "$publicdir/$f" 2>/dev/null >> $outputfile.tmp
+	else
+	    ls "$publicdir/$f" 2>/dev/null | sed -e "s|^$publicdir|$rsyncprefix|" >> $outputfile.tmp
+	fi
+    done
+}
 
 listdumpsforproject() {
     # cannot rely on timestamp. sometimes we have rerun a phase in 
@@ -147,6 +157,7 @@ outputfile=""
 configfile="wikidump.conf"
 rsyncprefix="false"
 dirsonly="false"
+mandatory="false"
 
 while [ $# -gt 0 ]; do
     if [ $1 == "--dirsonly" ]; then
@@ -158,6 +169,9 @@ while [ $# -gt 0 ]; do
     elif [ $1 == "--outputfile" ]; then
 	outputfile="$2"
 	shift; shift
+    elif [ $1 == "--mandatoryfiles" ]; then
+	mandatory="true"
+	shift
     elif [ $1 == "--configfile" ]; then
 	configfile="$2"
 	shift; shift
@@ -189,6 +203,10 @@ fi
 publicdir=`egrep "^public=" "$configfile" | awk -Fpublic= '{ print $2 }'`
 if [ -z "$publicdir" ]; then
     publicdir="/dumps/public"
+fi
+
+if [ "$mandatory" == true ]; then
+    list_mandatory_files
 fi
 
 projects=`cat $dblist`
