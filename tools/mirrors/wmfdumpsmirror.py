@@ -1,14 +1,12 @@
 import getopt
 import os
-import Queue
 import re
 import sys
 import subprocess
 import shutil
-import thread
-import threading
-
+import multiprocessing
 from subprocess import Popen, PIPE
+from Queue import Empty
 
 class Job(object):
     def __init__(self, jobId, jobContents):
@@ -346,9 +344,9 @@ class Rsyncer(JobHandler):
             MirrorMsg.display("with input:\n" + '\n'.join(files) + '\n', True)
         return self.cmd.runCommand(command, shell = False, inputText = '\n'.join(files) + '\n')
 
-class JobQueueHandler(threading.Thread):
+class JobQueueHandler(multiprocessing.Process):
     def __init__(self, jQ, handler, verbose, dryrun):
-        threading.Thread.__init__(self)
+        multiprocessing.Process.__init__(self)
         self.jQ = jQ
         self.handler = handler
         self.verbose = verbose
@@ -377,10 +375,10 @@ class JobQueue(object):
         self.verbose = verbose
         self.dryrun = dryrun
         # queue of jobs to be done (all the info needed, plus job id)
-        self.todoQueue = Queue.Queue()
+        self.todoQueue = multiprocessing.Queue()
 
         # queue to which workers write job ids of completed jobs
-        self.notifyQueue = Queue.Queue()
+        self.notifyQueue = multiprocessing.Queue()
 
         # this 'job' on the queue means there are no more
         # jobs. we put on of these on queue for each worker
@@ -393,9 +391,9 @@ class JobQueue(object):
         if self.verbose or self.dryrun:
             MirrorMsg.display( "about to start up %d workers:" % self._initialWorkerCount )
         for i in xrange(0, self._initialWorkerCount):
-            t = JobQueueHandler(self, self.handler, self.verbose, self.dryrun)
-            t.start()
-            self._activeWorkers.append(t)
+            w = JobQueueHandler(self, self.handler, self.verbose, self.dryrun)
+            w.start()
+            self._activeWorkers.append(w)
             if self.verbose or self.dryrun:
                 MirrorMsg.display( '.', True)
         if self.verbose or self.dryrun:
@@ -404,12 +402,12 @@ class JobQueue(object):
     def getJobOnQueue(self):
         # after 5 minutes of waiting around we decide that
         # no one is ever going to put stuff on the queue
-        # again.  either the main thread is done filling
+        # again.  either the main process is done filling
         # the queue or it died or hung
 
         try:
             job = self.todoQueue.get(timeout = 60)
-        except Queue.Empty: 
+        except Empty: 
             if self.verbose or self.dryrun:
                 MirrorMsg.display( "job todo queue was empty\n" )
             return False
@@ -425,11 +423,13 @@ class JobQueue(object):
             
     def notifyJobDone(self, jobId):
         self.notifyQueue.put_nowait(jobId)
-        self.todoQueue.task_done()
+        # FIXME this does not exist now :-( maybe we don't need it?
+#        self.todoQueue.task_done()
 
     def notifyJobDone(self, jobId):
         self.notifyQueue.put_nowait(jobId)
-        self.todoQueue.task_done()
+        # FIXME this does not exist now :-( maybe we don't need it?
+#        self.todoQueue.task_done()
 
     def addToJobQueue(self,job=None):
         if (job):
@@ -451,13 +451,13 @@ class JobQueue(object):
         # jobs that are going to get done either.
         try:
             jobDone = self.notifyQueue.get(timeout = 60)
-        except Queue.Empty:
+        except Empty:
             if not self.getActiveWorkerCount():
                 return False
         return jobDone
 
     def getActiveWorkerCount(self):
-        self._activeWorkers = [ t for t in self._activeWorkers if t.is_alive() ]
+        self._activeWorkers = [ w for w in self._activeWorkers if w.is_alive() ]
         return len(self._activeWorkers)
 
 class Command(object):
@@ -502,14 +502,16 @@ class MirrorError(Exception):
 class MirrorMsg(object):
     def warn(message):
         # maybe this should go to stderr. eh for now...
-        print "Warning:", threading.current_thread().name, message
+        print "Warning:", os.getpid(), message
+        sys.stdout.flush()
 
     def display(message, continuation = False):
         # caller must add newlines to messages as desired
         if continuation:
             print message,
         else:
-            print "Info: (%s) %s" % (threading.current_thread().name, message),
+            print "Info: (%d) %s" % (os.getpid(), message),
+        sys.stdout.flush()
 
     warn = staticmethod(warn)
     display = staticmethod(display)
