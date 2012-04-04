@@ -36,7 +36,7 @@ class RsyncJob(Job):
     # things that get here should look like:
     # aawikibooks/20120317/aawikibooks-20120317-all-titles-in-ns0.gz
     def _getPathComponentsFromFileName(self, path):
-        if not '/' in path:
+        if not os.sep in path:
             raise MirrorError("bad line encuntered in rsync directory list: '%s'" % path)
 
         components = path.split(os.sep)
@@ -51,6 +51,12 @@ class RsyncJob(Job):
 
         projects = {}
         for line in self.contents:
+            if not os.sep in line:
+                # files that aren't part of the project dumps but
+                # are included in the rsync... for example various
+                # html files that might be at the top of the tree;
+                # don't dig through their names looking for project dump info
+                continue
             components = self._getPathComponentsFromFileName(line)
             if len(components):
                 project = os.sep + components[-3]
@@ -117,13 +123,17 @@ class RsyncFilesProcessor(object):
         # -rw-r--r--         826 2012/03/17 13:23:23 aawikibooks/20120317/aawikibooks-20120317-categorylinks.sql.gz
         # -rw-r--r--        1513 2012/03/17 13:23:30 aawikibooks/20120317/aawikibooks-20120317-externallinks.sql.gz
 
+        # we may also have a few files in the top level directory that
+        # we want the mirrors to pick up (text or html files of particular interest)
+
         # note that the directories are also listed, we want to skip those
         # we'll allow commnts in there in case some other script produces the files
         # or humans edit them; skip those and empty lines, the rest should be good data
         path = self._getPath(line)
         if not os.sep in path:
-            raise MirrorError("bad line encuntered in rsync directory list: '%s'" % path)
-        return line.split(os.sep)[-1]
+            return line
+        else:
+            return line.split(os.sep)[-1]
 
     def stuffJobsOnQueue(self):
         fileCount = 0
