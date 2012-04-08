@@ -18,6 +18,7 @@ import CommandManagement
 import Queue
 import thread
 import traceback
+import socket
 
 from os.path import exists
 from subprocess import Popen, PIPE
@@ -226,6 +227,10 @@ class DbServerInfo(object):
 		# first line is the server, the second is an array of the globals, we need the db table prefix out of those
 		lines = results.splitlines()
 		self.dbServer = lines[0]
+		self.dbPort = None
+		if ':' in self.dbServer:
+			self.dbServer, _, self.dbPort = self.dbServer.rpartition(':')
+
 		#       [wgDBprefix] => 
 		wgdbprefixPattern = re.compile("\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
 		for l in lines:
@@ -236,15 +241,26 @@ class DbServerInfo(object):
 			# if we didn't see this in the globals list, something is broken.
 			raise BackupError("Failed to get database table prefix for %s, bailing." % self.wiki.config.php)
 			
+	def mysqlStandardParameters( self ):
+		host = self.dbServer
+		if self.dbPort and self.dbServer.strip() == "localhost":
+			# MySQL tools ignore port settings for host "localhost" and instead use IPC sockets,
+			# so we rewrite the localhost to it's ip address
+			host = socket.gethostbyname( self.dbServer );
+
+		params = [ "-h", "%s" % host ] # Host
+		if self.dbPort:
+			params += [ "--port", "%s" % self.dbPort ] # Port
+		params += [ "-u", "%s" % self.wiki.config.dbUser ] # Username
+		params += [ "%s" % self.passwordOption() ] # Password 
+		return params
+
 	def buildSqlCommand(self, query, pipeto = None):
 		"""Put together a command to execute an sql query to the server for this DB."""
 		if (not exists( self.wiki.config.mysql ) ):
 			raise BackupError("mysql command %s not found" % self.wiki.config.mysql)
 		command = [ [ "/bin/echo", "%s" % query ], 
-			    [ "%s" % self.wiki.config.mysql, "-h", 
-			      "%s" % self.dbServer,
-			      "-u", "%s" % self.wiki.config.dbUser,
-			      "%s" % self.passwordOption(),
+			    [ "%s" % self.wiki.config.mysql ] + self.mysqlStandardParameters() + [
 			      "%s" % self.dbName, 
 			      "-r" ] ]
 		if (pipeto):
@@ -256,10 +272,8 @@ class DbServerInfo(object):
 		and save to a gzipped sql file."""
 		if (not exists( self.wiki.config.mysqldump ) ):
 			raise BackupError("mysqldump command %s not found" % self.wiki.config.mysqldump)
-		command = [ [ "%s" % self.wiki.config.mysqldump, "-h", 
-			       "%s" % self.dbServer, "-u", 
-			       "%s" % self.wiki.config.dbUser, 
-			       "%s" % self.passwordOption(), "--opt", "--quick", 
+		command = [ [ "%s" % self.wiki.config.mysqldump ] + self.mysqlStandardParameters() + [
+			       "--opt", "--quick", 
 			       "--skip-add-locks", "--skip-lock-tables", 
 			       "%s" % self.dbName, 
 			       "%s" % self.dBTablePrefix + table ] ]
