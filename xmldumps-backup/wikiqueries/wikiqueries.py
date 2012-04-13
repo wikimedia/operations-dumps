@@ -30,8 +30,12 @@ class ContentFile(object):
         return os.path.join(self.queryDir.getQueryDir(),self.getFileName())
 
 class OutputFile(ContentFile):
+    def __init__(self, config, date, wikiName, fileNameFormat):
+        super( OutputFile, self ).__init__(config, date, wikiName)
+        self.fileNameFormat = fileNameFormat
+
     def getFileName(self):
-        return "%s-%s-wikiquery.gz" % ( self.wikiName, self.date )
+        return fileNameFormat.format(w=self.wikiName, d=self.date)
 
 class Config(object):
     def __init__(self, configFile=False):
@@ -163,10 +167,16 @@ class MiscUtils(object):
     readFile = staticmethod(readFile)
 
 class RunSimpleCommand(object):
-    def runWithOutput(command, maxtries = 3, shell=False):
+    def runWithOutput(command, maxtries = 3, shell=False, verbose = False):
         """Run a command and return the output as a string.
         Raises WikiQueriesError on non-zero return code."""
 
+        if type(command).__name__=='list':
+            commandString = " ".join([ "'" + c + "'" for c in command ])
+        else:
+            commandString = command
+        if verbose:
+            print "command to be run: ", commandString
         success = False
         tries = 0
         while (not success and tries < maxtries):
@@ -176,20 +186,22 @@ class RunSimpleCommand(object):
                 success = True
             tries = tries + 1
         if not success:
-            if type(command).__name__=='list':
-                commandString = " ".join(command)
-            else:
-                commandString = command
             if proc:
                 raise WikiQueriesError("command '" + commandString + ( "' failed with return code %s " % proc.returncode ) + " and error '" + error + "'")
             else:
                 raise WikiQueriesError("command '" + commandString + ( "' failed"  ) + " and error '" + error + "'")
         return output
 
-    def runWithNoOutput(command, maxtries = 3, shell=False):
+    def runWithNoOutput(command, maxtries = 3, shell=False, verbose=False):
         """Run a command, expecting no output.
         Raises WikiQueriesError on non-zero return code."""
 
+        if type(command).__name__=='list':
+            commandString = " ".join([ "'" + c + "'" for c in command ])
+        else:
+            commandString = command
+        if verbose:
+            print "command to be run with no output: ", commandString
         success = False
         tries = 0
         while ((not success) and tries < maxtries):
@@ -200,10 +212,6 @@ class RunSimpleCommand(object):
                 success = True
             tries = tries + 1
         if not success:
-            if type(command).__name__=='list':
-                commandString = " ".join(command)
-            else:
-                commandString = command
             raise WikiQueriesError("command '" + commandString + ( "' failed with return code %s " % proc.returncode ) + " and error '" + error + "'")
         return success
 
@@ -247,10 +255,14 @@ class QueryDir(object):
         return self._config.wikiQueriesDir
 
 class WikiQuery(object):
-    def __init__(self,config, wikiName, dryrun, verbose):
+    def __init__(self,config, query, wikiName, fileNameFormat, dryrun, verbose):
         self._config = config
         self.wikiName = wikiName
+        self.query = query
         self.queryDir = QueryDir(self._config)
+        if not self.query:
+            query = MiscUtils.readFile(self._config.queryFile)
+        self.fileNameFormat = fileNameFormat
         self.dryrun = dryrun
         self.verbose = verbose
 
@@ -274,60 +286,74 @@ class WikiQuery(object):
         return True
 
     def runWikiQuery(self):
-        outFile = OutputFile(self._config, MiscUtils.today(), self.wikiName)
-        query = MiscUtils.readFile(self._config.queryFile)
+        outFile = OutputFile(self._config, MiscUtils.today(), self.wikiName, self.fileNameFormat)
         db = DBServer(self._config, self.wikiName)
-        return RunSimpleCommand.runWithNoOutput(db.buildSqlCommand(query, outFile.getPath()), shell = True)
+        return RunSimpleCommand.runWithNoOutput(db.buildSqlCommand(self.query, outFile.getPath()), maxtries=1, shell=True, verbose=self.verbose)
 
 class WikiQueryLoop(object):
-    def __init__(self, config, dryrun, verbose):
+    def __init__(self, config, query, fileNameFormat, dryrun, verbose):
         self._config = config
+        self.query = query
         self.dryrun = dryrun
         self.verbose = verbose
+        self.fileNameFormat = fileNameFormat
+        self.wikisToDo = self._config.allWikisList
 
     def doRunOnAllWikis(self):
         failures = 0
-        for w in self._config.allWikisList:
-            query = WikiQuery(self._config, w, self.dryrun, self.verbose)
-            result = query.doOneWiki()
-            if result == False:
-                failures = failures + 1
-        return failures
+        for w in self.wikisToDo[:]:
+            query = WikiQuery(self._config, self.query, w, self.fileNameFormat, self.dryrun, self.verbose)
+            if query.doOneWiki():
+                self.wikisToDo.remove(w)
 
-    def doAllWikisTilDone(self,numFails):
+    def doAllWikisTilDone(self, numFails):
+        """Run through all wikis, retrying up to numFails 
+        times in case of error"""
         fails = 0
         while 1:
-            failures = self.doRunOnAllWikis()
-            if not failures:
+            self.doRunOnAllWikis()
+            if not len(self.wikisToDo):
                 break
             fails  = fails + 1
             if fails > numFails:
-                raise WikiQueriesError("Too many consecutive failures, giving up")
+                raise WikiQueriesError("Too many failures, giving up")
             # wait 5 minutes and try another loop
-#            raise WikiQueriesError("would sleep")
             time.sleep(300)
 
 def usage(message = None):
     if message:
         print message
         print "Usage: python wikiqueries.py [options] [wikidbname]"
-        print "Options: --configfile, --dryrun, --verbose"
-        print "--configfile:  Specify an alternate config file to read. Default file is 'wikiqueries.conf' in the current directory."
-        print "--dryrun:      Don't actually run anything but print the commands that would be run."
-        print "--verbose:     Print error messages and other informative messages (normally the"
-        print "               script runs silently)."
-        print "wikiname:      Run the query only for the specific wiki."
+        print "Options: --configfile, --dryrun, --filenameformat, --outdir, --query, --retries, --verbose"
+        print "--configfile:     Specify config file to read."
+        print "                  Default: wikiqueries.conf"
+        print "--dryrun:         Don't actually run anything but print the commands that would be run."
+        print "--filenameformat: Format string for the name of each file, with {w} for wikiname and optional"
+        print "                  {d} for date."
+        print "                  Default: {w}-{d}-wikiquery.gz"
+        print "--outdir:         Put output files for all projects in this directory; it will be created if"
+        print "                  it does not exist."
+        print "                  Default: the value given for 'querydir' in the config file"
+        print "--query:          MySQL query to run on each project."
+        print "                  Default: the contents of the file specified by 'queryfile' in the config file"
+        print "--retries:        Number of times to try running the query on all wikis in case of error, before giving up."
+        print "                  Default: 3"
+        print "--verbose:        Print various informative messages."
+        print "wikiname:         Run the query only for the specific wiki."
         sys.exit(1)
 
 if __name__ == "__main__":
     configFile = False
     result = False
     dryrun = False
+    outputDir = None
+    query = None
+    retries = 3
     verbose = False
-
+    fileNameFormat = "{w}-{d}-wikiquery.gz"
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 [ 'configfile=', 'dryrun', 'verbose' ])
+                                                 [ 'configfile=', 'filenameformat=', "outdir=", "query=", "retries=", 'dryrun', 'verbose' ])
     except:
         usage("Unknown option specified")
 
@@ -336,6 +362,16 @@ if __name__ == "__main__":
             configFile = val
         elif opt == "--dryrun":
             dryrun = True
+        elif opt == "--filenameformat":
+            fileNameFormat = val
+        elif opt == "--outdir":
+            outputDir = val
+        elif opt == "--query":
+            query = val
+        elif opt == "--retries":
+            if not retries.isdigit():
+                usage("A positive number must be specified for retries.")
+            retries = int(val)
         elif opt == "--verbose":
             verbose = True
         
@@ -344,9 +380,12 @@ if __name__ == "__main__":
     else:
         config = Config()
 
+    if outputDir:
+        config.wikiQueriesDir = outputDir
+
     if len(remainder) > 0:
-        query = WikiQuery(config, remainder[0], dryrun, verbose)
+        query = WikiQuery(config, query, remainder[0], fileNameFormat, dryrun, verbose)
         query.doOneWiki()
     else:
-        queries = WikiQueryLoop(config, dryrun, verbose)
-        queries.doAllWikisTilDone(3)
+        queries = WikiQueryLoop(config, query, fileNameFormat, dryrun, verbose)
+        queries.doAllWikisTilDone(retries)
