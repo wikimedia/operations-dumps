@@ -39,12 +39,14 @@ class Rsyncer(object):
     def doCommand(self, command, inputToCommand, returnCodesAllowed):
         commandString = " ".join(command)
         if self.dryrun:
-            print "would run commmand:",
+            sys.stderr.write("would run commmand: ")
         elif self.verbose:
-            print "about to run command:",
+            sys.stderr.write("about to run command: ")
         if self.dryrun or self.verbose:
-            print commandString, "with input: ", inputToCommand
-
+            sys.stderr.write(commandString)
+            if inputToCommand:
+                sys.stderr.write("with input: %s" % inputToCommand)
+            sys.stderr.write("\n")
         if self.dryrun:
             return
 
@@ -52,18 +54,19 @@ class Rsyncer(object):
             proc = Popen(command, stdin = PIPE, stdout = PIPE, stderr = PIPE)
             output, error = proc.communicate(inputToCommand)
             if proc.returncode and proc.returncode not in returnCodesAllowed:
-                print "command '%s failed with return code %s and error %s" % ( command, proc.returncode,  error ) 
+                sys.stderr.write("command '%s failed with return code %s and error %s\n" % ( command, proc.returncode,  error ))
                 # we don't bail here, let the caller decide what to do about it"
         except:
-            print "command %s failed" % command
+            sys.stderr.write("command %s failed\n" % command)
             if error:
-                print error
+                sys.stderr.write("%s\n" % error)
             # the problem is probably serious enough that we should refuse to do further processing
             raise
         if output:
             print output
         if error:
-            print error
+            if error:
+                sys.stderr.write("%s\n" % error)
         return proc.returncode
     
 class RsyncProject(object):
@@ -97,7 +100,7 @@ class RsyncProject(object):
 
     def doHugeRsync(self):
         if self.rsyncer.verbose or self.rsyncer.dryrun:
-            print "doing 256 separate shards for wiki", self.wiki
+            sys.stderr.write("doing 256 separate shards for wiki %s\n" % self.wiki)
 
         dirs = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"]
         subdirs = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"]
@@ -114,7 +117,7 @@ class RsyncProject(object):
 
     def doBigRsync(self):
         if self.rsyncer.verbose or self.rsyncer.dryrun:
-            print "doing 16 separate shards for wiki", self.wiki
+            sys.stderr.write("doing 16 separate shards for wiki %s\n" % self.wiki)
 
         dirs = [ "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","archive"]
         for d in dirs:
@@ -124,7 +127,7 @@ class RsyncProject(object):
         
     def doNormalRsync(self):
         if self.rsyncer.verbose or self.rsyncer.dryrun:
-            print "doing 1 shard for wiki", self.wiki
+            sys.stderr.write("doing 1 shard for wiki %s\n" % self.wiki)
 
         # explicitly list the 17 dirs we want
         filesFrom = '\n'.join([ self.rsyncer.makePath([self.wikidir, d]) for d in ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","archive"]])
@@ -133,7 +136,7 @@ class RsyncProject(object):
 
 def usage(message = None):
     if message:
-        print message
+        sys.stderr.write("%s\n" % message)
         sys.stderr.write("Usage: python rsyncmedia.py --remotehost hostname --remotedir dirname\n")
         sys.stderr.write("                      --localdir dirname --wikilist filename\n")
         sys.stderr.write("                      [--big wiki1,wiki2,...] [--huge wiki3,wiki4,...]\n")
