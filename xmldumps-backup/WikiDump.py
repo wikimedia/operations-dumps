@@ -1,6 +1,7 @@
 import ConfigParser
 import email.MIMEText
 import os
+import shutil
 import re
 import smtplib
 import socket
@@ -37,7 +38,7 @@ class FileUtils(object):
 			os.chmod(tempFilename,perms)
 		# This may fail across filesystems or on Windows.
 		# Of course nothing else will work on Windows. ;)
-		os.rename(tempFilename, filename)
+		shutil.move(tempFilename, filename)
 
 	def writeFileInPlace(filename, text, perms = 0):
 		"""Write text to a file, after opening it for write with truncation.
