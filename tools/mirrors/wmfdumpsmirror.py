@@ -179,9 +179,9 @@ class RsyncFilesProcessor(object):
     def doPostJobProcessing(self, skipDeletes):
         while True:
             # any completed jobs?
-            jobId = self.jQ.getJobIdFromNotifyQueue()
+            job = self.jQ.getJobFromNotifyQueue()
             # no more jobs and mo more workers. 
-            if not jobId:
+            if not job:
                 if not self.jQ.getActiveWorkerCount():
                     if self.dryrun or self.verbose:
                         MirrorMsg.display( "no jobs left and no active workers\n")
@@ -189,11 +189,21 @@ class RsyncFilesProcessor(object):
                 else:
                     continue
             if self.dryrun:
-                MirrorMsg.display("jobId %s would have been completed\n" % jobId)
+                MirrorMsg.display("jobId %s would have been completed\n" % job.jobId)
             elif self.verbose:
-                MirrorMsg.display("jobId %s completed\n" % jobId)
+                MirrorMsg.display("jobId %s completed\n" % job.jobId)
+
+            # update status of job in our todo queue
+            j = self.jobs[job.jobId]
+            if job.checkIfDone():
+                j.markDone()
+            if job.checkIfFailed():
+                j.markFailed()
+
             if not skipDeletes:
-                self.deleter.checkAndDoDeletes(self.jobs[jobId])
+                if self.verbose or self.dryrun:
+                    MirrorMsg.display("checking post-job deletions\n")
+                self.deleter.checkAndDoDeletes(j)
 
 class DirDeleter(object):
     """remove all dirs for the project that are not in the 
@@ -222,8 +232,15 @@ class DirDeleter(object):
         for project in job.rsyncedByJob.keys():
             ids = [ self.jobList[jobId] for jobId in self.jobsPerProject[project] if not self.jobList[jobId].checkIfDone() or self.jobList[jobId].checkIfFailed() ]
             if not len(ids):
+                if self.dryrun:
+                    MirrorMsg.display("Would do deletes for project %s\n" % project)
+                elif self.verbose:
+                    MirrorMsg.display("Doing deletes for project %s\n" % project)
                 self.doDeletes(project)
-
+            else:
+                if self.verbose:
+                    MirrorMsg.display("No deletes for project %s\n" % project)
+                    
     def getListOfDirsRsyncedForProject(self, project):
         """get directories we synced for this project, 
         across all jobs"""
@@ -375,7 +392,7 @@ class JobQueueHandler(multiprocessing.Process):
             job.markFailed()
         else:
             job.markDone()
-        self.jQ.notifyJobDone(job.jobId)
+        self.jQ.notifyJobDone(job)
 
 class JobQueue(object):
     def __init__(self, initialWorkerCount, handler, verbose, dryrun):
@@ -431,11 +448,8 @@ class JobQueue(object):
                 MirrorMsg.display("retrieved from the job queue: %s\n" % job.jobId)
             return job
             
-    def notifyJobDone(self, jobId):
-        self.notifyQueue.put_nowait(jobId)
-
-    def notifyJobDone(self, jobId):
-        self.notifyQueue.put_nowait(jobId)
+    def notifyJobDone(self, job):
+        self.notifyQueue.put_nowait(job)
 
     def addToJobQueue(self,job=None):
         if (job):
@@ -447,8 +461,8 @@ class JobQueue(object):
         for i in xrange(0,self._initialWorkerCount):
             self.todoQueue.put_nowait(self.endOfJobs)
 
-    def getJobIdFromNotifyQueue(self):
-        """see if any jobid has been put on
+    def getJobFromNotifyQueue(self):
+        """see if any job has been put on
         the notify queue (meaning that it has
         been completed)"""
         jobDone = False
