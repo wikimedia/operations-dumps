@@ -23,7 +23,9 @@ class UploadDir(object):
         """using wmf hack... get $site and $lang and build a relative path
         out of those."""
         inputText = 'global $site, $lang; echo \"$site\t$lang\";'
-        command = [ "python", "runphpscriptletonallwikis.py", "--scriptpath", self.scriptPath, "--scriptlet", inputText ]
+        # expect to find the runphpscriptlet script in the same directory as we are
+        currentDir = os.path.dirname(os.path.realpath(__file__))
+        command = [ "python", os.path.join(currentDir,"runphpscriptletonallwikis.py"), "--scriptpath", self.scriptPath, "--scriptlet", inputText ]
         result = self.runCommand(command, inputText, wiki)
         if not result:
             return None, None
