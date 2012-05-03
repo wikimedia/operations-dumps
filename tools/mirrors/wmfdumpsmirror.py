@@ -285,12 +285,12 @@ class DirDeleter(object):
                 dirName = os.path.join(project, d)
                 if self.dryrun or self.verbose:
                     MirrorMsg.display( "'%s'" % dirName , True)
-                    if not self.dryrun:
-                        try:
-                            shutil.rmtree(self.getFullLocalPath(dirName))
-                        except:
-                            MirrorMsg.warn("failed to remove directory or contents of %s\n" % self.getFullLocalPath(dirName))
-                            pass
+                if not self.dryrun:
+                    try:
+                        shutil.rmtree(self.getFullLocalPath(dirName))
+                    except:
+                        MirrorMsg.warn("failed to remove directory or contents of %s\n" % self.getFullLocalPath(dirName))
+                        pass
         if self.dryrun or self.verbose:
             MirrorMsg.display('\n', True)
 
