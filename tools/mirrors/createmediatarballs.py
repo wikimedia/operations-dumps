@@ -1,5 +1,10 @@
-import os, re, sys, time, hashlib, urllib, httplib, getopt, gzip, subprocess
+import os, re, sys, time, hashlib, urllib, httplib, getopt, gzip, subprocess, multiprocessing, mirror, jobs
 from subprocess import Popen, PIPE
+from Queue import Empty
+from jobs import JobQueue, Job
+from mirror import MirrorMsg
+
+# FIXME testing
 
 class MediaPath(object):
     def __init__(self, inputDir, hashLevels):
@@ -14,11 +19,11 @@ class MediaPath(object):
     # full path with hash
     def getHashPathForLevel(self, mediaFileName):
         if self.hashLevels == 0:
-            return ''
+            return ""
         else:
-            summer = hashlib.md5()
-            summer.update( mediaFileName )
-            md5Hash = summer.hexdigest()        
+            md5 = hashlib.md5()
+            md5.update( mediaFileName)
+            md5Hash = md5.hexdigest()
             path = ''
         for i in range( 1,self.hashLevels+1 ):
             path = path + md5Hash[0:i] + os.sep
@@ -28,7 +33,7 @@ class MediaPath(object):
         return os.path.join(self.inputDir, self.getHashPathForLevel(mediaFileName), mediaFileName)
 
 class Tarball(object):
-    def __init__(self, baseDir, listInputDir, uploadDir, outputDir, listType, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, overwrite, verbose):
+    def __init__(self, baseDir, listInputDir, uploadDir, outputDir, listType, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, workerCount, verbose):
         self.baseDir = baseDir # path to dir with uploaded media for all wikis, e.g. /export/uploads
         self.listInputDir = listInputDir # path to dir with lists of local/remote media
         self.uploadDir = uploadDir # rel path to wiki's upload dir, eg. wikipedia/en
@@ -41,10 +46,15 @@ class Tarball(object):
         self.hashLevel = hashLevel # basically we expect it to be 2 but it would work for other values
         self.numFilesPerTarball = numFilesPerTarball
         self.tarName = tarName
+        self.tempDir = tempDir
         self.overwrite = overwrite
         self.verbose = verbose
+        # we guess it will take at most 5 minutes to create a job and stuff it on the queue
+        # and yes this should become a parameter later, FIXME
+        self.jQ = JobQueue(workerCount, self, 3600, self.verbose, False)
+        self.jobs = {}
 
-    def writeTarballs(self):
+    def putTarballJobsOnQueue(self):
 
         # don't overwrite tarballs if we are told not to
         if not self.overwrite:
@@ -78,37 +88,120 @@ class Tarball(object):
             filesToTar.append(mp.getMediaFilePath(line.split('\t',1)[0])+'\n')
 
             if fileCount >= self.numFilesPerTarball:
+                if tempDir:
+                    tempFileName = os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+                else:
+                    tempFileName = ""
                 outFileName = os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
-                self.writeTarball('\n'.join(filesToTar) + '\n', outFileName)
+
+                job = self.makeJob(tempFileName, outFileName, filesToTar)
+                if self.verbose:
+                    MirrorMsg.display("adding job %s (filecount %d) to queue\n" % (job.jobId, fileCount))
+                self.jQ.addToJobQueue(job)
                 fileCount = 0
                 serial += 1
                 filesToTar = []
+
         if fileCount:
             # do the last batch
+                if tempDir:
+                    tempFileName = os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+                else:
+                    tempFileName = ""
                 outFileName = os.path.join(self.outputDir, self.tarballNameFormat.format(w = wiki, d = date, t = self.listType, n = serial))
-                self.writeTarball('\n'.join(filesToTar)+'\n', outFileName)
-        listfd.close()
+                job = self.makeJob(tempFileName, outFileName, filesToTar)
+                if self.verbose:
+                    MirrorMsg.display("adding job %s (filecount %d) to queue\n" % (job.jobId, fileCount))
+                self.jQ.addToJobQueue(job)
 
-    def writeTarball(self, inputToTar, tarballFileName):
+        listfd.close()
+        self.jQ.setEndOfJobs()
+
+    def makeJob(self, tempFileName, outFileName, filesToTar):
+        contents = [ tempFileName, outFileName ]
+        contents.append('\n'.join(filesToTar) + '\n')
+        job = Job(outFileName, contents)
+        self.jobs[job.jobId] = job
+        return job
+
+    def doJob(self, jobContents):
+        return self.writeTarball(jobContents)
+            
+    def writeTarball(self, jobContents):
+        tempFileName = jobContents[0]
+        tarballFileName = jobContents[1]
+        filesToTar = jobContents[2]
+        if tempFileName:
+            outFileName = tempFileName
+        else:
+            outFileName = tarballFileName
         # if there are files that have been deleted in the meantime, tar will whine but continue
         # seriously? tar is option-order sensitive for -C?? bleep bleepers!
-        command = [ self.tarName, "-C", self.baseDir, "-cpf", tarballFileName,  "-T", "-", "--no-unquote", "--ignore-failed-read" ]
+        command = [ self.tarName, "-C", self.baseDir, "-cpf", outFileName,  "-T", "-", "--no-unquote", "--ignore-failed-read" ]
         commandString = " ".join([ "'" + c + "'" for c in command ])
         if verbose:
             print "For wiki", wiki, "command:", commandString
         try:
             proc = Popen(command, stderr = PIPE, stdin = PIPE)
-            output, error = proc.communicate(inputToTar) # no output, ignore it
+            output, error = proc.communicate(filesToTar) # no output, ignore it
             if proc.returncode:
                 sys.stderr.write("command '%s failed with return code %s and error %s\n" % ( command, proc.returncode,  error ))
-                sys.exit(1)
+                return True # failure
         except:
             sys.stderr.write("command %s failed\n" % command)
-            raise
+            return True # failure
+
         if error:
             # log any file read perm or file missing errors we might have encountered
             sys.stderr.write("error from command %s: %s\n" % (command, error))
+        if tempFileName:
+            # do the rename. shutils.rename or something? 
+            try:
+                shutil.move(tempFileName, outFileName)
+            except:
+                sys.stderr.write("failed to rename % to %s\n" % tempFileName, outFileName)
+                return True # failure albeit at thelast second, and the tarball itself is likely fine
+            return  # success
 
+    def renameBadTarballFile(self, job):
+        if job.checkIfFailed():
+            # rename the tarball so folks know it's broken
+            tarballFile = job.jobId
+            try:
+                os.rename(tarballFile, tarballFile + ".bad")
+            except:
+                return False
+        return True
+
+    def watchJobQueue(self):
+        while True:
+            # any completed jobs?
+            job = self.jQ.getJobFromNotifyQueue()
+            # no more jobs and mo more workers.
+            if not job:
+                if not self.jQ.getActiveWorkerCount():
+                    # check for and rename output files of jobs that died
+                    # and therefore never completed
+                    for jId in self.jobs:
+                        self.renameBadTarballFile(self.jobs[jId])
+                    if self.verbose:
+                        MirrorMsg.display( "no jobs left and no active workers\n")
+                    break
+                else:
+                    continue
+            if self.verbose:
+                MirrorMsg.display("jobId %s completed\n" % job.jobId)
+
+            j = self.jobs[job.jobId]
+            if job.checkIfDone():
+                j.markDone()
+            if job.checkIfFailed():
+                j.markFailed()
+                # rename the tarball so folks know it's broken
+                if not self.renameBadTarballFile(j):
+                    MirrorMsg.display( "job %s: failed to move tar file out of the way (bad)\n" % job.jobId)
+                    
+                
 def usage(message = None):
     if message:
         sys.stderr.write("%s\n" % message)
@@ -116,7 +209,8 @@ def usage(message = None):
 	sys.stderr.write("                     --remoterepo reponame [--outputdir dirname] [--date YYYYMMDD]\n")
         sys.stderr.write("                     [--wikilist filename] [--inputnameformat format]\n")
         sys.stderr.write("                     [--outputnameformat format] [--filespertarball num]\n")
-        sys.stderr.write("                     [--tar tarcmd] [--nooverwrite] [--verbose]\n")
+        sys.stderr.write("                     [--tar tarcmd] [--nooverwrite] [--tempdir dirname] [--workers]\n")
+        sys.stderr.write("                     [--verbose]\n")
         sys.stderr.write("\n")
         sys.stderr.write("This script reads lists of media files local to a project and hosted remotely, and\n")
 	sys.stderr.write("produces tarballs of each in the specified output directory.\n")
@@ -148,8 +242,11 @@ def usage(message = None):
         sys.stderr.write("                   of files in each\n")
         sys.stderr.write("                   default: 100,000\n")
         sys.stderr.write("--tar:             name of gnu tar command, default: 'tar'\n")
-        sys.stderr.write("--nooverwrite:     do not overwrite existingtarballs for a given project and date; by default")
+        sys.stderr.write("--nooverwrite:     do not overwrite existingtarballs for a given project and date; by default\n")
         sys.stderr.write("                   a new tarball will be created every time\n")
+        sys.stderr.write("--tempdir:         write each tarball to the temp directory specified and move into place afterwards\n")
+        sys.stderr.write("                   by default, files are written directly in place\n")
+        sys.stderr.write("--workers:         how many workers are started up to write tarballs in parallel; default: 1\n")
         sys.stderr.write("--verbose:         print lots of status messages\n")
         sys.exit(1)
 
@@ -169,6 +266,7 @@ if __name__ == "__main__":
     mediaBaseDir = None
     listsInputDir = None
     outputDir = os.getcwd()
+    tempDir = None
     date = None
     wikiListFile = "all.dblist"
     remoteRepoName = None
@@ -177,12 +275,13 @@ if __name__ == "__main__":
     filesPerTarball = 100000
     tar = "tar"
     overwrite = True
+    workerCount = 1
     verbose = False
     
 #    dbListPath = os.path.join(os.getcwd(), dbList)
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "mediadir=", "listsinputdir=", "outputdir=", "date=", "wikilist=", "remoterepo=", "inputnameformat=", "outputnameformat=", "filespertarball=", "tar=", "nooverwrite", "verbose" ])
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "mediadir=", "listsinputdir=", "outputdir=", "date=", "wikilist=", "remoterepo=", "inputnameformat=", "outputnameformat=", "filespertarball=", "tar=", "workers=", "tempdir=", "nooverwrite", "verbose" ])
     except:
         usage("Unknown option specified")
 
@@ -209,6 +308,12 @@ if __name__ == "__main__":
             filesPerTarball = int(val)
         elif opt == "--tar":
             tar = val
+        elif opt == "--workers":
+            if not val.isdigit():
+                usage("workers must be a positive integer")
+            workerCount = int(val)
+        elif opt == "--tempdir":
+            tempDir = False
         elif opt == "--nooverwrite":
             overwrite = False
         elif opt == "--verbose":
@@ -267,16 +372,15 @@ if __name__ == "__main__":
             if not fileDate:
                 sys.stderr.write("No date option specified and no existing list files for wiki %s\n" % wiki)
                 continue
-        # FIXME if there is already an output file with the given name etc do we overwrite, or do we skip it??
-        # maybe we want a parameter for that. mmm
 
         if verbose:
             print "Doing local media files tarball for wiki", wiki
-        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, outputDir, "local", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, overwrite, verbose)
-        tb.writeTarballs()
+        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, outputDir, "local", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verbose)
+        tb.putTarballJobsOnQueue()
 
         if verbose:
             print "Doing remote media files tarball for wiki", wiki
 
-        tb = Tarball(mediaBaseDir, listsInputDir, remoteUploadDir, outputDir, "remote", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, overwrite, verbose)
-        tb.writeTarballs()
+        tb = Tarball(mediaBaseDir, listsInputDir, remoteUploadDir, outputDir, "remote", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verbose)
+        tb.putTarballJobsOnQueue()
+        tb.watchJobQueue()
