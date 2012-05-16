@@ -89,6 +89,7 @@ class Tarball(object):
         # if we have tarballs out of sequence, verification should fail anyways
         serial = 0
         tarballFilesCount = 0
+        extras = 0
         while True:
             serial += 1
             tarballFileName = self.getTarballFileName(serial)
@@ -96,18 +97,24 @@ class Tarball(object):
                 break
             filesFromTarball = self.getTarballTOC(tarballFileName)
             
+            firstWhine = False
             for f in filesFromTarball:
                 if not f in filesInList:
-                    MirrorMsg.display("wiki %s (%s): file %s in tarball %s not in file list\n" % (self.wiki, self.listType, tarballFileName))
-                    return
-                del filesInList[f]
-                tarballFilesCount += 1
-                
+                    if firstWhine:
+                        # we only print one of these.
+                        MirrorMsg.display("wiki %s (%s): file %s in tarball %s not in file list\n" % (self.wiki, self.listType, f, tarballFileName))
+                        firstWhine = False
+                    extras += 1
+                else:
+                    del filesInList[f]
+                    tarballFilesCount += 1 # number of files in the tarball(s) also in the input list
 
-        if tarballFilesCount != listFilesCount:
+        if tarballFilesCount < listFilesCount:
             # just print the first one we grab, as an indication
             MirrorMsg.display("wiki %s (%s): file %s in list not in tarballs (total: %s missing)\n" % (self.wiki, self.listType, filesInList.keys()[0], listFilesCount - tarballFilesCount))
-        else:
+        if extras:
+            MirrorMsg.display("wiki %s (%s): some files in tarballs not in list (total: %s missing)\n" % (self.wiki, self.listType, extras))
+        if not extras and (tarballFilesCount == listFilesCount):
             MirrorMsg.display("wiki %s (%s): verify good\n" % (self.wiki, self.listType))
 
     def getTarballFileName(self, num):
