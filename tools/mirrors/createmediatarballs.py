@@ -4,8 +4,6 @@ from Queue import Empty
 from jobs import JobQueue, Job
 from mirror import MirrorMsg
 
-# FIXME testing
-
 class MediaPath(object):
     def __init__(self, inputDir, hashLevels):
         # we assume that the media files are kept in the usual 
@@ -33,7 +31,7 @@ class MediaPath(object):
         return os.path.join(self.inputDir, self.getHashPathForLevel(mediaFileName), mediaFileName)
 
 class Tarball(object):
-    def __init__(self, baseDir, listInputDir, uploadDir, outputDir, listType, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, workerCount, verbose):
+    def __init__(self, baseDir, listInputDir, uploadDir, outputDir, listType, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, workerCount, verify, verbose):
         self.baseDir = baseDir # path to dir with uploaded media for all wikis, e.g. /export/uploads
         self.listInputDir = listInputDir # path to dir with lists of local/remote media
         self.uploadDir = uploadDir # rel path to wiki's upload dir, eg. wikipedia/en
@@ -48,17 +46,83 @@ class Tarball(object):
         self.tarName = tarName
         self.tempDir = tempDir
         self.overwrite = overwrite
+        self.verify = verify
         self.verbose = verbose
         # we guess it will take at most 5 minutes to create a job and stuff it on the queue
         # and yes this should become a parameter later, FIXME
-        self.jQ = JobQueue(workerCount, self, 3600, self.verbose, False)
+        if not self.verify:
+            self.jQ = JobQueue(workerCount, self, 3600, self.verbose, False)
         self.jobs = {}
 
-    def putTarballJobsOnQueue(self):
+    def getTarballTOC(self, fileName):
+        command = [ self.tarName, "-tf", fileName ]
+        commandString = " ".join([ "'" + c + "'" for c in command ])
+        try:
+            proc = Popen(command, stderr = PIPE, stdout = PIPE)
+            output, error = proc.communicate() 
+            if proc.returncode:
+                sys.stderr.write("command '%s failed with return code %s and error %s\n" % ( command, proc.returncode,  error ))
+                return []
+        except:
+            sys.stderr.write("command %s failed\n" % command)
+            return []
+        return output.strip().split('\n')
 
+    def verifyTarballs(self):
+        # read all filenames from local tarballs
+        # if difference whine
+        listFileName = self.getListFileName()
+        if not os.path.exists(listFileName):
+            if self.verbose:
+                print "Verification: skipping %s since it does not exist" % listFileName
+            return
+        listfd = gzip.open(listFileName, "rb")
+        filesInList = {}
+        listFilesCount = 0
+        mp = MediaPath(self.uploadDir, 2)
+        for line in listfd:
+            # format of these lines: mediafilename<tab>metadata
+            filesInList[mp.getMediaFilePath(line.split('\t',1)[0])] = False
+            listFilesCount +=1
+
+        # this approach assumes that we don't have some missing sequence number in the middle,
+        # if we have tarballs out of sequence, verification should fail anyways
+        serial = 0
+        tarballFilesCount = 0
+        while True:
+            serial += 1
+            tarballFileName = self.getTarballFileName(serial)
+            if not os.path.exists(tarballFileName):
+                break
+            filesFromTarball = self.getTarballTOC(tarballFileName)
+            
+            for f in filesFromTarball:
+                if not f in filesInList:
+                    MirrorMsg.display("wiki %s (%s): file %s in tarball %s not in file list\n" % (self.wiki, self.listType, tarballFileName))
+                    return
+                del filesInList[f]
+                tarballFilesCount += 1
+                
+
+        if tarballFilesCount != listFilesCount:
+            # just print the first one we grab, as an indication
+            MirrorMsg.display("wiki %s (%s): file %s in list not in tarballs (total: %s missing)\n" % (self.wiki, self.listType, filesInList.keys()[0], listFilesCount - tarballFilesCount))
+        else:
+            MirrorMsg.display("wiki %s (%s): verify good\n" % (self.wiki, self.listType))
+
+    def getTarballFileName(self, num):
+        return os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = num))
+
+    def getListFileName(self):
+        return os.path.join(self.listInputDir, self.listFileNameFormat.format(w = self.wiki, d = self.date, t = self.listType))
+
+    def getTempFileName(self, num):
+        return os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+
+    def putTarballJobsOnQueue(self):
         # don't overwrite tarballs if we are told not to
         if not self.overwrite:
-            firstTarballName = os.path.join(self.outputDir, self.tarballNameFormat.format(w = wiki, d = self.date, t = self.listType, n = 1))
+            firstTarballName = self.getTarballName(self.wiki, 1)
             if os.path.exists(firstTarballName):
                 # there are already (some) output files for this wiki and date. don't regenerate them.
                 if self.verbose:
@@ -67,7 +131,9 @@ class Tarball(object):
 
         # media file path is relative to basedir, we will cd to basedir
         # for the tar so the tarball filenames are reasonable
-        listFileName = os.path.join(self.listInputDir, self.listFileNameFormat.format(w = self.wiki, d = self.date, t = self.listType))
+
+        listFileName = self.getListFileName()
+
         if not os.path.exists(listFileName):
             # could be a closed wiki, could be the remote file for commons (which 
             # we should not have generated), etc. warn and continue
@@ -89,10 +155,10 @@ class Tarball(object):
 
             if fileCount >= self.numFilesPerTarball:
                 if tempDir:
-                    tempFileName = os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+                    tempFileName = self.getTempFileName(serial)
                 else:
                     tempFileName = ""
-                outFileName = os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+                    outFileName = self.getTarballFileName(serial)
 
                 job = self.makeJob(tempFileName, outFileName, filesToTar)
                 if self.verbose:
@@ -105,10 +171,10 @@ class Tarball(object):
         if fileCount:
             # do the last batch
                 if tempDir:
-                    tempFileName = os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+                    tempFileName = self.getTempFileName(serial)
                 else:
                     tempFileName = ""
-                outFileName = os.path.join(self.outputDir, self.tarballNameFormat.format(w = wiki, d = date, t = self.listType, n = serial))
+                outFileName = self.getTarballFileName(serial)
                 job = self.makeJob(tempFileName, outFileName, filesToTar)
                 if self.verbose:
                     MirrorMsg.display("adding job %s (filecount %d) to queue\n" % (job.jobId, fileCount))
@@ -140,7 +206,7 @@ class Tarball(object):
         command = [ self.tarName, "-C", self.baseDir, "-cpf", outFileName,  "-T", "-", "--no-unquote", "--ignore-failed-read" ]
         commandString = " ".join([ "'" + c + "'" for c in command ])
         if verbose:
-            print "For wiki", wiki, "command:", commandString
+            print "For wiki", self.wiki, "command:", commandString
         try:
             proc = Popen(command, stderr = PIPE, stdin = PIPE)
             output, error = proc.communicate(filesToTar) # no output, ignore it
@@ -241,6 +307,9 @@ def usage(message = None):
         sys.stderr.write("                   sequence number starting with 1, with no more than this number\n")
         sys.stderr.write("                   of files in each\n")
         sys.stderr.write("                   default: 100,000\n")
+        sys.stderr.write("--verify:          verify existing tarballs, don't write new ones; this verifies that all\n")
+        sys.stderr.write("                   filenames in the local and remote media lists are included in the tarball\n")
+        sys.stderr.write("                   contents, it does not check the media files themselves\n")
         sys.stderr.write("--tar:             name of gnu tar command, default: 'tar'\n")
         sys.stderr.write("--nooverwrite:     do not overwrite existingtarballs for a given project and date; by default\n")
         sys.stderr.write("                   a new tarball will be created every time\n")
@@ -275,13 +344,14 @@ if __name__ == "__main__":
     filesPerTarball = 100000
     tar = "tar"
     overwrite = True
+    verify = False
     workerCount = 1
     verbose = False
     
 #    dbListPath = os.path.join(os.getcwd(), dbList)
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "mediadir=", "listsinputdir=", "outputdir=", "date=", "wikilist=", "remoterepo=", "inputnameformat=", "outputnameformat=", "filespertarball=", "tar=", "workers=", "tempdir=", "nooverwrite", "verbose" ])
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "mediadir=", "listsinputdir=", "outputdir=", "date=", "wikilist=", "remoterepo=", "inputnameformat=", "outputnameformat=", "filespertarball=", "tar=", "workers=", "tempdir=", "nooverwrite", "verify", "verbose" ])
     except:
         usage("Unknown option specified")
 
@@ -316,6 +386,8 @@ if __name__ == "__main__":
             tempDir = False
         elif opt == "--nooverwrite":
             overwrite = False
+        elif opt == "--verify":
+            verify = True
         elif opt == "--verbose":
             verbose = True
 
@@ -373,14 +445,20 @@ if __name__ == "__main__":
                 sys.stderr.write("No date option specified and no existing list files for wiki %s\n" % wiki)
                 continue
 
-        if verbose:
+        if verbose and not verify:
             print "Doing local media files tarball for wiki", wiki
-        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, outputDir, "local", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verbose)
-        tb.putTarballJobsOnQueue()
+        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, outputDir, "local", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verify, verbose)
+        if verify:
+            tb.verifyTarballs()
+        else:
+            tb.putTarballJobsOnQueue()
 
-        if verbose:
+        if verbose and not verify:
             print "Doing remote media files tarball for wiki", wiki
 
-        tb = Tarball(mediaBaseDir, listsInputDir, remoteUploadDir, outputDir, "remote", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verbose)
-        tb.putTarballJobsOnQueue()
-        tb.watchJobQueue()
+        tb = Tarball(mediaBaseDir, listsInputDir, remoteUploadDir, outputDir, "remote", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verify, verbose)
+        if verify:
+            tb.verifyTarballs()
+        else:
+            tb.putTarballJobsOnQueue()
+            tb.watchJobQueue()
