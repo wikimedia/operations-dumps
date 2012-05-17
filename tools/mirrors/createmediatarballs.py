@@ -94,7 +94,14 @@ class Tarball(object):
             serial += 1
             tarballFileName = self.getTarballFileName(serial)
             if not os.path.exists(tarballFileName):
-                break
+                # if it's the first one then there are likely no tarballs at all
+                # so we can print a notice and skip this wiki
+                if serial == 1:
+                    if self.verbose:
+                        print "Verification: skipping %s (and rest of sequence) since it does not exist" % tarballFileName
+                    return
+                else:
+                    break
             filesFromTarball = self.getTarballTOC(tarballFileName)
             
             firstWhine = False
