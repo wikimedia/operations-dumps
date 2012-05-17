@@ -18,7 +18,7 @@ class DumpList(object):
     of dumps desired, and the corresponding lists are produced for all dumps in
     one pass."""
 
-    def __init__(self, config,dumpsNumberList,relative,rsynclists,dirListTemplate,fileListTemplate,outputDir, projectsUrl):
+    def __init__(self, config,dumpsNumberList,relative,rsynclists,dirListTemplate,fileListTemplate,outputDir, projectsUrl, topLevel):
         """constructor; besides the obvious, sets up the list of 
         filetypes we want to include in our list, see self.filesWantedPattern"""
         self.config = config
@@ -34,6 +34,7 @@ class DumpList(object):
         self.filesWantedPattern = re.compile('(\.gz|\.bz2|\.7z|\.html|\.txt|\.xml)$')
         self.ymdPattern = re.compile('^2[0-1][0-9]{6}$')
         self.projectsUrl = projectsUrl
+        self.topLevel = topLevel
 
     def getProjectListFromUrlOrConfig(self):
         """try to retrieve the list of known projects from a specified
@@ -235,7 +236,7 @@ class DumpList(object):
                 except:
                     pass
 
-    def writeFileNames(self, num, project, dirName, fileNamesToWrite):
+    def writeFileNames(self, num, dirName, fileNamesToWrite, skipDirs = False):
         """write supplied list of filenames from the project dump of a particular
         run into files named as specified by the user, and write the project
         dump directory name into separate files named as specified by the user"""
@@ -245,7 +246,7 @@ class DumpList(object):
             filesfd.write('\n'.join(fileNamesToWrite))
             filesfd.write('\n')
             filesfd.close()
-        if self.dirListTemplate:
+        if self.dirListTemplate and not skipDirs:
             outputFileName = self.getAbsOutDirPath(self.fillInFilenameTemplate(self.dirListTemplate, num) + ".tmp" )
             if self.relative:
                 dirName = self.stripPublicDir(dirName)
@@ -267,7 +268,7 @@ class DumpList(object):
                 fileNamesToWrite = self.getFileNamesFromDir(os.path.join(projectPath, dirs[index]))
             for dn in self.dumpsNumberList:
                 if index < int(dn):
-                    self.writeFileNames(dn, project, os.path.join(projectPath, dirs[index]), fileNamesToWrite)
+                    self.writeFileNames(dn, os.path.join(projectPath, dirs[index]), fileNamesToWrite)
             index = index + 1
 
     def stripPublicDir(self, line):
@@ -310,10 +311,25 @@ class DumpList(object):
                                  ( "' failed with return code %s " % proc.returncode ) + 
                                  " and error '" + error + "'") 
 
+    def getTopLevelFiles(self):
+        # list *html and *txt files in top level dir
+        # test, with "" does this work?
+        filesInDir = [ f for f in os.listdir(self.getAbsPubDirPath("")) if f.endswith(".html") or f.endswith(".txt") ]
+        return filesInDir
+
+    def writeTopLevelFiles(self):
+        """write the html and txt files in the top level dirextory to 
+        the appropriate output files."""
+        fileNamesToWrite = self.getTopLevelFiles()
+        for dn in self.dumpsNumberList:
+            self.writeFileNames(dn, None, fileNamesToWrite, skipDirs = True)
+
     def generateDumpFileAndDirLists(self):
         """produce all files of dir lists and file lists from
         all desired dump runs for all projects"""
         self.truncateOutputFiles()
+        if self.topLevel:
+            self.writeTopLevelFiles()
         for p in self.projects:
             self.writeFileAndDirListsForProject(p)
 
@@ -359,6 +375,7 @@ def usage(message = None):
     sys.stderr.write( "               input to rsync with the --list-only option\n" )
     sys.stderr.write( "               default value: False\n" )
     sys.stderr.write( "\n" )
+    sys.stderr.write( "toplevel    -- include .html and .txt files from the top level directory in the filename listing\n" )
     sys.stderr.write( "One of the two options below must be specified:\n" )
     sys.stderr.write( "dirlisting  -- produce a file named with the specified format listing the directories\n" )
     sys.stderr.write( "               (e.g. /aawiki/20120309) with no filenames\n" )
@@ -378,6 +395,7 @@ if __name__ == "__main__":
     dumpsNumber = "5"
     relative = False
     rsynclists = False
+    topLevel = False
     dirListTemplate = None
     fileListTemplate = None
     projectsUrl = None
@@ -385,7 +403,7 @@ if __name__ == "__main__":
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-              ['configfile=', 'dumpsnumber=', 'outputdir=', 'projectlisturl=', 'relpath', 'rsynclists', 'dirlisting=', 'filelisting=' ])
+              ['configfile=', 'dumpsnumber=', 'outputdir=', 'projectlisturl=', 'relpath', 'rsynclists', 'toplevel', 'dirlisting=', 'filelisting=' ])
     except:
         usage("Unknown option specified")
 
@@ -409,7 +427,9 @@ if __name__ == "__main__":
             dirListTemplate = val
         elif opt == "--filelisting":
             fileListTemplate = val
-        
+        elif opt == "--toplevel":
+            topLevel = True
+
     if not ',' in dumpsNumber:
         dumpsNumberList= [ dumpsNumber.strip() ]
     else:
@@ -433,6 +453,6 @@ if __name__ == "__main__":
     else:
         config = Config()
 
-    dl = DumpList(config,dumpsNumberList,relative,rsynclists,dirListTemplate,fileListTemplate,outputDir,projectsUrl)
+    dl = DumpList(config,dumpsNumberList,relative,rsynclists,dirListTemplate,fileListTemplate,outputDir,projectsUrl, topLevel)
     dl.loadProjectList()
     dl.generateDumpFileAndDirLists()
