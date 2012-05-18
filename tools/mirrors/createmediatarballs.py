@@ -31,12 +31,12 @@ class MediaPath(object):
         return os.path.join(self.inputDir, self.getHashPathForLevel(mediaFileName), mediaFileName)
 
 class Tarball(object):
-    def __init__(self, baseDir, listInputDir, uploadDir, outputDir, listType, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, workerCount, verify, verbose):
+    def __init__(self, baseDir, listInputDir, uploadDir, remoteUploadDir, outputDir, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, continueJob, workerCount, verify, verbose):
         self.baseDir = baseDir # path to dir with uploaded media for all wikis, e.g. /export/uploads
         self.listInputDir = listInputDir # path to dir with lists of local/remote media
         self.uploadDir = uploadDir # rel path to wiki's upload dir, eg. wikipedia/en
+        self.remoteUploadDir = remoteUploadDir # rel path to wiki's remote repo upload dir, eg. wikipedia/commons
         self.outputDir = outputDir # path to dir where we will write the tarballs
-        self.listType = listType # "local" (write locally uploaded media) or "remote" (write media uploaded to remote repo)
         self.listFileNameFormat = listFileNameFormat # e.g. '{w}-{d}-{t}-lists.gz'
         self.tarballNameFormat = outputFileNameFormat # e.g. '{w}-{d}-{t}-media.tar'
         self.wiki = wiki
@@ -46,12 +46,20 @@ class Tarball(object):
         self.tarName = tarName
         self.tempDir = tempDir
         self.overwrite = overwrite
+        self.continueJob = continueJob
         self.verify = verify
         self.verbose = verbose
-        # we guess it will take at most 5 minutes to create a job and stuff it on the queue
-        # and yes this should become a parameter later, FIXME
+        self.firstTarballSerial = { "local": 1, "remote": 1 } # changed later if we are restarting from the middle
+
+        # fixme these timeouts should be parameters with defaults
         if not self.verify:
-            self.jQ = JobQueue(workerCount, self, 3600, self.verbose, False)
+            if self.continueJob:
+                # in order to set up a job we have to reread the existing tarfiles
+                # to see what's missing. Allow a ridiculously long time to 
+                # complete, say 4 hours
+                self.jQ = JobQueue(workerCount, self, 14400, self.verbose, False)
+            else:
+                self.jQ = JobQueue(workerCount, self, 3600, self.verbose, False)
         self.jobs = {}
 
     def getTarballTOC(self, fileName):
@@ -66,12 +74,36 @@ class Tarball(object):
         except:
             sys.stderr.write("command %s failed\n" % command)
             return []
-        return output.strip().split('\n')
 
-    def verifyTarballs(self):
+        output = output.strip()
+        if output == "":
+            return [] # empty tarball
+        elif not '\n' in output:  # just one image in the tarball
+            return [ output ]
+        else:
+            return output.split('\n')
+
+    def getFilesInTarballs(self, listType):
+        # this assumes we have tarballs in sequences, no skipped numbers.
+        filesInTarballs = {}
+        serial = 0
+        while True:
+            serial += 1
+            tarballFileName = self.getTarballFileName(serial, listType)
+            if not os.path.exists(tarballFileName):
+                # the next tarball serial number to write
+                self.firstTarballSerial[listType] = serial
+
+                return filesInTarballs
+            filesFromTarball = self.getTarballTOC(tarballFileName)
+            for f in filesFromTarball:
+                filesInTarballs[f] = 0
+
+    def verifyTarballs(self, listType):
         # read all filenames from local tarballs
         # if difference whine
-        listFileName = self.getListFileName()
+
+        listFileName = self.getListFileName(listType)
         if not os.path.exists(listFileName):
             if self.verbose:
                 print "Verification: skipping %s since it does not exist" % listFileName
@@ -79,7 +111,10 @@ class Tarball(object):
         listfd = gzip.open(listFileName, "rb")
         filesInList = {}
         listFilesCount = 0
-        mp = MediaPath(self.uploadDir, 2)
+        if listType == "local":
+            mp = MediaPath(self.uploadDir, 2)
+        else:
+            mp = MediaPath(self.remoteUploadDir, 2)
         for line in listfd:
             # format of these lines: mediafilename<tab>metadata
             filesInList[mp.getMediaFilePath(line.split('\t',1)[0])] = False
@@ -92,7 +127,7 @@ class Tarball(object):
         extras = 0
         while True:
             serial += 1
-            tarballFileName = self.getTarballFileName(serial)
+            tarballFileName = self.getTarballFileName(serial, listType)
             if not os.path.exists(tarballFileName):
                 # if it's the first one then there are likely no tarballs at all
                 # so we can print a notice and skip this wiki
@@ -103,13 +138,13 @@ class Tarball(object):
                 else:
                     break
             filesFromTarball = self.getTarballTOC(tarballFileName)
-            
+
             firstWhine = False
             for f in filesFromTarball:
                 if not f in filesInList:
                     if firstWhine:
                         # we only print one of these.
-                        MirrorMsg.display("wiki %s (%s): file %s in tarball %s not in file list\n" % (self.wiki, self.listType, f, tarballFileName))
+                        MirrorMsg.display("wiki %s (%s): file %s in tarball %s not in file list\n" % (self.wiki, listType, f, tarballFileName))
                         firstWhine = False
                     extras += 1
                 else:
@@ -118,35 +153,40 @@ class Tarball(object):
 
         if tarballFilesCount < listFilesCount:
             # just print the first one we grab, as an indication
-            MirrorMsg.display("wiki %s (%s): file %s in list not in tarballs (total: %s missing)\n" % (self.wiki, self.listType, filesInList.keys()[0], listFilesCount - tarballFilesCount))
+            MirrorMsg.display("wiki %s (%s): file %s in list not in tarballs (total: %s missing)\n" % (self.wiki, listType, filesInList.keys()[0], listFilesCount - tarballFilesCount))
         if extras:
-            MirrorMsg.display("wiki %s (%s): some files in tarballs not in list (total: %s missing)\n" % (self.wiki, self.listType, extras))
+            MirrorMsg.display("wiki %s (%s): some files in tarballs not in list (total: %s missing)\n" % (self.wiki, listType, extras))
         if not extras and (tarballFilesCount == listFilesCount):
-            MirrorMsg.display("wiki %s (%s): verify good\n" % (self.wiki, self.listType))
+            MirrorMsg.display("wiki %s (%s): verify good\n" % (self.wiki, listType))
 
-    def getTarballFileName(self, num):
-        return os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = num))
+    def getTarballFileName(self, num, listType):
+        return os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = listType, n = num))
 
-    def getListFileName(self):
-        return os.path.join(self.listInputDir, self.listFileNameFormat.format(w = self.wiki, d = self.date, t = self.listType))
+    def getListFileName(self, listType):
+        return os.path.join(self.listInputDir, self.listFileNameFormat.format(w = self.wiki, d = self.date, t = listType))
 
-    def getTempFileName(self, num):
-        return os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = self.listType, n = serial))
+    def getTempFileName(self, num, listType):
+        return os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = listType, n = serial))
 
-    def putTarballJobsOnQueue(self):
+    def putTarballJobsOnQueue(self, listType):
+        # listType is "local" or "remote" (media uploaded locally or to remote repo)
+
         # don't overwrite tarballs if we are told not to
-        if not self.overwrite:
-            firstTarballName = self.getTarballName(self.wiki, 1)
+        if not self.overwrite and not self.continueJob:
+            firstTarballName = self.getTarballFileName(1, listType)
             if os.path.exists(firstTarballName):
                 # there are already (some) output files for this wiki and date. don't regenerate them.
                 if self.verbose:
                     print "Skipping %s since tarballs for this wiki and date already exist" % self.wiki
                 return
 
+        if self.continueJob:
+            filesInTarballs = self.getFilesInTarballs(listType)
+
         # media file path is relative to basedir, we will cd to basedir
         # for the tar so the tarball filenames are reasonable
 
-        listFileName = self.getListFileName()
+        listFileName = self.getListFileName(listType)
 
         if not os.path.exists(listFileName):
             # could be a closed wiki, could be the remote file for commons (which 
@@ -157,22 +197,31 @@ class Tarball(object):
 
         listfd = gzip.open(listFileName, "rb")
 
-        mp = MediaPath(self.uploadDir, 2)
+        if listType == "local":
+            mp = MediaPath(self.uploadDir, 2)
+        else:
+            mp = MediaPath(self.remoteUploadDir, 2)
 
         filesToTar = []
-        serial = 1
+
+        # start with the next tarball in order
+        serial = self.firstTarballSerial[listType]
         fileCount = 0
         for line in listfd:
-            fileCount += 1
             # format of these lines: mediafilename<tab>metadata
-            filesToTar.append(mp.getMediaFilePath(line.split('\t',1)[0])+'\n')
+            candidate = mp.getMediaFilePath(line.split('\t',1)[0])
+            # if we're finishing up an earlier run of production of tarballs for a wiki,
+            # only do files that aren't in those existing tarballs
+            if not self.continueJob or not candidate in filesInTarballs:
+                filesToTar.append(candidate)
+                fileCount += 1
 
             if fileCount >= self.numFilesPerTarball:
                 if tempDir:
-                    tempFileName = self.getTempFileName(serial)
+                    tempFileName = self.getTempFileName(serial, listType)
                 else:
                     tempFileName = ""
-                    outFileName = self.getTarballFileName(serial)
+                    outFileName = self.getTarballFileName(serial, listType)
 
                 job = self.makeJob(tempFileName, outFileName, filesToTar)
                 if self.verbose:
@@ -185,16 +234,18 @@ class Tarball(object):
         if fileCount:
             # do the last batch
                 if tempDir:
-                    tempFileName = self.getTempFileName(serial)
+                    tempFileName = self.getTempFileName(serial, listType)
                 else:
                     tempFileName = ""
-                outFileName = self.getTarballFileName(serial)
+                outFileName = self.getTarballFileName(serial, listType)
                 job = self.makeJob(tempFileName, outFileName, filesToTar)
                 if self.verbose:
                     MirrorMsg.display("adding job %s (filecount %d) to queue\n" % (job.jobId, fileCount))
                 self.jQ.addToJobQueue(job)
 
         listfd.close()
+
+    def putEOJOnQueue(self):
         self.jQ.setEndOfJobs()
 
     def makeJob(self, tempFileName, outFileName, filesToTar):
@@ -243,6 +294,16 @@ class Tarball(object):
                 return True # failure albeit at thelast second, and the tarball itself is likely fine
             return  # success
 
+    def checkIfTarballEmpty(self, fileName):
+        fileSize = os.path.getsize(fileName)
+        if fileSize > 50000:  # don't waste our time, it has something in it
+            return False
+        filesFromTarball = self.getTarballTOC(fileName)
+        if len(filesFromTarball):
+            return False
+        else:
+            return True
+
     def renameBadTarballFile(self, job):
         if job.checkIfFailed():
             # rename the tarball so folks know it's broken
@@ -281,7 +342,32 @@ class Tarball(object):
                 if not self.renameBadTarballFile(j):
                     MirrorMsg.display( "job %s: failed to move tar file out of the way (bad)\n" % job.jobId)
                     
-                
+    def cleanupEmptyTarballs(self, listType):
+        # if there are empty tarballs in the middle of the sequence leave them
+        # so the numbering is right, but remove any at the end of the sequence
+
+        # get list of empty tarballs in order
+        empties = []
+        serial = 0
+        while True:
+            serial += 1
+            tarballFileName = self.getTarballFileName(serial, listType)
+            if os.path.exists(tarballFileName):
+                if self.checkIfTarballEmpty(tarballFileName):
+                    empties.append( (tarballFileName, True) )
+                else:
+                    empties.append( (tarballFileName, False) )
+            else:
+                break
+
+        # remove the ones at the end of the sequence, if any
+        empties.reverse()
+        for fileName,empty in empties:
+            if empty:
+                os.unlink(fileName)
+            else:
+                break
+
 def usage(message = None):
     if message:
         sys.stderr.write("%s\n" % message)
@@ -325,6 +411,12 @@ def usage(message = None):
         sys.stderr.write("                   filenames in the local and remote media lists are included in the tarball\n")
         sys.stderr.write("                   contents, it does not check the media files themselves\n")
         sys.stderr.write("--tar:             name of gnu tar command, default: 'tar'\n")
+        sys.stderr.write("--continue:        in the case of a wiki with multiple tarballs for either remote or local media,\n")
+        sys.stderr.write("                   continue with the next tarball in the sequence; this option requires rereading\n")
+        sys.stderr.write("                   the existing tarballs so it can be quite slow and should not be enabled for\n")
+        sys.stderr.write("                   a long list of wikis but only for a specific wiki with an incomplete run\n")
+        sys.stderr.write("                   in which case any partially-written tarball file should be removed first,\n")
+        sys.stderr.write("                   this option also implies nooverwrite\n")
         sys.stderr.write("--nooverwrite:     do not overwrite existingtarballs for a given project and date; by default\n")
         sys.stderr.write("                   a new tarball will be created every time\n")
         sys.stderr.write("--tempdir:         write each tarball to the temp directory specified and move into place afterwards\n")
@@ -357,15 +449,14 @@ if __name__ == "__main__":
     outputFileNameFormat = "{w}-{d}-{t}-wikiqueries-{n}.tar"
     filesPerTarball = 100000
     tar = "tar"
+    continueJob = False
     overwrite = True
     verify = False
     workerCount = 1
     verbose = False
     
-#    dbListPath = os.path.join(os.getcwd(), dbList)
-
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "mediadir=", "listsinputdir=", "outputdir=", "date=", "wikilist=", "remoterepo=", "inputnameformat=", "outputnameformat=", "filespertarball=", "tar=", "workers=", "tempdir=", "nooverwrite", "verify", "verbose" ])
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "mediadir=", "listsinputdir=", "outputdir=", "date=", "wikilist=", "remoterepo=", "inputnameformat=", "outputnameformat=", "filespertarball=", "tar=", "workers=", "tempdir=", "continue", "nooverwrite", "verify", "verbose" ])
     except:
         usage("Unknown option specified")
 
@@ -398,6 +489,9 @@ if __name__ == "__main__":
             workerCount = int(val)
         elif opt == "--tempdir":
             tempDir = False
+        elif opt == "--continue":
+            continueJob = True
+            overwrite = False
         elif opt == "--nooverwrite":
             overwrite = False
         elif opt == "--verify":
@@ -461,18 +555,29 @@ if __name__ == "__main__":
 
         if verbose and not verify:
             print "Doing local media files tarball for wiki", wiki
-        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, outputDir, "local", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verify, verbose)
-        if verify:
-            tb.verifyTarballs()
-        else:
-            tb.putTarballJobsOnQueue()
 
+        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, remoteUploadDir, outputDir, inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, continueJob, workerCount, verify, verbose)
+
+        # do list of media uploaded locally to the wiki first
+        if verify:
+            tb.verifyTarballs("local")
+        else:
+            tb.putTarballJobsOnQueue("local")
+
+        # do list of media uploaded to the wiki's remote repo next
         if verbose and not verify:
             print "Doing remote media files tarball for wiki", wiki
 
-        tb = Tarball(mediaBaseDir, listsInputDir, remoteUploadDir, outputDir, "remote", inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, workerCount, verify, verbose)
         if verify:
-            tb.verifyTarballs()
+            tb.verifyTarballs("remote")
         else:
-            tb.putTarballJobsOnQueue()
+            tb.putTarballJobsOnQueue("remote")
+
+        # process local and remote list jobs
+        if not verify:
+            tb.putEOJOnQueue()
             tb.watchJobQueue()
+            if verbose:
+                print "cleaning up any empty tarballs at end of sequence(s)"
+            tb.cleanupEmptyTarballs("local")
+            tb.cleanupEmptyTarballs("remote")
