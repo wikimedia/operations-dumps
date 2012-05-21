@@ -18,19 +18,23 @@ while [ $# -gt 0 ]; do
     elif [ $1 == "--maxfails" ]; then
 	MAXFAILS="$2"
 	shift; shift
+    elif [ $1 == "--basedir" ]; then
+	WIKIDUMP_BASE="$2"
+	shift; shift
     elif [ $1 == "--log" ]; then
 	LOG=true
 	shift;
     else
 	echo "$0: Unknown option $1"
-	echo "Usage: $0 [--configfile filename] [--log] [--maxfails num]"
+	echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir]"
 	echo "--configfile   use specified file for config file (default: wikidump.conf)"
 	echo "--log          write log of (almost) everything written to stderr (default: no logging)"
 	echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
+	echo "--basedir      scripts and files are relative to this dir (default: location of this script)"
 	echo 
-	echo "If the file $WIKIDUMP_BASE/maintenance.txt is present, no more jobs will be run, and"
+	echo "If the file maintenance.txt is present, no more jobs will be run, and"
 	echo "this script will check the status again in 5 minutes."
-	echo "If the file $WIKIDUMP_BASE/exit.txt is present, no more new jobs will be started and"
+	echo "If the file exit.txt is present, no more new jobs will be started and"
 	echo "this script will terminate."
 	exit 1
     fi
