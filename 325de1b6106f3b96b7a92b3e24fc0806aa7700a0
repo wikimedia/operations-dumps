@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAALX//78Y\u003d",
+        "filename": "xmldumps-backup/worker",
+        "patchSetId": 1
+      },
+      "lineNbr": 33,
+      "author": {
+        "id": 79
+      },
+      "writtenOn": "2012-05-21T09:09:36Z",
+      "side": 1,
+      "message": "This documentation is somewhat misleading. The way I understand it, I\u0027d expect that\n\n  /dirA/worker --basedir /dirB --configfile dump.conf\n\nwould pick /dirB/dump.conf as configuration file. However, it picks ./dump.conf, as CONFIGFILE is not relative to --basedir, but relative to the current directory.",
+      "revId": "325de1b6106f3b96b7a92b3e24fc0806aa7700a0",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
