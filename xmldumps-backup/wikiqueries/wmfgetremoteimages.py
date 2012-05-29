@@ -3,7 +3,7 @@ from subprocess import Popen, PIPE
 from wikiqueries import Config
 
 class MediaPerProject(object):
-    def __init__(self, conf, outputDir, remoteRepoName, reuseRepoDate, verbose, wqConfigFile, wqPath):
+    def __init__(self, conf, outputDir, remoteRepoName, reuseRepoDate, verbose, wqConfigFile, wqPath, overwrite):
         self.conf = conf
         self.outputDir = outputDir
         self.reuseRepoDate = reuseRepoDate
@@ -14,6 +14,7 @@ class MediaPerProject(object):
         self.fileNameFormat = "{w}-{d}-wikiqueries.gz"
         self.wqConfigFile = wqConfigFile
         self.wqPath = wqPath
+        self.overwrite = overwrite
         if not os.path.exists(outputDir):
             os.makedirs(outputDir)
         self.wikisToDo = [ w for w in self.conf.allWikisList if w not in self.conf.privateWikisList and w not in self.conf.closedWikisList ]
@@ -42,13 +43,15 @@ class MediaPerProject(object):
             print "config file  %s does not exist" % wqConfigFile
             sys.exit(1)
         command = [ "python", self.wqPath, "--configfile", wqConfigFile, "--query", query, "--outdir", self.outputDir, "--filenameformat", fileNameFormat ]
-        if verbose:
+        if self.verbose:
             command.append("--verbose")
+        if not self.overwrite:
+            command.append("--nooverwrite")
         if wiki:
             command.append(wiki)
         commandString = " ".join([ "'" + c + "'" for c in command ])
 
-        if verbose:
+        if self.verbose:
             print "About to run wikiqueries:", commandString
         try:
             proc = Popen(command, stderr = PIPE)
@@ -141,7 +144,7 @@ class MediaPerProject(object):
         return line.split('\t',1)
 
     def initializeRemoteRepoMediaDict(self):
-        if verbose:
+        if self.verbose:
             print "setting up list of media from remote repo"
         if not self.remoteRepoMediaDict:
             if reuseRepoDate:
@@ -214,6 +217,7 @@ def usage(message = None):
         print "--outputdir:      where to put the list of remotely hosted media per project"
         print "--remotereponame: name of the remote repo that houses images for projects"
         print "                  default: 'commons'"
+        print "--nooverwrite:    if run for the same date and wiki(s), dobn't overwrite existing files"
         print "--verbose:        print lots of status messages"
         print "--wqconfig:       relative or absolute path of wikiquery config file"
         print "                  default: wikiqueries.conf"
@@ -232,11 +236,12 @@ if __name__ == "__main__":
     wiki = None
     sqlOnly = False
     listsOnly = False
+    overwrite = True # by default we will overwrite existing files for the same date and wiki(s)
     wqPath = os.path.join(os.getcwd(), "wikiqueries.py")
     wqConfigFile = os.path.join(os.getcwd(), "wikiqueries.conf")
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "outputdir=", "remotereponame=", "wqconfig=", "wqpath=", "reuseremoterepolist=", "sqlonly", "listsonly", "verbose" ])
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "outputdir=", "remotereponame=", "wqconfig=", "wqpath=", "reuseremoterepolist=", "sqlonly", "listsonly", "nooverwrite", "verbose" ])
     except:
         usage("Unknown option specified")
 
@@ -251,6 +256,8 @@ if __name__ == "__main__":
             sqlOnly = True
         elif opt == "--listsonly":
             listsOnly = True
+        elif opt == "--nooverwrite":
+            overwrite = False
         elif opt == "--verbose":
             verbose = True
         elif opt == "--wqconfig":
@@ -275,7 +282,7 @@ if __name__ == "__main__":
     if listsOnly and sqlOnly:
         usage("Only one of 'listsonly' and 'sqlonly' may be specified at once.")
 
-    mpp = MediaPerProject(config, outputDir, remoteRepoName, reuseRepoDate, verbose, wqConfigFile, wqPath)
+    mpp = MediaPerProject(config, outputDir, remoteRepoName, reuseRepoDate, verbose, wqConfigFile, wqPath, overwrite)
     if not listsOnly:
         if verbose: 
             print "generating sql output from all projects"
