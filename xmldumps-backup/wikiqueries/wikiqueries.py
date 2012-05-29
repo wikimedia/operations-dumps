@@ -292,7 +292,7 @@ class WikiQuery(object):
             # don't overwrite existing file, just return a happy value
             if self.verbose:
                 print "Skipping wiki %s, file exists already" % self.wikiName 
-                return True
+            return True
         db = DBServer(self._config, self.wikiName)
         return RunSimpleCommand.runWithNoOutput(db.buildSqlCommand(self.query, outFile.getPath()), maxtries=1, shell=True, verbose=self.verbose)
 
