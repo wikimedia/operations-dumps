@@ -257,8 +257,8 @@ if __name__ == "__main__":
             wqConfigFile = val
             if not os.sep in val:
                 wqConfigFile = os.path.join(os.getcwd(), wqConfigFile)
-                # bummer but we can't really avoid ita
-                config = Config(wqConfigFile)
+            # bummer but we can't really avoid ita
+            config = Config(wqConfigFile)
         elif opt == "--wqpath":
             wqPath = val
             if not os.sep in val:
