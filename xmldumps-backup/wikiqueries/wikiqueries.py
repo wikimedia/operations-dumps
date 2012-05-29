@@ -255,7 +255,7 @@ class QueryDir(object):
         return self._config.wikiQueriesDir
 
 class WikiQuery(object):
-    def __init__(self,config, query, wikiName, fileNameFormat, dryrun, verbose):
+    def __init__(self,config, query, wikiName, fileNameFormat, overwrite, dryrun, verbose):
         self._config = config
         self.wikiName = wikiName
         self.query = query
@@ -263,6 +263,7 @@ class WikiQuery(object):
         if not self.query:
             query = MiscUtils.readFile(self._config.queryFile)
         self.fileNameFormat = fileNameFormat
+        self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
 
@@ -287,13 +288,19 @@ class WikiQuery(object):
 
     def runWikiQuery(self):
         outFile = OutputFile(self._config, MiscUtils.today(), self.wikiName, self.fileNameFormat)
+        if not self.overwrite and exists(outFile.getPath()):
+            # don't overwrite existing file, just return a happy value
+            if self.verbose:
+                print "Skipping wiki %s, file exists already" % self.wikiName 
+                return True
         db = DBServer(self._config, self.wikiName)
         return RunSimpleCommand.runWithNoOutput(db.buildSqlCommand(self.query, outFile.getPath()), maxtries=1, shell=True, verbose=self.verbose)
 
 class WikiQueryLoop(object):
-    def __init__(self, config, query, fileNameFormat, dryrun, verbose):
+    def __init__(self, config, query, fileNameFormat, overwrite, dryrun, verbose):
         self._config = config
         self.query = query
+        self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
         self.fileNameFormat = fileNameFormat
@@ -302,7 +309,7 @@ class WikiQueryLoop(object):
     def doRunOnAllWikis(self):
         failures = 0
         for w in self.wikisToDo[:]:
-            query = WikiQuery(self._config, self.query, w, self.fileNameFormat, self.dryrun, self.verbose)
+            query = WikiQuery(self._config, self.query, w, self.fileNameFormat, self.overwrite, self.dryrun, self.verbose)
             if query.doOneWiki():
                 self.wikisToDo.remove(w)
 
@@ -334,6 +341,7 @@ def usage(message = None):
         print "--outdir:         Put output files for all projects in this directory; it will be created if"
         print "                  it does not exist."
         print "                  Default: the value given for 'querydir' in the config file"
+        print "--nooverwrite:    Do not overwrite existing file of the same name, skip run for the specific wiki"
         print "--query:          MySQL query to run on each project."
         print "                  Default: the contents of the file specified by 'queryfile' in the config file"
         print "--retries:        Number of times to try running the query on all wikis in case of error, before giving up."
@@ -347,13 +355,14 @@ if __name__ == "__main__":
     result = False
     dryrun = False
     outputDir = None
+    overwrite = True
     query = None
     retries = 3
     verbose = False
     fileNameFormat = "{w}-{d}-wikiquery.gz"
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 [ 'configfile=', 'filenameformat=', "outdir=", "query=", "retries=", 'dryrun', 'verbose' ])
+                                                 [ 'configfile=', 'filenameformat=', "outdir=", "query=", "retries=", 'dryrun', "nooverwrite", 'verbose' ])
     except:
         usage("Unknown option specified")
 
@@ -366,6 +375,8 @@ if __name__ == "__main__":
             fileNameFormat = val
         elif opt == "--outdir":
             outputDir = val
+        elif opt == "--nooverwrite":
+            overwrite = False
         elif opt == "--query":
             query = val
         elif opt == "--retries":
@@ -384,8 +395,8 @@ if __name__ == "__main__":
         config.wikiQueriesDir = outputDir
 
     if len(remainder) > 0:
-        query = WikiQuery(config, query, remainder[0], fileNameFormat, dryrun, verbose)
+        query = WikiQuery(config, query, remainder[0], fileNameFormat, overwrite, dryrun, verbose)
         query.doOneWiki()
     else:
-        queries = WikiQueryLoop(config, query, fileNameFormat, dryrun, verbose)
+        queries = WikiQueryLoop(config, query, fileNameFormat, overwrite, dryrun, verbose)
         queries.doAllWikisTilDone(retries)
