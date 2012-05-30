@@ -157,11 +157,11 @@ class MediaPerProject(object):
         if not self.remoteRepoMediaDict:
             if self.verbose:
                 print "reading current list of remote repo media"
-                try:
-                    self.readRemoteRepoMediaDict()
-                except:
-                    print "failed to read remote repo media list"
-                    sys.exit(1)
+            try:
+                self.readRemoteRepoMediaDict()
+            except:
+                print "failed to read remote repo media list"
+                sys.exit(1)
 
     def readRemoteRepoMediaDict(self, date = None):
         remoteRepoMediaDictFd = gzip.open(self.getPath(self.getRemoteRepoFileName(date)), "rb")
