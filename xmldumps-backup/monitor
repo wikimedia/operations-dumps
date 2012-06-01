@@ -2,16 +2,32 @@
 
 WIKIDUMP_BASE=`dirname "$0"`
 
-if [ ! -z "$1" ]; then
-    configFile="$1"
-else
-    configFile=""
+while [ $# -gt 0 ]; do
+    if [ $1 == "--configfile" ]; then
+	CONFIGFILE="$2"
+	shift; shift
+    elif [ $1 == "--basedir" ]; then
+	WIKIDUMP_BASE="$2"
+	shift; shift
+    else
+	echo "$0: Unknown option $1"
+	echo "Usage: $0 [--configfile filename] [--basedir dir]"
+	echo "--configfile   use specified file for config file (default: wikidump.conf)"
+	echo "--basedir      scripts and files are relative to this dir (default: location of this script)"
+	exit 1
+    fi
+done
+
+pythonargs=( "$WIKIDUMP_BASE/monitor.py" )
+if [ ! -z "$CONFIGFILE" ]; then
+    pythonargs=( "${pythonargs[@]}" "$CONFIGFILE" )
 fi
 
 while true; do
-	echo ""
-	echo "Sweeping!"
-	python $WIKIDUMP_BASE/monitor.py "$configFile"
-	echo "sleeping"
-	sleep 15
+    echo ""
+    echo "Sweeping!"
+    echo python ${pythonargs[@]}
+    python ${pythonargs[@]}
+    echo "sleeping"
+    sleep 15
 done
