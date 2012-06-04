@@ -24,13 +24,18 @@ while [ $# -gt 0 ]; do
     elif [ $1 == "--log" ]; then
 	LOG=true
 	shift;
+    elif [ $1 == "--wiki" ]; then
+	WIKI="$2"
+	shift; shift
     else
 	echo "$0: Unknown option $1"
-	echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir]"
+	echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
 	echo "--configfile   use specified file for config file (default: wikidump.conf)"
 	echo "--log          write log of (almost) everything written to stderr (default: no logging)"
 	echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
 	echo "--basedir      scripts and files are relative to this dir (default: location of this script)"
+	echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
+	echo "               config file will be dumped"
 	echo 
 	echo "If the file maintenance.txt is present, no more jobs will be run, and"
 	echo "this script will check the status again in 5 minutes."
@@ -47,6 +52,9 @@ if [ ! -z "$CONFIGFILE" ]; then
 fi
 if [ ! -z "$LOG" ]; then
     pythonargs=( "${pythonargs[@]}" "--log" )
+fi
+if [ ! -z "$WIKI" ]; then
+    pythonargs=( "${pythonargs[@]}" "$WIKI" )
 fi
 
 while true; do
@@ -67,6 +75,16 @@ while true; do
 	    fi
 	else
 	    failures=0
+	fi
+	if [ ! -z "$WIKI" ]; then
+	    # we ran for a specific wiki, we don't loop even if it failed.
+	    if [ $failures -gt 0 ]; then
+		echo "Dump of wiki $WIKI failed."
+		exit 1
+	    else
+		echo "Dump of wiki $WIKI succeeded."
+		exit 0
+	    fi
 	fi
 	echo "sleeping"
 	sleep 30
