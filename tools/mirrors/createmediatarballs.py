@@ -31,16 +31,13 @@ class MediaPath(object):
         return os.path.join(self.inputDir, self.getHashPathForLevel(mediaFileName), mediaFileName)
 
 class Tarball(object):
-    def __init__(self, baseDir, listInputDir, uploadDir, remoteUploadDir, outputDir, listFileNameFormat, tarballNameFormat, wiki, date, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, continueJob, workerCount, verify, verbose):
+    def __init__(self, baseDir, listInputDir, remoteUploadDir, outputDir, listFileNameFormat, tarballNameFormat, hashLevel, numFilesPerTarball, tarName, tempDir, overwrite, continueJob, workerCount, verify, verbose):
         self.baseDir = baseDir # path to dir with uploaded media for all wikis, e.g. /export/uploads
         self.listInputDir = listInputDir # path to dir with lists of local/remote media
-        self.uploadDir = uploadDir # rel path to wiki's upload dir, eg. wikipedia/en
         self.remoteUploadDir = remoteUploadDir # rel path to wiki's remote repo upload dir, eg. wikipedia/commons
         self.outputDir = outputDir # path to dir where we will write the tarballs
         self.listFileNameFormat = listFileNameFormat # e.g. '{w}-{d}-{t}-lists.gz'
         self.tarballNameFormat = outputFileNameFormat # e.g. '{w}-{d}-{t}-media.tar'
-        self.wiki = wiki
-        self.date = date # date as it appears in the filenames with lists of local/remote media, YYYYMMDD format
         self.hashLevel = hashLevel # basically we expect it to be 2 but it would work for other values
         self.numFilesPerTarball = numFilesPerTarball
         self.tarName = tarName
@@ -61,6 +58,17 @@ class Tarball(object):
             else:
                 self.jQ = JobQueue(workerCount, self, 3600, self.verbose, False)
         self.jobs = {}
+        self.clearWikiInfo()
+
+    def setWikiInfo(self, wiki, uploadDir, fileDate):
+        self.wiki = wiki
+        self.uploadDir = uploadDir
+        self.fileDate = fileDate
+
+    def clearWikiInfo(self):
+        self.wiki = None
+        self.uploadDir = None
+        self.fileDate = None
 
     def getTarballTOC(self, fileName):
         command = [ self.tarName, "-tf", fileName ]
@@ -160,13 +168,13 @@ class Tarball(object):
             MirrorMsg.display("wiki %s (%s): verify good\n" % (self.wiki, listType))
 
     def getTarballFileName(self, num, listType):
-        return os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = listType, n = num))
+        return os.path.join(self.outputDir, self.tarballNameFormat.format(w = self.wiki, d = self.fileDate, t = listType, n = num))
 
     def getListFileName(self, listType):
-        return os.path.join(self.listInputDir, self.listFileNameFormat.format(w = self.wiki, d = self.date, t = listType))
+        return os.path.join(self.listInputDir, self.listFileNameFormat.format(w = self.wiki, d = self.fileDate, t = listType))
 
     def getTempFileName(self, num, listType):
-        return os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.date, t = listType, n = serial))
+        return os.path.join(self.temDir, self.tarballNameFormat.format(w = self.wiki, d = self.fileDate, t = listType, n = serial))
 
     def putTarballJobsOnQueue(self, listType):
         # listType is "local" or "remote" (media uploaded locally or to remote repo)
@@ -196,7 +204,6 @@ class Tarball(object):
             return
 
         listfd = gzip.open(listFileName, "rb")
-
         if listType == "local":
             mp = MediaPath(self.uploadDir, 2)
         else:
@@ -271,7 +278,7 @@ class Tarball(object):
         command = [ self.tarName, "-C", self.baseDir, "-cpf", outFileName,  "-T", "-", "--no-unquote", "--ignore-failed-read" ]
         commandString = " ".join([ "'" + c + "'" for c in command ])
         if verbose:
-            print "For wiki", self.wiki, "command:", commandString
+            print "Running command:", commandString
         try:
             proc = Popen(command, stderr = PIPE, stdin = PIPE)
             output, error = proc.communicate(filesToTar) # no output, ignore it
@@ -522,6 +529,7 @@ if __name__ == "__main__":
     # find the remote repo upload dir or bail
     #
     remoteUploadDir = None
+
     for l in wikiList:
         if l.startswith(remoteRepoName + "\t"):
             remoteWiki, remoteUploadDir = l.split('\t',1)
@@ -529,6 +537,8 @@ if __name__ == "__main__":
     if not remoteUploadDir:
         sys.stderr.write("can't find remote repo %s in wiki list, can't determine remote upload dir\n" % remoteRepoName)
         sys.exit(1)
+
+    tb = Tarball(mediaBaseDir, listsInputDir, remoteUploadDir, outputDir, inputFileNameFormat, outputFileNameFormat, 2, filesPerTarball, tar, tempDir, overwrite, continueJob, workerCount, verify, verbose)
 
     for line in wikiList:
 
@@ -556,7 +566,7 @@ if __name__ == "__main__":
         if verbose and not verify:
             print "Doing local media files tarball for wiki", wiki
 
-        tb = Tarball(mediaBaseDir, listsInputDir, uploadDir, remoteUploadDir, outputDir, inputFileNameFormat, outputFileNameFormat, wiki, fileDate, 2, filesPerTarball, tar, tempDir, overwrite, continueJob, workerCount, verify, verbose)
+        tb.setWikiInfo(wiki, uploadDir, fileDate)
 
         # do list of media uploaded locally to the wiki first
         if verify:
@@ -573,11 +583,13 @@ if __name__ == "__main__":
         else:
             tb.putTarballJobsOnQueue("remote")
 
-        # process local and remote list jobs
-        if not verify:
-            tb.putEOJOnQueue()
-            tb.watchJobQueue()
-            if verbose:
-                print "cleaning up any empty tarballs at end of sequence(s)"
-            tb.cleanupEmptyTarballs("local")
-            tb.cleanupEmptyTarballs("remote")
+    tb.clearWikiInfo()
+
+    # process local and remote list jobs
+    if not verify:
+        tb.putEOJOnQueue()
+        tb.watchJobQueue()
+        if verbose:
+            print "cleaning up any empty tarballs at end of sequence(s)"
+        tb.cleanupEmptyTarballs("local")
+        tb.cleanupEmptyTarballs("remote")
