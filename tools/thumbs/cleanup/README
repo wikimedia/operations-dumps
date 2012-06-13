@@ -1,0 +1,51 @@
+Here's hoping we never use this again.
+
+Find images on commons not in use on other projects for a given date range (typically,
+the last time this job was run, til about a month from today, whenever today is).
+
+The list is then given to someone to purge thumbs, when we are short of space on
+our thumbs server. 
+
+To do it:
+
+On some nice host make the directory /a/imagescripts and put this stuff in there, 
+along with dumps/tools/thumbs/crunchinglogs/otherscripts/listFileNames.py, 
+dumps/xmldumps-backup/wikiqueries/wikiqueries.py
+
+Move wikiqueries.conf.sample to wikiqueries.conf and add the real mysql passwd
+
+Make the dir /a/imageinfo and make sure there's about 3 gb free, maybe a bit more 
+
+From /a/imagescripts run:
+
+find-unused-commons-media-part1.sh
+
+Then run:
+
+find-unused-commons-media-part2.sh yyyymmdd 
+
+where that date is the earliest unused thumbs you want to purge
+You can leave it off if you really want to check all images to the beginning of time.
+
+The results will be in 
+/a/imageinfo/today's-date/commonsfiles/commonswiki-dirs-to-remove.gz
+
+in the format
+
+/export/thumbs/wikipedia/commons/thumb/b/b3/A009_Asamblea_15-M_26J.JPG
+
+We do toss all filenames with slashes in them (there are a few) just to make it easier.
+
+At this point you can feed the directories to some script to toss them, etc. 
+
+"Unused" means no links on any project including commons itself.
+
+It does *not* mean no one is viewing the File: pages, if someone does then
+of course they are creating thumbs. 
+
+Also it does not account for people using InstantCommons etc. There's no
+way we can know about them.
+
+This set of scripts relies on local imagelink and image tables, rather 
+than the global useage table.  Maybe that's no longer necessary.  Whatever.
+
