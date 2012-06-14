@@ -273,6 +273,17 @@ class Tarball(object):
             outFileName = tempFileName
         else:
             outFileName = tarballFileName
+
+        # if we have no overwrite, it's possible some other process is doing this tarballs, so
+        # check and skip if needed.
+        # there could be a race condition here; we trust the user to use common sense when doing
+        # isolated tarball runs
+        if not self.overwrite:
+            if (tempFileName and os.path.exists(tempFileName)) or os.path.exists(tarballFileName):
+                if verbose:
+                    print "Skipping tarball:", tarballFileName, "since it already exists"
+                return # 'success'
+
         # if there are files that have been deleted in the meantime, tar will whine but continue
         # seriously? tar is option-order sensitive for -C?? bleep bleepers!
         command = [ self.tarName, "-C", self.baseDir, "-cpf", outFileName,  "-T", "-", "--no-unquote", "--ignore-failed-read" ]
