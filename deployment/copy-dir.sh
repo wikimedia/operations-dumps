@@ -7,6 +7,7 @@
 
 nodefile="/usr/local/dsh/node_groups/snapshots"
 deploymentbase="/backups/dumps/deploy"
+basedir="/home/wikipedia/downloadserver/snapshothosts/dumps"
 
 usage() {
     echo "copy deployment dir for xml dump code to specified hosts"
@@ -24,6 +25,11 @@ usage() {
     echo "Example use: $0 --deploydir mar-12-2012 --hosts snapshot1,snapshot4"
     exit 1
 }
+username=`whoami`
+if [ "$username" != "root" ]; then
+	echo "This script must be run as root."
+	exit 1
+fi
 
 while [ $# -gt 0 ]; do
     if [ $1 == "--deploydir" ]; then
@@ -100,8 +106,8 @@ if [ ! -z "$hostnames" ]; then
 fi
 
 # make sure the directory exists before we try to copy it to the remote hosts
-if [ ! -d "$deploymentbase/$deploydir" ]; then
-    echo "Directory $deploymentbase/$deploydir does not exist or it's not a directory, exiting"
+if [ ! -d "$basedir/deploy/$deploydir" ]; then
+    echo "Directory $basedir/deploy/$deploydir does not exist or it's not a directory, exiting"
     exit 1
 fi
 
@@ -110,10 +116,10 @@ exitcode=0
 echo "Copying..."
 
 for h in $hostnames; do
-    scp -Rp -q -o SetupTimeOut=20 deploy/$deploydir  root@$h:$deploymentbase/$deploydir
+    scp -rp -q -o ConnectTimeOut=20 $basedir/deploy/$deploydir  root@$h:$deploymentbase/
     if [ $? -ne 0 ]; then
 	# serious whine
-	echo "Failed to copy deployment dir deploy/$deploydir to root@$h:$deploymentbase/$deploydir"
+	echo "Failed to copy deployment dir $basedir/deploy/$deploydir to root@$h:$deploymentbase/$deploydir"
 	exitcode=1
     fi
 done
@@ -123,7 +129,7 @@ done
 echo "Setting dir/file perms..."
 
 for h in $hostnames; do
-    ssh -q -o SetupTimeOut=20 root@$h "find $deploymentbase/$deploydir -type d -exec chmod 755 {} \; ; find $deploymentbase/$deploydir -type f -exec chmod 644 {} \;"
+    ssh -q -o ConnectTimeOut=20 root@$h "find $deploymentbase/$deploydir -type d -exec chmod 755 {} \; ; find $deploymentbase/$deploydir -type f -exec chmod 644 {} \;"
     if [ $? -ne 0 ]; then
 	echo "Failed to change file / dir permissions on root@$h:$deploymentbase/$deploydir"
 	exitcode=1
