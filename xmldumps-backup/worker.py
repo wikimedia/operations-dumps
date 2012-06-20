@@ -1260,7 +1260,7 @@ class DumpFile(file):
 		# without shell
 		p = CommandPipeline(pipeline, quiet=True)
 		p.runPipelineAndGetOutput()
-		if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, pipeline[0] ]]:
+		if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, pipeline[0] ]] or p.getFailedCommandsWithExitValue() == [[ signal.SIGPIPE + 128, pipeline[0] ]]:
 			self.firstLines = p.output()
 		return(self.firstLines)
 
@@ -1828,22 +1828,20 @@ class Runner(object):
 		self.checksums.prepareChecksums()
 		
 		for item in self.dumpItemList.dumpItems:
-			if not (item.toBeRun()):
-				continue
-
 			Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, item.name() ) )
-			item.start(self)
-			self.status.updateStatusFiles()
-			self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
-			try:
-				item.dump(self)
-			except Exception, ex:
-				exc_type, exc_value, exc_traceback = sys.exc_info()
-				if (self.verbose):
-					print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
-				else:
-					self.debug("*** exception! " + str(ex))
-				item.setStatus("failed")
+			if (item.toBeRun()):
+				item.start(self)
+				self.status.updateStatusFiles()
+				self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+				try:
+					item.dump(self)
+				except Exception, ex:
+					exc_type, exc_value, exc_traceback = sys.exc_info()
+					if (self.verbose):
+						print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+					else:
+						self.debug("*** exception! " + str(ex))
+					item.setStatus("failed")
 
 			if item.status() == "done":
 				self.checksums.cpMd5TmpFileToPermFile()
@@ -2317,7 +2315,7 @@ class Dump(object):
 			# without shell
 			p = CommandPipeline(pipeline, quiet=True)
 			p.runPipelineAndGetOutput()
-			if (p.output()) and (p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, uncompressThisFile ]] ):
+			if (p.output()) and (p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, uncompressThisFile ]] or p.getFailedCommandsWithExitValue() == [[ signal.SIGPIPE + 128, uncompressThisFile ]]):
 				(headerEndNum, junk) = p.output().split(":",1)
 				# get headerEndNum
 			else:
