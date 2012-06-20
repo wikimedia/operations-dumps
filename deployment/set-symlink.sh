@@ -5,7 +5,7 @@
 # point it to some earlier/later/other one as specified by the user
 # or to the one for "today" if none is specified
 
-nodefile="/usr/local/dsh/node_groups/snapshots"
+nodefile="/usr/local/dsh/node_groups/snapshot"
 productionlink="/backups/dumps/production"
 deploymentdir="/backups/dumps/deploy"
 

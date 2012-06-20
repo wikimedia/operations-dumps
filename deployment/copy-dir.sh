@@ -5,7 +5,7 @@
 # the directory should have a name in the format mon-dd-yyyy
 # where mon is the first three letters of the month name in lower case
 
-nodefile="/usr/local/dsh/node_groups/snapshots"
+nodefile="/usr/local/dsh/node_groups/snapshot"
 deploymentbase="/backups/dumps/deploy"
 basedir="/home/wikipedia/downloadserver/snapshothosts/dumps"
 
