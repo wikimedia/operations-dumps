@@ -27,7 +27,7 @@ class ContentFile(object):
         return "content.txt"
 
     def getPath(self):
-        return os.path.join(self.queryDir.getQueryDir(),self.getFileName())
+        return os.path.join(self.queryDir.getQueryDir(self.wikiName, self.date),self.getFileName())
 
 class OutputFile(ContentFile):
     def __init__(self, config, date, wikiName, fileNameFormat):
@@ -251,11 +251,11 @@ class QueryDir(object):
     def __init__(self, config):
         self._config = config
 
-    def getQueryDir(self):
-        return self._config.wikiQueriesDir
+    def getQueryDir(self, wiki, date):
+        return self._config.wikiQueriesDir.format(w=wiki, d=date)
 
 class WikiQuery(object):
-    def __init__(self,config, query, wikiName, fileNameFormat, dryrun, verbose):
+    def __init__(self,config, query, wikiName, fileNameFormat, date, overwrite, dryrun, verbose):
         self._config = config
         self.wikiName = wikiName
         self.query = query
@@ -263,14 +263,18 @@ class WikiQuery(object):
         if not self.query:
             query = MiscUtils.readFile(self._config.queryFile)
         self.fileNameFormat = fileNameFormat
+        self.date = date
+        if not self.date:
+            self.date = MiscUtils.today()
+        self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
 
     def doOneWiki(self):
         """returns true on success"""
         if self.wikiName not in self._config.privateWikisList and self.wikiName not in self._config.closedWikisList:
-            if not exists(self.queryDir.getQueryDir()):
-                os.makedirs(self.queryDir.getQueryDir())
+            if not exists(self.queryDir.getQueryDir(self.wikiName, self.date)):
+                os.makedirs(self.queryDir.getQueryDir(self.wikiName, self.date))
             try:
 		if (self.verbose):
                     print "Doing run for wiki: ",self.wikiName
@@ -286,14 +290,23 @@ class WikiQuery(object):
         return True
 
     def runWikiQuery(self):
-        outFile = OutputFile(self._config, MiscUtils.today(), self.wikiName, self.fileNameFormat)
+        outFile = OutputFile(self._config, self.date, self.wikiName, self.fileNameFormat)
+        if not self.overwrite and exists(outFile.getPath()):
+            # don't overwrite existing file, just return a happy value
+            if self.verbose:
+                print "Skipping wiki %s, file exists already" % self.wikiName 
+            return True
         db = DBServer(self._config, self.wikiName)
         return RunSimpleCommand.runWithNoOutput(db.buildSqlCommand(self.query, outFile.getPath()), maxtries=1, shell=True, verbose=self.verbose)
 
 class WikiQueryLoop(object):
-    def __init__(self, config, query, fileNameFormat, dryrun, verbose):
+    def __init__(self, config, query, fileNameFormat, date, overwrite, dryrun, verbose):
         self._config = config
         self.query = query
+        self.date = date
+        if not self.date:
+            self.date = MiscUtils.today()
+        self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
         self.fileNameFormat = fileNameFormat
@@ -302,7 +315,7 @@ class WikiQueryLoop(object):
     def doRunOnAllWikis(self):
         failures = 0
         for w in self.wikisToDo[:]:
-            query = WikiQuery(self._config, self.query, w, self.fileNameFormat, self.dryrun, self.verbose)
+            query = WikiQuery(self._config, self.query, w, self.fileNameFormat, self.date, self.overwrite, self.dryrun, self.verbose)
             if query.doOneWiki():
                 self.wikisToDo.remove(w)
 
@@ -324,15 +337,17 @@ def usage(message = None):
     if message:
         print message
         print "Usage: python wikiqueries.py [options] [wikidbname]"
-        print "Options: --configfile, --dryrun, --filenameformat, --outdir, --query, --retries, --verbose"
+        print "Options: --configfile, --date, --dryrun, --filenameformat, --outdir, --query, --retries, --verbose"
         print "--configfile:     Specify config file to read."
         print "                  Default: wikiqueries.conf"
+        print "--date:           date that will appear in filename and/or dirname as specified. Format: YYYYMMDD"
+        print "                  If not specified, today's date will be used."
         print "--dryrun:         Don't actually run anything but print the commands that would be run."
         print "--filenameformat: Format string for the name of each file, with {w} for wikiname and optional"
         print "                  {d} for date."
         print "                  Default: {w}-{d}-wikiquery.gz"
         print "--outdir:         Put output files for all projects in this directory; it will be created if"
-        print "                  it does not exist."
+        print "                  it does not exist.  Accepts '{W}' and '{d}' for substituting wiki and date into the name."
         print "                  Default: the value given for 'querydir' in the config file"
         print "--query:          MySQL query to run on each project."
         print "                  Default: the contents of the file specified by 'queryfile' in the config file"
@@ -346,6 +361,7 @@ if __name__ == "__main__":
     configFile = False
     result = False
     dryrun = False
+    date = None
     outputDir = None
     query = None
     retries = 3
@@ -353,13 +369,15 @@ if __name__ == "__main__":
     fileNameFormat = "{w}-{d}-wikiquery.gz"
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 [ 'configfile=', 'filenameformat=', "outdir=", "query=", "retries=", 'dryrun', 'verbose' ])
+                                                 [ 'configfile=', "date=", 'filenameformat=', "outdir=", "query=", "retries=", 'dryrun', "nooverwrite", 'verbose' ])
     except:
         usage("Unknown option specified")
 
     for (opt, val) in options:
         if opt == "--configfile":
             configFile = val
+        elif opt == "--date":
+            date = val
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--filenameformat":
@@ -375,6 +393,9 @@ if __name__ == "__main__":
         elif opt == "--verbose":
             verbose = True
         
+    if date and not re.match("^20[0-9]{6}$", date):
+        usage("Date must be in the format YYYYMMDD (four digit year, two digit month, two digit date)")
+
     if (configFile):
         config = Config(configFile)
     else:
@@ -384,8 +405,8 @@ if __name__ == "__main__":
         config.wikiQueriesDir = outputDir
 
     if len(remainder) > 0:
-        query = WikiQuery(config, query, remainder[0], fileNameFormat, dryrun, verbose)
+        query = WikiQuery(config, query, remainder[0], fileNameFormat, date, overwrite, dryrun, verbose)
         query.doOneWiki()
     else:
-        queries = WikiQueryLoop(config, query, fileNameFormat, dryrun, verbose)
+        queries = WikiQueryLoop(config, query, fileNameFormat, date, overwrite, dryrun, verbose)
         queries.doAllWikisTilDone(retries)
