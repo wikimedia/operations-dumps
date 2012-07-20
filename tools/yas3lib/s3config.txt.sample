@@ -1,0 +1,9 @@
+# test file for config for yas3lib.py
+
+[auth]
+accesskey=XXXX
+secretkey=XXXX
+
+[host]
+s3host=localhost
+port=8888

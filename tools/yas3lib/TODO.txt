@@ -1,0 +1,97 @@
+X testing 
+X set collection type in wmfarchivelib.py, how do I do that? for time of creation of item (bucket) I guess
+    x-archive-meta01-collection:  test_collection   like that
+X copy (from one bucket to another) support
+X make sure calls with no config file work fine
+X maybe be able to turn off config file checks altogether (for other library callers) - just have empty var
+X do we like the way the config file stuff and the args handling are intertwined? maybe rethink a bit
+X multipart uploads one command at a time
+X verify object fails on mp uploads at archive.org, why is the etag not the md5 and where is the md5 then??
+X 307 is handled but in __main__.  what happens if I want to handle it in the handler?? moved
+X mp etags are passed on cmd line without quote. is that what we want (maybe we want the exact string from
+  etag with double quots if that is what it has)? - made this be *whatver* is between the tags incl quotes
+X multipart uploads as one command for a large file
+X data is not always passed back from handler. check that for all possible xml output at least we get it
+X seems we still don't print keep data for non 2xx returns in all handlers
+X why isn't pretty print working now, it seems to not prettify
+X in runS3 follow these redirects instead of in main
+X handlers that call other handlers should do it where? see sohwbucketstatus vs verifyobject, the issue is
+    the initialization of reqType etc --  fixed this by always calling in runs3()
+X no-derive header for archive.org
+X try to combine/cleanup url classes
+X try to toss "extra" dos3() definitions if we can.
+X no-derive header for mp uploads if we need them (do we? how?) for archive.org -- added but should test and 
+    email them if needed
+X we have urlinfo which is set exclusively from bucketname/filename etc... and then we have other random urls,
+    where are those kept?? fix
+X change docs for apiurl to say the english language full name of thewiki content language
+X wmf metadata stuff for dumps (separate file and classes)
+X testing again
+X move yas3archivelib.py to yas3archive.py (no need for it to be called lib, I think)
+X Yas3 -> YaS3 everywhere. 
+X do we want "usage" as the name or some other thing for the mandatory error hook? it's fine as it is for now
+X files -> objects in all operation names
+X Archive -> IA everywhere
+X I think we call the metadatahaders metadata in one place and other stuff metadata in another place. yuck. fix
+X normalize all command names etc
+X continue "metadata" use cleanup... metadataArgs -> IAMetadataArgs where we can (but it's not a class??)
+X add extra piece to usage message, a paragraph or so that will get printed before.
+X add --help opname  to print info about the operation.
+X for the helpop, list the vars that are mandatory (checkmandatory), should be doable.
+X there is use of "detail" someplace, change that to iametadata or something.
+X size hint header for archive.org
+X maybe support for the archive.org naming scheme (they call it other than buckets/objects:: items/files) - 
+    it's documented but not in the class names/method names, that's best for sanity's sake
+X check ints and strings everywhere
+X instead of capitalize headers lcase them all when we do compares (do we have docs that the headers are
+    lowercase?  yes, see http://bugs.python.org/issue1170065)
+X comments for all classes and methods including args that are ints :-P
+
+100 continue support for PUT object (sometimes we might get a redir after sending all the data otherwise,
+    see  http://docs.amazonwebservices.com/AmazonS3/latest/dev/RESTRedirect.html)
+make sure that we always tear down all connections (which we don't reuse, so any new conn = we tore down 
+    the old one)
+keep-alive, when do we want it? 
+connection at s3session level maybe (for multiple requests over one connection)? right now it's one conn 
+    per request
+clean up/add Location header handling generally
+
+size hint header for archive.org for dumps!!
+
+virtualhost stuff (it's implemented --brokenly--, untested, etc)
+
+pretty print xml replies only if we want? a flag, an arg?  or we print when we get the response back??
+make sure all verbose prints have labelled what they are printing (example: arg dicts)
+too verbose when --verbose is off, clean that up too
+
+move requestinfo into handler and out of main? 
+utf8 in meta fields, do we need to do anything about this?? how about in filenames or bucket names?
+
+all fixmes
+
+suport https (do we need to do server verification of certs? ooouuucch if we do. but otherwise
+  we are open to MITM. I guess first round will not verify.
+check what google storage extensions are or if it needs anything interesting
+resume upload (see gsutils)
+
+timeout for read of content-length (or especially when there is none), don't want to hang if the 
+  server goes out to lunch
+
+maybe be better about some of the import statements, there's rather a lot of stuff listed, also 
+  lose any we don't need
+
+suppose I want a file to remove some args from a previous parent class (like wmfarchive maybe 
+  doesn't want the title arg to be passed around... though it could be in the config file 
+  anyways, ugh)... handle this
+
+short forms for options: operation, bucket, remotefile, localfile, configfile, verbose, quiet
+are all mandatory args specified for all ops? when do we not need accsskey secret key for listing
+    stuff (maybe for listing contents of someone's bucket)?
+
+parse xml back from allcommands that show it (listing buckets, etc) and display those results instead
+add specific wmf useragent string to wmfarchive.py
+see how much of the cookie stuff we can do via the python libraries
+in some routines like verifyobject they seemed to work even though we setUrlInfo from argDict
+    and not self.argDict (this is now fixed in the code), is there pollution of the namespace
+    from someplace? check this. note that a corresponding error in getbucketiametadata called
+    however from wmfarchive.py *did* error out as it should have

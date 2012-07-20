@@ -1,0 +1,24 @@
+# test file for config for wmfarchive.py
+
+[auth]
+accesskey=XXXXXXXXXXXXX
+secretkey=XXXXXXXXXXX
+username=some_email@addy
+password=XXXXXXXXX
+
+[host]
+s3host=s3.us.archive.org
+host=archive.org
+
+[iametadata]
+#collection=open source
+collection=test_collection
+licenseurl=http://wikimediafoundation.org/wiki/Terms_of_Use
+
+[wmfmeta]
+downloadurl=http://dumps.wikimedia.org
+creator=the Wikimedia Foundation
+matrixcache=/home/somepath/wmf/matrix.txt
+
+[flags]
+noderive=Yes

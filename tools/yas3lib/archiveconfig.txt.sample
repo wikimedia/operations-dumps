@@ -1,0 +1,12 @@
+# test file for config for yas3archive.py
+
+[auth]
+accesskey=XXXX
+secretkey=XXXX
+username=some.email@addy
+password=XXXX
+
+[host]
+s3host=s3.us.archive.org
+host=archive.org
+
