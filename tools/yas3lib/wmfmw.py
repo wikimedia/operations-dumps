@@ -203,6 +203,9 @@ def wmfmwUsage(message = None):
         sys.exit(1)
 
 if __name__ == "__main__":
+    """
+    Command line client to retrieve language code, language name and project name of the specified wiki
+    """
     # get the wiki name
     siteMatrixFile = None
     apiUrl = "http://en.wikipedia.org/w/api.php"

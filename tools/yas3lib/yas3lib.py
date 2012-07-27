@@ -1,8 +1,14 @@
+import socket
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
 import os, re, sys, time, hashlib, hmac, binascii, httplib, urllib, getopt, ConfigParser, xml.etree.ElementTree
 from yas3http import YaS3HTTPDate, YaS3HTTPHeaders, YaS3HTTPCookie
 from utils import Err, ErrExcept, PPXML
 
-class YaS3UrlInfo(object):
+class YaS3UrlBuilder(object):
     """
     Methods for producing or retrieving the base url for some S3 request
     """
@@ -19,9 +25,8 @@ class YaS3UrlInfo(object):
         self.bucketName = bucketName
         self.remoteFileName = remoteFileName
         self.virtualHost = virtualHost
-        self.url = self._getUrlBase()
 
-    def _getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for S3 requests with the specified bucket and object
         If neither bucket nor object name were set in the constructor, the url / will be returned
@@ -35,9 +40,9 @@ class YaS3UrlInfo(object):
         else:
             return '/' + '/'.join(elts)
 
-    def resetUrl(self, bucketName = None, remoteFileName = None):
+    def reset(self, bucketName = None, remoteFileName = None):
         """
-        Reset the url attributes outside of the constructor
+        Reset the attributes outside of the constructor
 
         Arguments:
         bucketName      -- name of bucket, if any
@@ -47,15 +52,8 @@ class YaS3UrlInfo(object):
             self.bucketName = bucketName
         if remoteFileName:
             self.remoteFileName = remoteFileName
-        self.url = self._getUrlBase()
 
-    def getUrl(self):
-        """
-        Return the url for S3 requests corrsponding to the specified bucket/object
-        """
-        return self.url
-
-class YaS3ArbitraryUrl(YaS3UrlInfo):
+class YaS3ArbitraryUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving an arbitrary url
     """
@@ -67,14 +65,20 @@ class YaS3ArbitraryUrl(YaS3UrlInfo):
         Arguments:
         url -- the url (not the host/port/protocol) to be stored/retrieved
         """
-        self.url = url
+        self.arbitraryString = url
 
-class YaS3ListMPUploadsUrl(YaS3UrlInfo):
+    def buildUrl(self):
+        """
+        Return the base url for requests which have an arbitrary url
+        """
+        return self.arbitraryString
+
+class YaS3ListMPUploadsUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving the S3 url for listing multipart uploads
     """
 
-    def __init__(self, bucketName):
+    def __init__(self, bucketName, virtualHost = False):
         """
         Constructor
 
@@ -82,21 +86,24 @@ class YaS3ListMPUploadsUrl(YaS3UrlInfo):
         bucketName      -- name of bucket to list
         """
         self.bucketName = bucketName
-        self.url = self._getUrlBase()
+        self.virtualHost = virtualHost
 
     # FIXME if we have virtual hostname then what?
-    def _getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for listing S3 multipart uploads with the specified bucket
         """
-        return "/%s?uploads" % ( self.bucketName )
+        if self.virtualHost:
+            return "/?uploads"
+        else:
+            return "/%s?uploads" % ( self.bucketName )
 
-class YaS3StartMPUploadUrl(YaS3UrlInfo):
+class YaS3StartMPUploadUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving the base url for starting S3 multipart uploads
     """
 
-    def __init__(self, bucketName, remoteFileName ):
+    def __init__(self, bucketName, remoteFileName, virtualHost = False):
         """
         Constructor
 
@@ -106,21 +113,23 @@ class YaS3StartMPUploadUrl(YaS3UrlInfo):
         """
         self.bucketName = bucketName
         self.remoteFileName = remoteFileName
-        self.url = self._getUrlBase()
+        self.virtualHost = virtualHost
 
-    # FIXME if we have virtual hostname then what?
-    def _getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for starting an S3 multipart upload of the given object to the specified bucket
         """
-        return "/%s/%s?uploads" % ( self.bucketName, self.remoteFileName )
+        if self.virtualHost:
+            return "/%s?uploads" % self.remoteFileName
+        else:
+            return "/%s/%s?uploads" % ( self.bucketName, self.remoteFileName )
 
-class YaS3MPUploadUrl(YaS3UrlInfo):
+class YaS3MPUploadUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving the base url for ending/aborting S3 multipart uploads
     """
 
-    def __init__(self, bucketName, remoteFileName, mpUploadId ):
+    def __init__(self, bucketName, remoteFileName, mpUploadId, virtualHost = False):
         """
         Constructor
 
@@ -132,21 +141,23 @@ class YaS3MPUploadUrl(YaS3UrlInfo):
         self.bucketName = bucketName
         self.remoteFileName = remoteFileName
         self.mpUploadId = mpUploadId
-        self.url = self._getUrlBase()
+        self.virtualHost = virtualHost
 
-    # FIXME if we have virtual hostname then what?
-    def _getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for ending/aborting S3 multipart uploads of the given object to the specified bucket
         """
-        return "/%s/%s?uploadId=%s" % ( self.bucketName, self.remoteFileName, self.mpUploadId )
+        if self.virtualHost:
+            return "/%s?uploadId=%s" % ( self.remoteFileName, self.mpUploadId )
+        else:
+            return "/%s/%s?uploadId=%s" % ( self.bucketName, self.remoteFileName, self.mpUploadId )
 
-class YaS3UploadMPPartUrl(YaS3UrlInfo):
+class YaS3UploadMPPartUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving the base url for doing one part of an S3 multipart upload
     """
 
-    def __init__(self, bucketName, remoteFileName, mpPartNum, mpUploadId ):
+    def __init__(self, bucketName, remoteFileName, mpPartNum, mpUploadId, virtualHost = False):
         """
         Constructor
 
@@ -160,30 +171,34 @@ class YaS3UploadMPPartUrl(YaS3UrlInfo):
         self.remoteFileName = remoteFileName
         self.mpUploadId = mpUploadId
         self.mpPartNum = mpPartNum
-        self.url = self._getUrlBase()
+        self.virtualHost = virtualHost
 
-    # FIXME if we have virtual hostname then what?
-    def _getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for uploading one part of an S3 multipart upload to the given object and bucket
         """
-        return "/%s/%s?partNumber=%s&uploadId=%s" % ( self.bucketName, self.remoteFileName, self.mpPartNum, self.mpUploadId )
+        if self.virtualHost:
+            return "/%s?partNumber=%s&uploadId=%s" % ( self.remoteFileName, self.mpPartNum, self.mpUploadId )
+        else:
+            return "/%s/%s?partNumber=%s&uploadId=%s" % ( self.bucketName, self.remoteFileName, self.mpPartNum, self.mpUploadId )
 
 class YaS3AuthInfo(object):
     """
     Methods for S3 authoriazation
     """
 
-    def __init__(self, accessKey, secretKey):
+    def __init__(self, accessKey, secretKey, authType):
         """
         Constructor
 
         Argumnents:
         accessKey -- the account name
         secretKey -- the secret key used for signing requests
+        authType  -- "aws" or "low" depending on which s3 auth type we want
         """
         self.accessKey = accessKey
         self.secretKey = secretKey
+        self.authType = authType
 
     def getSig(self, reqType, contentMd5, contentType, date, url, amzheaders = []):
         """
@@ -208,6 +223,20 @@ class YaS3AuthInfo(object):
         result = hasher.digest()
         return binascii.b2a_base64(result).rstrip("\n")
 
+    def getS3AuthHeader(self, reqType, contentMd5, contentType, date, url, amzheaders = []):
+        if self.authType == "aws":
+            if self.accessKey and self.secretKey:
+                return self.getAWSHeader(reqType, contentMd5, contentType, date, url, amzheaders)
+            else:
+                return None
+        elif self.authType == "low":
+            if self.accessKey and self.secretKey:
+                return self.getAWSHeader(reqType, contentMd5, contentType, date, url, amzheaders)
+            else:
+                return self.getLOWHeader()
+        else:
+            return None
+
     def getAWSHeader(self, reqType, contentMd5, contentType, date, url, amzheaders = []):
         """
         Return value of HTTP Authorization header using standard S3 auth for given request parameters
@@ -222,7 +251,6 @@ class YaS3AuthInfo(object):
         """
         return ("AWS %s:%s" %( self.accessKey, self.getSig(reqType, contentMd5, contentType, date, url, amzheaders)))
 
-    # FIXME allow this to be set by something :-D
     def getLOWHeader(self):
         """
         Return value of HTTP Authorization header for archive.org of type 'LOW' (risky!!)
@@ -338,7 +366,7 @@ class YaS3Requester(object):
     Methods for making S3 requests
     """
 
-    def __init__(self, reqType, verbose, quiet):
+    def __init__(self, reqType, verbose, quiet, raw):
         """
         Constructor
 
@@ -346,14 +374,15 @@ class YaS3Requester(object):
         reqType   -- Type of HTTP request (GET/HEAD/PUT/POST/DELETE)
         verbose   -- print lots of messages about what's being processed including HTTP headers
         quiet     -- suppress all extra messages, even XML bodies returned by requests
+        raw       -- don't prettyprint xml output, display exactly what the server sent (for verbose)
         """
-        # FIXME what does quiet really suppress? not clear
         self.reqType = reqType
         self.verbose = verbose
         if self.verbose:
             self.quiet = False
         else:
             self.quiet = quiet
+        self.raw = raw
         self.buffSize = 65536 # wonder what a good r/w buffer size is anyways
 
     def putHeaders(self, c, headerInfo):
@@ -367,10 +396,11 @@ class YaS3Requester(object):
         headerInfo  -- YaS3HTTPHeaders object
         """
         for h,v in headerInfo.headers:
-            c.conn.putheader(h,v)
+            c.putheader(h,v)
         if self.verbose:
-            headerInfo.printAllHeaders()
-        c.conn.endheaders()
+            print "headers sent:"
+            print headerInfo.printAllHeaders()
+        c.endheaders()
 
     def makeRequest(self, c, headerInfo, urlInfo, contentLength=None, md5=None):
         """
@@ -380,14 +410,14 @@ class YaS3Requester(object):
 
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         contentLength  -- content length of body to be sent, if any
         md5            -- base 64 of md5 of body to be sent, if any
         """
-        self.sendReqFirstLine(c, urlInfo.getUrl())
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
@@ -404,10 +434,8 @@ class YaS3Requester(object):
         """
         reason = reply.reason
         status = reply.status
-        if not self.quiet and (not str(status).startswith('2') or self.verbose):
-            print status, reason
-
         if self.verbose:
+            print status, reason
             for (header, value) in headersReceived:
                 print "%s: %s" % (header, value)
 
@@ -417,9 +445,10 @@ class YaS3Requester(object):
             # FIXME needs timeouts
             data = reply.read(cl) if cl else reply.read()
             if self.verbose:
-                print "Response body from server:", data
-            if not self.quiet:
-                PPXML.cheapPrettyPrintXML(data)
+                if self.raw:
+                    print "Response body from server:", data
+                else:
+                    PPXML.cheapPrettyPrintXML(data)
         return data
 
     def getContentLengthFromHeaders(self, headers):
@@ -443,19 +472,33 @@ class YaS3Requester(object):
         Arguments:
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         contentLength  -- content length of body to be sent, if any
         md5            -- base 64 of md5 of body to be sent, if any
         localFileName  -- full path of local file to upload
         mpFileOffset   -- upload from this point in the file
         mpChunkSize    -- upload at most this many bytes of file
         """
-        self.sendReqFirstLine(c, urlInfo.getUrl())
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
+        # if we did the expect 100-continue trick, make sure we got the 100 status code back
+        # otherwise we will return what we got (should be a redir) and let the caller deal
+        if headerInfo.findHeader("Expect") == "100-continue":
+            oldTimeout = c.timeout
+            c.timeout = 2
+            c.callback = self.sendFile
+            c.callbackArgs = ( c, localFileName, mpFileOffset, mpChunkSize )
+            reply = c.getresponse()
+            c.timeout = oldTimeout
+            if reply.status != 100:
+                headersReceived = reply.getheaders()
+                data = self.getResponse(reply, headersReceived)
+                return reply, data
+                
+        else:
+            self.sendFile(c, localFileName, mpFileOffset, mpChunkSize)
+            reply = c.getresponse()
 
-        self.sendFile(c, localFileName, mpFileOffset, mpChunkSize)
-
-        reply = c.conn.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
@@ -467,13 +510,13 @@ class YaS3Requester(object):
         Arguments:
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         localFileName  -- full path of local file where object will be saved
         """
-        self.sendReqFirstLine(c, urlInfo.getUrl())
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
 
         headersReceived = reply.getheaders()
         if str(reply.status).startswith('2'):
@@ -491,7 +534,7 @@ class YaS3Requester(object):
         c             -- YaS3Connection object
         url           -- url of request without host/port/protocol
         """
-        c.conn.putrequest(self.reqType, url, skip_host = True, skip_accept_encoding = True)
+        c.putrequest(self.reqType, url, skip_host = True, skip_accept_encoding = True)
         if self.verbose:
             print "%s %s HTTP/1.1" %( self.reqType, url )
 
@@ -514,7 +557,7 @@ class YaS3Requester(object):
         data = infd.read(byteCount if byteCount and byteCount < self.buffSize else self.buffSize)
         while data:
             bytesRead += len(data)
-            c.conn.send(data)
+            c.send(data)
             if bytesRead == byteCount:
                 break
             data = infd.read(byteCount - bytesRead if byteCount and byteCount - bytesRead < self.buffSize else self.buffSize)
@@ -537,8 +580,7 @@ class YaS3Requester(object):
             data = reply.read(self.buffSize)
         outfd.close()
 
-    # fixme why is 'XML' in the name? oh well
-    def makePostRequestWithXML(self, c, headerInfo, urlInfo, xml):
+    def makePostRequestWithData(self, c, headerInfo, urlInfo, data):
         """
         Do an HTTP POST request to remote server, sending body text in the post
         It is assumed that the caller has already sent the first line
@@ -548,50 +590,227 @@ class YaS3Requester(object):
         Arguments:
         c           -- YaS3Connection object
         headerInfo  -- YaS3HTTPHeaders object
-        urlInfo     -- YaS3UrlInfo object
+        urlInfo     -- YaS3UrlBuilder object
         xml         -- text to be sent in body
         """
-        self.sendReqFirstLine(c, urlInfo.getUrl())
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
-        # FIXME is it possible for the xml to be larger than a standard buffer size of 64k?
-        c.conn.send(xml)
+        # FIXME is it possible for the data to be larger than a standard buffer size of 64k?
+        c.send(data)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
 
-class YaS3Connection(object):
+class YaS3Response(httplib.HTTPResponse):
     """
-    Methods for managing the HTTP connection to a remote server
+    hack for HTTPResponse so it isn't stupid about 100-Continue
+    The below code taken from httplib.HTTPResponse, 78261:d56306b78b6,
+    http://hg.python.org/cpython/file/2.7/Lib/httplib.py, modified for Expect: 100-Continue
     """
 
-    def __init__(self, host, port):
+    def begin(self, version, status, reason):
+        if self.msg is not None:
+            # we've already started reading the response
+            return
+
+        # read until we get a non-100 response
+        while True:
+            if status != 100:
+                break
+            # skip the header from the 100 response
+            while True:
+                skip = self.fp.readline(httplib._MAXLINE + 1)
+                if len(skip) > httplib._MAXLINE:
+                    raise LineTooLong("header line")
+                skip = skip.strip()
+                if not skip:
+                    break
+                if self.debuglevel > 0:
+                    print "header:", skip
+            # move this to the end since we have moved the 100 continue check
+            # and subsequent read of status outside of this method... and this is
+            # why we have to include the entire method. grrr
+            version, status, reason = self._read_status()
+
+        self.status = status
+        self.reason = reason.strip()
+        if version == 'HTTP/1.0':
+            self.version = 10
+        elif version.startswith('HTTP/1.'):
+            self.version = 11 # use HTTP/1.1 code for HTTP/1.x where x>=1
+        elif version == 'HTTP/0.9':
+            self.version = 9
+        else:
+            raise UnknownProtocol(version)
+
+        if self.version == 9:
+            self.length = None
+            self.chunked = 0
+            self.will_close = 1
+            self.msg = httplib.HTTPMessage(StringIO())
+            return
+
+        self.msg = httplib.HTTPMessage(self.fp, 0)
+        if self.debuglevel > 0:
+            for hdr in self.msg.headers:
+                print "header:", hdr,
+
+        # don't let the msg keep an fp
+        self.msg.fp = None
+
+        # are we using the chunked-style of transfer encoding?
+        tr_enc = self.msg.getheader('transfer-encoding')
+        if tr_enc and tr_enc.lower() == "chunked":
+            self.chunked = 1
+            self.chunk_left = None
+        else:
+            self.chunked = 0
+
+        # will the connection close at the end of the response?
+        self.will_close = self._check_close()
+
+        # do we have a Content-Length?
+        # NOTE: RFC 2616, S4.4, #3 says we ignore this if tr_enc is "chunked"
+        length = self.msg.getheader('content-length')
+        if length and not self.chunked:
+            try:
+                self.length = int(length)
+            except ValueError:
+                self.length = None
+            else:
+                if self.length < 0: # ignore nonsensical negative lengths
+                    self.length = None
+        else:
+            self.length = None
+
+        # does the body have a fixed length? (of zero)
+        if (status == httplib.NO_CONTENT or status == httplib.NOT_MODIFIED or
+            100 <= status < 200 or # 1xx codes
+            self._method == 'HEAD'):
+            self.length = 0
+
+        # if the connection remains open, and we aren't using chunked, and
+        # a content-length was not provided, then assume that the connection
+        # WILL close.
+        if not self.will_close and \
+                not self.chunked and \
+                self.length is None:
+            self.will_close = 1
+
+    def check100Continue(self, method, args):
+        if self.msg is not None:
+            # we've already started reading the response
+            return
+
+        version, status, reason = self._read_status()
+        if status == 100:
+            line = self.fp.readline() # skip the blank line marking end of (non-existent) headers, ugh
+            if line != "\r\n":
+                Err.whine("Unexpected content received after 100 Continue: >>%s<<" % line)
+            if method:
+                method(*args)
+            version, status, reason = self._read_status()
+        
+        return (version, status, reason)
+
+class YaS3Connection(httplib.HTTPConnection):
+    """
+    Methods for managing the HTTP connection to a remote server
+    The below code taken from HTTPConnection, 78261:d56306b78b6,
+    http://hg.python.org/cpython/file/2.7/Lib/httplib.py, modified for Expect: 100-Continue
+    """
+
+    def __init__(self, host, port, protocol, strict=None,
+                 timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
         """
         Constructor
 
         Arguments:
-        host   -- fqdn of remote server
-        port   -- port number of connection
+        host     -- fqdn of remote server
+        port     -- port number of connection
+        protocol -- http or https
         """
-        self.conn = httplib.HTTPConnection(host, port)
-
-    def open(self):
-        """
-        Initiate the connection
-        """
-        self.conn.connect()
-
-    def close(self):
-        """
-        Close the connection
-        """
-        self.conn.close()
+        # grrr, old-style class
+        httplib.HTTPConnection.__init__(self, host, port, strict, timeout, source_address)
+        self.response_class = YaS3Response
+        self.protocol = protocol
+        # these get set later just before any request you would
+        # do with expect: 100-continue; since they are connection-specific
+        # and you probably don't want to use the same callbacks for all requests
+        # but only e.g. upload objects
+        self.callback = None
+        self.callbackArgs = None
 
     def resetHostAndPort(self, host, port):
         """
         Set the host and port outside of the constructor
+        This will close the connection if the new host is different
+        than the old one.
         """
-        self.conn.host = host
-        self.conn.port = port
+        if self.host != host or self.port != port:
+            # this can be called multiple times (at elast with the existing httplib code:-P)
+            self.close()
+
+        self.host = host
+        self.port = port
+
+    def getresponse(self, buffering=False):
+        """Code stolen right out ot HTTPResponse. Need it so we can 
+        add code to check for the 100 continue response before we hit
+        begin()"""
+
+        "Get the response from the server."
+
+        # if a prior response has been completed, then forget about it.
+        if self._HTTPConnection__response and self._HTTPConnection__response.isclosed():
+            self._HTTPConnection__response = None
+
+        #
+        # if a prior response exists, then it must be completed (otherwise, we
+        # cannot read this response's header to determine the connection-close
+        # behavior)
+        #
+        # note: if a prior response existed, but was connection-close, then the
+        # socket and response were made independent of this HTTPConnection
+        # object since a new request requires that we open a whole new
+        # connection
+        #
+        # this means the prior response had one of two states:
+        # 1) will_close: this connection was reset and the prior socket and
+        # response operate independently
+        # 2) persistent: the response was retained and we await its
+        # isclosed() status to become true.
+        #
+        if self._HTTPConnection__state != httplib._CS_REQ_SENT or self._HTTPConnection__response:
+            raise httplib.ResponseNotReady()
+
+        args = (self.sock,)
+        kwds = {"strict":self.strict, "method":self._method}
+        if self.debuglevel > 0:
+            args += (self.debuglevel,)
+        if buffering:
+            #only add this keyword if non-default, for compatibility with
+            #other response_classes.
+            kwds["buffering"] = True;
+        response = self.response_class(*args, **kwds)
+
+        # here's the reason we had to include this whole function :-/
+        (v, s, r) = response.check100Continue(self.callback, self.callbackArgs)
+        response.begin(v, s, r)
+
+        assert response.will_close != httplib._UNKNOWN
+        self._HTTPConnection__state = httplib._CS_IDLE
+
+        if response.will_close:
+            # this effectively passes the connection to the response
+            self.close()
+        else:
+            # remember this, so we can tell when it is complete
+            self._HTTPConnection__response = response
+
+        return response
+
+

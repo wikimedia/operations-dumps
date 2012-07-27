@@ -1,28 +1,18 @@
-100 continue support for PUT object (sometimes we might get a redir after sending all the data otherwise,
-    see  http://docs.amazonwebservices.com/AmazonS3/latest/dev/RESTRedirect.html)
-make sure that we always tear down all connections (which we don't reuse, so any new conn = we tore down 
-    the old one)
 keep-alive, when do we want it? 
+
 connection at s3session level maybe (for multiple requests over one connection)? right now it's one conn 
     per request
-clean up/add Location header handling generally
-
-size hint header for archive.org for dumps!!
-
-virtualhost stuff (it's implemented --brokenly--, untested, etc)
-
-pretty print xml replies only if we want? a flag, an arg?  or we print when we get the response back??
-make sure all verbose prints have labelled what they are printing (example: arg dicts)
-too verbose when --verbose is off, clean that up too
-
-move requestinfo into handler and out of main? 
-utf8 in meta fields, do we need to do anything about this?? how about in filenames or bucket names?
 
 all fixmes
 
+make sure that we always tear down all connections (which we don't reuse, so any new conn = we tore down 
+    the old one and we don't accumulate tons of them in an "uploadobjectasmp" for example)
+
 suport https (do we need to do server verification of certs? ooouuucch if we do. but otherwise
   we are open to MITM. I guess first round will not verify.
+
 check what google storage extensions are or if it needs anything interesting
+
 resume upload (see gsutils)
 
 timeout for read of content-length (or especially when there is none), don't want to hang if the 
@@ -31,18 +21,9 @@ timeout for read of content-length (or especially when there is none), don't wan
 maybe be better about some of the import statements, there's rather a lot of stuff listed, also 
   lose any we don't need
 
-suppose I want a file to remove some args from a previous parent class (like wmfarchive maybe 
-  doesn't want the title arg to be passed around... though it could be in the config file 
-  anyways, ugh)... handle this
-
-short forms for options: operation, bucket, remotefile, localfile, configfile, verbose, quiet
-are all mandatory args specified for all ops? when do we not need accsskey secret key for listing
-    stuff (maybe for listing contents of someone's bucket)?
-
-parse xml back from allcommands that show it (listing buckets, etc) and display those results instead
-add specific wmf useragent string to wmfarchive.py
 see how much of the cookie stuff we can do via the python libraries
-in some routines like verifyobject they seemed to work even though we setUrlInfo from argDict
-    and not self.argDict (this is now fixed in the code), is there pollution of the namespace
-    from someplace? check this. note that a corresponding error in getbucketiametadata called
-    however from wmfarchive.py *did* error out as it should have
+
+non quiet should display the server response body in case of error response? if it's xml maybe so, decide something and implement
+
+when verifiyobject fails it ought (?) to return in some fashion a failure code so that __main__ or the caller can be 
+  informed; currently the caller just gets the http status codes (which of course will be "good")

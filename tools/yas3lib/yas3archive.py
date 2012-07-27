@@ -1,6 +1,6 @@
 import os, re, sys, time, hashlib, hmac, binascii, httplib, getopt, yas3lib, urllib, json, ConfigParser, yas3http, xml.etree.ElementTree
-from yas3lib import YaS3AuthInfo, YaS3Requester, YaS3UrlInfo, YaS3ArbitraryUrl
-from yas3 import YaS3Err, YaS3Handler, YaS3HandlerFactory, YaS3SessionInfo, YaS3RequestInfo, YaS3Args, YaS3Lib
+from yas3lib import YaS3AuthInfo, YaS3Requester, YaS3UrlBuilder, YaS3ArbitraryUrl
+from yas3 import YaS3Err, YaS3Handler, YaS3HandlerFactory, YaS3SessionInfo, YaS3Args, YaS3Lib
 from yas3 import  YaS3ListBucketsHandler, YaS3ListOneBucketHandler, YaS3GetObjectHandler, YaS3CreateBucketHandler, YaS3UploadObjectHandler
 from yas3 import YaS3GetObjectS3MetadataHandler, YaS3GetBucketS3MetadataHandler, YaS3DeleteObjectHandler, YaS3DeleteBucketHandler
 from yas3 import YaS3StartMPUploadHandler, YaS3EndMPUploadHandler, YaS3AbortMPUploadHandler
@@ -44,69 +44,6 @@ class YaS3IAMetadata(object):
         else:
             return "x-archive-meta-" + fieldName
 
-class YaS3IASessionInfo(YaS3SessionInfo):
-    """
-    Session info and methods for archive.org sessions
-    """
-
-    def __init__(self, errors, s3Host, host):
-        """
-        Constructor
-
-        Arguments:
-        errors     -- YaS3Err object (for usage messages)
-        s3Host     -- fqdn for host for s3 operations
-        host       -- fqdn for hos for non-S3 operations
-        """
-        super(YaS3IASessionInfo,self).__init__(errors)
-        self.connType = None # 's3' for s3 requests, or 'other' for everything else
-
-        # need these member vars here so we can switch between them for setting the
-        # host in the YaS3RequestInfo object
-        self.host = host # for non s3 requests
-        self.s3Host = s3Host # for s3 requess
-
-    def setConnType(self, ctype):
-        """
-        Set connection type as specified, change name of remote host accordingly
-        
-        Arguments:
-        ctype     -- "s3" for s3 operations, or "other" for everything else
-        """
-        # FIXME what about virtual host stuff?
-        if ctype == "s3":
-            self.connType = ctype
-            if self.request:
-                self.request.host = self.s3Host
-        elif ctype == "other":
-            self.connType = ctype
-            if self.request:
-                self.request.host = self.host
-        else:
-            raise ErrExcept("unknown connection type requested, %s " % ctype)
-
-    def setHost(self, host):
-        """
-        Set session host information
-        
-        Arguments:
-        host     -- fqdn of remote server
-        """
-        if self.connType == "s3":
-            self.s3Host = host
-        else:
-            self.host = host
-        self.request.host = host
-
-    def getHost(self):
-        """
-        Return name of host in for current session connection type
-        """
-        if self.connType == "s3":
-            return self.s3Host
-        else:
-            return self.host
-
 class YaS3IAAuthInfo(YaS3AuthInfo):
     """
     Methods for S3 authorization and authentication to 
@@ -114,7 +51,7 @@ class YaS3IAAuthInfo(YaS3AuthInfo):
 
     """
 
-    def __init__(self, accessKey, secretKey, username, password):
+    def __init__(self, accessKey, secretKey, authType, username, password):
         """
         Constructor
 
@@ -122,16 +59,16 @@ class YaS3IAAuthInfo(YaS3AuthInfo):
         username    -- username for non S3 requests to archive.org
         password    -- password for non S3 requests to archive.org
         """
-        super(YaS3IAAuthInfo,self).__init__(accessKey, secretKey)
+        super(YaS3IAAuthInfo,self).__init__(accessKey, secretKey, authType)
         self.username = username
         self.password = password
 
-class YaS3IAObjectMetadataUrl(YaS3UrlInfo):
+class YaS3IAObjectMetadataUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving the base url for retrieving archive.org metadata for an object
     """
 
-    def __init__(self, bucketName = None, remoteFileName = None):
+    def __init__(self, bucketName = None, remoteFileName = None, virtualHost = False):
         """
         Constructor
 
@@ -141,10 +78,9 @@ class YaS3IAObjectMetadataUrl(YaS3UrlInfo):
         """
         self.bucketName = bucketName
         self.remoteFileName = remoteFileName
-        self.url = self.getUrlBase()
 
     # example: (http://archive.org)  /details/elwiktionary-dumps?output=json
-    def getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for getting archive.org metadata for an object (file)
         """
@@ -154,7 +90,7 @@ class YaS3IAObjectMetadataUrl(YaS3UrlInfo):
         else:
             return "/details/" + "/".join(elts) + "?output=json"
 
-class YaS3IAFilesXMLUrl(YaS3UrlInfo):
+class YaS3IAFilesXMLUrl(YaS3UrlBuilder):
     """
     Methods for producing or retrieving the base url for retrieving the *_files.xml file from 
     archive.org for given bucket (item)
@@ -168,9 +104,8 @@ class YaS3IAFilesXMLUrl(YaS3UrlInfo):
         bucketName  -- name of bucket from which to get the *_files.xml file
         """
         self.bucketName = bucketName
-        self.url = self.getUrlBase()
 
-    def getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for getting the <bucketname>_files.xml file from archive.org for
         a given bucket (item)
@@ -178,9 +113,9 @@ class YaS3IAFilesXMLUrl(YaS3UrlInfo):
         # fixme what happens if these filenames have utf8 in them?? check
         return "/download/%s/%s_files.xml" % (self.bucketName, self.bucketName)
 
-class YaS3IAShowBucketStatusUrl(YaS3UrlInfo):
+class YaS3IAShowBucketStatusUrl(YaS3UrlBuilder):
     """
-    Methods for producing or retrieving the base url for showing the staatus of jobs
+    Methods for producing or retrieving the base url for showing the status of jobs
     for the specified bucket on archive.org
     """
 
@@ -192,10 +127,8 @@ class YaS3IAShowBucketStatusUrl(YaS3UrlInfo):
         bucketName  -- name of bucket of which to show the job status
         """
         self.bucketName = bucketName
-        self.url = self.getUrlBase()
 
-    # example: (http://archive.org)  /details/elwiktionary-dumps?output=json
-    def getUrlBase(self):
+    def buildUrl(self):
         """
         Return the base url for getting the html output listing jobs that have
         run or are scheduled to run for the specific bucket (item) on archive.org
@@ -207,17 +140,11 @@ class YaS3IAHandler(YaS3Handler):
     Base handler class for archive.org S3 or non-S3 operations
     """
 
-    def __init__(self, ops, argDict, s3Sess):
+    def getUserAgent(self):
         """
-        Constructor
-
-        Arguments:
-        ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
-        s3Sess      -- YaS3SessonInfo object
+        Return a string with the value that will be put in the UserAgent HTTP header
         """
-        # FIXME what did I need this class for again??
-        super(YaS3IAHandler,self).__init__(ops, argDict, s3Sess)
+        return "yas3archive.py/0.2-pre (from yet another s3 library)"
 
 class YaS3IAShowBucketStatusHandler(YaS3IAHandler):
     """
@@ -229,18 +156,17 @@ class YaS3IAShowBucketStatusHandler(YaS3IAHandler):
     on further action from archive.org."""
     mandatory = [ "username", "password", "host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3IAShowBucketStatusHandler,self).__init__(ops, argDict, s3Sess)
-        self.s3Sess.setConnType("other") # this is not an s3 request
-        self.connection.resetHostAndPort(self.s3Sess.getHost(), self.s3Sess.getPort()) # must reset host too
+        super(YaS3IAShowBucketStatusHandler,self).__init__(ops, args, s3Sess)
+        self.connection.resetHostAndPort(self.argDict["host"], self.argDict["port"]) # must reset host too
         self.reqType = "GET"
 
     def doLogin(self):
@@ -248,7 +174,7 @@ class YaS3IAShowBucketStatusHandler(YaS3IAHandler):
         Log into archive.org using non-S3 credentials, get login cookies back
         and stash them in the session
         """
-        s3 = self.ops["login"][0](self.ops, self.argDict, self.s3Sess)
+        s3 = self.ops["login"][0](self.ops, self.args, self.s3Sess)
         s3.setUp()
 
         result = s3.runS3()
@@ -257,43 +183,65 @@ class YaS3IAShowBucketStatusHandler(YaS3IAHandler):
             print "login cookies are:"
             for c in self.s3Sess.cookies:
                 c.displayCookie()
-        if result.status == 307:
-            s3.setupForNewLocation(result)
-            result = s3.runS3()
-            if self.argDict["verbose"]:
-                print "cookies are now:"
-                for c in self.s3Sess.cookies:
-                    c.displayCookie()
 
-    def doS3(self):
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
         """
-        """
-        """ordinary http request, no authentication, expect json output"""
         self.setUrlInfo(YaS3IAShowBucketStatusUrl(self.argDict["bucketName"]))
-        self.doLogin()
-        headerInfo = self.setHeadersWithNoAuth()
-        self.setOtherHeaders(headerInfo)
+
+        result = self.doS3()
+        if self.mustRedoReqAfterRedir(result):
+            # not sure about stash/restore here... generally check all those FIXME 
+            result = self.doS3()
+        elif self.mustDoGetReqAfterRedir(result):
+            result = self.doS3(True)
+        return result
+
+    def doS3(self, redir = False):
+        """
+        Do a single request for job status for one bucket, without following Location header
+        This is a non S3 request with no authentication and with html output which we parse
+        """
+        if not redir:  # get creds
+            # fixme we should only do this if our existing creds aren't good
+            # so write something to check them
+            self.doLogin()
+
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, auth = False)
 
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, html = self.s3Req.makeLoggedInGetRequest(self.connection, headerInfo, self.s3Sess.urlInfo, self.s3Sess.cookies)
+        reply, html = self.s3Req.makeLoggedInGetRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = html
-        if html:
-            self.showBucketStatusFromHtml(html)
+        self.showBucketStatusFromHtml()
         self.restoreUrlInfo()
         return reply
 
     # fixme yas3Connection is global or local to each s3 instance? check this! should be in session
     # somehow.
 
-    def showBucketStatusFromHtml(self, text):
+    def showBucketStatusFromHtml(self):
         """
         """
         """Wade through the html output to find information 
         about each job we have requested and its status.
         THIS IS UGLY and guaranteed to break in the future
         but hey, there's no json output available, nor xml."""
+        if self.argDict["quiet"]:
+            return
+
+        if not self.s3Sess.data:
+            return
+
+        if self.argDict["raw"]:
+            print self.s3Sess.data
+            return
+
+        text = self.s3Sess.data
+
         htmlTagExpr = re.compile("(<[^>]+>)+")
         # get the headers for the table of tasks; we will find something that looks like
         #
@@ -311,8 +259,6 @@ class YaS3IAShowBucketStatusHandler(YaS3IAHandler):
             # table starts after <!--task_ids: nnnnnnnn -->  where the nnnnnnn (digits) may be missing
             end = text.find("<!--task_ids: ",start)
             content = text[start:end]
-            if self.argDict["verbose"]:
-                print "content is", content
             lines = content.split("</th>")
             lines = [ re.sub(htmlTagExpr,'',line).strip() for line in lines if line.find('<th><b><a href="/catalog.php?history=1&identifier=') != -1 ]
             print " | ".join(filter(None, lines))
@@ -374,34 +320,42 @@ class YaS3IAShowBucketStatusHandler(YaS3IAHandler):
 class YaS3IACheckBucketExistenceHandler(YaS3IAHandler):
     """
     Handler for requests to check if a given bucket exists or not
-    This is a HEAD request, not an official S3 operation
+    This is a HEAD request via S3 but not an official S3 operation
     """
 
-    mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName" ]
+    mandatory = [ "s3Host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3IACheckBucketExistenceHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3IACheckBucketExistenceHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "HEAD"
+
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
+
+        return self.runWithRedirs()
 
     def doS3(self):
         """
+        Do a single check that a bucket exists (by HEAD on the bucket), without following Location header
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
-        headerInfo = self.setHeadersWithNoAuth()
+        headerInfo = self.setStandardHeaders()
         self.setOtherHeaders(headerInfo)
 
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeAnonHeadRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, data = self.s3Req.makeAnonHeadRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
@@ -415,37 +369,61 @@ class YaS3IAGetFilesXMLHandler(YaS3IAHandler):
     """
     mandatory = [ "host", "bucketName" ]
         
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3IAGetFilesXMLHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3IAGetFilesXMLHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
-        self.s3Sess.setConnType("other") # this is not an s3 request
-        self.connection.resetHostAndPort(self.s3Sess.getHost(), self.s3Sess.getPort())
+        self.connection.resetHostAndPort(self.argDict["host"], self.argDict["port"])
+
+    def runS3(self):
+        """ 
+        Do a single S3 request, following redirects
+        """
+        self.setUrlInfo(YaS3IAFilesXMLUrl(self.argDict["bucketName"]))
+
+        result =  self.runWithRedirs()
+        self.displayXmlData()
+        return result
+
+    def displayXmlData(self):
+        """
+        Dig out the relevant bits from (successful) XML response body and
+        display to stdout
+        """
+        if self.argDict["quiet"]:
+            return
+
+        if not self.s3Sess.data:
+            return
+
+        if self.argDict["raw"]:
+            print self.s3Sess.data
+            return
+
+        tree =  xml.etree.ElementTree.fromstring(self.s3Sess.data)
+        elts = tree.findall('file')
+
+        for i in elts:
+            print "%s   " % "file",
+            print "name:%s|%s" % ( i.attrib["name"], "|".join([ "%s:%s" % (j.tag, j.text) for j in list(i) ]))
 
     def doS3(self):
         """
         """
-        self.setUrlInfo(YaS3IAFilesXMLUrl(self.argDict["bucketName"]))
-        headerInfo = self.setHeadersWithNoAuth()
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, auth = False)
 
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeAnonGetRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
-        if reply.status == 302:
-            self.setupForNewLocation(reply)
-            # have to redo these, host or something may be different
-            headerInfo = self.setHeadersWithNoAuth()
-            reply, data = self.s3Req.makeAnonGetRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
-
+        reply, data = self.s3Req.makeAnonGetRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
@@ -457,32 +435,43 @@ class YaS3IAVerifyObjectHandler(YaS3IAHandler):
     This is not an S3 request, it relies on both an S3 request and potentially a 
     non-S3 request to get the information
     """
-    mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "localFileName", "remoteFileName" ]
+    mandatory = [ "s3Host", "bucketName", "localFileName", "remoteFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3IAVerifyObjectHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3IAVerifyObjectHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "HEAD"
+
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
+
+        return self.runWithRedirs()
 
     def doS3(self):
         """
+        Do a single verification of one object (using its md5) against a local copy, without following Location header
         """
-        self.setUrlInfo(YaS3UrlInfo(argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
-        headerInfo = self.setHeadersWithNoAuth()
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, auth = False)
 
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeAnonHeadRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, data = self.s3Req.makeAnonHeadRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
+        # if there is a location header, return right here, let the caller do something about the redirect
+        if "location" in [ h for h, v in reply.getheaders() ]:
+            return reply
 
         md5sumFromEtag = self.getEtagValue(reply.getheaders())
         if not md5sumFromEtag:
@@ -491,9 +480,12 @@ class YaS3IAVerifyObjectHandler(YaS3IAHandler):
 
             # try another approach specific to archive.org, to get the md5s. 
             # retrieve the <bucketname>_files.xml file and poke around in there
-            s3 = self.ops["getfilesxml"][0](self.ops, self.argDict, self.s3Sess)
+            quiet = self.argDict["quiet"] # save the old value
+            self.argDict["quiet"] = True # verbose overrides this, but otherwise (normal run) we don't want the output
+            s3 = self.ops["getfilesxml"][0](self.ops, self.args, self.s3Sess)
             s3.setUp()
             reply = s3.runS3()
+            self.argDict["quiet"] = quiet # and restore the old value after the sub-operation runs
             if self.s3Sess.data:
                 tree =  xml.etree.ElementTree.fromstring(self.s3Sess.data)
                 flist = tree.findall('file')
@@ -509,7 +501,7 @@ class YaS3IAVerifyObjectHandler(YaS3IAHandler):
             if self.argDict["verbose"]:
                 print "File verified ok."
         else:
-            raise ErrExcept("File verification FAILED.")
+            print("File verification FAILED.")
 
         self.restoreUrlInfo()
         return reply
@@ -535,25 +527,35 @@ class YaS3IAGetBucketIAMetadataHandler(YaS3IAHandler):
 
     mandatory = [ "host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3IAGetBucketIAMetadataHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3IAGetBucketIAMetadataHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
-        self.s3Sess.setConnType("other") # this is not an s3 request
-        self.connection.resetHostAndPort(self.s3Sess.getHost(), self.s3Sess.getPort())
+        self.connection.resetHostAndPort(self.argDict["host"], self.argDict["port"])
 
-    def showBucketMetadataFromJson(self, jsonString):
+    def showBucketMetadataFromJson(self):
         """
         Grab the metadata for a bucket (item) from the json for the bucket details
         (contains lost of other cruft) and display to stdout
         """
+        if self.argDict["quiet"]:
+            return
+
+        if not self.s3Sess.data:
+            return
+
+        if self.argDict["raw"]:
+            print self.s3Sess.data
+            return
+
+        jsonString = self.s3Sess.data
         # sample output
         #"metadata":{ 
         #   "identifier":["elwiktionary-dumps"],
@@ -576,23 +578,29 @@ class YaS3IAGetBucketIAMetadataHandler(YaS3IAHandler):
         else:
             print "No metadata for", self.bucketName, "is available."
 
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
+        """
+        self.setUrlInfo(YaS3IAObjectMetadataUrl(self.argDict["bucketName"], self.argDict["remoteFileName"], virtualHost = self.argDict["virtualHost"]))
+
+        return self.runWithRedirs()
+
     def doS3(self):
         """
         Do a single retrieval of metadata for one bucket, without following Location header
         This is not an S3 request.  No authentication is required, and the data returned
         is json output.
         """
-        self.setUrlInfo(YaS3IAObjectMetadataUrl(self.argDict["bucketName"], self.argDict["remoteFileName"]))
-        headerInfo = self.setHeadersWithNoAuth()
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, auth = False)
 
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, json = self.s3Req.makeAnonGetRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, json = self.s3Req.makeAnonGetRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = json
-        if json:
-            self.showBucketMetadataFromJson(json)
+        self.showBucketMetadataFromJson()
         self.restoreUrlInfo()
         return reply
 
@@ -605,48 +613,52 @@ class YaS3IACreateBucketWithIAMetadataHandler(YaS3IAHandler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "collectionHdr", "titleHdr", "mediatypeHdr", "descriptionHdr" ]
 
-    def __init__(self, ops, argDict, s3Sess, iAMetadataArgs):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops             -- list of predefined operations from a HandlerFactory
-        argDict         -- dictionary of args (from command line/config file/defaults) and values
+        args            -- YaS3Args object
         s3Sess          -- YaS3SessonInfo object
-        iAMetadataArgs  -- list of args from predefined argument list that are in config section 'iametadata'
-                           (these would be used to construct headers to set archive.org metadata for a specified
-                           bucket (item) on archive.org
         """
-        super(YaS3IACreateBucketWithIAMetadataHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3IACreateBucketWithIAMetadataHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
-        self.iAMetadataArgs = iAMetadataArgs
+
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
+
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on create bucket with ia metadata, giving up")
 
     def doS3(self):
         """
         Do a single S3 create bucket request, adding in special metadata headers for 
         archive.org (x-archive-X), without following Location header.
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
-        headerInfo = self.setHeadersWithAwsAuth()
+        headerInfo = self.setStandardHeaders()
         self.setOtherHeaders(headerInfo)
 
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
 
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, auth = True):
         """
         """
-        super(YaS3IACreateBucketWithIAMetadataHandler,self).setOtherHeaders(headerInfo)
-        for (name, value) in self.iAMetadataArgs:
+#        self.setAwsAuthHeader(headerInfo)
+        for (name, value) in args.getIAMetadataArgs():
             if value:
                 headerInfo.addHeader(YaS3IAMetadata.getHeader(name), value)
         if self.argDict["bucketSize"]:
             headerInfo.addHeader("x-archive-size-hint", self.argDict["bucketSize"])
+        super(YaS3IACreateBucketWithIAMetadataHandler,self).setOtherHeaders(headerInfo, auth)
 
 class YaS3IAUpdateBucketIAMedataHandler(YaS3IACreateBucketWithIAMetadataHandler):
     """
@@ -656,11 +668,11 @@ class YaS3IAUpdateBucketIAMedataHandler(YaS3IACreateBucketWithIAMetadataHandler)
     blame the library, blame archive.org :-P)
     """
 
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, auth = True):
         """
         """
-        super(YaS3IAUpdateBucketIAMedataHandler,self).setOtherHeaders(headerInfo)
         headerInfo.addHeader("x-archive-ignore-preexisting-bucket", "1")
+        super(YaS3IAUpdateBucketIAMedataHandler,self).setOtherHeaders(headerInfo, auth)
 
 class YaS3IALoginHandler(YaS3IAHandler):
     """
@@ -670,19 +682,18 @@ class YaS3IALoginHandler(YaS3IAHandler):
 
     mandatory = [ "username", "password", "host" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3IALoginHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3IALoginHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "POST"
-        self.s3Sess.setConnType("other") # this is not an s3 request
-        self.connection.resetHostAndPort(self.s3Sess.getHost(), self.s3Sess.getPort()) # must reset host too
+        self.connection.resetHostAndPort(self.argDict["host"], self.argDict["port"]) # must reset host too
 
     # form elements: username (actual account name), password (actual account password)
     # remember   ('CHECKED')  submit ('Log in')
@@ -697,22 +708,37 @@ class YaS3IALoginHandler(YaS3IAHandler):
             params.append("%s=%s" % (urllib.quote(name), urllib.quote(paramsdict[name])))
         return "&".join(params)
 
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
+        """
+        # change this to suit your derived class 
+        self.setUrlInfo(YaS3ArbitraryUrl("/account/login.php"))
+
+        result = self.doS3()
+        if self.mustRedoReqAfterRedir(result):
+            # not sure about stash/restore here... generally check all those FIXME 
+            result = self.doS3()
+        elif self.mustDoGetReqAfterRedir(result):
+            # it so happens that archive.org will 302 us to the index.php page
+            # which we don't actually want/need for anything, so ignore
+            pass
+        return result
+
     def doS3(self):
         """
         Log in to archive.org using credentials for non-S3 requests and retrieve and store in
         session the login cookies for future requests, without following Location header
         This is not an S3 request.
         """
-        self.setUrlInfo(YaS3ArbitraryUrl("/account/login.php"))
-        headerInfo = self.setHeadersWithNoAuth()
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
         postBody = self.httpencode({"username": self.argDict["username"], "password": self.argDict["password"], "remember": "CHECKED", "submit": "Log in"})
-        headerInfo.addHeader("Content-Length", len(postBody))
+        self.setOtherHeaders(headerInfo, len(postBody))
         
         if not self.s3Req:
-            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeAnonPostRequest(self.connection, headerInfo, self.s3Sess.urlInfo, postBody)
+        reply, data = self.s3Req.makeAnonPostRequest(self.connection, headerInfo, self.urlInfo, postBody)
         self.s3Sess.data = data
         cookies = self.getLoginCookies(reply)
         if not len(cookies) or str(reply.status).startswith("4") or str(reply.status).startswith("5"):
@@ -721,12 +747,13 @@ class YaS3IALoginHandler(YaS3IAHandler):
         self.restoreUrlInfo()
         return reply
 
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, contentLength, auth = False):
         """
         """
-        super(YaS3IALoginHandler,self).setOtherHeaders(headerInfo)
         headerInfo.addHeader("Cookie", "test-cookie=1")
         headerInfo.addHeader("Content-Type", "application/x-www-form-urlencoded")
+        headerInfo.addHeader("Content-Length", contentLength)
+        super(YaS3IALoginHandler,self).setOtherHeaders(headerInfo, auth)
 
     def getLoginCookies(self, reply):
         """
@@ -737,7 +764,7 @@ class YaS3IALoginHandler(YaS3IAHandler):
             if (not len(l)) or (l[0] == '#'):
                 continue
             # example cookie: 'Set-Cookie: PHPSESSID=jixxxjctopm35cfortx06xx8x0; path=/; domain=.archive.org\r\n'
-            cookie = YaS3HTTPCookie(l.rstrip("\r\n"), self.s3Sess.getHost(), self.s3Sess.getProtocol(), self.s3Sess.getUrl())
+            cookie = YaS3HTTPCookie(l.rstrip("\r\n"), self.connection.host, self.connection.protocol, self.urlInfo.buildUrl())
             if cookie.name == "logged-in-user" or cookie.name == "logged-in-sig":
                     cookies.append(cookie)
         return cookies
@@ -753,12 +780,12 @@ class YaS3IAUploadObjectHandler(YaS3UploadObjectHandler):
     http://archive.org/about/faqs.php#236
     """
 
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, md5, contentLength, auth = True):
         """
         """
-        super(YaS3IAUploadObjectHandler,self).setOtherHeaders(headerInfo)
         if self.argDict["noderive"]:
             headerInfo.addHeader("x-archive-queue-derive", "0")
+        super(YaS3IAUploadObjectHandler,self).setOtherHeaders(headerInfo, md5, contentLength, auth)
 
 class YaS3IAEndMPUploadHandler(YaS3EndMPUploadHandler):
     """
@@ -773,12 +800,12 @@ class YaS3IAEndMPUploadHandler(YaS3EndMPUploadHandler):
 
     # FIXME check that thi really stops the derive proceess from starting up
     # for mp uploads
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, auth = True):
         """
         """
-        super(YaS3IAEndMPUploadHandler,self).setOtherHeaders(headerInfo)
         if self.argDict["noderive"]:
             headerInfo.addHeader("x-archive-queue-derive", "0")
+        super(YaS3IAEndMPUploadHandler,self).setOtherHeaders(headerInfo, auth)
 
 class YaS3IAHandlerFactory(YaS3HandlerFactory):
     """
@@ -804,19 +831,20 @@ class YaS3IAHandlerFactory(YaS3HandlerFactory):
     ops["checkbucketexistence"] = [ YaS3IACheckBucketExistenceHandler, "check if the specified bucket (item) exists or not" ]
     ops["getfilesxml"] = [ YaS3IAGetFilesXMLHandler, "get the archive.org X_files.xml file associated with the specified bucket (item)" ]
     ops["verifyobject"] = [ YaS3IAVerifyObjectHandler, "check the md5sum of the specified object (file) against the specified local copy" ]
+    for o in ["copyobject", "deletebucket"]:
+        del ops[o]
 
-    def __new__(cls, op, argDict, s3Sess):
+    def __new__(cls, op, args, s3Sess):
         """
         Given the specific operation, return a new Handler object for that operation
         """
         if op in YaS3IAHandlerFactory.ops:
-            return YaS3IAHandlerFactory.ops[op][0](YaS3IAHandlerFactory.ops, argDict, s3Sess)
+            return YaS3IAHandlerFactory.ops[op][0](YaS3IAHandlerFactory.ops, args, s3Sess)
         return None
         
 class IAMetadataHandlerFactory(YaS3IAHandlerFactory):
     """
-    Produce the right Handler object based on the S3 or non-S3 operation, passing in extra
-    args for archive.org metadata to the few Handlers that need it
+    Produce the right Handler object based on the S3 or non-S3 operation
     """
 
     introduction = [ "This library implements a subset of the S3 REST api for storage and",
@@ -835,16 +863,12 @@ class IAMetadataHandlerFactory(YaS3IAHandlerFactory):
     ops["createbucketwithiametadata"] = [ YaS3IACreateBucketWithIAMetadataHandler, "create specified bucket (item) providing archive.org (x-archive-X) metadata" ]
     ops["updatebucketiametadata"] = [ YaS3IAUpdateBucketIAMedataHandler, "update the archive.org metadata (x-archive-X) for the specified bucket (item)" ]
 
-    def __new__(cls, op, argDict, s3Sess, iAMetadataArgs):
+    def __new__(cls, op, args, s3Sess):
         """
-        Given the specific operation, return a new Handler object for that operation,
-        passing in args for archive.org metadata to the few Handlers that need it
+        Given the specific operation, return a new Handler object for that operation
         """
         if op in IAMetadataHandlerFactory.ops:
-            if op == "createbucketwithiametadata" or op == "updatebucketiametadata":
-                return IAMetadataHandlerFactory.ops[op][0](IAMetadataHandlerFactory.ops, argDict, s3Sess, iAMetadataArgs)
-            else:
-                return IAMetadataHandlerFactory.ops[op][0](IAMetadataHandlerFactory.ops, argDict, s3Sess)
+            return IAMetadataHandlerFactory.ops[op][0](IAMetadataHandlerFactory.ops, args, s3Sess)
         return None
         
 class YaS3IAArgs(YaS3Args):
@@ -864,25 +888,27 @@ class YaS3IAArgs(YaS3Args):
              config file section name for option, or None for options that won't be read from the config file
              short description (used for help messages)
              default value, or None if there is no default
+             short form of option (one letter) if any
         If the option name is "", the variable name is used as the option name as well
         """
         super(YaS3IAArgs,self).__init__()
+        self.removeArgs(["sourceBucketName"])  # archive.org doesn't support COPY so his arg is useless
         self.args.extend([
-                [ "username", "", True, "auth", "username for non-s3 requests", None ],
-                [ "password", "", True, "auth", "password for non-s3 requests", None ],
-                [ "host", "", True, "host", "host name for non s3 requests", "archive.org" ],
-                [ "noderive", "", False, "flags", "archive.org should not try to derive other formats from uploaded objects (files)", False ],
-                [ "bucketSize", "", True, "misc", "guess at ultimate bucket (item) size (used to set special archive.org header)", None ],
+                [ "username", "", True, "auth", "username for non-s3 requests", None, None ],
+                [ "password", "", True, "auth", "password for non-s3 requests", None, None ],
+                [ "host", "", True, "host", "host name for non s3 requests", "archive.org", None ],
+                [ "noderive", "", False, "flags", "archive.org should not try to derive other formats from uploaded objects (files)", False, None ],
+                [ "bucketSize", "bucketsize", True, "misc", "guess at ultimate bucket (item) size (used to set special archive.org header)", None, None ],
                 # If you change the config file section for these from iametadata to something
                 # else, change the method getIAMetadataArgs() below.
-                [ "collectionHdr", "collection", True, "iametadata", "archive.org collection name for bucket (item)", None ],
-                [ "titleHdr", "title", True, "iametadata", "archive.org title of bucket (item)", None ],
-                [ "mediatypeHdr", "mediatype", True, "iametadata", "archive.org mediatype of contents of bucket (item)", None ],
-                [ "descriptionHdr", "description", True, "iametadata", "archive.org description of contents of bucket (item)", None ],
-                [ "licenseUrlHdr", "licenseurl", True, "iametadata", "archive.org url of license for contents of bucket (item)", None ],
-                [ "formatHdr", "format", True, "iametadata", "archive.org file format of contents of bucket (item)", None ],
-                [ "dateHdr", "date", True, "iametadata", "archive.org date of contents of bucket (item)", None ],
-                [ "subjectHdr", "subject", True, "iametadata", "archive.org subject of contents of bucket (item)", None ]
+                [ "collectionHdr", "collection", True, "iametadata", "archive.org collection name for bucket (item)", None, None ],
+                [ "titleHdr", "title", True, "iametadata", "archive.org title of bucket (item)", None, None ],
+                [ "mediatypeHdr", "mediatype", True, "iametadata", "archive.org mediatype of contents of bucket (item)", None, None ],
+                [ "descriptionHdr", "description", True, "iametadata", "archive.org description of contents of bucket (item)", None, None ],
+                [ "licenseUrlHdr", "licenseurl", True, "iametadata", "archive.org url of license for contents of bucket (item)", None, None ],
+                [ "formatHdr", "format", True, "iametadata", "archive.org file format of contents of bucket (item)", None, None ],
+                [ "dateHdr", "date", True, "iametadata", "archive.org date of contents of bucket (item)", None, None ],
+                [ "subjectHdr", "subject", True, "iametadata", "archive.org subject of contents of bucket (item)", None, None ]
                 ])
 
     def getIAMetadataArgs(self):
@@ -911,13 +937,13 @@ class YaS3IARequester(YaS3Requester):
         Arguments:
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         contentLength  -- content length of body to be sent, if any
         """
-        self.sendReqFirstLine(c, urlInfo.url)
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
@@ -930,12 +956,12 @@ class YaS3IARequester(YaS3Requester):
         Arguments:
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         """
-        self.sendReqFirstLine(c, urlInfo.url)
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
@@ -948,23 +974,23 @@ class YaS3IARequester(YaS3Requester):
         Arguments:
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         postBody       -- text to be sent in request body
         """
-        self.sendReqFirstLine(c, urlInfo.url)
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
         if postBody and self.reqType == "POST":
             if self.verbose:
                 print "POST of >>>%s<<<" % postBody
-            c.conn.send(postBody)
+            c.send(postBody)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
 
-    def makeLoggedInGetRequest(self, c, headerInfo, urlInfo, cookies):
+    def makeLoggedInGetRequest(self, c, headerInfo, urlInfo):
         """
         Make a single logged in (using archive.org session cookies)
         GET request to archive.org, and get headers and response back
@@ -972,14 +998,13 @@ class YaS3IARequester(YaS3Requester):
         Arguments:
         c              -- YaS3Connection object
         headerInfo     -- YaS3HTTPHeaders object
-        urlInfo        -- YaS3UrlInfo object
+        urlInfo        -- YaS3UrlBuilder object
         cookies        -- login session cookies
         """
-        self.sendReqFirstLine(c, urlInfo.url)
-        headerInfo.addHeader("Cookie", "; ".join([ "%s=%s" % (cookie.name, cookie.value) for cookie in cookies if cookie.checkIfCookieValid() ]))
+        self.sendReqFirstLine(c, urlInfo.buildUrl())
         self.putHeaders(c, headerInfo)
 
-        reply = c.conn.getresponse()
+        reply = c.getresponse()
         headersReceived = reply.getheaders()
         data = self.getResponse(reply, headersReceived)
         return reply, data
@@ -1000,9 +1025,6 @@ class YaS3IALib(YaS3Lib):
         errors    -- YsS#Err object (for usage messages)
         """
         super(YaS3IALib,self).__init__(args, errors)
-        self.iAMetadataArgs = args.getIAMetadataArgs()
-        if self.argDict["verbose"]:
-            print self.iAMetadataArgs
 
 if __name__ == "__main__":
     """
@@ -1011,17 +1033,13 @@ if __name__ == "__main__":
 
     args = YaS3IAArgs()
     s3lib = YaS3IALib(args, YaS3Err(args, IAMetadataHandlerFactory.ops, IAMetadataHandlerFactory.introduction))
-    argDict = s3lib.argDict
-    iAMetadataArgs = s3lib.iAMetadataArgs
+    argDict = args.mergedDict
 
     s3lib.checkMissing([ "operation" ]) # the rest will be checked in the handlers
 
-    s3Sess = YaS3IASessionInfo(s3lib.errors, argDict["s3Host"], argDict["host"])
+    s3Sess = YaS3SessionInfo(s3lib.errors)
 
-    s3Sess.setConnType("s3") # default, specific handlers will override this. must be before setRequestInfo
-    s3Sess.setRequestInfo(YaS3RequestInfo(s3Sess.getHost(), argDict["port"], argDict["protocol"]))
-
-    s3 = IAMetadataHandlerFactory(argDict["operation"], argDict, s3Sess, iAMetadataArgs)
+    s3 = IAMetadataHandlerFactory(argDict["operation"], args, s3Sess)
     if not s3:
         s3lib.errors.usage("Unknown operation %s" % argDict["operation"])
 
@@ -1029,3 +1047,6 @@ if __name__ == "__main__":
 
     result = s3.runS3()
     s3.tearDown()
+    if result.status < 200 or result.status >= 400:
+        print "result status is", result.status
+        sys.exit(1)

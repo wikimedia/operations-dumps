@@ -1,28 +1,8 @@
 import os, re, sys, time, hashlib, hmac, binascii, httplib, urllib, getopt, ConfigParser, xml.etree.ElementTree
 from yas3http import YaS3HTTPDate, YaS3HTTPHeaders, YaS3HTTPCookie
-from yas3lib import YaS3UrlInfo, YaS3ArbitraryUrl, YaS3ListMPUploadsUrl, YaS3StartMPUploadUrl, YaS3MPUploadUrl, YaS3UploadMPPartUrl
+from yas3lib import YaS3UrlBuilder, YaS3ArbitraryUrl, YaS3ListMPUploadsUrl, YaS3StartMPUploadUrl, YaS3MPUploadUrl, YaS3UploadMPPartUrl
 from yas3lib import YaS3AuthInfo, YaS3LocalFile, YaS3Requester, YaS3Connection
 from utils import Err, ErrExcept, PPXML
-
-# FIXME this seems a bit useless as it is, maybe this should be moved into the sessioninfo object? 
-# or somewhere else?
-class YaS3RequestInfo(object):
-    """
-    A place to stash information about the remote server
-    """
-
-    def __init__(self, host, port, protocol):
-        """
-        Constructor
-
-        Arguments:
-        host       -- fqdn of remote server
-        port       -- port for connection to remote server
-        protocol   -- http or https
-        """
-        self.host = host
-        self.port = port
-        self.protocol = protocol
 
 class YaS3SessionInfo(object):
     """
@@ -37,25 +17,9 @@ class YaS3SessionInfo(object):
         errors       -- YAS3Err object
         """
         self.errors = errors
-        self.request = None # YaS3RequestInfo
         self.cookies = [] # list of YaS3HTTPCookies
         self.auth = None    # YaS3AuthInfo
-        self.urlInfo = None # YaS3UrlInfo
         self.data = None
-
-    def setRequestInfo(self, req):
-        """
-        Set the request attribute for the session
-        This also updates any cookies stored in the session
-        with the appropriate host/protocol information
-        
-        Arguments:
-        req     -- YaS3RequestInfo object
-        """
-        self.request = req
-        # update any cookies with the new remote host/protocol
-        for c in self.cookies:
-            c.setRemoteHostInfo(self.getHost(), self.getProtocol(), self.getUrl())
 
     def setAuthInfo(self, auth):
         """
@@ -75,86 +39,6 @@ class YaS3SessionInfo(object):
         """
         self.cookies = cookies
 
-    def setUrlInfo(self, url):
-        """
-        Set the url attribute of the object
-        This also updates any cookies stored in the session
-        with the appropriate url information
-        
-        Arguments:
-        url    -- YaS3UrlInfo object
-        """
-        self.urlInfo = url
-        # update any cookies with the new remote url
-        for c in self.cookies:
-            c.setRemoteHostInfo(self.getHost(), self.getProtocol(), self.getUrl())
-
-    def setHost(self, host):
-        """
-        Set remote host for session
-
-        Arguments:
-        host    -- fqdn of server for session
-        """
-        if self.request:
-            self.request.host = host
-
-    def setPort(self, port):
-        """
-        Set port for session
-
-        Arguments:
-        port    -- port of server for session
-        """
-        if self.request:
-            self.request.port = port
-
-    def setRemoteFileName(self, remoteFileName):
-        """
-        Set name of S3 object for session
-
-        Arguments:
-        remoteFileName  -- name of object (file) for the session
-        """
-        if self.urlInfo:
-            self.urlInfo.resetUrl(remoteFileName = remoteFileName)
-
-    def getHost(self):
-        """
-        Return name of remote host for session
-        """
-        if self.request:
-            return self.request.host
-        else:
-            return None
-
-    def getProtocol(self):
-        """
-        Return protocol used for session (http or https)
-        """
-        if self.request:
-            return self.request.protocol
-        else:
-            return None
-
-    def getUrl(self):
-        """
-        Return url (without host/port/protocol) in use for session
-        """
-        if self.urlInfo:
-            return self.urlInfo.getUrl()
-        else:
-            return None
-
-    def getPort(self):
-        """
-        Return port for remote server for session (as string)
-        """
-        if self.request:
-            return self.request.port
-        else:
-            return None
-
 class YaS3Args(object):
     """
     Manages arguments passed on the command line or in a config file
@@ -171,34 +55,37 @@ class YaS3Args(object):
              config file section name for option, or None for options that won't be read from the config file
              short description (used for help messages)
              default value, or None if there is no default
+             short form of option (one letter) if any
         If the option name is "", the variable name is used as the option name as well
         
         The varname configFile and the varnames help and helpops should be present if you want 
         config file handling or help messages for the user.
         """
         self.args = [ 
-            [ "help", "", False, None, "display this help message", False ],
-            [ "helpop", "", True, None, "display help for the specified operation", False ],
-            [ "accessKey", "accesskey", True, "auth", "access key for s3 requests", None ],
-            [ "secretKey", "secretkey", True, "auth", "secret key for s3 requests", None ],
-            [ "s3Host", "s3host", True, "host", "hostname for s3 requests", None ],
-            [ "port", "", True, "host", "port number for requests", "80" ],
-            [ "protocol", "", True, "host", "protocol for requests", "http" ],
-            [ "virtualHost", "virtualhost", False, "flags", "use virtual host style requests built from the bucket name", False ],
-            [ "dryrun", "", False, None, "don't save/upload but describe what would be done", False ],
-            [ "verbose", "", False, "flags", "print headers and other data from the request", False ],
-            [ "quiet", "", False, "flags", "suppress normal output and error output (verbose overrides this)", False ],
-            [ "bucketName", "bucket", True, None, "bucket name for uploads/downloads/creation etc.", None ],
-            [ "sourceBucketName", "sourcebucket", True, None, "source bucket name for copy", None ],
-            [ "remoteFileName", "remotefile", True, None, "object name in bucket to get/put", None ],
-            [ "localFileName", "localfile", True, None, "path to local file to upload/save", None ],
-            [ "mpUploadId", "mpuploadid", True, None, "id of multipart upload for end/abort etc.", None ],
-            [ "mpPartNum", "mppartnum", True, None, "part number (in ascending order) of multipart upload", None ],
-            [ "mpPartsAndEtags", "mppartsetags", True, None, "comma-separated list of part number:etag of multipart upload", None ],
-            [ "mpChunkSize", "mpchunksize", True, "misc", "max size of file pieces in multipart upload", None ],
-            [ "mpFileOffset", "mpfileoffset", True, None, "offset into a local file for uploading it as multipart upload", "0" ],
-            [ "operation", "", True, None, "operation to perform", None ],
-            [ "configFile", "configfile", True, None, "full path to config file", None ]
+            [ "help", "", False, None, "display this help message", False, None ],
+            [ "helpop", "", True, None, "display help for the specified operation", False, None ],
+            [ "accessKey", "accesskey", True, "auth", "access key for s3 requests", None, None ],
+            [ "secretKey", "secretkey", True, "auth", "secret key for s3 requests", None, None ],
+            [ "authType", "auth", True, "auth", "type of authntication (aws or low)", "aws", 'a' ],
+            [ "s3Host", "s3host", True, "host", "hostname for s3 requests", None, None ],
+            [ "port", "", True, "host", "port number for requests", "80", None ],
+            [ "protocol", "", True, "host", "protocol for requests", "http", None ],
+            [ "virtualHost", "virtualhost", False, "flags", "use virtual host style requests built from the bucket name", False, None ],
+            [ "dryrun", "", False, None, "don't save/upload but describe what would be done", False, None ],
+            [ "verbose", "", False, "flags", "print headers and other data from the request", False, 'v' ],
+            [ "quiet", "", False, "flags", "suppress normal output and error output except usage messages (verbose overrides this)", False, 'q' ],
+            [ "raw", "", False, "flags", "display output from server as is, without prettyprinting or other formatting", False, None ],
+            [ "bucketName", "bucket", True, None, "bucket name for uploads/downloads/creation etc.", None, 'b' ],
+            [ "sourceBucketName", "sourcebucket", True, None, "source bucket name for copy", None, None ],
+            [ "remoteFileName", "remotefile", True, None, "object name in bucket to get/put", None, 'r' ],
+            [ "localFileName", "localfile", True, None, "path to local file to upload/save", None, 'l' ],
+            [ "mpUploadId", "mpuploadid", True, None, "id of multipart upload for end/abort etc.", None, None ],
+            [ "mpPartNum", "mppartnum", True, None, "part number (in ascending order) of multipart upload", None, None ],
+            [ "mpPartsAndEtags", "mppartsetags", True, None, "comma-separated list of part number:etag of multipart upload", None, None ],
+            [ "mpChunkSize", "mpchunksize", True, "misc", "max size of file pieces in multipart upload", None, None ],
+            [ "mpFileOffset", "mpfileoffset", True, None, "offset into a local file for uploading it as multipart upload", "0", None ],
+            [ "operation", "", True, None, "operation to perform", None, 'o' ],
+            [ "configFile", "configfile", True, None, "full path to config file", None, 'c' ]
             ]
         self.defaultsDict = None  # default values for all args
         self.configDict = {}      # values of args from config file
@@ -257,6 +144,16 @@ class YaS3Args(object):
         """
         return arg[5]
 
+    def getShortOption(self, arg):
+        """
+        Given an entry in the predefined argument list, return the short form
+        (one letter) of the option
+
+        Arguments:
+        arg   -- entry in the list of predefined arguments
+        """
+        return arg[6]
+
     def getVarNamesList(self):
         """
         Return a list of the internal variable names for all items in the
@@ -305,6 +202,30 @@ class YaS3Args(object):
         names of all prdfined arguments
         """
         return [ self.getOptName(a) + ( "=" if self.OptTakesStringValue(a)  else "") for a in self.args ]
+
+    # returns a string like "l:c:br"
+    def getShortOptsForGetopt(self):
+        """
+        Return a string of all of the short command line options
+        of all predefined arguments
+        """
+        return "".join([ self.getShortOption(a) + ( ":" if self.OptTakesStringValue(a)  else "")for a in self.args if self.getShortOption(a) ])
+
+    def getOptNameFromShortOpt(self, shortOpt):
+        """
+        Given the short option of an argument, return the OptName
+        (the long form) of the argument as it appears on the command line
+        or in config files
+
+        Arguments:
+        shortOpt  -- the one letter name of the option
+        """
+        if not shortOpt:
+            return None
+        for a in self.args:
+            if self.getShortOption(a) == shortOpt:
+                return self.getOptName(a)
+        return None
 
     def mergeDicts(self):
         """
@@ -446,7 +367,18 @@ class YaS3Args(object):
                         self.configDict[self.getVarName(a)] = self.conf.getboolean(self.getConfSection(a), self.getOptName(a))
                 except ConfigParser.NoOptionError:
                     pass
-        
+
+    def removeArgs(self, varNames):
+        """
+        Remove specified arguments from the predefined arg list
+        (might want this for derived classes)
+
+        Arguments:
+        list of internal variable names for which the arg entries will
+        be removed from self.args
+        """
+        self.args = [ a for a in self.args if self.getVarName(a) not in varNames ]
+
 class YaS3Handler(object):
     """
     Base class for all S3 operation handlers
@@ -456,33 +388,36 @@ class YaS3Handler(object):
 
     mandatory = [ "accessKey", "secretKey", "s3Host" ] # list of mandatory options, override this in your subclass
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
         self.ops = ops
         self.s3Sess = s3Sess
-        self.argDict = argDict
+        self.args = args
+        self.argDict = self.args.mergedDict
 
+        self.s3Sess.setAuthInfo(YaS3AuthInfo(self.argDict["accessKey"], self.argDict["secretKey"], self.argDict['authType']))
+        self.connection = YaS3Connection(self.argDict["s3Host"], self.argDict["port"], self.argDict["protocol"])
+        # any other changes of connectin.host during the course of the handler
+        # (handlers called by other handlers don't count, they have their own connection)
+        # will be: to non-s3 hostname (no virtual host there) or to host from redirect (no virtual
+        # host in that either)
         if self.argDict["virtualHost"] and self.argDict["bucketName"]:
-            self.s3Sess.setHost("%s.%s" % (self.argDict["bucketName"], self.argDict["s3Host"]))
-
-        self.s3Sess.setAuthInfo(YaS3AuthInfo(argDict["accessKey"], argDict["secretKey"]))
-        self.connection = YaS3Connection(self.s3Sess.getHost(), self.s3Sess.getPort())
-
+            self.connection.host = "%s.%s" % (self.argDict["bucketName"], self.argDict["s3Host"])
+            
         self.localFile = YaS3LocalFile(self.argDict["localFileName"])
         self.reqType = None
         self.s3Req = None
         self.oldUrlInfo = None
-        # put the right call in your init()
-#        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
+        self.urlInfo = None
 
-    def setUrlInfo(self, urlInfo, saveOld = True):
+    def setUrlInfo(self, urlInfo, saveOld = True, virtualHost = False):
         """
         Set url information abnd optionally stash a copy of the current
         information for restoral later
@@ -490,20 +425,30 @@ class YaS3Handler(object):
         handler's url info insead of blithely overwriting it with their own
 
         Arguments:
-        urlInfo   -- YAS3UrlInfo object
+        urlInfo   -- YaS3UrlBuilder object
         saveOld   -- set to False if a copy of the current urlInfo should not be 
                      stashed; this might happen if the handler is following a
                      redirect in the case of a single S3 request
         """
         if saveOld:
-            self.oldUrlInfo = self.s3Sess.urlInfo if self.s3Sess.urlInfo else None
-        self.s3Sess.urlInfo = urlInfo
+            self.oldUrlInfo = self.urlInfo if self.urlInfo else None
+        self.urlInfo = urlInfo
 
     def restoreUrlInfo(self):
         """
         Restore url information from stashed copy
         """
-        self.s3Sess.setUrlInfo(self.oldUrlInfo)
+        self.urlInfo = self.oldUrlInfo
+
+    def setRemoteFileName(self, remoteFileName):
+        """
+        Set name of S3 object for handler
+
+        Arguments:
+        remoteFileName  -- name of object (file) for the session
+        """
+        if self.urlInfo:
+            self.urlInfo.reset(remoteFileName = remoteFileName)
 
     def checkMandatory(self):
         """
@@ -517,20 +462,6 @@ class YaS3Handler(object):
         if len(missing):
             self.s3Sess.errors.usage("This operation is missing one or more mandatory arguments: %s" % ', '.join(missing))
 
-    def getDefaultPort(self, protocol):
-        """
-        Return the default port for a protocol
-
-        Arguments:
-        protocol   -- "http" or "https"
-        """
-        if protocol == "http":
-            return "80"
-        elif protocol == "https":
-            return "443"
-        else:
-            return None
-
     def getHostAndPortFromUrl(self,url):
         """
         Extract and return the host and the port from a url (to be used for redirection handling, when given a Location: header, for example)
@@ -538,15 +469,17 @@ class YaS3Handler(object):
         Arguments:
         url    -- full url string including protocol, host, port
         """
+        if not url:
+            return None, None, None
         found = re.match("http(s?)+://([^:/]+)(:[0-9]+)?(.*)$", url)
         if not found:
-            return None, None
+            return None, None, url
 
         host = found.group(2)
         if found.group(3):
             return host, found.group(3)[1:], found.group(4)
         else:
-            return host, self.getDefaultPort("http"+found.group(1)), found.group(4)
+            return host, None, found.group(4)
 
     def checkArgs(self):
         """
@@ -579,7 +512,7 @@ class YaS3Handler(object):
         """
         Return a string with the value that will be put in the UserAgent HTTP header
         """
-        return "yas3lib.py/0.1 (yet another s3 library)"
+        return "yas3lib.py/0.2-pre (yet another s3 library)"
 
     def getAcceptTypes(self):
         """
@@ -587,60 +520,57 @@ class YaS3Handler(object):
         """
         return "*/*"
 
-    def _setHeadersNoAuth(self, amzheaders = []):
+    def setStandardHeaders(self, amzheaders = []):
         """
-        Create and return some standard HTTP headers for requests, with
-        no Authorization header
-        This returns the headers and the date string (formatted as it appears in the
-        HTTP Date header).  I guess one could dig the date out from the Date: header
-        for later use but whatever.  We need it later in order to sign things.
+        Create and return some standard HTTP headers for requests
+        Includes setting cookie headers for session cookies we
+        may have accumulated
+        Does *not* include any auth headers, the caller should
+        add these separately
+        Returns a pipulated YaS3HTTPHeader objct
         """
         date = YaS3HTTPDate.getHTTPDate()
         headerInfo = YaS3HTTPHeaders()
-        headerInfo.addHeader("Host", self.s3Sess.getHost())
+        headerInfo.addHeader("Host", self.connection.host)
         headerInfo.addHeader("Date", date)
         headerInfo.addHeader("User-Agent", self.getUserAgent())
         headerInfo.addHeader("Accept", self.getAcceptTypes())
         if len(amzheaders):
             for (h,v) in amzheaders:
                 headerInfo.addHeader(h, v)
-        return headerInfo, date
-
-    def setHeadersWithAwsAuth(self, md5 = "", contentType = "", amzheaders = []):
-        """
-        Create and return some standard HTTP headers for requests, with the AWS
-        (S3 signature-based) Authorization header for S3 -- use this auth method when possible
-        Returns just the headers
-        """
-        headerInfo, date = self._setHeadersNoAuth(amzheaders)
-        # fixme  -- if only I remembered what was wrong with it that it needs to be fixed.
-        headerInfo.addHeader("Authorization", self.s3Sess.auth.getAWSHeader(self.reqType, md5, contentType, date, self.s3Sess.getUrl(), amzheaders))
+        if len(self.s3Sess.cookies):
+            headerInfo.addHeader("Cookie", "; ".join([ "%s=%s" % (cookie.name, cookie.value) for cookie in self.s3Sess.cookies if cookie.checkIfCookieValid(self.connection.host, self.connection.protocol, self.urlInfo.buildUrl()) ]))
         return headerInfo
 
-    def setHeadersWithLOWAuth(self):
+    def setS3AuthHeader(self, headerInfo):
         """
-        Create and return some standard HTTP headers for requests, with the 'LOW'
-        (archive.org low security) Authorization header for S3 -- avoid when possible
-        Returns just the headers
+        Add the AWS (S3 signature-based) Authorization header for S3
+        to the headers passed in -- prefer this auth type (instead of
+        'LOW') whenever possible
+        
+        Arguments:
+        headerInfo   -- YaS3HTTPHeaders object
         """
-        headerInfo, date = self._setHeadersNoAuth()
-        headerInfo.addHeader("Authorization", self.s3Sess.auth.getLOWHeader())
-        return headerInfo
+        # if the creds weren't set, don't try to set the header
+        if not self.argDict["accessKey"] and self.argDict["secretKey"]:
+            return
 
-    def setHeadersWithNoAuth(self, amzheaders = []):
-        """
-        Create and return some standard HTTP headers for requests, with no
-        Authorization header for S3
-        Returns just the headers
-        """
-        headerInfo, date = self._setHeadersNoAuth(amzheaders = [])
-        return headerInfo
+        date = headerInfo.findHeader("Date")
+        contentType = headerInfo.findHeader("Content-Type")
+        if not contentType:
+            contentType = ""
+        md5 = headerInfo.findHeader("Content-MD5")
+        if not md5:
+            md5 = ""
+        amzheaders = headerInfo.findAmzHeaders()
+        headerInfo.addHeader("Authorization", self.s3Sess.auth.getS3AuthHeader(self.reqType, md5, contentType, date, self.urlInfo.buildUrl(), amzheaders))
 
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, auth = True):
         """
         Set additional non-standard headers; override this in derived handlers as needed
         """
-        pass
+        if auth:
+            self.setS3AuthHeader(headerInfo)
 
     def doS3(self):
         """
@@ -651,33 +581,26 @@ class YaS3Handler(object):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        headerInfo = self.setHeadersWithAwsAuth()
+        headerInfo = self.setStandardHeaders()
         self.setOtherHeaders(headerInfo)
 
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
 
-    def runS3(self):
+    def setHostPortUrlForRedir(self, reply):
         """
-        Do a single S3 request, following Location header for 307 response codes
-        """
-        result = self.doS3()
-        if result.status == 307:
-            # not sure about stash/restore here... generally check all those FIXME
-            self.setupForNewLocation(result)
-            result = self.doS3()
-        return result
+        From Location header set new host, port in connection
+        and new url in urlinfo
+        This will close the connection if the hostname has changed
 
-    def setupForNewLocation(self, reply):
+        Arguments:
+        reply  -- HTTPReponse object
         """
-        Set session info for new host port and url from Location header
-        """
-        # by the time this is called the old urlinfo has already been restored. uhhhh
         headersReceived = reply.getheaders()
         newUrl = None
         for (header, value) in headersReceived:
@@ -687,19 +610,158 @@ class YaS3Handler(object):
         if not newUrl:
             Err.whine("Could not retrieve url from Location header, giving up")
         host, port, restOfUrl = self.getHostAndPortFromUrl(newUrl)
-        self.s3Sess.setHost(host)
-        self.s3Sess.setPort(port)
-        self.connection.resetHostAndPort(self.s3Sess.getHost(), self.s3Sess.getPort())
+        if not host and not port and not restOfUrl:
+            Err.whine("Could not retrieve url from Location header, giving up")
+        if not host:
+            host = self.connection.host
+        if not port:
+            port = self.connection.port
+        self.connection.resetHostAndPort(host, port)
+        self.setUrlInfo(YaS3ArbitraryUrl(restOfUrl))
 
-        # the one place we don't save the old url, since it's ours and not from a
-        # previous caller
-        self.setUrlInfo(YaS3ArbitraryUrl(restOfUrl), saveOld = False)
+    def mustRedoReqAfterRedir(self, reply):
+        """
+        Prepare for redoing a request after 301/307 redirect, if any
+        
+        Returns True if there is a redirect to be done, False otherwise
+        
+        Arguments:
+        reply  -- HTTPResponse Object
+        """
+        if reply.status == 301 or reply.status == 307:
+            self.setHostPortUrlForRedir(reply)
+            return True
+        else:
+            return False
 
-        if self.argDict["verbose"]:
-            print "closing connection, preparing for new request attempt"
+    def mustDoGetReqAfterRedir(self, reply):
+        """
+        Prepare for doing a GET request after 302/303 redirect, if any
+        
+        Returns True if there is a redirect to be done, False otherwise
+        
+        Arguments:
+        reply  -- HTTPResponse Object
+        """
+        if reply.status == 302 or reply.status == 303:
+            self.setHostPortUrlForRedir(reply)
+            return True
+        else:
+            return False
 
-        # FIXME test if it is a new host or not before doing this
-        self.tearDown() # must close connection, since we request from a new host
+    def runWithRedirs(self):
+        result = self.doS3()
+        # change redirection handling if doGetReqAfterRedir returns true, 
+        # to suit your request. This is a 302/303 redirect, which means 
+        # to do a new request as GET (or HEAD if the original was a HEAD
+        # request).  For most PUT/POST/DELET requests this isn't
+        # going to make much sense; for most GET/HEAD requests, you should
+        # be able to just rerun the request with the new url (set 
+        # automatically)
+        if self.mustRedoReqAfterRedir(result) or self.mustDoGetReqAfterRedir(result):
+            # not sure about stash/restore here... generally check all those FIXME
+            result = self.doS3()
+        return result
+
+    def runWithRedoRedirsOnly(self, err):
+        """
+        Arguments:
+        err    -- message to be displayed if 302/303 redir is encountered
+        """
+        # here we will properly set up for 301/307 redirs but whine if
+        # we see a 302/303 redir (i.e. a nudge to redo the same request
+        # but as a GET to the new url).  PUT/POST/DELETE requests
+        # that get a 302/303 back liley want to respond with an error
+        # so they would use this method.
+        result = self.doS3()
+        if self.mustRedoReqAfterRedir(result):
+            # not sure about stash/restore here... generally check all those FIXME
+            result = self.doS3()
+        elif self.mustDoGetReqAfterRedir(result):
+            Err.whine(err)
+        return result
+
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        # change this to suit your derived class
+        self.setUrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"])
+
+        return self.runWithRedirs()
+
+    def removeNs(self, text, ns):
+        if text.startswith(ns):
+            return text[len(ns):]
+        else:
+            return text
+
+    def displayXmlData(self, treeTagNames):
+        """
+        Dig out the relevant bits from (successful) XML response body and
+        display to stdout
+
+        Arguments:
+        list of tags in order from top level to tag of the element we
+        want to display. For example, if the XML has <Buckets><bucket>...
+        and we are interested in printing out the details of each bucket,
+        we would pass [ 'Buckets', 'Bucket' ]
+        """
+        if self.argDict["quiet"]:
+            return
+
+        if not self.s3Sess.data:
+            return
+
+        if self.argDict["raw"]:
+            print self.s3Sess.data
+            return
+
+        # ok now we are set to print a formatted version
+        tree =  xml.etree.ElementTree.fromstring(self.s3Sess.data)
+
+        ns = ""
+        if tree.tag[0] == '{':
+            ns = tree.tag[:tree.tag.find('}') +1]
+        if tree.tag == treeTagNames[-1] or tree.tag == ns + treeTagNames[-1]:
+            elts = [ tree ]
+        else:
+            pathNs = "/".join([ ns + t for t in treeTagNames ])
+            elts = tree.findall(pathNs)
+            if not elts:
+                path = "/".join(treeTagNames)
+                elts = tree.findall(path)
+
+        for i in elts:
+            print "%s   " % treeTagNames[-1],
+            # here if we have 'Initiator' or 'Ownder' and the value is none, we want to look up
+            # 'DisplayName'
+            print "|".join([ "%s:%s" % (self.removeNs(j.tag, ns), self.displayXmlFixup(j, ns)) for j in list(i) ])
+
+    def displayXmlFixup(self, elt, ns):
+        """
+        Some tags have nested elements (Initiator, Owner) so we dig out the value
+        we want from those (DisplayName)
+        Also Part (want PartNumber, Etag)
+        Arguments:
+        elt       -- xml element as produced e.g. by a find() from etree
+        ns        -- the xml namespace if any of the elt (including '{}')
+        """
+        if elt.text == None and (elt.tag == ns + "Initiator" or elt.tag == ns + "Owner"):
+            elt = elt.find(ns + "DisplayName")
+            if elt is not None:
+                return elt.text
+            else:
+                return None
+        elif elt.text == None and elt.tag == ns + "Part":
+            num = elt.find(ns + "PartNumber")
+            numText = num.text if num is not None else ""
+            etag = elt.find(ns + "ETag")
+            etagText = etag.text if etag is not None else ""
+            return "('PartNumber':%s)('ETag':%s)" % (numText, etagText)
+        else:
+            return elt.text
 
 class YaS3ListBucketsHandler(YaS3Handler):
     """
@@ -708,17 +770,27 @@ class YaS3ListBucketsHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey" ] # mandatory arguments for this operation
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3ListBucketsHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3ListBucketsHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(virtualHost = self.argDict["virtualHost"]))
+
+        result = self.runWithRedirs()
+        self.displayXmlData([ 'Buckets', 'Bucket' ])
+        return result
 
     def doS3(self):
         """
@@ -727,7 +799,6 @@ class YaS3ListBucketsHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UrlInfo(virtualHost = self.argDict["virtualHost"]))
         reply = super(YaS3ListBucketsHandler,self).doS3()
         return reply
 
@@ -738,26 +809,36 @@ class YaS3CreateBucketHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3CreateBucketHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3CreateBucketHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
+
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on create bucket, giving up")
 
     def doS3(self):
         """
         Do a single S3 create bucket request, without following Location header
+        If we are told to redirect and use GET, that's a different and weird request
+        but ok, it will be handled transparently by the parent doS3(), we do 
+        nothing special
 
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
         reply = super(YaS3CreateBucketHandler,self).doS3()
         return reply
 
@@ -768,20 +849,28 @@ class YaS3UploadObjectHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "localFileName", "remoteFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3UploadObjectHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3UploadObjectHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
         if not self.argDict["remoteFileName"]:
             self.argDict["remoteFileName"] = self.argDict["localFileName"]
-            s3Sess.setRemoteFileName(self.argDict["remoteFileName"])
+            self.setRemoteFileName(self.argDict["remoteFileName"])
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
+
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on upload object, giving up")
 
     def doS3(self):
         """
@@ -790,27 +879,29 @@ class YaS3UploadObjectHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
         # this is cached so it's fine to call multiple times
         md5 = self.localFile.getMd5B64()
-        md5ToPrint = self.localFile.getMd5()
-
         if self.argDict["verbose"]:
+            md5ToPrint = self.localFile.getMd5()
             print "md5 of file %s: %s and %s" % (self.localFile.name, md5, md5ToPrint)
         contentLength = self.localFile.getSize()
         contentType = ""
-        headerInfo = self.setHeadersWithAwsAuth(md5, contentType)
-        headerInfo.addHeader("Content-MD5", md5)
-        headerInfo.addHeader("Content-Length", contentLength)
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, md5, contentLength)
 
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeUploadObjectRequest(self.connection, headerInfo, self.s3Sess.urlInfo, contentLength, md5, self.localFile.name)
+        reply, data = self.s3Req.makeUploadObjectRequest(self.connection, headerInfo, self.urlInfo, contentLength, md5, self.localFile.name)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
+
+    def setOtherHeaders(self, headerInfo, md5, contentLength, auth = True):
+        headerInfo.addHeader("Content-MD5", md5)
+        headerInfo.addHeader("Content-Length", contentLength)
+        headerInfo.addHeader("Expect", "100-continue")
+        super(YaS3UploadObjectHandler,self).setOtherHeaders(headerInfo, auth)
 
 class YaS3UploadObjectAsMPHandler(YaS3Handler):
     """
@@ -819,21 +910,28 @@ class YaS3UploadObjectAsMPHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "localFileName", "remoteFileName", "mpChunkSize" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3UploadObjectAsMPHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3UploadObjectAsMPHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
         if not self.argDict["remoteFileName"]:
             self.argDict["remoteFileName"] = self.argDict["localFileName"]
-            s3Sess.setRemoteFileName(self.argDict["remoteFileName"])
+            self.setRemoteFileName(self.argDict["remoteFileName"])
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
         # no setUrlInfo because this call consists of a set of calls to handlers which will do their own
+
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on upload object as mp, giving up")
 
     def doS3(self):
         """
@@ -846,12 +944,12 @@ class YaS3UploadObjectAsMPHandler(YaS3Handler):
         fileSize =  self.localFile.getSize()
         if fileSize < int(self.argDict["mpChunkSize"]):
             # do a regular upload
-            s3 = self.ops["uploadobject"][0](self.ops, self.argDict, self.s3Sess)
+            s3 = self.ops["uploadobject"][0](self.ops, self.args, self.s3Sess)
             s3.setUp()
             reply = s3.runS3()
             return reply
         else:
-            s3 = self.ops["startmpupload"][0](self.ops, self.argDict, self.s3Sess)
+            s3 = self.ops["startmpupload"][0](self.ops, self.args, self.s3Sess)
             s3.setUp()
             reply = s3.runS3()
 
@@ -881,13 +979,14 @@ class YaS3UploadObjectAsMPHandler(YaS3Handler):
             while mpFileOffset < fileSize:
                 self.argDict["mpPartNum"] = str(mpPartNum)
                 self.argDict["mpFileOffset"] = str(mpFileOffset)
-                s3 = self.ops["uploadmppart"][0](self.ops, self.argDict, self.s3Sess)
+                s3 = self.ops["uploadmppart"][0](self.ops, self.args, self.s3Sess)
                 s3.setUp()
                 reply = s3.runS3()
                 # if the reply is bad, note it and continue
                 if reply.status != 200:
                     errors += 1
-                    print "reply status was ", reply.status
+                    if not self.argDict["quiet"]:
+                        print "reply status was ", reply.status
                 else:
                     # dig the etag out of the reply headers
                     mpEtag= None
@@ -907,7 +1006,7 @@ class YaS3UploadObjectAsMPHandler(YaS3Handler):
                 Err.whine("%s parts failed to upload.  Successful uploads: %s. Uploadid: %s, giving up." % (errors, mpPartsAndEtags, mpUploadId))
             # if there were no upload errors we do the end mp
             self.argDict["mpPartsAndEtags"] = mpPartsAndEtags
-            s3 = self.ops["endmpupload"][0](self.ops, self.argDict, self.s3Sess)
+            s3 = self.ops["endmpupload"][0](self.ops, self.args, self.s3Sess)
             s3.setUp()
             reply = s3.runS3()
             return reply
@@ -917,22 +1016,30 @@ class YaS3GetObjectHandler(YaS3Handler):
     Handler for S3 get object requests
     """
 
-    mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "localFileName", "remoteFileName" ]
+    mandatory = [ "s3Host", "bucketName", "localFileName", "remoteFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3GetObjectHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3GetObjectHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
-        if not argDict["remoteFileName"]:
-            argDict["remoteFileName"] = argDict["localFileName"]
-            s3Sess.setRemoteFileName(self.argDict["remoteFileName"])
+        if not self.argDict["remoteFileName"]:
+            self.argDict["remoteFileName"] = self.argDict["localFileName"]
+            self.setRemoteFileName(self.argDict["remoteFileName"])
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
+
+        return self.runWithRedirs()
 
     def doS3(self):
         """
@@ -941,14 +1048,13 @@ class YaS3GetObjectHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data *that is not the file* from the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
-        headerInfo = self.setHeadersWithAwsAuth()
+        headerInfo = self.setStandardHeaders()
         self.setOtherHeaders(headerInfo)
 
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeGetObjectRequest(self.connection, headerInfo, self.s3Sess.urlInfo, self.localFile.name)
+        reply, data = self.s3Req.makeGetObjectRequest(self.connection, headerInfo, self.urlInfo, self.localFile.name)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
@@ -958,31 +1064,30 @@ class YaS3ListOneBucketHandler(YaS3Handler):
     Handler for S3 list given bucket requests
     """
 
-    mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName" ]
+    mandatory = [ "s3Host", "bucketName" ]
 
     # FIXME amazon for example limits results to 1000 per bucket, need to figure out how to retrieve the rest
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3ListOneBucketHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3ListOneBucketHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 list given bucket request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
-        reply = super(YaS3ListOneBucketHandler,self).doS3()
-        return reply 
+        result = self.runWithRedirs()
+        self.displayXmlData([ 'Contents' ])
+        return result
 
 class YaS3DeleteObjectHandler(YaS3Handler):
     """
@@ -991,28 +1096,25 @@ class YaS3DeleteObjectHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "remoteFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3DeleteObjectHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3DeleteObjectHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "DELETE"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 delete object request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
-        reply = super(YaS3DeleteObjectHandler,self).doS3()
-        return reply
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on delete object, giving up")
 
 class YaS3DeleteBucketHandler(YaS3Handler):
     """
@@ -1021,48 +1123,53 @@ class YaS3DeleteBucketHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3DeleteBucketHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3DeleteBucketHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "DELETE"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 delete bucket request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
-        reply = super(YaS3DeleteBucketHandler,self).doS3()
-        return reply
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on delete bucket, giving up")
 
 class YaS3GetObjectS3MetadataHandler(YaS3Handler):
     """
     Handler for S3 get object metadata requests (this is "head object')
     """
 
-    mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "remoteFileName" ]
+    mandatory = [ "s3Host", "bucketName", "remoteFileName" ]
 
     # thisis a head request, it might return very little
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3GetObjectS3MetadataHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3GetObjectS3MetadataHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "HEAD"
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
+
+        return self.runWithRedirs()
 
     def doS3(self):
         """
@@ -1071,13 +1178,12 @@ class YaS3GetObjectS3MetadataHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
-        headerInfo = self.setHeadersWithAwsAuth()
+        headerInfo = self.setStandardHeaders()
         self.setOtherHeaders(headerInfo)
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
@@ -1087,30 +1193,27 @@ class YaS3GetBucketS3MetadataHandler(YaS3Handler):
     Handler for S3 get bucket S3 metadata requests (this is 'Head bucket')
     """
 
-    mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName" ]
+    mandatory = [ "s3Host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3GetBucketS3MetadataHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3GetBucketS3MetadataHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "HEAD"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 get bucket S3 metadata request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
-        reply = super(YaS3GetBucketS3MetadataHandler,self).doS3()
-        return reply
+        return self.runWithRedirs()
 
 class YaS3CopyObjectHandler(YaS3Handler):
     """
@@ -1119,17 +1222,27 @@ class YaS3CopyObjectHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "sourceBucketName", "remoteFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3CopyObjectHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3CopyObjectHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
+
+        result = self.runWithRedoRedirsOnly("302/303 redirect encountered on copy object, giving up")
+        self.displayXmlData([ 'CopyObjectResult' ])
+        return result
 
     def doS3(self):
         """
@@ -1138,16 +1251,14 @@ class YaS3CopyObjectHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UrlInfo(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["virtualHost"]))
-        # fixme what about virtual host with this, I guess we don't want it right? should turn off
         amzheaders = [ ( "x-amz-copy-source", urllib.quote("%s/%s" % ( self.argDict[ "sourceBucketName" ], self.argDict[ "remoteFileName" ] ) ) ) ]
-        headerInfo = self.setHeadersWithAwsAuth(amzheaders = amzheaders)
+        headerInfo = self.setStandardHeaders(amzheaders = amzheaders)
         self.setOtherHeaders(headerInfo)
 
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.s3Sess.urlInfo)
+        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.urlInfo)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
@@ -1160,28 +1271,27 @@ class YaS3ListMPUploadsHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3ListMPUploadsHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3ListMPUploadsHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 list multipart uploads (for a given bucket) request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3ListMPUploadsUrl(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3ListMPUploadsUrl(argDict["bucketName"]))
-        reply = super(YaS3ListMPUploadsHandler,self).doS3()
-        return reply
+        result = self.runWithRedirs()
+        self.displayXmlData([ "Upload" ])
+        return result
 
 class YaS3StartMPUploadHandler(YaS3Handler):
     """
@@ -1190,29 +1300,27 @@ class YaS3StartMPUploadHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "remoteFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3StartMPUploadHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3StartMPUploadHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "POST"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 start multi-part upload request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3StartMPUploadUrl(self.argDict["bucketName"], self.argDict["remoteFileName"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        Useful data: the UploadId from the XML body from the remote server
-        """
-        self.setUrlInfo(YaS3StartMPUploadUrl(argDict["bucketName"], argDict["remoteFileName"]))
-        reply = super(YaS3StartMPUploadHandler,self).doS3()
-        return reply
+        result = self.runWithRedoRedirsOnly("302/303 redirect encountered on start mp upload, giving up")
+        self.displayXmlData([ "InitiateMultipartUploadResult" ])
+        return result
 
 class YaS3EndMPUploadHandler(YaS3Handler):
     """
@@ -1221,16 +1329,16 @@ class YaS3EndMPUploadHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName",  "remoteFileName", "mpUploadId", "mpPartsAndEtags" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3EndMPUploadHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3EndMPUploadHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "POST"
 
     #<CompleteMultipartUpload>
@@ -1259,6 +1367,16 @@ class YaS3EndMPUploadHandler(YaS3Handler):
             xml = xml + "</CompleteMultipartUpload>"
         return xml
 
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3MPUploadUrl(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["mpUploadId"], virtualHost = self.argDict["virtualHost"]))
+
+        result = self.runWithRedoRedirsOnly("302/303 redirect encountered on end mp upload, giving up")
+        self.displayXmlData([ "CompleteMultipartUploadResult" ])
+        return result
+
     def doS3(self):
         """
         Do a single S3 end multi-part upload request, without following Location header
@@ -1266,20 +1384,22 @@ class YaS3EndMPUploadHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3MPUploadUrl(argDict["bucketName"], argDict["remoteFileName"], argDict["mpUploadId"]))
         xml = self.getMpUploadReqXML()
         contentLength = len(xml)
-        headerInfo = self.setHeadersWithAwsAuth()
-        headerInfo.addHeader("Content-Length", contentLength)
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, contentLength)
 
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makePostRequestWithXML(self.connection, headerInfo, self.s3Sess.urlInfo, xml)
+        reply, data = self.s3Req.makePostRequestWithData(self.connection, headerInfo, self.urlInfo, xml)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
+
+    def setOtherHeaders(self, headerInfo, contentLength, auth = True):
+        headerInfo.addHeader("Content-Length", contentLength)
+        super(YaS3EndMPUploadHandler,self).setOtherHeaders(headerInfo, auth)
 
 class YaS3AbortMPUploadHandler(YaS3Handler):
     """
@@ -1288,28 +1408,25 @@ class YaS3AbortMPUploadHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "remoteFileName", "mpUploadId" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3AbortMPUploadHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3AbortMPUploadHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "DELETE"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 abort multi-part upload request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3MPUploadUrl(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["mpUploadId"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3MPUploadUrl(argDict["bucketName"], argDict["remoteFileName"], argDict["mpUploadId"]))
-        reply = super(YaS3AbortMPUploadHandler,self).doS3()
-        return reply
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on abort mp upload, giving up")
 
 class YaS3ListOneMPUploadHandler(YaS3Handler):
     """
@@ -1320,28 +1437,27 @@ class YaS3ListOneMPUploadHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "remoteFileName", "mpUploadId" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3ListOneMPUploadHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3ListOneMPUploadHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "GET"
 
-    def doS3(self):
+    def runS3(self):
         """
-        Do a single S3 list given multi-part upload (that was not completed) request, without following Location header
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3MPUploadUrl(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["mpUploadId"], virtualHost = self.argDict["virtualHost"]))
 
-        Returns HTTPResponse object and saves any data in the body of the
-        response in the YaS3SessionInfo object
-        """
-        self.setUrlInfo(YaS3MPUploadUrl(argDict["bucketName"], argDict["remoteFileName"], argDict["mpUploadId"]))
-        reply = super(YaS3ListOneMPUploadHandler,self).doS3()
-        return reply
+        result = self.runWithRedirs()
+        self.displayXmlData([ "ListPartsResult" ])
+        return result
 
 class YaS3UploadMPPartHandler(YaS3Handler):
     """
@@ -1350,17 +1466,25 @@ class YaS3UploadMPPartHandler(YaS3Handler):
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "remoteFileName", "mpPartNum", "mpUploadId", "localFileName" ]
 
-    def __init__(self, ops, argDict, s3Sess):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops         -- list of predefined operations from a HandlerFactory
-        argDict     -- dictionary of args (from command line/config file/defaults) and values
+        args        -- YaS3Args object
         s3Sess      -- YaS3SessonInfo object
         """
-        super(YaS3UploadMPPartHandler,self).__init__(ops, argDict, s3Sess)
+        super(YaS3UploadMPPartHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
+
+    def runS3(self):
+        """
+        Do a single S3 request, following Location header for 307 response codes
+        """
+        self.setUrlInfo(YaS3UploadMPPartUrl(self.argDict["bucketName"], self.argDict["remoteFileName"], self.argDict["mpPartNum"], self.argDict["mpUploadId"], virtualHost = self.argDict["virtualHost"]))
+
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on upload mp part, giving up")
 
     def doS3(self):
         """
@@ -1369,26 +1493,29 @@ class YaS3UploadMPPartHandler(YaS3Handler):
         Returns HTTPResponse object and saves any data in the body of the
         response in the YaS3SessionInfo object
         """
-        self.setUrlInfo(YaS3UploadMPPartUrl(argDict["bucketName"], argDict["remoteFileName"], argDict["mpPartNum"], argDict["mpUploadId"]))
         chunkSize = int(self.argDict["mpChunkSize"]) if self.argDict["mpChunkSize"] else None
         md5 = self.localFile.getMd5B64(int(self.argDict["mpFileOffset"]), chunkSize)
-        md5ToPrint = self.localFile.getMd5(int(self.argDict["mpFileOffset"]), chunkSize)
         if self.argDict["verbose"]:
+            md5ToPrint = self.localFile.getMd5(int(self.argDict["mpFileOffset"]), chunkSize)
             print "md5 of file %s: %s and %s" % (self.localFile.name, md5, md5ToPrint)
         contentLength = self.localFile.getSize(int(self.argDict["mpFileOffset"]), chunkSize)
         contentType = ""
-        headerInfo = self.setHeadersWithAwsAuth(md5, contentType)
-        headerInfo.addHeader("Content-MD5", md5)
-        headerInfo.addHeader("Content-Length", contentLength)
-        self.setOtherHeaders(headerInfo)
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo, md5, contentLength)
 
         if not self.s3Req:
-            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"])
+            self.s3Req = YaS3Requester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
 
-        reply, data = self.s3Req.makeUploadObjectRequest(self.connection, headerInfo, self.s3Sess.urlInfo, contentLength, md5, self.localFile.name, int(self.argDict["mpFileOffset"]), chunkSize)
+        reply, data = self.s3Req.makeUploadObjectRequest(self.connection, headerInfo, self.urlInfo, contentLength, md5, self.localFile.name, int(self.argDict["mpFileOffset"]), chunkSize)
         self.s3Sess.data = data
         self.restoreUrlInfo()
         return reply
+
+    def setOtherHeaders(self, headerInfo, md5, contentLength, auth = True):
+        headerInfo.addHeader("Content-MD5", md5)
+        headerInfo.addHeader("Content-Length", contentLength)
+        headerInfo.addHeader("Expect", "100-continue")
+        super(YaS3UploadMPPartHandler,self).setOtherHeaders(headerInfo, auth)
 
 class YaS3HandlerFactory(object):
     """
@@ -1417,12 +1544,12 @@ class YaS3HandlerFactory(object):
             "getobjects3metadata" : [ YaS3GetObjectS3MetadataHandler, "get the s3 metadata (x-amz-meta-X) of an object in the specified bucket" ],
             "getbuckets3metadata" : [ YaS3GetBucketS3MetadataHandler, "get the s3 metadata of the specified bucket" ] }
 
-    def __new__(cls, op, argDict, s3Sess):
+    def __new__(cls, op, args, s3Sess):
         """
         Given the specific operation, return a new Handler object for that operation
         """
         if op in YaS3HandlerFactory.ops:
-            return YaS3HandlerFactory.ops[op][0](YaS3HandlerFactory.ops, argDict, s3Sess)
+            return YaS3HandlerFactory.ops[op][0](YaS3HandlerFactory.ops, args, s3Sess)
         return None
 
 class YaS3Err(object):
@@ -1490,7 +1617,8 @@ class YaS3Err(object):
                 name = a[1] if a[1] else a[0]
                 spaces = ' ' *(2 + maxOptionLen - len(name))
                 default = " (default %s)" % a[5] if a[5] != None else ""
-                sys.stderr.write("  --%s: %s%s%s\n" % (name, spaces, a[4], default))
+                shortOpt = "(-%s) " % self.args.getShortOption(a) if self.args.getShortOption(a) else ""
+                sys.stderr.write("  --%s: %s%s%s%s\n" % (name, spaces, shortOpt, a[4], default))
         sys.stderr.write("\n")
 
         sys.stderr.write("Flags:\n")
@@ -1499,7 +1627,8 @@ class YaS3Err(object):
                 name = a[1] if a[1] else a[0]
                 spaces = ' ' *(2 + maxOptionLen - len(name))
                 default = " (default %s)" % a[5] if a[5] != None else ""
-                sys.stderr.write("  --%s: %s%s%s\n" % (name, spaces, a[4], default))
+                shortOpt = "(-%s) " % self.args.getShortOption(a) if self.args.getShortOption(a) else ""
+                sys.stderr.write("  --%s: %s%s%s%s\n" % (name, spaces, shortOpt, a[4], default))
         sys.stderr.write("\n")
 
         opsList = self.ops.keys()
@@ -1510,6 +1639,7 @@ class YaS3Err(object):
         sys.stderr.write("\n")
 
         configList = [ a[1] if a[1] else a[0] for a in argList if a[3] ]
+        configList.sort()
         if len(configList):
             sys.stderr.write("The following options may be specified in a configuration file and can be\n")
             sys.stderr.write("overriden on the command line:\n")
@@ -1527,15 +1657,16 @@ class YaS3Err(object):
         """
         if len(items):
             maxLen = max([ len(i) for i in items ])
-            ind = 0
-            for i in items:
-                spaces = ' ' *(2 + maxLen - len(i))
-                ind += 1
-                sys.stderr.write("  %s%s" % (i, spaces))
-                if ind == numCols:
-                    sys.stderr.write("\n")
-                    ind = 0
-            if ind:
+
+            numItems = len(items)
+            numLines = numItems / numCols
+            if numItems % numCols:
+                numLines += 1
+
+            for i in range(0, numLines):
+                for j in [items[k] for k in range(i, numItems, numLines)]:
+                    spaces = ' ' *(2 + maxLen - len(j))
+                    sys.stderr.write("  %s%s" % (j, spaces))
                 sys.stderr.write("\n")
             
 class YaS3Lib(object):
@@ -1556,7 +1687,7 @@ class YaS3Lib(object):
         self.errors = errors
 
         try:
-            options, remainder = getopt.gnu_getopt(sys.argv[1:], "", self.args.getOptListForGetopt())
+            options, remainder = getopt.gnu_getopt(sys.argv[1:], self.args.getShortOptsForGetopt(), self.args.getOptListForGetopt())
         except getopt.GetoptError, err:
             print str(err)
             self.errors.usage("Unknown option specified")
@@ -1567,7 +1698,12 @@ class YaS3Lib(object):
             self.errors.usage("Unknown option specified: %s" % remainder)
         
         for opt, val in options:
-            self.args.setOptDictVal(opt[2:], val) # all args passed in on command line
+            if opt.startswith("--"):
+                self.args.setOptDictVal(opt[2:], val) # all args passed in on command line
+            elif opt[0] == '-':
+                self.args.setOptDictVal(self.args.getOptNameFromShortOpt(opt[1:]), val) # all args passed in on command line
+            else:
+                self.errors.usage("Unknown option specified: %s" % opt)
 
         if self.args.getValueFromVarName('help'):
             self.errors.usage()
@@ -1608,19 +1744,22 @@ if __name__ == "__main__":
     """
     args = YaS3Args()
     s3lib = YaS3Lib(args, YaS3Err(args, YaS3HandlerFactory.ops, YaS3HandlerFactory.introduction))
-    argDict = s3lib.argDict
+    argDict = args.mergedDict
 
     s3lib.checkMissing([ "operation" ]) # other checks will happen in the handlers
 
     s3Sess = YaS3SessionInfo(s3lib.errors)
-    s3Sess.setRequestInfo(YaS3RequestInfo(argDict["s3Host"], argDict["port"], argDict["protocol"]))
 
-    s3 = YaS3HandlerFactory(argDict["operation"], argDict, s3Sess)
+    s3 = YaS3HandlerFactory(argDict["operation"], args, s3Sess)
     if not s3:
         s3lib.errors.usage("Unknown operation %s" % argDict["operation"])
         
     s3.setUp()
 
     result = s3.runS3()
-    print "result status is", result.status
     s3.tearDown()
+    if result.status < 200 or result.status >= 400:
+        print "result status is", result.status
+        sys.exit(1)
+    
+        

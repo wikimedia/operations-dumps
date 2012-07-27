@@ -1,11 +1,11 @@
 import os, re, sys, time, hashlib, hmac, binascii, httplib, getopt, yas3lib, urllib, json, yas3http, wmfmw
-from yas3lib import YaS3Requester, YaS3AuthInfo, YaS3UrlInfo
-from yas3 import YaS3Err, YaS3Handler, YaS3HandlerFactory, YaS3SessionInfo, YaS3RequestInfo
+from yas3lib import YaS3Requester, YaS3AuthInfo, YaS3UrlBuilder
+from yas3 import YaS3Err, YaS3Handler, YaS3HandlerFactory, YaS3SessionInfo
 from yas3 import  YaS3ListBucketsHandler, YaS3ListOneBucketHandler, YaS3GetObjectHandler, YaS3CreateBucketHandler, YaS3UploadObjectHandler
 from yas3 import YaS3GetObjectS3MetadataHandler, YaS3GetBucketS3MetadataHandler, YaS3DeleteObjectHandler, YaS3DeleteBucketHandler
 from yas3http import YaS3HTTPDate, YaS3HTTPHeaders, YaS3HTTPCookie
 from wmfmw import MWSiteMatrix, WikiMatrixInfo
-from yas3archive import YaS3IAArgs, YaS3IARequester, YaS3IASessionInfo, YaS3IAAuthInfo, YaS3IAHandler
+from yas3archive import YaS3IAArgs, YaS3IARequester, YaS3IAAuthInfo, YaS3IAHandler
 from yas3archive import YaS3IACheckBucketExistenceHandler, YaS3IAGetFilesXMLHandler, YaS3IAVerifyObjectHandler
 from yas3archive import YaS3IAGetBucketIAMetadataHandler, YaS3IACreateBucketWithIAMetadataHandler, YaS3IAUpdateBucketIAMedataHandler
 from yas3archive import YaS3IALoginHandler, YaS3IAUploadObjectHandler, YaS3IAEndMPUploadHandler
@@ -31,31 +31,32 @@ class WMFIAArgs(YaS3IAArgs):
              config file section name for option, or None for options that won't be read from the config file
              short description (used for help messages)
              default value, or None if there is no default
+             short form of option (one letter) if any
         If the option name is "", the variable name is used as the option name as well
         """
         super(WMFIAArgs,self).__init__()
+        # don't want these now, we fill these in automatically.
+        self.removeArgs(["titleHdr", "mediatypeHdr", "descriptionHdr", "formatHdr", "subjectHdr"])
         self.args.extend([
-                [ "wiki", "", True, "wmfmeta", "name of wiki database for dump to be uploaded", None ],
-                [ "matrixCache", "matrixcache", True, "wmfmeta", "location of cache of sitematrix file", None ],
-                [ "apiUrl", "apiurl", True, "wmfmeta", "full url to api.php for the site matrix of known wikis", "http://en.wikipedia.org/w/api.php" ],
-                [ "creator", "", True, "wmfmeta", "creator that will appear in the bucket (item) description", "the Wikimedia Foundation" ],
-                [ "downloadUrl", "downloadurl", True, "wmfmeta", "url for dump downloads that will appear in the bucket (item) description", "http://dumps.wikimedia.org" ]
-#                [ "licenseUrl", "licenseurl", True, "wmfmeta", "url for copyright license of dump that will appear in the bucket metadata", "http://wikimediafoundation.org/wiki/Terms_of_Use" ],
+                [ "wiki", "", True, "wmfmeta", "name of wiki database for dump to be uploaded", None, None ],
+                [ "matrixCache", "matrixcache", True, "wmfmeta", "location of cache of sitematrix file", None, None ],
+                [ "apiUrl", "apiurl", True, "wmfmeta", "full url to api.php for the site matrix of known wikis", "http://en.wikipedia.org/w/api.php", None ],
+                [ "creator", "", True, "wmfmeta", "creator that will appear in the bucket (item) description", "the Wikimedia Foundation", None ],
+                [ "downloadUrl", "downloadurl", True, "wmfmeta", "url for dump downloads that will appear in the bucket (item) description", "http://dumps.wikimedia.org", None ]
                 ])
+        
+class WMFIAHandler(YaS3IAHandler):
+    """
+    Base handler class for archive.org S3 or non-S3 operations with WMF extensions
+    """
 
-    # FIXME do we really need this??
-    def getWMFMetadataArgs(self):
+    def getUserAgent(self):
         """
-        Return a list of opt names (as they appear on command line or in config file)
-        and values for allpredefined arguments that can appear in the 'wmfmeta'
-        section of the config file.
-
-        These are all used for the creation of archive.org metadata values for Wikimedia
-        XML dumps for wiki projects.
+        Return a string with the value that will be put in the UserAgent HTTP header
         """
-        return [ (self.getOptName(a), self.mergedDict[self.getVarName(a)]) for a in self.args if self.getConfSection(a) == "wmfmeta" ]
+        return "wmfarchive.py/0.2-pre (from yet another s3 library)"
 
-class WMFIACreateBucketWithIAMetadataHandler(YaS3IACreateBucketWithIAMetadataHandler):
+class WMFIACreateBucketWithIAMetadataHandler(WMFIAHandler):
     """
     Handler for S3 requests to create buckets (items) with metadata specific
     to archive.org (via x-archive-X headers), also adding the archive.org
@@ -66,28 +67,43 @@ class WMFIACreateBucketWithIAMetadataHandler(YaS3IACreateBucketWithIAMetadataHan
 
     mandatory = [ "accessKey", "secretKey", "s3Host", "bucketName", "wiki", "collectionHdr", "licenseUrlHdr", "downloadUrl", "creator" ]
 
-    def __init__(self, ops, argDict, s3Sess, iAMetadataArgs, wMFMetadataArgs):
+    def __init__(self, ops, args, s3Sess):
         """
         Constructor
 
         Arguments:
         ops             -- list of predefined operations from a HandlerFactory
-        argDict         -- dictionary of args (from command line/config file/defaults) and values
+        args            -- YaS3Args object
         s3Sess          -- YaS3SessonInfo object
-        iAMetadataArgs  -- list of args from predefined argument list that are in config section 'iametadata'
-                           (these would be used to construct headers to set archive.org metadata for a specified
-                           bucket (item) on archive.org
-        wMFMetadataArgs -- list of args from predefined argument list that are in config section 'wmfmeta'
-                           (these would be used to generate values for archive.org metadata for Wikimedia
-                           XML dumps of wiki projects
         """
-        super(WMFIACreateBucketWithIAMetadataHandler,self).__init__(ops, argDict, s3Sess, iAMetadataArgs)
+        super(WMFIACreateBucketWithIAMetadataHandler,self).__init__(ops, args, s3Sess)
         self.reqType = "PUT"
-        self.iAMetadataArgs = iAMetadataArgs
-        # fixme really do we need this as a separate arg list? 
-        self.wMFMetadataArgs = wMFMetadataArgs
 
-    def setOtherHeaders(self, headerInfo):
+    def runS3(self):
+        """ 
+        Do a single S3 request, following Location header for 307 response codes 
+        """
+        self.setUrlInfo(YaS3UrlBuilder(self.argDict["bucketName"], virtualHost = self.argDict["virtualHost"]))
+
+        return self.runWithRedoRedirsOnly("302/303 redirect encountered on create bucket with ia metadata, giving up")
+
+    def doS3(self):
+        """
+        Do a single S3 create bucket request, adding in special metadata headers for 
+        archive.org (x-archive-X), without following Location header.
+        """
+        headerInfo = self.setStandardHeaders()
+        self.setOtherHeaders(headerInfo)
+
+        if not self.s3Req:
+            self.s3Req = YaS3IARequester(self.reqType, self.argDict["verbose"], self.argDict["quiet"], self.argDict["raw"])
+
+        reply, data = self.s3Req.makeRequest(self.connection, headerInfo, self.urlInfo)
+        self.s3Sess.data = data
+        self.restoreUrlInfo()
+        return reply
+
+    def setOtherHeaders(self, headerInfo, auth = True):
         """
         Generate all the headers containing metadata for buckets (items) on archive.org
         assuming that the buckets will contain Wikimedia XML dumps of wiki projects
@@ -109,8 +125,7 @@ class WMFIACreateBucketWithIAMetadataHandler(YaS3IACreateBucketWithIAMetadataHan
         headers =  [ ("title", "Wikimedia database dumps of %s" %  self.argDict["wiki"]), 
                      ("mediatype", "web"),
                      ("description", "Dumps of %s created by %s and downloadable from %s" % (self.argDict["wiki"], self.argDict["creator"], self.argDict["downloadUrl"])),
-                     ("format", "xml and sql"),
-                     ("licenseurl", self.argDict["licenseUrlHdr"]) ]
+                     ("format", "xml and sql") ]
 
         for (name, value) in headers:
             headerInfo.addHeader(YaS3IAMetadata.getHeader(name), value)
@@ -126,12 +141,12 @@ class WMFIACreateBucketWithIAMetadataHandler(YaS3IACreateBucketWithIAMetadataHan
         else:
             headerInfo.addHeader("subject", "xml,dump,wikimedia,%s" % project)
 
-        # wow is this sketchy, don't like it. better approach?
-        super(YaS3IACreateBucketWithIAMetadataHandler,self).setOtherHeaders(headerInfo)
-        wmfheaders = [ name for (name, value) in headers ]
-        for (name, value) in self.iAMetadataArgs:
-            if name not in wmfheaders and value is not None:
-                headerInfo.addHeader(YaS3IAMetadata.getHeader(name), value)
+        for (name, value) in self.args.getIAMetadataArgs():
+            headerInfo.addHeader(YaS3IAMetadata.getHeader(name), value)
+            
+        if self.argDict["bucketSize"]:
+            headerInfo.addHeader("x-archive-size-hint", self.argDict["bucketSize"])
+        super(WMFIACreateBucketWithIAMetadataHandler,self).setOtherHeaders(headerInfo, auth)
 
 class WMFIAUpdateBucketIAMetadataHandler(WMFIACreateBucketWithIAMetadataHandler):
     """
@@ -143,14 +158,14 @@ class WMFIAUpdateBucketIAMetadataHandler(WMFIACreateBucketWithIAMetadataHandler)
     XML dumps of wiki projects.
     """
 
-    def setOtherHeaders(self, headerInfo):
+    def setOtherHeaders(self, headerInfo, auth = True):
         """
         Set non-standard headers (all archive.org metadata handlers and 
         the special header that tells archive.org to update the metadata only
         ignoring the fact that there is already a bucket of the specified name)
         """
-        super(WMFIAUpdateBucketIAMetadataHandler,self).setOtherHeaders(headerInfo)
         headerInfo.addHeader("x-archive-ignore-preexisting-bucket", "1")
+        super(WMFIAUpdateBucketIAMetadataHandler,self).setOtherHeaders(headerInfo, auth)
 
 class WMFIAHandlerFactory(IAMetadataHandlerFactory):
     """
@@ -176,16 +191,14 @@ class WMFIAHandlerFactory(IAMetadataHandlerFactory):
     ops = IAMetadataHandlerFactory.ops
     ops["wmfcreatebucketwithiametadata"] = [ WMFIACreateBucketWithIAMetadataHandler, "create bucket (item) with specified archive.org metadata (x-archive-X) for the given Wikimedia wiki dump" ]
     ops["wmfupdatebucketiametadata"] = [ WMFIAUpdateBucketIAMetadataHandler, "update archive.org metadata (x-archive-X) for the specified bucket (item) for the given Wikimedia wiki dump" ]
+    for o in ["createbucketwithiametadata", "updatebucketiametadata"]:
+        del ops[o]
 
-    # sketchy, maybe do this differently? FIXME
-    def __new__(cls, op, argDict, s3Sess, iAMetadataArgs, wMFMetadataArgs):
+    def __new__(cls, op, args, s3Sess):
         """
         """
         if op in WMFIAHandlerFactory.ops:
-            if op == "wmfcreatebucketwithiametadata" or op == "wmfupdatebucketiametadata":
-                return WMFIAHandlerFactory.ops[op][0](WMFIAHandlerFactory.ops, argDict, s3Sess, iAMetadataArgs, wMFMetadataArgs)
-            else:
-                return WMFIAHandlerFactory.ops[op][0](WMFIAHandlerFactory.ops, argDict, s3Sess)
+            return WMFIAHandlerFactory.ops[op][0](WMFIAHandlerFactory.ops, args, s3Sess)
         return None
 
 class WMFIAMetadataLib(YaS3IALib):
@@ -203,9 +216,6 @@ class WMFIAMetadataLib(YaS3IALib):
         errors    -- YsS#Err object (for usage messages)
         """
         super(WMFIAMetadataLib,self).__init__(args, errors)
-        self.wMFMetadataArgs = args.getWMFMetadataArgs()
-        if self.argDict["verbose"]:
-            print self.wMFMetadataArgs
 
 if __name__ == "__main__":
     """
@@ -215,17 +225,13 @@ if __name__ == "__main__":
     """
     args = WMFIAArgs()
     s3lib = WMFIAMetadataLib(args, YaS3Err(args, WMFIAHandlerFactory.ops, WMFIAHandlerFactory.introduction))
-    argDict = s3lib.argDict
-    iAMetadataArgs = s3lib.iAMetadataArgs
-    wMFMetadataArgs = s3lib.wMFMetadataArgs
+    argDict = args.mergedDict
 
     s3lib.checkMissing([ "operation" ]) # the rest will be checked in the handlers
 
-    s3Sess = YaS3IASessionInfo(s3lib.errors, argDict["s3Host"], argDict["host"])
+    s3Sess = YaS3SessionInfo(s3lib.errors)
 
-    s3Sess.setConnType("s3") # default, specific handlers will override this. must be before setRequestInfo
-    s3Sess.setRequestInfo(YaS3RequestInfo(s3Sess.getHost(), argDict["port"], argDict["protocol"]))
-    s3 = WMFIAHandlerFactory(argDict["operation"], argDict, s3Sess, iAMetadataArgs, wMFMetadataArgs)
+    s3 = WMFIAHandlerFactory(argDict["operation"], args, s3Sess)
     if not s3:
         s3lib.errors.usage("Unknown operation %s" % argDict["operation"])
 
@@ -233,3 +239,6 @@ if __name__ == "__main__":
 
     result = s3.runS3()
     s3.tearDown()
+    if result.status < 200 or result.status >= 400:
+        print "result status is", result.status
+        sys.exit(1)

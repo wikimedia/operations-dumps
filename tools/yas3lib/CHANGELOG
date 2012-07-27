@@ -1,3 +1,21 @@
+Version 0.2-pre, 27 July 2012
+
+clean up display of options/args in usage message
+remove ops/args from yas3archive.py that are not supported by archive.org
+allow use of 'LOW' archive.org auth type (but please, don't do it. friends don't let friends use LOW.)
+remove some mandatory auth args from ops that can be done anonymously
+cleaned up some argDict references
+specific UserAgent string for wmfarchive.py
+short (one letter) forms for some frequent options
+remove some ops and args from wmfarchive.py (that conflict with the wmf metadata ops)
+make quiet/verbose consistent, parse xml replies from server and produce formatted output
+'raw' arg for skipping formatting of server response body before display
+close connection when host/port are changed
+100 Continue support added for uploads
+VirtualHost implemented
+Redirection handling implemented appropriately in all handlers
+Cleaned up classes with duplicate/useless information (multiple holders for urls, host, port, etc)
+
 Version 0.1, 19 July 2012
 
 Initial version

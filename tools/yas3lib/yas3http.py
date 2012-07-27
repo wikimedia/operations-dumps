@@ -5,7 +5,7 @@ class YaS3HTTPCookie(object):
     Simple cookie manager
     """
 
-    def __init__(self, cookieString, host = None, protocol = None, url = None):
+    def __init__(self, cookieString, host, protocol, url):
         """
         Arguments:
         cookieString -- the Set-Cookie header including the header name
@@ -21,16 +21,17 @@ class YaS3HTTPCookie(object):
         """
         self.name = None
         self.value = None
-        self.path = None
-        self.domain = None
-        self.expires = None
-        self.maxage = None
-        self.secure = False
+        self.path = None     # as specified in cookie
+        self.domain = None   # as specified in cookie
+        self.expires = None  # as specified in cookie
+        self.maxage = None   # as specified in cookie
+        self.secure = False  # as specified in cookie
         self.httponly = False
         self.text = cookieString
-        self.host = host
-        self.protocol = protocol
-        self.url = url
+        self.host = host           # host that sent the cookie
+        self.protocol = protocol   # protocol used when we got the cookie
+        self.url = url             # url (without host/port/protocol) from which cookie was set
+
         self.convertStringToCookie()
         # FIXME if there is no expiry header what is the right behavior?
         if self.expires:
@@ -86,10 +87,15 @@ class YaS3HTTPCookie(object):
         print "%s: %s" % (self.name, self.value)
         print "path: %s, domain: %s, expires: %s" % (self.path, self.domain, self.expires)
 
-    def checkDomain(self):
+    def checkDomain(self, host = None):
         """
         Check if the domain specified in the cokoie is the same as the host from which
-        the cookie was sent
+        the cookie was sent, or from which we are about to make a request
+
+        Arguments:
+        host     -- fqdn of the host from which we will be making the remote request
+                    if not set, check against the host which sent the cookie
+                    (for verification that the cookie should be stored)
         """
         # the domain is the host that set the cookie. exact matches only
         if self.domain[0] != '.':
@@ -109,10 +115,15 @@ class YaS3HTTPCookie(object):
             return False
         return True
 
-    def checkPath(self):
+    def checkPath(self, url = None):
         """
         Check that the path specified in the cookie properly matches the url
-        for which it was stored
+        for which it was stored or which we are about to request
+
+        Arguments:
+        url      -- url (without host/port/protocol) that will be used for the remote request
+                    if not set, check against the url for which the cookie was set
+                    (for verification that the cookie should be stored)
         """
         # exact match
         if self.url == self.path:
@@ -125,11 +136,18 @@ class YaS3HTTPCookie(object):
             return False
         return True
 
-    def checkSecure(self):
+    def checkSecure(self, protocol = None):
         """
         Check that the protocol specified in the cookie matches the protocol
-        in use when it was stored
+        in use when it was stored, or which we are about to use for a request
+
+        Arguments:
+        protocol    -- protocol that will be used for the remote request
+                       if not set, check against the protocol used when the cookie was set
+                       (for verification that the cookie should be stored)
         """
+        if not protocol:
+            protocol = self.protocol
         if self.secure and not self.protocol == "https":
             return False
         return True
@@ -168,26 +186,15 @@ class YaS3HTTPCookie(object):
             return False
         return True
 
-    def setRemoteHostInfo(self, host, protocol, url):
-        """
-        Set information about the remote host to which the cookie might be sent
-
-        Arguments:
-        host      -- fqdn of the host
-        protocol  -- http or https
-        url       -- the url (without host, port, protocol)
-        """
-        self.host = host
-        self.prptocol = protocol
-        self.url = url
-
-    def checkIfCookieValid(self):
+    def checkIfCookieValid(self, host, protocol, url):
         """
         Check if the cookie should be sent to the remote location or not
-        
-        Call this after setRemoteHostInfo(...)
-
         Returns True if ok to send the cookie, False otherwise
+
+        Arguments:
+        host       -- fqdn of the host from which we will be making the remote request
+        protocol   -- protocol that will be used for the remote request
+        url        -- url (without host/port/protocol) that will be used for the remote request
         """
         # if this cookie is not expired and the path matches and the domain matches etc 
         # this is a valid cookie (and we would want to send the corresponding cookie header)
@@ -199,11 +206,11 @@ class YaS3HTTPCookie(object):
             # let the caller figure it out
             return True
 
-        if not self.checkDomain():
+        if not self.checkDomain(host):
             return False
-        if not self.checkPath():
+        if not self.checkPath(url):
             return False
-        if not self.checkSecure():
+        if not self.checkSecure(protocol):
             return False
         if self.cookieExpiryString:
             if not self.checkExpires():
@@ -247,7 +254,8 @@ class YaS3HTTPHeaders(object):
         header  -- header name
         value   -- text string for the header value
         """
-        self.headers.append([ header, value ])
+        if header and value is not None:
+            self.headers.append([ header, value ])
 
     def printHeader(self, header, value):
         """
@@ -267,6 +275,34 @@ class YaS3HTTPHeaders(object):
             for h, v in self.headers:
                 self.printHeader(h,v)
 
+    def findHeader(self, name):
+        """
+        Find and return value of header for specified
+        header name
+        
+        Arguments:
+        name   -- header name
+        """
+        lcaseName = name.lower()
+        if not len(self.headers):
+            return None
+        for h, v in self.headers:
+            if h.lower() == lcaseName:
+                return v
+        return None
+
+    def findAmzHeaders(self):
+        """
+        Find and return a list of all x-amz headers
+        """
+        if not len(self.headers):
+            return []
+        result = []
+        for h, v in self.headers:
+            if h.lower().startswith("x-amz-"):
+                result.append((h,v))
+        return result
+
 if __name__ == "__main__":
     """
     Test suite for the cookie validation checks
@@ -278,44 +314,35 @@ if __name__ == "__main__":
 
         # check to see if stored cookie would be sent to new host/url/etc
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/; testcookie=1" % domain, "archive.org", "http", "/account.php")
-        c.setRemoteHostInfo("archive.org", "http", "/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
-        c.setRemoteHostInfo("a.b.archive.org", "http", "/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
-        c.setRemoteHostInfo("a.archive.org", "http", "/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
-        c.setRemoteHostInfo("abarchive.org", "http", "/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("archive.org", "http", "/account.php")
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("a.b.archive.org", "http", "/account.php")
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("a.archive.org", "http", "/account.php")
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("abarchive.org", "http", "/account.php")
 
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/a/; testcookie=1" % domain, "archive.org", "http", "/a/account.php")
-        c.setRemoteHostInfo("ab.archive.org", "http", "/a/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("ab.archive.org", "http", "/a/account.php")
 
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/a; testcookie=1" % domain, "archive.org", "http", "/a/account.php")
-        c.setRemoteHostInfo("ab.archive.org", "http", "/a/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("ab.archive.org", "http", "/a/account.php")
 
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/abc; testcookie=1" % domain, "archive.org", "http", "/abc/account.php")
-        c.setRemoteHostInfo("ab.archive.org", "http", "/abcd/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("ab.archive.org", "http", "/abcd/account.php")
 
         # check to see if cookie is stored or rejected
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/abc; testcookie=1" % domain, "archive.org", "http", "/abc/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("archive.org", "http", "/abc/account.php")
 
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/ab; testcookie=1" % domain, "archive.org", "http", "/abc/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("archive.org", "http", "/abc/account.php")
 
         c = YaS3HTTPCookie("Set-Cookie: domain=%s; path=/abc/; testcookie=1" % domain, "archive.org", "http", "/abc/account.php")
-        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid(), "\n"
+        print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("archive.org", "http", "/abc/account.php"), "\n"
 
     print "Doing set 3"
     c = YaS3HTTPCookie("Set-Cookie: domain=archive.org; path=/abc/; testcookie=1", "archive.org", "https", "/abc/account.php")
-    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
-    c.setRemoteHostInfo("ab.archive.org", "http", "/a/account.php")
-    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
+    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("archive.org", "https", "/abc/account.php")
+    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("ab.archive.org", "http", "/a/account.php")
     
     c = YaS3HTTPCookie("Set-Cookie: path=/abc/; testcookie=1", "archive.org", "https", "/abc/account.php")
-    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid()
-    c.setRemoteHostInfo("ab.archive.org", "https", "/a/account.php")
-    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid(), "\n"
+    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("archive.org", "https", "/abc/account.php")
+    print "domain:", c.domain, "host:", c.host, "would send: ", c.checkIfCookieValid("ab.archive.org", "https", "/a/account.php"), "\n"

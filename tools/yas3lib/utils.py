@@ -40,8 +40,10 @@ class PPXML(object):
         data -- the xml text to be pretty-printed
         """
         # do nothing special if there's no xml in here
-        if not data.find("<\?xml "):
-            print data
+        if data.find("<?xml ") < 0:
+            data = data.strip('\r\n').strip()
+            if data:
+                print data
             return
 
         data = data.replace("><", ">\n<")
