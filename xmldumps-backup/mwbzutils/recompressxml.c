@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <regex.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include "bzlib.h"
 
 char inBuf[4096];
@@ -111,9 +112,9 @@ int endsXmlBlock(char *buf, int header) {
   else return 0;
 }
 
-int endBz2Stream(bz_stream *strm, char *outBuf, int bufSize, FILE *fd) {
+off_t endBz2Stream(bz_stream *strm, char *outBuf, int bufSize, FILE *fd) {
   int result;
-  int offset;
+  off_t offset;
 
   do {
     strm->avail_in = 0;
@@ -122,13 +123,13 @@ int endBz2Stream(bz_stream *strm, char *outBuf, int bufSize, FILE *fd) {
     strm->next_out = outBuf;
     strm->avail_out = 8192;
   } while (result != BZ_STREAM_END);
-  offset = strm->total_out_lo32;
+  offset = (off_t)strm->total_out_lo32 | ((off_t)strm->total_out_hi32 << 32);
   BZ2_bzCompressEnd(strm);
   return(offset);
 }
 
-int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd, int indexcompressed, int verbose) {
-
+void writeCompressedXmlBlock(int header, int count, off_t *fileOffset, FILE *indexfd, int indexcompressed, int verbose)
+ {
   bz_stream strm;
   int bz_verbosity = 0;
   int bz_workFactor = 0;
@@ -194,7 +195,7 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 	    if (verbose) {
 	      fprintf(stderr,"writing line to compressed index file\n");
 	    }
-	    sprintf(inBuf_indx,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
+	    sprintf(inBuf_indx,"%"PRId64":%d:%s\n",*fileOffset,pageId,pageTitle);
 	    strm_indx.next_in = inBuf_indx;
 	    strm_indx.avail_in = strlen(inBuf_indx);
 	    do {
@@ -211,7 +212,7 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 	    if (verbose) {
 	      fprintf(stderr,"writing line to index file\n");
 	    }
-	    fprintf(indexfd,"%d:%d:%s\n",fileOffset,pageId,pageTitle);
+	    fprintf(indexfd,"%"PRId64":%d:%s\n",*fileOffset,pageId,pageTitle);
 	  }
 	  pageId = 0;
 	  pageTitle = NULL;
@@ -235,25 +236,25 @@ int writeCompressedXmlBlock(int header, int count, int fileOffset, FILE *indexfd
 	fprintf(stderr,"end of header found\n");
       }
       if (header) {
-	fileOffset += endBz2Stream(&strm, outBuf, sizeof(outBuf), stdout);
-	return(fileOffset);
+	*fileOffset += endBz2Stream(&strm, outBuf, sizeof(outBuf), stdout);
+	return;
       }
 
       blocksDone++;
       if (blocksDone % count == 0) {
 	if (verbose) fprintf(stderr, "end of xml block found\n");
 	/* close down bzip stream, we are done with this block */
-	fileOffset += endBz2Stream(&strm, outBuf, sizeof(outBuf), stdout);
-	return(fileOffset);
+	*fileOffset += endBz2Stream(&strm, outBuf, sizeof(outBuf), stdout);
+	return;
       }
     }
   }
   if (verbose) fprintf(stderr,"eof reached\n");
   if (wroteSomething) {
     /* close down bzip stream, we are done with this block */
-    fileOffset += endBz2Stream(&strm, outBuf, sizeof(outBuf), stdout);
+    *fileOffset += endBz2Stream(&strm, outBuf, sizeof(outBuf), stdout);
   }
-  return(fileOffset);
+  return;
 }
 
 void usage(char *whoami, char *message) {
@@ -280,7 +281,7 @@ void usage(char *whoami, char *message) {
 int main(int argc, char **argv) {
   int optindex=0;
   int optc;
-  int offset = 0;
+  off_t offset;
 
   struct option optvalues[] = {
     {"buildindex", 1, 0, 'b'},
@@ -290,7 +291,6 @@ int main(int argc, char **argv) {
   };
 
   int count = 0;
-  int doIndex = 0;
   char *indexFilename = NULL;
   int verbose = 0;
   FILE *indexfd = NULL;
@@ -299,7 +299,6 @@ int main(int argc, char **argv) {
   while (1) {
     optc=getopt_long_only(argc,argv,"pagesperstream:buildindex:verbose", optvalues, &optindex);
     if (optc=='b') {
-      doIndex=1;
       indexFilename = optarg;
     }
     else if (optc=='p') {
@@ -335,11 +334,12 @@ int main(int argc, char **argv) {
 
   setupRegexps();
 
+  offset = (off_t)0;
   /* deal with the XML header */
-  offset = writeCompressedXmlBlock(1,count,0,indexfd,indexcompressed,verbose);
+  writeCompressedXmlBlock(1,count,&offset,indexfd,indexcompressed,verbose);
 
   while (!feof(stdin)) {
-    offset = writeCompressedXmlBlock(0,count,offset,indexfd,indexcompressed,verbose);
+    writeCompressedXmlBlock(0,count,&offset,indexfd,indexcompressed,verbose);
   }
 
   if (indexFilename) {
