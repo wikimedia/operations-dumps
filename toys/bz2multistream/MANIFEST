@@ -1,0 +1,14 @@
+COPYING        -- GPLv2 license governing these files
+HACKING.txt    -- a few notes for developers
+INSTALL.txt    -- how to install the reader for use
+MANIFEST.txt   -- this file
+OFFLINE.txt    -- list of known *real* offline readers
+README.txt     -- introduction to the project
+
+sort.sh                  -- helper script to produce a sorted index file,
+                            see INSTALL.txt for more information
+wikiarticles.conf.sample -- sample configuration file for the reader
+wikiarticles.py          -- reader script
+writetoc.py              -- helper script that creates the needed toc file,
+                            see INSTALL.txt for more information
+

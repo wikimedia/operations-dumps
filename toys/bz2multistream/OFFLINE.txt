@@ -1,0 +1,50 @@
+Offline readers for Wikipedia or other Wikimedia projects known
+to the author of this list as of September 2012
+
+Some of these are Free Software and some aren't; also the list is
+bound to be pretty incomplete.  If you know of other (Free Software)
+apps, feel free to drop a line to the maintainer, currently ariel at
+wikimedia.org.  At some point if the list gets too large we'll just
+list the most recent Free apps.
+
+aarddict -- cross-platform (desktop)
+http://aarddict.org/
+
+allofwiki offline -- iOS
+http://www.brilliantish.com/allofwiki/
+
+BzReader -- windows
+http://code.google.com/p/bzreader/
+
+evopedia -- linux, windows
+http://evopedia.info/
+
+Kiwix -- cross-plaform (desktop)
+http://sourceforge.net/projects/kiwix/
+
+MzReader -- windows
+http://homepage.ntlworld.com/bharat.vadera/MzReader/
+
+offline-wiki -- Chrome, Firefox, iOS
+http://code.google.com/p/offline-wiki/
+
+offline-wikipedia -- linux
+http://owi.sourceforge.net/
+
+WikiDroyd -- android
+https://play.google.com/store/apps/details?id=com.osa.android.wikidroyd
+
+Wiki Encyclopedia Offline -- android
+https://play.google.com/store/apps/details?id=in.bitmagic.wiki.offline
+
+Wiki Offline -- iOS
+http://itunes.apple.com/us/app/id378348813?mt=8
+
+WikiPock -- various mobile devices
+http://www.wikipock.com/
+
+WikiOnBoard -- Symbian based mobile devices
+http://cip.github.com/WikiOnBoard/
+
+WikiTaxi -- windows
+http://www.wikitaxi.org/delphi/doku.php/products/wikitaxi/index

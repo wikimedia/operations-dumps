@@ -1,0 +1,44 @@
+Here's the preparation you will need to do in order to use the reader:
+
+* Create a multistream bz2 file from the XML file of article texts you wish to use.
+* Create an index file for the multistream bz2 file.
+* Create a sorted version of the index file (beware, on some platforms including linux
+  you must specify the C locale for sort not to give an ordering useless for the next step)
+* Create a ToC file for the index file.
+
+Example of the above steps for a dump of el wikipedia which has been downloaded and
+saved into elwiki-20120915-pages-articles.xml.bz2:
+
+bzcat elwiki-20120915-pages-articles.xml.bz2  | recompressxml --pagesperstream 100 --buildindex elwiki-pages-multistream-index.bz2 > elwiki-pages-multistream.bz2
+
+LC_ALL_save=`echo $LC_ALL`; LC_ALL=C; export LC_ALL; \
+bzcat elwiki-pages-multistream-index.bz2 | \
+sort -k 3 -t ':' > elwiki-pages-multistream-index-sorted.txt; \
+LC_ALL=${LC_ALL_save}; export LC_ALL
+(or you can use the helper script sort.sh for this step)
+
+cat elwiki-pages-multistream-index-sorted.txt | \
+python ./writetoc.py --field 3 --separator ':' --indexfile elwiki-pages-multistream-toc.txt
+
+After the above, you can optionally create a configuration file "wikiarticles.conf".
+See the wikiarticles.conf.sample for more information.  An example configuration file
+for the files that would have been created by the above example is shown below.
+
+[files]
+xmlfile=elwiki-20120915-pages-articles.xml.bz2
+idxfile=elwiki-pages-multistream-index-sorted.txt
+tocfile=elwiki-pages-multistream-toc.txt
+[format]
+cleanup=1
+textonly=1
+maxredirs=2
+filetext=Αρχείο
+categorytext=Κατηγορία
+redirtext=ΑΝΑΚΑΤΕΥΘΥΝΣΗ
+
+Try running the script; with no arguments it will produce a usage message listing
+all arguments and explaining each one.
+
+Example using the above configuration file:
+
+python ./wikiarticles.py --title "Ά"

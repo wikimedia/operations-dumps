@@ -1,0 +1,28 @@
+# sample config file for retrieving article text from a wiki project
+# XML file offline
+
+[files]
+# xmlfile: multistream bz2 file, has the article text for the project
+xmlfile=/home/ariel/enwikipedia-pages-mstream.bz2
+# indexfile: has the multistream index, must have been sorted
+# previously, see the README
+idxfile=/home/ariel/enwiki-pages-mstream-index-sorted
+# tocfile: produced by writetoc.py from the multistream index, see
+# the README
+tocfile=/home/ariel/toc.txt
+
+[format]
+# perform various cleanups on the text before displaying it (removal
+# of various tags) or not?
+cleanup=1
+# display only the article text or all the metadata about the article?
+textonly=1
+# how many article redirections do we permit?  0 = don't do any
+maxredirs=2
+# the following are used during text cleanup
+# name of File namespace in wiki content language
+filetext=File
+# name of Category namespace in wiki content language
+categorytext=Category
+# REDIRECT keyword in wiki content language -- used for following redirs
+redirtext=REDIRECT

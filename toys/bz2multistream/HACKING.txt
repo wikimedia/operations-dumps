@@ -1,0 +1,67 @@
+==The multistream bz2 format
+
+Bzip2 is a block-based compression algorithm.  This means that
+in theory one can write an index containing a list of the
+offset of each compressed block and the article titles it
+contains, and use that to retrieve article text by seeking to
+the block and decompressing it (after feeding the bzip2
+header information to the setup routine for the bz2 library
+of your choice).
+
+In practice however, because bzip2 blocks need not be byte-
+aligned, it's neither that easy to determine whether you
+have really found the beginning of a bz2 block (the best
+test is to try to decompress) nor is it any fun to bit-shift
+some large pile of text several bits in order to decompress
+it.  And some bz2 libraries don't expose the right routines
+for this sort of access; I had bad luck trying to trick php
+into doign what I wanted with low-level bz2 routines.
+
+So, enter the bzip2 multistream file.  It is exactly what
+it sounds like: several "streams" (complete "files" of
+bzip2-compressed data) concatenated together.  The start
+of such a file is guranteed to be byte-aligned, as is the end,
+and there is a bzip2 file start header, which makes locating
+and decompressing your desired data much easier when stored
+in separate streams.
+
+Not all bzip2 applications or libraries support multistream
+files; many will read the first stream and quit.  But for
+our purposes, that's good enough; we find the right position
+in the file, decompress that stream until we find the article
+text, and serve it up to the user.
+
+For the nitty gritty about headers, block markers and the
+rest, see:
+http://en.wikipedia.org/wiki/Bzip2#File_format
+
+The optimal format for retrieval purposes would be to store
+each article in its own stream.  But this would drastically
+reduce the efficiency of the compression.  We'd be talking about
+12.6 million separate streams, many more separate blocks than the 
+current file contains.  Our recompression tool takes the number
+of pages per stream as an argument, and 100 pages turns out to be
+"not too bad".  For the English language Wikipedia in Sept 2012,
+the current articles come out to about 8,7GB of bz2 compressed
+XML, while the multistream file with 100 pages per stream is about
+9,3GB.
+
+==Parsing the resulting wikitext
+
+This is beyond the scope of this project, for two reasons. First,
+the idea was simply to provide a fast means of retrieval of the
+raw article text from the dumps; that's done.  Second and more
+crucial, it is still the case that there is no specification
+for wikitext + templates + parserfunctions; there is no way to
+guarantee that a given parser will produce the same output as
+MediaWiki given the same wikitext input, except to compare its
+output against MediaWiki output.
+
+There is a project underway to provide a new parser that won't
+have these problems: see
+http://www.mediawiki.org/wiki/Parsoid
+for more about the project and
+http://www.mediawiki.org/wiki/Parsoid/Todo
+for an idea of the work remaining before Parsoid is released.
+
+Until then, ad hoc methods will have to suffice; good luck!
