@@ -13,10 +13,13 @@ class Error(Exception):
 def dateToDigits(dateString):
 	if '-' not in dateString:
 		return None
-	month, rest = today.split('-', 1)
+	month, rest = dateString.split('-', 1)
 	if not month.isdigit():
-		return None
-	return "%s-%s" % ( monthNames[int(month)], rest)
+		if not month in monthNames:
+			return None
+		else:
+			month = monthNames.index(month)
+	return "%s-%s" % ( int(month), rest)
 
 def getLatestDeployDate(deploydir):
 	try:
