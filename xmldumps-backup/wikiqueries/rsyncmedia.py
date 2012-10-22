@@ -25,7 +25,12 @@ class Rsyncer(object):
         command = [ "rsync", "-rltDp" ]
         if filesToDo:
             command.extend([ "--files-from", "-" ])
-        command.extend([self.rsyncHost + "::" + self.remoteBaseDir, self.outputDir ])
+        if rsyncHost:
+            command.extend([self.rsyncHost + "::" + self.remoteBaseDir, self.outputDir ])
+        else:
+            # "remote" dir is accessible as a local filesystem
+            command.extend([ self.remoteBaseDir, self.outputDir ])
+
         # 23 = Partial transfer due to error
         # 24 = Partial transfer due to vanished source files
         # we can see these from rsync because 1) the source dir doesn't exist, for
@@ -137,7 +142,7 @@ class RsyncProject(object):
 def usage(message = None):
     if message:
         sys.stderr.write("%s\n" % message)
-        sys.stderr.write("Usage: python rsyncmedia.py --remotehost hostname --remotedir dirname\n")
+        sys.stderr.write("Usage: python rsyncmedia.py [--remotehost hostname] --remotedir dirname\n")
         sys.stderr.write("                      --localdir dirname --wikilist filename\n")
         sys.stderr.write("                      [--big wiki1,wiki2,...] [--huge wiki3,wiki4,...]\n")
         sys.stderr.write("                      [--verbose] [--dryrun]\n")
@@ -148,6 +153,8 @@ def usage(message = None):
         sys.stderr.write("that may have been created over time.\n")
         sys.stderr.write("\n")
         sys.stderr.write("--remotehost:    hostname of the remote host form which we are rsyncing.\n")
+        sys.stderr.write("                 if this option is ommited, the remotedir option is assumed\n")
+        sys.stderr.write("                 to refer to a local filesystem (for example nfs-mounted)\n")
         sys.stderr.write("--remotedir:     path to point in remote directory in which media for the\n")
         sys.stderr.write("                 wiki(s) are stored; this path is relative to the rsync root.\n")
         sys.stderr.write("--localdir:      path to root of local directory tree in which media for\n")
@@ -215,7 +222,7 @@ if __name__ == "__main__":
     if len(remainder) > 0:
         usage("Unknown option specified")
 
-    if not remoteDir or not rsyncHost or not localDir or not wikiListFile:
+    if not remoteDir or not localDir or not wikiListFile:
         usage("One or more mandatory options missing")
 
     if wikiListFile == "-":
