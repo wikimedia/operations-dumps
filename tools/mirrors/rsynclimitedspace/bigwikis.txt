@@ -1,0 +1,10 @@
+dewiki
+eswiki
+frwiki
+itwiki
+jawiki
+nlwiki
+plwiki
+ptwiki
+ruwiki
+

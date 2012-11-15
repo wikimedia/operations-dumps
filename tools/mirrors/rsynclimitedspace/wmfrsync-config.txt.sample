@@ -1,0 +1,11 @@
+# config file for wmf rsync script
+
+# these values will be overriden by any values supplied for 
+# options on the command line
+
+BASEDIR="/home/bob/wmf/dumps/amazon/scripts"
+DESTDIR="/home/bob/wmf/dumps/amazon/dumps"
+REMOTE="ftpmirror.your.org::wikimedia-dumps"
+TYPE="small"
+CLEANUP="false"
+DRYRUN="false"
