@@ -8,6 +8,7 @@ class Rsyncer(object):
         self.outputDir = outputDir
         self.verbose = verbose
         self.dryrun = dryrun
+        self.dirList = []
 
     def makePath(self, dirList):
         dirs = filter(None, dirList)
@@ -19,10 +20,24 @@ class Rsyncer(object):
         else:
             return os.path.join(*dirs)
 
-    def doRsync(self, filesToDo, localPath):
+    def doRsync(self, filesToDo, localPath, getDirList = False):
         localdir = self.makePath([ self.outputDir, localPath ])
 
         command = [ "rsync", "-rltDp" ]
+        if getDirList:
+            if filesToDo:
+                filesToDoList = filesToDo.split('\n')
+                if len(filesToDoList) > 1:
+                    sys.stderr.write("refusing to generate wanted dir list for multiple toplevel dirs %s\n" % filesToDo)
+                    return
+                # we want the first level of hash dirs (to see what exists, so we can request only those)
+                # but we don't want anything below that.
+                excludeLevels = 3 + filesToDoList[0].count('/')
+                excludeString = "/*" * excludeLevels
+                command.extend([ "-f", "- "+ excludeString ])
+            command.extend([ "--list-only" ])
+            dryrunSaved = self.dryrun
+            self.dryrun = False  # we don't actually change anything with --list-only so run it
         if filesToDo:
             command.extend([ "--files-from", "-" ])
         if rsyncHost:
@@ -39,9 +54,16 @@ class Rsyncer(object):
         # some of each type of error on every single run, log things
         # but don't bail
 
-        self.doCommand(command, filesToDo, [23, 24])
+        if (getDirList):
+            result, output = self.dirList = self.doCommand(command, filesToDo, [23, 24], displayOutput = False)
+        else:
+            result, output = self.doCommand(command, filesToDo, [23, 24])
+        if getDirList:
+            self.dryrun = dryrunSaved
+        return output
 
-    def doCommand(self, command, inputToCommand, returnCodesAllowed):
+    def doCommand(self, command, inputToCommand, returnCodesAllowed, displayOutput = True):
+        output = None
         commandString = " ".join(command)
         if self.dryrun:
             sys.stderr.write("would run commmand: ")
@@ -50,12 +72,13 @@ class Rsyncer(object):
         if self.dryrun or self.verbose:
             sys.stderr.write(commandString)
             if inputToCommand:
-                sys.stderr.write("with input: %s" % inputToCommand)
+                sys.stderr.write("\nwith input: %s" % inputToCommand)
             sys.stderr.write("\n")
         if self.dryrun:
-            return
+            return 0, output
 
         try:
+            error = None
             proc = Popen(command, stdin = PIPE, stdout = PIPE, stderr = PIPE)
             output, error = proc.communicate(inputToCommand)
             if proc.returncode and proc.returncode not in returnCodesAllowed:
@@ -67,12 +90,12 @@ class Rsyncer(object):
                 sys.stderr.write("%s\n" % error)
             # the problem is probably serious enough that we should refuse to do further processing
             raise
-        if output:
+        if output and displayOutput:
             print output
         if error:
             if error:
                 sys.stderr.write("%s\n" % error)
-        return proc.returncode
+        return proc.returncode, output
     
 class RsyncProject(object):
     def __init__(self, rsyncer, wiki, wtype, wikidir):
@@ -131,13 +154,28 @@ class RsyncProject(object):
             self.rsyncer.doRsync(filesFrom, localPath)
         
     def doNormalRsync(self):
+        # for anything not big or huge, get list of media dirs that the wiki has, this will be the list of dirs we want
         if self.rsyncer.verbose or self.rsyncer.dryrun:
-            sys.stderr.write("doing 1 shard for wiki %s\n" % self.wiki)
+            sys.stderr.write("retrieving dir list for wiki %s\n" % self.wiki)
+        localPath = self.getLocalPath()
+        dirsFound = self.rsyncer.doRsync(self.wikidir, localPath, getDirList = True)
 
         # explicitly list the 17 dirs we want
-        filesFrom = '\n'.join([ self.rsyncer.makePath([self.wikidir, d]) for d in ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","archive"]])
-        localPath = self.getLocalPath()
-        self.rsyncer.doRsync(filesFrom, localPath)
+        dirsWanted = [ self.rsyncer.makePath([self.wikidir, d]) for d in ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","archive"] ]
+        # filter out the ones not in dirList, keeps rsync from whining about nonexistent dirs
+
+        # format of the returned lines is
+        # drwxrwxr-x        4096 2012/04/06 10:45:34 blahblah/8
+        filesFrom = [ f.rsplit(None,1)[1] for f in dirsFound.split('\n') if '/' in f ]
+        filesFrom = "\n".join([ f for f in filesFrom if f in dirsWanted ])
+        if filesFrom:
+            if self.rsyncer.verbose or self.rsyncer.dryrun:
+                sys.stderr.write("doing 1 shard for wiki %s\n" % self.wiki)
+            self.rsyncer.doRsync(filesFrom, localPath)
+        else:
+            if self.rsyncer.verbose or self.rsyncer.dryrun:
+                sys.stderr.write("skipping wiki %s, no dirs to sync\n" % self.wiki)
+
 
 def usage(message = None):
     if message:
