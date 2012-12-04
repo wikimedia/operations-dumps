@@ -669,7 +669,7 @@ class DumpItemList(object):
 			self.dumpItems.append(RecombineXmlDump("metacurrentdumprecombine", "Recombine all pages, current versions only.","Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.findItemByName('metacurrentdump')))
 
 		self.dumpItems.append(
-			XmlLogging("Log events to all pages."))
+			XmlLogging("Log events to all pages and users."))
 			
 		if self._hasFlaggedRevs:
 			self.dumpItems.append(
@@ -2938,7 +2938,7 @@ class XmlLogging(Dump):
 		Dump.__init__(self, "xmlpagelogsdump", desc)
 
 	def detail(self):
-		return "This contains the log of actions performed on pages."
+		return "This contains the log of actions performed on pages and users."
 
 	def getDumpName(self):
 		return("pages-logging")
