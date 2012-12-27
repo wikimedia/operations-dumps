@@ -116,6 +116,7 @@ exitcode=0
 echo "Copying..."
 
 for h in $hostnames; do
+    ssh root@$h "mkdir -p $basedir/deploy/"
     scp -rp -q -o ConnectTimeOut=20 $basedir/deploy/$deploydir  root@$h:$deploymentbase/
     if [ $? -ne 0 ]; then
 	# serious whine
