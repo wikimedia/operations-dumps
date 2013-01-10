@@ -30,90 +30,9 @@ class Config(object):
         if home is not None:
             self.files.append(os.path.join(os.getenv("HOME"),
                                            ".wikidump.conf"))
-        defaults = {
-            # "wiki": {
-            "dblist": "",
-            "privatelist": "",
-            "closedlist": "",
-            "tablejobs": "",
-            # "dir": "",
-            "skipdblist": "",
-            # "output": {
-            "public": "/dumps/public",
-            "private": "/dumps/private",
-            "temp": "/dumps/temp",
-            "webroot": "http://localhost/dumps",
-            "index": "index.html",
-            "templatedir": home,
-            "perdumpindex": "index.html",
-            "logfile": "dumplog.txt",
-            "fileperms": "0640",
-            # "reporting": {
-            "adminmail": "root@localhost",
-            "mailfrom": "root@localhost",
-            "smtpserver": "localhost",
-            "staleage": "3600",
-            "skipprivatetables": "0",
-            # "database": {
-            # these are now set in get_db_user_and_password() if needed
-            "user": "",
-            "password": "",
-            # mysqldump option. should match whatever your
-            # mysql servers have set
-            "max_allowed_packet": "16M",
-            # "tools": {
-            "php": "/bin/php",
-            "gzip": "/usr/bin/gzip",
-            "bzip2": "/usr/bin/bzip2",
-            "sevenzip": "/bin/7za",
-            "mysql": "/usr/bin/mysql",
-            "mysqldump": "/usr/bin/mysqldump",
-            "head": "/usr/bin/head",
-            "tail": "/usr/bin/tail",
-            "cat": "/bin/cat",
-            "grep": "/bin/grep",
-            "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
-            "writeuptopageid": "/usr/local/bin/writeuptopageid",
-            "recoompressxml": "/usr/local/bin/recompressxml",
-            # "cleanup": {
-            "keep": "3",
-            # "chunks": {
-            # set this to 1 to enable runing the various xml dump stages as subjobs in parallel
-            "chunksEnabled": "0",
-            # do subjobs for named job in batches of specified size
-            # example: "xmlstubsdump=3,abstractsdump=5"
-            "jobsperbatch": "",
-            # for page history runs, number of pages for each file part, specified separately
-            # e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
-            # would define 10 subjobs with 10 file parts and the specified number of pages in
-            # each and any extra in a final 11th part
-            "pagesPerChunkHistory": False,
-            # revs per file part (roughly, it will be split along page lines)
-            # for history and current dumps
-            # values: positive integer, "compute",
-            # this field is overriden by pagesPerChunkHistory
-            # CURRENTLY NOT COMPLETE so please don't use this.
-            "revsPerChunkHistory": False,
-            # pages per file part for abstract runs
-            "pagesPerChunkAbstract": False,
-            # number of file parts (and subjobs that produce them) for abstract dumps,
-            # overrides pagesPerChunkAbstract
-            "chunksForAbstract": 0,
-            # whether or not to recombine the history file parts
-            "recombineHistory": "1",
-            # do we write out checkpoint files at regular intervals?
-            # (article/metacurrent/metahistory dumps only.)
-            "checkpointTime": "0",
-            # "otherformats": {
-            "multistream": "0",
-            # "query":{
-            "queryfile": "wikiquery.sql",
-            # "stubs": {
-            "orderrevs": "0",
-            "minpages": "1",
-            "maxrevs": "50000"
-        }
-        self.conf = ConfigParser.SafeConfigParser(defaults)
+
+        self.conf = ConfigParser.SafeConfigParser()
+        self.conf.readfp(open('defaults.conf', "rb"))
         self.conf.read(self.files)
 
         if not self.conf.has_section("wiki"):
@@ -257,6 +176,7 @@ class Config(object):
         # to the defaults, which has_option() normally does, ugh.  so set
         # up a local conf instance without the defaults
         conf = ConfigParser.SafeConfigParser()
+        conf.readfp(open('defaults.conf', "rb"))
         conf.read(self.files)
 
         if project_name:
@@ -265,10 +185,10 @@ class Config(object):
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
 
-        dbuser = self.get_opt_for_proj_or_default(conf, "database", "user", 0)
+        dbuser = self.get_opt_for_proj_or_default(self.conf, "database", "user", 0)
         if dbuser:
             self.db_user = dbuser
-        dbpassword = self.get_opt_for_proj_or_default(conf, "database", "password", 0)
+        dbpassword = self.get_opt_for_proj_or_default(self.conf, "database", "password", 0)
         if dbpassword:
             self.db_password = dbpassword
         max_allowed_packet = self.get_opt_for_proj_or_default(
@@ -314,16 +234,21 @@ class Config(object):
         self.wiki_dir = self.get_opt_for_proj_or_default(conf, "wiki", "dir", 0)
 
     def get_opt_for_proj_or_default(self, conf, section_name, item_name, is_int):
+        # look for option in per project sections
         if conf.has_section(self.project_name):
             if conf.has_option(self.project_name, item_name):
                 if is_int:
                     return conf.getint(self.project_name, item_name)
                 else:
                     return conf.get(self.project_name, item_name)
-        if is_int:
-            return self.conf.getint(section_name, item_name)
-        else:
-            return self.conf.get(section_name, item_name)
+
+        # look for option in global sections
+        if conf.has_section(section_name):
+            if conf.has_option(section_name, item_name):
+                if is_int:
+                    return self.conf.getint(section_name, item_name)
+                else:
+                    return self.conf.get(section_name, item_name)
 
     def db_latest_status(self):
         '''
