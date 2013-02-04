@@ -1,0 +1,11 @@
+25 Jan 2013
+
+   Release 0.0.1
+
+   Features: 
+    *  Reads stub and text content xml files in parallel, producing separate
+       sql files for inserts to page, revision and text tables
+    *  Reads bz2, gz or plain text content, writes bz2, gz or plaintext output
+       based on extensions of stub/page content files and output filename
+    *  Reads xml dumps with schema 0.5 through 0.8, writes for MW 1.5 through
+       1.20 (tested only for 0.7 in and MW 1.20 out)

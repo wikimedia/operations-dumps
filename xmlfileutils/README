@@ -1,0 +1,62 @@
+This is a bare bones converter of MediaWiki XML dumps to sql.
+It does one thing and hopefully at least doesn't suck at it.
+If you want the swiss army knife of converters, better shop
+elsewhere.
+
+To install this program, you will need to have the libssl,
+libcrypto, libz and bz2 development libraries installed,
+as well as the gcc toolchain or an equivalent C compiler
+and its supporting libraries. You'll also need the 'make'
+utility.
+
+This program has been tested only on 64-bit Linux.  You can
+try building it on other platforms but without any support
+from the author.  If you do build it on another platform and
+run it successfully, let us know and we'll include that
+information here.
+
+INSTALLATION
+
+Unpack the distribution someplace, cd into it, 'make'
+and if you like 'make install'.  The binary will be
+installed into /usr/local/bin.  If you want it someplace
+else, edit the Makefile and change the line
+'PREFIX=/usr/local'  as desired.
+
+RUNNING
+
+'mwxml2sql --help' will give you a comprehensive usage
+message.
+
+TL;DR version:  you need a page xml.bz2/gz file and a
+stubs xml bz2/gz file for input, sql files for the page,
+revision and text tables will be produced on output.
+
+Example use:
+
+mwxml2sql -v -s testing/enwiki-stubs-1114-1300.gz \
+         -t testing/enwiki-pages-1114-1300.gz  \
+         -f testing/sql_enwiki-1114-1300.gz -p t_ -m 1.20
+
+-v: print progress messages
+-s: stubs file for input
+-t: text (page content) file for input
+-f: filename used to build the page/revision/text output filenames
+    in this case the files sql_enwiki-1114-1300-page.sql.gz,
+    sql_enwiki-1114-1300-revs.sql.gz and sql_enwiki-1114-1300-text.sql.gz
+    are produced
+-p: prefix of tables in your database (correpsonds to $wgDBprefix
+    in LocalSetting.php, leave out this option if you have no prefix)
+-m: MediaWiki version for which to produce output
+
+WARNINGS
+
+This has been tested only for output MediaWiki 1.20 and input xsd 0.7
+and not very comprehensively.  Please help discover bugs!
+
+
+
+
+
+
+
