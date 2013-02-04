@@ -335,15 +335,17 @@ void write_metadata(output_file_t *f, char *schema, siteinfo_t *s) {
   args:
     f         structure for output file
     nodrop    do not write 'DROP TABLE...' statements (but do write 'INSERT IGNORE' statements)
-    mwv       structure with information about the version of MediaWiki for which to write output
     t         structure with the names of the tables
 
   this function writes to the specified output file the sql required to create the
   page, revision and text tables for the MediaWiki version specified
 
  */
-void write_createtables_file(output_file_t *f, int nodrop, mw_version_t *mwv, tablenames_t *t) {
+void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t) {
   char out_buf[256];
+  mw_version_t *mwv;
+
+  mwv = f->mwv;
 
   if (!nodrop) {
     snprintf(out_buf, sizeof(out_buf), "DROP TABLE IF EXISTS `%s`;\n", t->text);

@@ -457,6 +457,9 @@ input_file_t *init_input_file(char *filename) {
 /*
   args:
     filename     name of output file
+    mwv          structure with information about the MediaWiki
+                 version for which sql output iin this file will
+                 be produced
 
   returns:
     allocated and filled in output file structure on success
@@ -469,7 +472,7 @@ input_file_t *init_input_file(char *filename) {
   if no filename is supplied, the function will assume that
   writes go to stdout and will set things up accordingly
 */
-output_file_t *init_output_file(char *filename) {
+output_file_t *init_output_file(char *filename, mw_version_t *mwv) {
   output_file_t *outf;
 
   outf = (output_file_t *)malloc(sizeof(output_file_t));
@@ -481,6 +484,7 @@ output_file_t *init_output_file(char *filename) {
   outf->gzfd = NULL;
   outf->bz2fd = NULL;
   outf->filename = filename;
+  outf->mwv = mwv;
   if (filename == NULL) {
     outf->filetype = PLAINTEXT;
     outf->fd = stdin;

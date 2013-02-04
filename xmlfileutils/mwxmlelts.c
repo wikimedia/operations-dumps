@@ -313,6 +313,9 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   char compressed_buf[TEXT_BUF_LEN_PADDED];
   char *compressed_ptr = NULL;
 
+  mw_version_t *mwv;
+
+  mwv = sqlt->mwv; /* unused but we'll want it in the future */
   if (get_sha1) SHA1_Init(&ctx);
 
   ind = strstr(f->in_buf->content, "<text");
@@ -505,8 +508,6 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
                          prefix like mw_ or what have you instead of just the regular names)
      insert_ignore:   0 to write ordinary INSERT statements, 1 to write INSERT IGNORE (causes
                          mysql to ignore the insert if a record with the same primary key already exists)
-      mwv:            pointer to mw_version_t containing the info about the MediaWiki version for
-                         which output will be produced
 
    this function expects content buffer of the stubs file to already be
    filled with the line containing the revision start tag
@@ -526,7 +527,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
      and p->model may be modified using data from
      the corresponding revision fields.
 */
-int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, page_t *p, int verbose, tablenames_t *t, int insert_ignore, mw_version_t *mwv) {
+int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, page_t *p, int verbose, tablenames_t *t, int insert_ignore) {
   char out_buf[TEXT_BUF_LEN*2];
   revision_t r;
   contributor_t c;
@@ -541,6 +542,9 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   char value[400];
   int result = 0;
 
+  mw_version_t *mwv;
+
+  mwv = sqlr->mwv;
   if (get_start_tag(stubs, REVISION) == -1) return(0);
 
   if (get_line(stubs) == NULL) {
@@ -864,12 +868,15 @@ int find_page_with_id(input_file_t *f, char *id) {
        is successfully read
 */
 
-int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char*start_page_id, mw_version_t *mwv) {
+int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char*start_page_id) {
   page_t p;
   char out_buf[1024]; /* seriously how long can username plus title plus the rest of the cruft be? */
   int want_text = 0;
   char escaped_title[FIELD_LEN*2];
   int skip = 0;
+  mw_version_t *mwv;
+
+  mwv = sqlp->mwv;
 
   p.title[0] = '\0';
   p.ns[0] = '\0';
@@ -982,7 +989,7 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
   }
 
   while (1) {
-    if (!do_revision(stubs, want_text?text:NULL, text_compress, sqlp, sqlr, sqlt, &p, verbose, t, insert_ignore, mwv)) break;
+    if (!do_revision(stubs, want_text?text:NULL, text_compress, sqlp, sqlr, sqlt, &p, verbose, t, insert_ignore)) break;
     if (get_line(stubs) == NULL) {
       whine("abrupt end of page data");
       return(0);
@@ -1387,8 +1394,6 @@ int do_mw_header(input_file_t *f, int skipschema, char **schema, int verbose) {
                   start tag <mediawiki is found
      schema       pointer to preallocated holder for string with schema version (e.g. '0.8')
      s            poiter to holder for site info
-     mwv          poiner to structure containing the info about the MediaWiki version for
-                  which output will be produced
      verbose      0 for quiet mode, 1 or greater to display info about the record
                   as it is being written
 
@@ -1412,7 +1417,7 @@ int do_mw_header(input_file_t *f, int skipschema, char **schema, int verbose) {
        structure on success and partially or not filled in at all
        on error.  If not filled in at all, it will be NULL.
 */
-int do_file_header(input_file_t *f, int skipschema, char **schema, siteinfo_t **s, mw_version_t *mwv, int verbose) {
+int do_file_header(input_file_t *f, int skipschema, char **schema, siteinfo_t **s, int verbose) {
   if (schema && *schema) *schema[0] = '\0';
   if (s) *s = NULL;
   /* make this header optional */

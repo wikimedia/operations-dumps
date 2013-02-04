@@ -350,11 +350,11 @@ int main(int argc, char **argv) {
   }
 
   if (mysql_file == NULL) {
-    mysql_createtables = init_output_file(NULL);
-    mysql_page = init_output_file(NULL);
-    mysql_revs = init_output_file(NULL);
+    mysql_createtables = init_output_file(NULL, mwv);
+    mysql_page = init_output_file(NULL, mwv);
+    mysql_revs = init_output_file(NULL, mwv);
     if (text_file)
-      mysql_text = init_output_file(NULL);
+      mysql_text = init_output_file(NULL, mwv);
   }
   else {
     /* take apart the name if needed and shove in the prefix, then the suffix */
@@ -365,13 +365,13 @@ int main(int argc, char **argv) {
     sprintf(mysql_page_file, "%s-page.sql%s", filebase, filesuffix);
     sprintf(mysql_revs_file, "%s-revs.sql%s", filebase, filesuffix);
 
-    mysql_createtables = init_output_file(mysql_createtables_file);
-    mysql_page = init_output_file(mysql_page_file);
-    mysql_revs = init_output_file(mysql_revs_file);
+    mysql_createtables = init_output_file(mysql_createtables_file, mwv);
+    mysql_page = init_output_file(mysql_page_file, mwv);
+    mysql_revs = init_output_file(mysql_revs_file, mwv);
 
     if (text_file) {
       sprintf(mysql_text_file, "%s-text.sql%s", filebase, filesuffix);
-      mysql_text = init_output_file(mysql_text_file);
+      mysql_text = init_output_file(mysql_text_file, mwv);
     }
     
     free(filebase);
@@ -388,7 +388,7 @@ int main(int argc, char **argv) {
     exit(1);
   };
 
-  write_createtables_file(mysql_createtables, nodrop, mwv, tables);
+  write_createtables_file(mysql_createtables, nodrop, tables);
   close_output_file(mysql_createtables);
   if (verbose) fprintf(stderr,"Create tables sql file written, beginning scan of xml\n");
 
@@ -399,7 +399,7 @@ int main(int argc, char **argv) {
     fprintf(stderr,"abrupt end to content\n");
     return(1);
   }
-  result = do_file_header(stubs, 0, &stubs_schema, &s_info, mwv, verbose);
+  result = do_file_header(stubs, 0, &stubs_schema, &s_info, verbose);
   if (result) {
     fprintf(stderr,"error encountered scanning stubs file header\n");
     exit(1);
@@ -410,7 +410,7 @@ int main(int argc, char **argv) {
       fprintf(stderr,"abrupt end to content\n");
       exit(1);
     }
-    result = do_file_header(text, 1, NULL, NULL, mwv, verbose);
+    result = do_file_header(text, 1, NULL, NULL, verbose);
     if (result) {
       fprintf(stderr,"error encountered scanning text file header\n");
       exit(1);
@@ -425,7 +425,7 @@ int main(int argc, char **argv) {
   }
 
   while (! eof) {
-    result = do_page(stubs, text, text_compress, mysql_page, mysql_revs, mysql_text, verbose, tables, nodrop, start_page_id, mwv);
+    result = do_page(stubs, text, text_compress, mysql_page, mysql_revs, mysql_text, verbose, tables, nodrop, start_page_id);
     if (!result) break;
     pages_done++;
     if (verbose && !(pages_done%1000)) fprintf(stderr,"%d pages processed\n", pages_done);

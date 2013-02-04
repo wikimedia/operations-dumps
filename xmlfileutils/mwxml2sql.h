@@ -132,6 +132,7 @@ typedef struct {
   FILE *fd;
   gzFile gzfd;
   BZFILE *bz2fd;
+  mw_version_t *mwv;
 } output_file_t;
 
 typedef struct {
@@ -208,15 +209,15 @@ int find_rev_with_id(input_file_t *f, char *id);
 int find_text_in_rev(input_file_t *f);
 char *sql_escape(char *s, int s_size, char *out, int out_size);
 int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, tablenames_t *t, int insrt_ignore, int get_sha1, int get_text_len, int text_commpress);
-int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, page_t *p, int verbose, tablenames_t *t, int insert_ignore, mw_version_t *mwv);
+int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, page_t *p, int verbose, tablenames_t *t, int insert_ignore);
 void digits_only(char *buf);
 int find_page_with_id(input_file_t *f, char *id);
-int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char *start_page_id, mw_version_t *mwv);
+int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char *start_page_id);
 int do_namespace(input_file_t *f, namespace_t *n, int verbose);
 int do_namespaces(input_file_t *f, siteinfo_t *s, int verbose);
 int do_siteinfo(input_file_t *f, siteinfo_t **s, int verbose);
 int do_mw_header(input_file_t *f, int skipschema, char **schema, int verbose);
-void write_createtables_file(output_file_t *f, int nodrop, mw_version_t *mwv, tablenames_t *t);
+void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t);
 tablenames_t *setup_table_names(char *prefix);
 
 void free_input_buffer(string_t *b);
@@ -226,7 +227,7 @@ bz2buffer_t *init_bz2buf();
 void free_input_file(input_file_t *f);
 void free_output_file(output_file_t *f);
 input_file_t *init_input_file(char *xml_file);
-output_file_t *init_output_file(char *xml_file);
+output_file_t *init_output_file(char *xml_file, mw_version_t *mwv);
 void close_input_file(input_file_t *f);
 void close_output_file(output_file_t *f);
 
@@ -234,7 +235,7 @@ void show_version(char *whoami, char *version_string);
 void usage(char *whoami, char *message);
 char *get_filebase(char *file_name, int verbose);
 char *get_filesuffix(char *file_name, int verbose);
-int do_file_header(input_file_t *f, int skipschema, char **schema, siteinfo_t **s, mw_version_t *mwv, int verbose);
+int do_file_header(input_file_t *f, int skipschema, char **schema, siteinfo_t **s, int verbose);
 
 char *gzipit(char *contents, int *compressed_length, char *gz_buf, int gz_buf_length);
 
