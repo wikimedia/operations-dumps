@@ -150,7 +150,7 @@ void usage(char *whoami, char *message) {
   fprintf(stderr,"\n");
   fprintf(stderr,"mediawiki   (m):   version of mediawiki for which to output sql;  supported versions are\n");
   fprintf(stderr,"                   shown in the program version information, available via the 'version' option\n");
-  fprintf(stderr,"                   used to derive the names of the sql files for the page, revs and text content\n");
+  fprintf(stderr,"                   used to derive the names of the sql files for the page, revision and text content\n");
   fprintf(stderr,"stubs       (s):   name of stubs xml file; .gz and .bz2 files will be silently uncompressed.\n");
   fprintf(stderr,"\n");
   fprintf(stderr,"Optional arguments:\n");
@@ -158,7 +158,7 @@ void usage(char *whoami, char *message) {
   fprintf(stderr,"text        (t):   name of text xml file; .gz and .bz2 files will be silently uncompressed.\n");
   fprintf(stderr,"                   if not specified, data will be read from stdin\n");
   fprintf(stderr,"mysqlfile   (f):   name of filename (possibly ending in .gz or .bz2 or .txt) which will be\n");
-  fprintf(stderr,"                   used to derive the names of the sql files for the page, revs and text content\n");
+  fprintf(stderr,"                   used to derive the names of the sql files for the page, revision and text content\n");
   fprintf(stderr,"                   if none is specified, all data will be written to stdout, but since sql INSERT\n");
   fprintf(stderr,"                   statements are batched on the assumption that they will be in three separate\n");
   fprintf(stderr,"                   files, this will likely not be what you want.\n");
@@ -170,6 +170,8 @@ void usage(char *whoami, char *message) {
   fprintf(stderr,"Flags:\n");
   fprintf(stderr,"\n");
   fprintf(stderr,"compress    (t):   compress text revisions in the sql output (requires the 'text' option\n");
+  fprintf(stderr,"                   if this option is not set, the text table create statement will include\n");
+  fprintf(stderr,"                   parameters for InnoDB table-based compression instead.\n");
   fprintf(stderr,"help        (h):   print this help message and exit\n");
   fprintf(stderr,"nodrop      (n):   in the CREATE TABLES sql output, do not add DROP IF EXISTS beforehand;\n");
   fprintf(stderr,"                   if this option is given, INSERT IGNORE statements will be written instead\n");
@@ -328,7 +330,7 @@ int main(int argc, char **argv) {
 
     sprintf(mysql_createtables_file, "%s-createtables.sql", filebase);
     sprintf(mysql_page_file, "%s-page.sql", filebase);
-    sprintf(mysql_revs_file, "%s-revs.sql", filebase);
+    sprintf(mysql_revs_file, "%s-revision.sql", filebase);
 
     mysql_createtables = init_output_file(mysql_createtables_file, filesuffix, mwv);
     mysql_page = init_output_file(mysql_page_file, filesuffix, mwv);
@@ -350,7 +352,9 @@ int main(int argc, char **argv) {
     exit(1);
   };
 
-  write_createtables_file(mysql_createtables, nodrop, tables);
+  /* if we compress text blobs then don't request innodb table compression,
+     otherwise we want it */
+  write_createtables_file(mysql_createtables, nodrop, !text_compress, tables);
   close_output_file(mysql_createtables);
   if (verbose) fprintf(stderr,"Create tables sql file written, beginning scan of xml\n");
 
@@ -387,7 +391,7 @@ int main(int argc, char **argv) {
   }
 
   while (! eof) {
-    result = do_page(stubs, text, text_compress, mysql_page, mysql_revs, mysql_text, verbose, tables, nodrop, start_page_id);
+    result = do_page(stubs, text, text_compress, mysql_page, mysql_revs, mysql_text, s_info, verbose, tables, nodrop, start_page_id);
     if (!result) break;
     pages_done++;
     if (verbose && !(pages_done%1000)) fprintf(stderr,"%d pages processed\n", pages_done);

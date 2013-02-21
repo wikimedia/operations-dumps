@@ -1,3 +1,10 @@
+This is a small set of tools to help folsk who want to import
+XML dumps into a local instance of MediaWiki.
+
+Tools:
+
+mwxml2sql
+
 This is a bare bones converter of MediaWiki XML dumps to sql.
 It does one thing and hopefully at least doesn't suck at it.
 If you want the swiss army knife of converters, better shop
@@ -11,17 +18,25 @@ bz2 development libraries installed, as well as the gcc
 toolchain or an equivalent C compiler and its supporting
 libraries. You'll also need the 'make' utility.
 
-This program has been tested only on 64-bit Linux.  You can
-try building it on other platforms but without any support
-from the author.  If you do build it on another platform and
+sql2txt
+
+This converts sql produced from mysqldump or from an XML dump to
+sql file converter, into a format that can be read by MySQL via
+LOAD DATA INFILE, a much faster process than having mysql do a pile
+of INSERTS. If you feed it data formatted differently from that
+output, or with rows broken across lines etc, it may produce garbage.
+
+These programs have been tested only on 64-bit Linux and on FreeBSD.
+You can try building them on other platforms but without any support
+from the author.  If you do build them on another platform and
 run it successfully, let us know and we'll include that
 information here.
 
 INSTALLATION
 
 Unpack the distribution someplace, cd into it, 'make'
-and if you like 'make install'.  The binary will be
-installed into /usr/local/bin.  If you want it someplace
+and if you like 'make install'.  The binaries will be
+installed into /usr/local/bin.  If you want them someplace
 else, edit the Makefile and change the line
 'PREFIX=/usr/local'  as desired.
 
@@ -61,7 +76,17 @@ but not actively doing other tasks).  Dual core P8700, 2.53GHz,
 gzipped output files: 460M for page table, 905M for revision table,
 9.6GB for text table.
 
+I ran mwdumper on this same file on the same hardware and it took
+just over two hours.  Somewhere there is a small memory leak,
+not enough to concern someone working with the current page content
+only.
+
+A run of mwimport (perl script) on the same hardware took slightly
+over two hours.
+
 USING THE OUTPUT
+
+Making a local mirror with all current pages
 
 The sql files produced keep the page, revision and text ids of the
 input XML files.  This means that if your database uses only XML
@@ -70,28 +95,47 @@ dumps), you will not have an id conflict but if you edit locally
 between imports or you import on top of an existing database you
 will encounter problems.
 
-Once you have generated the files, you can import them into mysql
-(5.x, untested and probably broken with 4.x). If the tables don't
-exist you can create them with the generated -createtables- file.
-This creates tables with InnoDB and binary character set; we
-recommend this setup for everyone.
+Convert it and all other needed sql tables to the format needed
+for LOAD DATA INFILE, using the command
 
-After the tables are created (if needed) and the page, revision
-and text tables are imported, you should import the other sql tables
-from the same download.  This will save you from needing to rebuild
-things like the links tables afterwards (horribly slow).
+zcat blah.sql.gz | sql2txt > blah.txt
+(sqltxt --help for full usage message)
+
+You can skip converting the image, imagelinks, oldimage and
+user_groups tables.  Loading in the other tables saves you from
+needing to rebuild things like the links tables afterwards
+(horribly slow).
+
+Make sure the database is set up with the right character set
+(we like 'binary'), set your client character set (utf-8) and
+change any settings you want to for speed (turning off for
+example foreign_key_checks and/or unique_checks).
+
+Now load your files in one at a time. (Tested on MySQL 5.5,
+probably ok on 5.1, probably broken on 4.x.) You may find that
+files that are multiple GB should be split into smaller files
+and fed in one at a time; let us know if that's the case so
+we can put it on our todo list.
+
+If you don't have a ton of space you may want to convert your
+sql files one at a time and remove the plain text file after
+MySQL has read it in.
 
 Note that the other sql tables are not guaranteed to be 100% consistent
 with the XML files, since they are produced at different times and we
 don't lock the tables before dumping.  Null edits to a page ought to
 fix any rendering issues it may have based on out of sync tables.
 
+Making a local mirror with a subset of current pages
+
 If you want to import only a subset of the current pages from a wiki
-instead of the entire thing, this is NOT the tool for you. You should
+instead of the entire thing, these are NOT the tools for you. You should
 consider using maintenance/importDump.php (in your MediaWiki installation
-directory) instead, if the subset is small enough.  Loading in the other
-tables will give you a lot of links and entries that won't be valid,
-and the other option, maintenance/rebuildall.php, will also be very slow.
+directory) instead, if the subset is small enough.  Converting XML dumps
+to page/rev/text tables and then loading in the other tables from our
+generated sql files will give you a lot of links and entries that won't
+be valid, and the other option, maintenance/rebuildall.php, will also be
+very slow.
 
 WARNINGS
 
@@ -99,7 +143,13 @@ This has been tested only for output MediaWiki 1.20 and input xsd 0.7
 and not very comprehensively.  Please help discover bugs!
 
 This does NOT support dumps from wikis with LiquidThread enabled.
-That's a feature set for a future version.
+That's a feature set for a future version (or not).
+
+Other untested features: importing output with gzipped text revisions,
+using history xml dumps.
+
+Changes to the xml schema, in particular new tags or a switch in
+the order of items, will break the script.
 
 LICENSE
 

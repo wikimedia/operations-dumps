@@ -350,7 +350,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   if (text_bytes_written == 0) {
     strcpy(buf,"BEGIN;\n");
     put_line_all(sqlt, buf);
-    snprintf(buf, sizeof(buf), "INSERT %s INTO %s (old_id, old_flags, old_text) VALUES\n", insert_ignore?"IGNORE":"", t->text);
+    snprintf(buf, sizeof(buf), "INSERT %s INTO %s (old_id, old_text, old_flags) VALUES\n", insert_ignore?"IGNORE":"", t->text);
     put_line_all(sqlt, buf);
   }
   else {
@@ -360,7 +360,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   /* text: old_text old_flags */
   /* write the beginning piece */
   snprintf(buf, sizeof(buf),						\
-	     "(%s, '%s', '", r->text_id, text_compress?"utf-8,gzip":"utf-8");
+	   "(%s, '",r->text_id);
   put_line_all(sqlt, buf);
 
   if (verbose > 1) fprintf(stderr,"text info: insert start of line written\n");
@@ -450,17 +450,16 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   }
   /* write out the end piece */
   text_bytes_written += text_field_len;
+  strcpy(buf,"', ");
+    put_line_all(sqlt, buf);
+
+  sprintf(buf,"'%s')", text_compress?"utf-8,gzip":"utf-8");
+  put_line_all(sqlt, buf);
 
   if (text_bytes_written > MAX_TEXT_PACKET) {
-    strcpy(buf,"');\n");
-    put_line_all(sqlt, buf);
-    strcpy(buf,"COMMIT;\n");
+    strcpy(buf,";\nCOMMIT;\n");
     put_line_all(sqlt, buf);
     text_bytes_written = 0;
-  }
-  else {
-    strcpy(buf,"')");
-    put_line_all(sqlt, buf);
   }
 
   
@@ -555,7 +554,8 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   contributor_t c;
   int get_sha1 = 0;
   int get_text_len = 0;
-  char escaped_comment [FIELD_LEN*2];
+  char escaped_comment[FIELD_LEN*2];
+  char escaped_user[FIELD_LEN*2];
 
   char attrs[MAX_ATTRS_STR_LEN];
   char *attrs_ptr = NULL;
@@ -721,6 +721,7 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   }
 
   sql_escape(r.comment,-1,escaped_comment, sizeof(escaped_comment));
+  if (c.username[0]) sql_escape(c.username,-1,escaped_user, sizeof(escaped_user));
   if (verbose > 1) {
     fprintf(stderr,"revision info: id %s, parentid %s, timestamp %s, minor %s, comment %s, sha1 %s, model %s, format %s, len %s, textid %s\n", r.id, r.parent_id, r.timestamp, r.minor, escaped_comment, r.sha1, r.model, r.format, r.text_len, r.text_id);
   }
@@ -778,7 +779,7 @@ rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted", \
   snprintf(out_buf, sizeof(out_buf),		   \
       "(%s, %s, %s, '%s', %s, '%s', '%s', %s, %s", \
 	   r.id, p->id, r.text_id, escaped_comment, c.id[0]?c.id:"0",	\
-	   c.ip[0]?c.ip:c.username, \
+	   c.ip[0]?c.ip:escaped_user, \
 	   r.timestamp, r.minor, "0");
   put_line_all(sqlr, out_buf);
   if (verbose > 2) fprintf(stderr,"(%s) %s",t->revs, out_buf);
@@ -802,6 +803,7 @@ rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted", \
     strcpy(out_buf,");\nCOMMIT;\n");
     put_line_all(sqlr, out_buf);
     if (verbose > 2) fprintf(stderr,out_buf);
+    rev_rows_written = 0;
   }
   else {
     strcpy(out_buf,")");
@@ -902,7 +904,7 @@ int find_page_with_id(input_file_t *f, char *id) {
        is successfully read
 */
 
-int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char*start_page_id) {
+int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, siteinfo_t *s, int verbose, tablenames_t *t, int insert_ignore, char*start_page_id) {
   page_t p;
   char out_buf[1024]; /* seriously how long can username plus title plus the rest of the cruft be? */
   int want_text = 0;
@@ -1002,6 +1004,7 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
     }
   }
   sql_escape(p.title,-1, escaped_title, sizeof(escaped_title));
+  namespace_strip(escaped_title, s);
   title_escape(escaped_title);
   /* we also need blank to _, see what else happens, woops */
   if (verbose > 1) {
@@ -1035,7 +1038,7 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
 
     snprintf(out_buf, sizeof(out_buf), "INSERT %s INTO %s \
-(page_id, page_title, page_namespace, page_restrictions, \
+(page_id, page_namespace, page_title, page_restrictions, \
 page_counter, page_is_redirect, page_is_new, \
 page_random, page_touched, page_latest, page_len", insert_ignore?"IGNORE":"", t->page);
     put_line_all(sqlp, out_buf);
@@ -1056,8 +1059,8 @@ page_random, page_touched, page_latest, page_len", insert_ignore?"IGNORE":"", t-
   /* fixme having a fixed size buffer kinda sucks here */
   /* text: page_title page_restrictions page_touched */
   snprintf(out_buf, sizeof(out_buf),				\
-       "(%s, '%s', %s, '%s', %s, %s, %s, %.14f, '%s', %s, %s", \
-	   p.id, escaped_title, p.ns, p.restrictions, \
+       "(%s, %s, '%s', '%s', %s, %s, %s, %.14f, '%s', %s, %s", \
+	   p.id, p.ns, escaped_title, p.restrictions,		\
 	   "0", p.redirect, "0", drand48(), p.touched, p.latest, p.len );
   put_line_all(sqlp, out_buf);
   if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);

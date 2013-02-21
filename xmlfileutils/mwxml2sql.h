@@ -212,12 +212,14 @@ void whine(char *message, ...);
 void print_sql_field(FILE *f, char *field, int isstring, int islast);
 void copy_sql_field(char *outbuf, char *field, int isstring, int islast);
 char *sql_escape(char *s, int s_size, char *out, int out_size);
-char *tab_escape(char *s, int s_size, char *out, int out_size);
+char *load_data_escape(char *s, int s_size, char *out, int out_size, int donulls);
 void title_escape(char *t);
+void namespace_strip(char *t, siteinfo_t *s);
+
 char *un_xml_escape(char *value, char *output, int last);
 void digits_only(char *buf);
 void write_metadata(output_file_t *f, char *schema, siteinfo_t *s);
-void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t);
+void write_createtables_file(output_file_t *f, int nodrop, int table_compress, tablenames_t *t);
 tablenames_t *setup_table_names(char *prefix);
 
 int find_first_tag(input_file_t *f, char *holder, int holder_size);
@@ -238,7 +240,7 @@ int find_text_in_rev(input_file_t *f);
 int do_contributor(input_file_t *f, contributor_t *c, int verbose);
 int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, tablenames_t *t, int insrt_ignore, int get_sha1, int get_text_len, int text_commpress);
 int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, page_t *p, int verbose, tablenames_t *t, int insert_ignore);
-int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char *start_page_id);
+int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, siteinfo_t *s_info, int verbose, tablenames_t *t, int insert_ignore, char *start_page_id);
 int do_namespace(input_file_t *f, namespace_t *n, int verbose);
 int do_namespaces(input_file_t *f, siteinfo_t *s, int verbose);
 int do_siteinfo(input_file_t *f, siteinfo_t **s, int verbose);

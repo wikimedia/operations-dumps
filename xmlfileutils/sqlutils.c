@@ -197,7 +197,7 @@ char *sql_escape(char *s, int s_size, char *out, int out_size) {
 
   from = s;
   to = out;
-  while ((!s_size && *from) || ind < s_size) {
+  while ((s_size == -1 && *from) || ind < s_size) {
     if (copied +3 > out_size) {
       /* null terminate here and return index */
       *to = '\0';
@@ -254,6 +254,7 @@ char *sql_escape(char *s, int s_size, char *out, int out_size) {
      s_size      length of string to escape
      out         holder for result
      out_size    size of holder for result
+     donull      convert NULL to \N
 
    returns:
       pointer to the next byte in s to be processed, or to NULL if all
@@ -261,12 +262,13 @@ char *sql_escape(char *s, int s_size, char *out, int out_size) {
 
    this function escapes tabs in character strings for input to LOAD FILE
    adding a trailing '\0' to the result (you should pass a string that
-   already has the remainder of the mysql escapes applied)
+   already has the remainder of the mysql escapes applied), also potentially
+   converting NULL to \N
 
    if s_size is -1, the string to escape must be null terminated
    and its length is not checked.
 */
-char *tab_escape(char *s, int s_size, char *out, int out_size) {
+char *load_data_escape(char *s, int s_size, char *out, int out_size, int donull) {
   char c;
   char *from ;
   char *to;
@@ -275,6 +277,17 @@ char *tab_escape(char *s, int s_size, char *out, int out_size) {
 
   from = s;
   to = out;
+
+  if (donull) {
+    if ((s_size == -1 && !strcmp(from,"NULL")) || (s_size == 4 && !strncmp(from, "NULL", 4))) {
+      *to = '\\';
+      to++;
+      *to = 'N';
+      to++;
+      *to = '\0';
+      return(NULL);
+    }
+  }
 
   while ((s_size == -1 && *from) || ind < s_size) {
     if (copied +3 > out_size) {
@@ -321,6 +334,40 @@ void title_escape(char *t) {
     if (*t == ' ') *t = '_';
     t++;
   }
+  return;
+}
+
+/*
+  args:
+    t    null-terminated title string to be converted
+    s    site info structure with namespace information filled in
+
+  this function strips off any namespace from the title
+  in place
+*/
+void namespace_strip(char *t, siteinfo_t *s) {
+  namespace_t *ns;
+  char *colon, *rest;
+
+  colon = strchr(t, ':');
+  if (!colon) return;
+  ns = s->namespaces;
+
+  *colon = '\0';
+  while (ns) {
+    if (!strcmp(t, ns->namespace)) {
+      rest = colon+1;
+      while (*rest) {
+	*t = *rest;
+	t++;
+	rest++;
+      }
+      *t = '\0';
+      return;
+    }
+    ns = ns->next;
+  }
+  *colon = ':';
   return;
 }
 
@@ -405,7 +452,7 @@ void write_metadata(output_file_t *f, char *schema, siteinfo_t *s) {
   page, revision and text tables for the MediaWiki version specified
 
  */
-void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t) {
+void write_createtables_file(output_file_t *f, int nodrop, int table_compress, tablenames_t *t) {
   char out_buf[256];
   mw_version_t *mwv;
 
@@ -435,10 +482,13 @@ void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t) {
     put_line(f, out_buf);
     snprintf(out_buf, sizeof(out_buf), "PRIMARY KEY (`old_id`)\n");
     put_line(f, out_buf);
-    snprintf(out_buf, sizeof(out_buf), ") ENGINE=InnoDB DEFAULT CHARSET=binary\n");
+    snprintf(out_buf, sizeof(out_buf), ") ENGINE=InnoDB DEFAULT CHARSET=binary");
     put_line(f, out_buf);
-
-    snprintf(out_buf, sizeof(out_buf), "\n");
+    if (table_compress) {
+      snprintf(out_buf,sizeof(out_buf), " ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16");
+      put_line(f, out_buf);
+    }
+    snprintf(out_buf, sizeof(out_buf), ";\n\n");
     put_line(f, out_buf);
     
     if (!nodrop) {
@@ -518,15 +568,12 @@ void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t) {
       snprintf(out_buf, sizeof(out_buf), "KEY `page_redirect_namespace_len` (`page_is_redirect`,`page_namespace`,`page_len`)\n");
       put_line(f, out_buf);
     }
-    snprintf(out_buf, sizeof(out_buf), ") ENGINE=InnoDB DEFAULT CHARSET=binary\n");
+    snprintf(out_buf, sizeof(out_buf), ") ENGINE=InnoDB DEFAULT CHARSET=binary;\n\n");
     put_line(f, out_buf);
 
     /* auto_increment how does it work when we insert a bunch of crap into a table with fixed values
        for those indexes? */
 
-    snprintf(out_buf, sizeof(out_buf), "\n");
-    put_line(f, out_buf);
-    
     if (!nodrop) {
       snprintf(out_buf, sizeof(out_buf), "DROP TABLE IF EXISTS `%s`;\n", t->revs);
       put_line(f, out_buf);
@@ -625,7 +672,7 @@ void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t) {
       put_line(f, out_buf);
     }
 
-    snprintf(out_buf, sizeof(out_buf), ") ENGINE=InnoDB DEFAULT CHARSET=binary\n");
+    snprintf(out_buf, sizeof(out_buf), ") ENGINE=InnoDB DEFAULT CHARSET=binary;\n");
     put_line(f, out_buf);
     f = f->next;
   }

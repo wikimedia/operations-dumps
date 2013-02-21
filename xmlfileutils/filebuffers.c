@@ -588,7 +588,7 @@ input_file_t *init_input_file(char *filename) {
   one write stream!
 */
 output_file_t *init_output_file(char *basename, char *suffix, mw_version_t *mwv) {
-  output_file_t *outf, *current, *head = NULL;
+  output_file_t *outf, *current = NULL, *head = NULL;
   mw_version_t *next = NULL;
   int do_once = 1;
   char *version = NULL;
@@ -625,7 +625,7 @@ output_file_t *init_output_file(char *basename, char *suffix, mw_version_t *mwv)
     if (outf->mwv) version = outf->mwv->version;
     else version = NULL;
 
-    outf->filename = (char *)malloc(strlen(basename) + (suffix?strlen(suffix):0) + strlen(version) + 2);
+    outf->filename = (char *)malloc(strlen(basename) + (suffix?strlen(suffix):0) + (version?strlen(version):0) + 2);
     if (!outf->filename) {
       fprintf(stderr,"failed to get memory for output file information\n");
       free_output_file(head);
