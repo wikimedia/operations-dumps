@@ -20,7 +20,7 @@ mwxml2sql: mwxml2sql.o filebuffers.o xmltags.o mwxmlelts.o sqlutils.o
 
 install: mwxml2sql
 	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
-	cp -f mwxml2sql $(PREFIX)/bin/dumplastbz2block
+	cp -f mwxml2sql $(PREFIX)/bin/mwxml2sql
 	chmod a+x $(PREFIX)/bin/mwxml2sql
 
 clean: 

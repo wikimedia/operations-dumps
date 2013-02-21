@@ -1,7 +1,10 @@
 This is a bare bones converter of MediaWiki XML dumps to sql.
 It does one thing and hopefully at least doesn't suck at it.
 If you want the swiss army knife of converters, better shop
-elsewhere.
+elsewhere. This program is not intended to process upload xml
+elements, nor logging xml elements.  It works with the
+xml dumps from the Wikimedia projects and that is all
+that it's intended to do.
 
 To install this program, you will need to have the libssl,
 libcrypto, libz and bz2 development libraries installed,
@@ -49,14 +52,52 @@ mwxml2sql -v -s testing/enwiki-stubs-1114-1300.gz \
     in LocalSetting.php, leave out this option if you have no prefix)
 -m: MediaWiki version for which to produce output
 
+This program took about 1.5 hours to run on the enwikipedia
+stubs and page files from December 2012, producing gzipped output
+files for MediaWiki version 1.20.  Total pages (and therefore
+revisions) processed: 12680605. Hardware: Sony laptop with
+a linux desktop running (Xfce, gnome, evolution and pidgin running
+but not actively doing other tasks).  Dual core P8700, 2.53GHz,
+8GB memory, HTS723232L9SA60 disk with 72000 rpm.  Size of the
+gzipped output files: 460M for page table, 905M for revision table,
+9.6GB for text table.
+
+USING THE OUTPUT
+
+The sql files produced keep the page, revision and text ids of the
+input XML files.  This means that if your database uses only XML
+files from a single source and project (e.g. only the WMF en wikipedia
+dumps), you will not have an id conflict but if you edit locally
+between imports or you import on top of an existing database you
+will encounter problems.
+
+Once you have generated the files, you can import them into mysql
+(5.x, untested and probably broken with 4.x). If the tables don't
+exist you can create them with the generated -createtables- file.
+This creates tables with InnoDB and binary character set; we
+recommend this setup for everyone.
+
+After the tables are created (if needed) and the page, revision
+and text tables are imported, you should import the other sql tables
+from the same download.  This will save you from needing to rebuild
+things like the links tables afterwards (horribly slow).
+
+Note that the other sql tables are not guaranteed to be 100% consistent
+with the XML files, since they are produced at different times and we
+don't lock the tables before dumping.  Null edits to a page ought to
+fix any rendering issues it may have based on out of sync tables.
+
+If you want to import only a subset of the current pages from a wiki
+instead of the entire thing, this is NOT the tool for you. You should
+consider using maintenance/importDump.php (in your MediaWiki installation
+directory) instead, if the subset is small enough.  Loading in the other
+tables will give you a lot of links and entries that won't be valid,
+and the other option, maintenance/rebuildall.php, will also be very slow.
+
 WARNINGS
 
 This has been tested only for output MediaWiki 1.20 and input xsd 0.7
 and not very comprehensively.  Please help discover bugs!
 
-
-
-
-
-
-
+This does NOT support dumps from wikis with LiquidThread enabled.
+That's a feature set for a future version.

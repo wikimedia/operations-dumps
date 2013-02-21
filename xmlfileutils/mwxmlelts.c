@@ -59,15 +59,24 @@ void cleanup_mwxml(output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt
 
   if (page_rows_written) {
     strcpy(buf,";\nCOMMIT;\n");
-    put_line(sqlp, buf);
+    while (sqlp) {
+      put_line(sqlp, buf);
+      sqlp = sqlp->next;
+    }
   }
   if (rev_rows_written) {
     strcpy(buf,";\nCOMMIT;\n");
-    put_line(sqlr, buf);
+    while (sqlr) {
+      put_line(sqlr, buf);
+      sqlr = sqlr->next;
+    }
   }
   if (text_bytes_written) {
     strcpy(buf,";\nCOMMIT;\n");
-    put_line(sqlt, buf);
+    while (sqlt) {
+      put_line(sqlt, buf);
+      sqlt = sqlt->next;
+    }
   }
 }
 
@@ -78,7 +87,7 @@ void whine(char *message, ...) {
 
   fprintf(stderr,"WHINE: (%s) ", page_in_process);
   if (message)
-    fprintf(stderr,message, argptr);
+    vfprintf(stderr,message, argptr);
   else
     fprintf(stderr,"problem encountered");
   fprintf(stderr,"\n");
@@ -313,9 +322,6 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   char compressed_buf[TEXT_BUF_LEN_PADDED];
   char *compressed_ptr = NULL;
 
-  mw_version_t *mwv;
-
-  mwv = sqlt->mwv; /* unused but we'll want it in the future */
   if (get_sha1) SHA1_Init(&ctx);
 
   ind = strstr(f->in_buf->content, "<text");
@@ -334,20 +340,22 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   /* text table row fields are the same across all MW versions so no check needed here... yet */
   if (text_bytes_written == 0) {
     strcpy(buf,"BEGIN;\n");
-    put_line(sqlt, buf);
+    put_line_all(sqlt, buf);
     snprintf(buf, sizeof(buf), "INSERT %s INTO %s (old_id, old_flags, old_text) VALUES\n", insert_ignore?"IGNORE":"", t->text);
-    put_line(sqlt, buf);
+    put_line_all(sqlt, buf);
   }
   else {
     strcpy(buf,",\n");
-    put_line(sqlt, buf);
+    put_line_all(sqlt, buf);
   }
   /* text: old_text old_flags */
   /* write the beginning piece */
-  snprintf(buf, sizeof(buf), \
-	   "(%s, '%s', '", r->text_id, text_compress?"utf-8,gzip":"utf-8");
-  put_line(sqlt, buf);
+  snprintf(buf, sizeof(buf),						\
+	     "(%s, '%s', '", r->text_id, text_compress?"utf-8,gzip":"utf-8");
+  put_line_all(sqlt, buf);
+
   if (verbose > 1) fprintf(stderr,"text info: insert start of line written\n");
+
   text_field_len = 0; /* length of the text field in the db, as it is stored */
   while (1) {
     endtag = strstr(ind, "</text>");
@@ -364,7 +372,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
 	todo_length = compressed_length;
 	while (1) {
 	  todo_new = sql_escape(todo, todo_length, esc_buf, sizeof(esc_buf));
-	  put_line(sqlt, esc_buf);
+	  put_line_all(sqlt, esc_buf);
 	  if (!todo_new) break;
 	  todo_length = todo_length - (todo_new - todo);
 	  todo = todo_new;
@@ -376,7 +384,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
 	todo_length = strlen(raw);
 	while (1) {
 	  todo_new = sql_escape(todo, todo_length, esc_buf, sizeof(esc_buf));
-	  put_line(sqlt, esc_buf);
+	  put_line_all(sqlt, esc_buf);
 	  if (!todo_new) break;
 	  todo_length = todo_length - (todo_new - todo);
 	  todo = todo_new;
@@ -408,7 +416,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
 	todo_length = compressed_length;
 	while (1) {
 	  todo_new = sql_escape(todo, todo_length, esc_buf, sizeof(esc_buf));
-	  put_line(sqlt, esc_buf);
+	  put_line_all(sqlt, esc_buf);
 	  if (!todo_new) break;
 	  todo_length = todo_length - (todo_new - todo);
 	  todo = todo_new;
@@ -420,7 +428,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
 	todo_length = strlen(raw);
 	while (1) {
 	  todo_new = sql_escape(todo, todo_length, esc_buf, sizeof(esc_buf));
-	  put_line(sqlt, esc_buf);
+	  put_line_all(sqlt, esc_buf);
 	  if (!todo_new) break;
 	  todo_length = todo_length - (todo_new - todo);
 	  todo = todo_new;
@@ -436,16 +444,17 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
 
   if (text_bytes_written > MAX_TEXT_PACKET) {
     strcpy(buf,"');\n");
-    put_line(sqlt, buf);
+    put_line_all(sqlt, buf);
     strcpy(buf,"COMMIT;\n");
-    put_line(sqlt, buf);
+    put_line_all(sqlt, buf);
     text_bytes_written = 0;
   }
   else {
     strcpy(buf,"')");
-    put_line(sqlt, buf);
+    put_line_all(sqlt, buf);
   }
 
+  
   /*
      for cases where we have to compute it ourselves.
      more recent schemas have bytes attr in the text tag of
@@ -545,6 +554,7 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   mw_version_t *mwv;
 
   mwv = sqlr->mwv;
+
   if (get_start_tag(stubs, REVISION) == -1) return(0);
 
   if (get_line(stubs) == NULL) {
@@ -687,8 +697,11 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     if (find_rev_with_id(text, r.id) != -1) {
       if (!find_text_in_rev(text)) {
 	/* even if this turns out bad we are committed to adding the revision at this point */
-	if (MWV_GREATER(mwv,1,18) && !r.sha1[0]) get_sha1 = 1;
-	if (MWV_GREATER(mwv,1,8) && !r.text_len[0]) get_text_len = 1;
+
+	/* if any version in our list is recent enough that we will write out the field, we need it */
+	if (mwv_any_greater(mwv,1,18) && !r.sha1[0]) get_sha1 = 1;
+	if (mwv_any_greater(mwv,1,8) && !r.text_len[0]) get_text_len = 1;
+
 	do_text(text, sqlt, &r, verbose, t, insert_ignore, get_sha1, get_text_len, text_compress);
       }
     }
@@ -718,60 +731,68 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   */
   if (!rev_rows_written) {
     strcpy(out_buf,"BEGIN;\n");
-    put_line(sqlr, out_buf);
+    put_line_all(sqlr, out_buf);
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->revs, out_buf);
-    snprintf(out_buf, sizeof(out_buf), "INSERT %s INTO %s (rev_id, rev_page, rev_text_id, \
-rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted %s\
- %s %s) VALUES\n", insert_ignore?"IGNORE":"", t->revs, \
-	     MWV_GREATER(mwv,1,9)?", rev_len, rev_parent_id ":"", \
-	     MWV_GREATER(mwv,1,18)?", rev_sha1 ":"", \
-	     MWV_GREATER(mwv,1,20)?", rev_model, rev_format":"");
-    put_line(sqlr, out_buf);    
+
+    snprintf(out_buf, sizeof(out_buf), "INSERT %s INTO %s \
+(rev_id, rev_page, rev_text_id, rev_comment, rev_user, \
+rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted", \
+	     insert_ignore?"IGNORE":"", t->revs);
+    put_line_all(sqlr, out_buf);    
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->revs, out_buf);
+
+    strcpy(out_buf, ", rev_len, rev_parent_id");
+    write_if_mwv(sqlr, 1,9,0,0,out_buf, verbose);    
+
+    strcpy(out_buf, ", rev_sha1");
+    write_if_mwv(sqlr, 1,18,0,0,out_buf, verbose);    
+
+    strcpy(out_buf, ", rev_model, rev_format");
+    write_if_mwv(sqlr, 1,20,0,0,out_buf, verbose);    
+
+    strcpy(out_buf,") VALUES\n");
+    put_line_all(sqlr, out_buf);    
+    if (verbose > 2) fprintf(stderr,"(%s) %s",t->revs, out_buf);
+
   }
   else {
     strcpy(out_buf,",\n");
-    put_line(sqlr, out_buf);
+    put_line_all(sqlr, out_buf);
   }
   /* text: rev_comment rev_user_text rev_timestamp rev_sha1 rev_content_model rev_content_format */
   /* possible null: rev_content_model rev_content_format */
-  snprintf(out_buf, sizeof(out_buf), \
+
+  snprintf(out_buf, sizeof(out_buf),		   \
       "(%s, %s, %s, '%s', %s, '%s', '%s', %s, %s", \
 	   r.id, p->id, r.text_id, escaped_comment, c.id[0]?c.id:"0",	\
 	   c.ip[0]?c.ip:c.username, \
 	   r.timestamp, r.minor, "0");
-  put_line(sqlr, out_buf);
+  put_line_all(sqlr, out_buf);
   if (verbose > 2) fprintf(stderr,"(%s) %s",t->revs, out_buf);
-  if MWV_GREATER(mwv,1,9) {
-    sprintf(out_buf, ", %s, %s", r.text_len, r.parent_id);
-    put_line(sqlr, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
-  }
-  if MWV_GREATER(mwv,1,18) {
-    sprintf(out_buf, ", '%s'", r.sha1);
-    put_line(sqlr, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
-  }
-  if MWV_GREATER(mwv,1,20) {
-    strcpy(out_buf, ", ");
-    put_line(sqlr, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
-    copy_sql_field(out_buf, r.model[0]?r.model:NULL, 1, 0);
-    put_line(sqlr, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
-    copy_sql_field(out_buf, r.format[0]?r.format:NULL, 1, 1);
-    put_line(sqlr, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
-  }
+
+  sprintf(out_buf, ", %s, %s", r.text_len, r.parent_id);
+  write_if_mwv(sqlr, 1, 9, 0, 0, out_buf, verbose);
+
+  sprintf(out_buf, ", '%s'", r.sha1);
+  write_if_mwv(sqlr, 1, 18, 0, 0, out_buf, verbose);
+
+  strcpy(out_buf, ", ");
+  write_if_mwv(sqlr, 1, 20, 0, 0, out_buf, verbose);
+
+  copy_sql_field(out_buf, r.model[0]?r.model:NULL, 1, 0);
+  write_if_mwv(sqlr, 1, 20, 0, 0, out_buf, verbose);
+
+  copy_sql_field(out_buf, r.format[0]?r.format:NULL, 1, 1);
+  write_if_mwv(sqlr, 1, 20, 0, 0, out_buf, verbose);
 
   if (rev_rows_written == MAX_REV_BATCH) {
     strcpy(out_buf,");\nCOMMIT;\n");
-    put_line(sqlr, out_buf);
+    put_line_all(sqlr, out_buf);
     if (verbose > 2) fprintf(stderr,out_buf);
   }
   else {
     strcpy(out_buf,")");
-    put_line(sqlr, out_buf);
+    put_line_all(sqlr, out_buf);
     if (verbose > 2) fprintf(stderr,"%s,\n",out_buf);
     rev_rows_written++;
   }
@@ -874,9 +895,6 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
   int want_text = 0;
   char escaped_title[FIELD_LEN*2];
   int skip = 0;
-  mw_version_t *mwv;
-
-  mwv = sqlp->mwv;
 
   p.title[0] = '\0';
   p.ns[0] = '\0';
@@ -1000,49 +1018,55 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
 
   if (!page_rows_written) {
     strcpy(out_buf,"BEGIN;\n");
-    put_line(sqlp, out_buf);
+    put_line_all(sqlp, out_buf);
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
-    snprintf(out_buf, sizeof(out_buf), "INSERT %s INTO %s (page_id, page_title, page_namespace, \
-page_restrictions, page_counter, page_is_redirect, page_is_new, \
-page_random, page_touched, page_latest, page_len %s) \
-VALUES\n", insert_ignore?"IGNORE":"", t->page, \
-	     (MWV_GREATER(mwv,1,20)?", page_content_model":""));
-    put_line(sqlp, out_buf);
+
+    snprintf(out_buf, sizeof(out_buf), "INSERT %s INTO %s \
+(page_id, page_title, page_namespace, page_restrictions, \
+page_counter, page_is_redirect, page_is_new, \
+page_random, page_touched, page_latest, page_len", insert_ignore?"IGNORE":"", t->page);
+    put_line_all(sqlp, out_buf);
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
+
+    snprintf(out_buf, sizeof(out_buf), ", page_content_model");
+    write_if_mwv(sqlp, 1,20,0,0,out_buf, verbose);
+
+    strcpy(out_buf, ") VALUES\n");
+    put_line_all(sqlp, out_buf);
+
   }
   else {
     strcpy(out_buf,",\n");
-    put_line(sqlp, out_buf);
+    put_line_all(sqlp, out_buf);
   }
+
   /* fixme having a fixed size buffer kinda sucks here */
   /* text: page_title page_restrictions page_touched */
-  snprintf(out_buf, sizeof(out_buf), \
-       "(%s, '%s', %s, '%s', %s, %s, %s, %.14f, '%s', %s, %s ", \
+  snprintf(out_buf, sizeof(out_buf),				\
+       "(%s, '%s', %s, '%s', %s, %s, %s, %.14f, '%s', %s, %s", \
 	   p.id, escaped_title, p.ns, p.restrictions, \
 	   "0", p.redirect, "0", drand48(), p.touched, p.latest, p.len );
-  put_line(sqlp, out_buf);
+  put_line_all(sqlp, out_buf);
   if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
-  if MWV_GREATER(mwv,1,20) {
-    strcpy(out_buf, ", ");
-    put_line(sqlp, out_buf);
-    if (verbose > 2) fprintf(stderr, out_buf);
-    copy_sql_field(out_buf, p.model[0]?p.model:NULL, 1, 1);
-    put_line(sqlp, out_buf);
-    if (verbose > 2) fprintf(stderr, out_buf);
-  }
+
+  strcpy(out_buf, ", ");
+  write_if_mwv(sqlp, 1, 20, 0, 0, out_buf, verbose);
+
+  copy_sql_field(out_buf, p.model[0]?p.model:NULL, 1, 1);
+  write_if_mwv(sqlp, 1, 20, 0, 0, out_buf, verbose);
 
   if (page_rows_written == MAX_PAGE_BATCH) {
     strcpy(out_buf,");\nCOMMIT;\n");
-    put_line(sqlp, out_buf);
+    put_line_all(sqlp, out_buf);
     if (verbose > 2) fprintf(stderr,out_buf);
     page_rows_written = 0;
   }
   else {
     strcpy(out_buf,")");
-    put_line(sqlp, out_buf);
+    put_line_all(sqlp, out_buf);
     if (verbose > 2) fprintf(stderr,"%s,\n",out_buf);
     page_rows_written++;
-  }
+  }    
 
   if (get_end_tag(stubs, PAGE) == -1) {
     whine("no end page tag");

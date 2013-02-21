@@ -20,12 +20,8 @@
 /*
    to be resolved:
 
-    optimizations (is read/write per line the best way? need
-    macros a lot of places, tighten up a lot of the code)
-    have lots of duplicated code around tag and attr parsing, do better
-    have lots of dup code around 'read a line and whine or not', do better
-    have wholesale duplicated attr parsing in do_namespace and
-    do_revision (for text id stuff), fix that
+    optimizations (is read/write per line the best way?
+     have lots of dup code around 'read a line and whine or not')
 
     recommend gz and give size estimates, this seems to be
     reasonable speed
@@ -34,17 +30,13 @@
 
     find_value and find_attrs can now return non null terminated strings
     that fill the holder. this is good (otherwise we cn't tell if we got
-    a partial value back) but what should the caller do? barf?
+    a partial value back) but caller doesn't handle this
 
     unicode char can get truncated if we read in chunks only of the line
     commnts are 256 char max so unicode chars here *may have already been
     truncated* and we must account for this, see mwdumper
 
-    error recovery from various stages of the parsing
-
-    check that get_elt_with_attrs skips all holder and/or attr related
-      logic when the arg is null, not just the copying
-    allow null holder or attrs for all other get_ routines
+    reasonable error recovery from various stages of the parsing
 */
 
 /*
@@ -61,27 +53,78 @@ void show_version(char *whoami, char *version_string) {
   fprintf(stderr,"supported output MediaWiki versions: 1.5 through 1.21\n");
 }
 
+/*
+  args:
+     mwv        list of structures with mw version info
+
+  this function frees a list of mediawiki version information
+*/
+void free_mw_version(mw_version_t *mwv) {
+  mw_version_t *next;
+
+  while (mwv) {
+    next = mwv->next;
+    if (mwv->version) free(mwv->version);
+    free(mwv);
+    mwv = next;
+  }
+  return;
+}
+
+/*
+  args:
+     specified       comma-separated list of mw version numbers
+                     example: 1.5,1.18,1.20
+
+     returns:
+         filled in list of structures representing those versions
+         or NULL on error
+*/
 mw_version_t *check_mw_version(char *specified) {
-  mw_version_t *mwv = NULL;
+  mw_version_t *mwv = NULL, *head = NULL, *current = NULL;
+  char *comma = NULL;
+  char *start = NULL;
+  int last= 0;
 
   if (!specified) return(NULL);
+  start = specified;
 
-  mwv = (mw_version_t *)malloc(sizeof(mw_version_t));
-  if (!mwv) {
-    fprintf(stderr,"Failed to get memory for mediawiki version check\n");
-    exit(1);
-  }
-  mwv->major = 0;
-  mwv->minor = 0;
-  mwv->qualifier[0] = '\0';
-  /* we know MW 1.5 through MW 1.21 even though there is no MW 1.21 yet */
-  sscanf(specified, "%u.%u%20s", &mwv->major, &mwv->minor, mwv->qualifier);
+  while (!last) {
+    mwv = (mw_version_t *)malloc(sizeof(mw_version_t));
+    if (!mwv) {
+      fprintf(stderr,"Failed to get memory for mediawiki version check\n");
+      exit(1);
+    }
+    if (!head) head = mwv;  /* first structure in list */
+    else current->next = mwv;  /* appending to list */
+    mwv->major = 0;
+    mwv->minor = 0;
+    mwv->qualifier[0] = '\0';
+    mwv->next = NULL;
+    mwv->version = NULL;
 
-  if (mwv->major != 1 || mwv->minor < 5 || mwv->minor > 21) {
-    free(mwv);
-    return(NULL);
+    comma = strchr(start, ',');
+    if (comma) *comma = '\0';
+    else last++;
+    /* we know MW 1.5 through MW 1.21 even though there is no MW 1.21 yet */
+    sscanf(start, "%u.%u%20s", &mwv->major, &mwv->minor, mwv->qualifier);
+    if (mwv->major != 1 || mwv->minor < 5 || mwv->minor > 21) {
+      free_mw_version(mwv);
+      return(NULL);
+    }
+
+    mwv->version = (char *)malloc(strlen(start) + 1);
+    if (!mwv->version) {
+      fprintf(stderr,"Failed to get memory for mediawiki version check\n");
+      exit(1);
+    }
+    strcpy(mwv->version, start);
+
+    if (comma) start = comma + 1; /* otherwise last is set and we'll be out */
+    current = mwv;
   }
-  return(mwv);
+  /* FIXME we should find and complain about dup version strings */
+  return(head);
 }
 
 /*
@@ -350,33 +393,30 @@ int main(int argc, char **argv) {
   }
 
   if (mysql_file == NULL) {
-    mysql_createtables = init_output_file(NULL, mwv);
-    mysql_page = init_output_file(NULL, mwv);
-    mysql_revs = init_output_file(NULL, mwv);
+    mysql_createtables = init_output_file(NULL, NULL, mwv);
+    mysql_page = init_output_file(NULL, NULL, mwv);
+    mysql_revs = init_output_file(NULL, NULL, mwv);
     if (text_file)
-      mysql_text = init_output_file(NULL, mwv);
+      mysql_text = init_output_file(NULL, NULL, mwv);
   }
   else {
     /* take apart the name if needed and shove in the prefix, then the suffix */
     filebase = get_filebase(mysql_file, verbose);
     filesuffix = get_filesuffix(mysql_file, verbose);
 
-    sprintf(mysql_createtables_file, "%s-createtables.sql%s", filebase, filesuffix);
-    sprintf(mysql_page_file, "%s-page.sql%s", filebase, filesuffix);
-    sprintf(mysql_revs_file, "%s-revs.sql%s", filebase, filesuffix);
+    sprintf(mysql_createtables_file, "%s-createtables.sql", filebase);
+    sprintf(mysql_page_file, "%s-page.sql", filebase);
+    sprintf(mysql_revs_file, "%s-revs.sql", filebase);
 
-    mysql_createtables = init_output_file(mysql_createtables_file, mwv);
-    mysql_page = init_output_file(mysql_page_file, mwv);
-    mysql_revs = init_output_file(mysql_revs_file, mwv);
+    mysql_createtables = init_output_file(mysql_createtables_file, filesuffix, mwv);
+    mysql_page = init_output_file(mysql_page_file, filesuffix, mwv);
+    mysql_revs = init_output_file(mysql_revs_file, filesuffix, mwv);
 
     if (text_file) {
-      sprintf(mysql_text_file, "%s-text.sql%s", filebase, filesuffix);
-      mysql_text = init_output_file(mysql_text_file, mwv);
+      sprintf(mysql_text_file, "%s-text.sql", filebase);
+      mysql_text = init_output_file(mysql_text_file, filesuffix, mwv);
     }
     
-    free(filebase);
-    free(filesuffix);
-
     if (verbose) fprintf(stderr,"opened sql output files\n");
   }
 

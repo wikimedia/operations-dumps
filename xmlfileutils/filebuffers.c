@@ -263,10 +263,17 @@ char *get_line(input_file_t *f) {
 }
 
 /* 
+  args:
+     f      structure for output file
+     line   null terminates string to write to file
+
+  returns:
+     0 on error, nonzero otherwise
+
+  this function will write the given line of output
+  to the spcified file
+
    expects a trailing newline if you want one in there :-P 
-   this will eventually get replaced with someething not line
-   oriented because we will have compressed text revs in there
-   for sanity of the db.
 */
 int put_line(output_file_t *f, char *line) {
   if (f->filetype == BZCOMPRESSED)
@@ -275,6 +282,28 @@ int put_line(output_file_t *f, char *line) {
     return(gzputs(f->gzfd, line));
   else
     return(fputs(line, f->fd));
+}
+
+/*
+  args:
+     f      list of structures for output files
+     line   null terminates string to write to files
+
+  returns:
+     0 if any write encounters an error, nonzero otherwise
+
+  this function will write the given line of output
+  to each file in the list
+*/
+int put_line_all(output_file_t *f, char *line) {
+  int result = 0;
+
+  while (f) {
+    result = put_line(f, line);
+    if (!result) return(0);
+    f = f->next;
+  }
+  return(0);
 }
 
 /*
@@ -360,14 +389,20 @@ void free_input_file(input_file_t *f) {
 
 /*
   args:
-    f    structure for output file
+    f    head of list of structures for output file
 
-    this function frees a structure allocated
-    for an output file
+    this function frees a list of structures allocated
+    for output files
 */
 void free_output_file(output_file_t *f) {
-  if (f)
+  output_file_t *next;
+
+  while (f) {
+    next = f->next;
+    if (f->filename) free(f->filename);
     free(f);
+    f = next;
+  }
   return;
 }
 
@@ -456,9 +491,10 @@ input_file_t *init_input_file(char *filename) {
 
 /*
   args:
-    filename     name of output file
-    mwv          structure with information about the MediaWiki
-                 version for which sql output iin this file will
+    basename     name of output file without suffix (.gz, .bz2 etc)
+    suffix       suffix of filename
+    mwv          list of structures with information about the MediaWiki
+                 versions for which sql output in these files will
                  be produced
 
   returns:
@@ -466,57 +502,92 @@ input_file_t *init_input_file(char *filename) {
     NULL on error
 
   this function handles gzipped, bz2 or plain text.files
-  It expects the filename to end in .gz for gzipped, .bz2
-  for bz2zipped and anything else for text files
 
   if no filename is supplied, the function will assume that
   writes go to stdout and will set things up accordingly
+  this is likely not what you want unless you are dealing with only
+  one write stream!
 */
-output_file_t *init_output_file(char *filename, mw_version_t *mwv) {
-  output_file_t *outf;
+output_file_t *init_output_file(char *basename, char *suffix, mw_version_t *mwv) {
+  output_file_t *outf, *current, *head = NULL;
+  mw_version_t *next = NULL;
 
-  outf = (output_file_t *)malloc(sizeof(output_file_t));
-  if (!outf) {
-    fprintf(stderr,"failed to get memory for output file information\n");
-    return(NULL);
-  }
-  outf->fd = NULL;
-  outf->gzfd = NULL;
-  outf->bz2fd = NULL;
-  outf->filename = filename;
-  outf->mwv = mwv;
-  if (filename == NULL) {
-    outf->filetype = PLAINTEXT;
-    outf->fd = stdin;
-  }
-  else if (!strcmp(filename+(strlen(filename) - 4), BZSUFFIX)) {
-    outf->filetype = BZCOMPRESSED;
-    outf->bz2fd = BZ2_bzopen(filename, "w");
-    if (!outf->bz2fd) {
-      fprintf(stderr,"failed to open bz2 file for write");
-      free_output_file(outf);
+  /* do this now for each mwv... */
+  while (mwv) {
+    next = mwv->next;
+
+    outf = (output_file_t *)malloc(sizeof(output_file_t));
+    if (!outf) {
+      fprintf(stderr,"failed to get memory for output file information\n");
       return(NULL);
     }
-  }
-  else if (!strcmp(filename+(strlen(filename) - 3), GZSUFFIX)) {
-    outf->filetype = GZCOMPRESSED;
-    outf->gzfd = gzopen(filename, "w");
-    if (!outf->gzfd) {
-      fprintf(stderr,"failed to open gz file for write");
-      free_output_file(outf);
+    if (!head) head = outf; /* first time through */
+    else current->next = outf; /* append to list */
+
+    outf->fd = NULL;
+    outf->gzfd = NULL;
+    outf->bz2fd = NULL;
+    outf->filename = NULL;
+    outf->mwv = mwv;
+    outf->next = NULL;
+
+    mwv = next;
+
+    if (basename == NULL) {
+      outf->filetype = PLAINTEXT;
+      outf->fd = stdin;
+      continue;
+    }
+
+    /* "basename-" + version + suffix (if there is one) */
+    outf->filename = (char *)malloc(strlen(basename) + (suffix?strlen(suffix):0) + strlen(outf->mwv->version) + 2);
+    if (!outf->filename) {
+      fprintf(stderr,"failed to get memory for output file information\n");
+      free_output_file(head);
       return(NULL);
     }
-  }
-  else {
-    outf->filetype = PLAINTEXT;
-    outf->fd = fopen (filename, "w");
-    if (!outf->fd) {
-      fprintf(stderr,"failed to open file for write");
-      free_output_file(outf);
-      return(NULL);
+    sprintf(outf->filename, "%s-%s%s", basename, outf->mwv->version, suffix?suffix:"0");
+    if (!suffix) {
+      outf->filetype = PLAINTEXT;
+      outf->fd = fopen (outf->filename, "w");
+      if (!outf->fd) {
+	fprintf(stderr,"failed to open file for write");
+	free_output_file(head);
+	return(NULL);
+      }
     }
+    else if (!strcmp(suffix,BZSUFFIX)) {
+      outf->filetype = BZCOMPRESSED;
+      outf->bz2fd = BZ2_bzopen(outf->filename, "w");
+      if (!outf->bz2fd) {
+	fprintf(stderr,"failed to open bz2 file for write");
+	free_output_file(head);
+	return(NULL);
+      }
+    }
+    else if (!strcmp(suffix, GZSUFFIX)) {
+      outf->filetype = GZCOMPRESSED;
+      outf->gzfd = gzopen(outf->filename, "w");
+      if (!outf->gzfd) {
+	fprintf(stderr,"failed to open gz file for write");
+	free_output_file(head);
+	return(NULL);
+      }
+    }
+    else {
+      outf->filetype = PLAINTEXT;
+      outf->fd = fopen (outf->filename, "w");
+      if (!outf->fd) {
+	fprintf(stderr,"failed to open file for write");
+	free_output_file(head);
+	return(NULL);
+      }
+    }
+
+    mwv = next;
+    current = outf;
   }
-  return(outf);
+  return(head);
 }
 
 /*
@@ -540,19 +611,25 @@ void close_input_file(input_file_t *f) {
 
 /*
   args:
-    f    structure for output file
+    f    head of list of structures for output files
 
-    this function closes a file opened for
+    this function closes files opened for
     output, whether gzipped, bz2 or plain text.
 */
 void close_output_file(output_file_t *f) {
-  if (f) {
+  output_file_t *next;
+
+  while (f) {
+    next = f->next;
+
     if (f->fd && f-> fd != stdout) 
       fclose(f->fd);
     else if (f->gzfd)
       gzclose(f->gzfd);
     else if (f->bz2fd)
       BZ2_bzclose(f->bz2fd);
+
+    f = next;
   }
   return;
 }

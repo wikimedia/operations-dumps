@@ -31,10 +31,12 @@
 
 #define FILENAME_LEN 256
 
-typedef struct {
+typedef struct mwversion_struct {
   int major;
   int minor;
   char qualifier[20];
+  struct mwversion_struct *next;
+  char *version;  /* full string eg "1.20" */
 } mw_version_t;
 
 /* holds string of characters, possibly binary data, which should be
@@ -46,11 +48,11 @@ typedef struct {
   int length;
 } string_t;
 
-typedef struct namespace {
+typedef struct namespace_struct {
   char key[FIELD_LEN];
   char n_case[FIELD_LEN];
   char namespace[FIELD_LEN];
-  struct namespace *next;
+  struct namespace_struct *next;
 } namespace_t;
 
 typedef struct {
@@ -125,7 +127,7 @@ typedef struct {
   bz2buffer_t *xmlb;
 } input_file_t;
 
-typedef struct {
+typedef struct output_file_struct {
   char *filename; /* expect mem from assignment not from alloc, if caller
 			    does otherwise then caller must arrange to free as well */
   int filetype; /* one of PLAINTEXT, GZCOMPRESSED, BZCOMPRESSED */
@@ -133,6 +135,7 @@ typedef struct {
   gzFile gzfd;
   BZFILE *bz2fd;
   mw_version_t *mwv;
+  struct output_file_struct *next;
 } output_file_t;
 
 typedef struct {
@@ -169,10 +172,32 @@ typedef struct {
 #define TITLE "title"
 #define USERNAME "username"
 
-/* macros for comparing mediawiki version numbers */
-#define MWV_LESS(mwv,maj,min) (mwv->major < maj || (mwv->major == maj && mwv->minor < min))
-#define MWV_GREATER(mwv,maj,min) (mwv->major > maj || (mwv->major == maj && mwv->minor > min))
-#define MWV_EQUAL(mwv,maj,min) (mwv->major == maj && mwv->major == maj)
+/* macros for comparing mediawiki version numbers, if the major number is 0 it's a noop, always true */
+#define MWV_LESS(mwv,maj,min) (!maj || mwv->major < maj || (mwv->major == maj && mwv->minor < min))
+#define MWV_GREATER(mwv,maj,min) (!maj || mwv->major > maj || (mwv->major == maj && mwv->minor > min))
+#define MWV_EQUAL(mwv,maj,min) (!maj || mwv->major == maj && mwv->major == maj)
+
+void free_input_buffer(string_t *b);
+string_t *init_input_buffer();
+void free_bz2buf(bz2buffer_t *b);
+bz2buffer_t *init_bz2buf();
+void free_input_file(input_file_t *f);
+void free_output_file(output_file_t *f);
+input_file_t *init_input_file(char *xml_file);
+output_file_t *init_output_file(char *basename, char *suffix, mw_version_t *mwv);
+void close_input_file(input_file_t *f);
+void close_output_file(output_file_t *f);
+
+char *gzipit(char *contents, int *compressed_length, char *gz_buf, int gz_buf_length);
+int isfull(bz2buffer_t *b);
+int fill_buffer(bz2buffer_t *b, BZFILE *fd);
+int has_newline(bz2buffer_t *b);
+void dump_bz2buffer(bz2buffer_t *b);
+char *bz2gets(BZFILE *fd, bz2buffer_t *b, char *out, int nbytes);
+char *get_line2buffer(input_file_t *f, char *buf, int length);
+char *get_line(input_file_t *f);
+int put_line(output_file_t *f, char *line);
+int put_line_all(output_file_t *f, char *line);
 
 contributor_t *alloc_contributor();
 void free_contributor(contributor_t *c);
@@ -184,52 +209,40 @@ void free_page();
 void whine(char *message, ...);
 void print_sql_field(FILE *f, char *field, int isstring, int islast);
 void copy_sql_field(char *outbuf, char *field, int isstring, int islast);
-int isfull(bz2buffer_t *b);
-int fill_buffer(bz2buffer_t *b, BZFILE *fd);
-int has_newline(bz2buffer_t *b);
-void dump_bz2buffer(bz2buffer_t *b);
-char *bz2gets(BZFILE *fd, bz2buffer_t *b, char *out, int nbytes);
-char *get_line2buffer(input_file_t *f, char *buf, int length);
-char *get_line(input_file_t *f);
-int put_line(output_file_t *f, char *line);
+char *sql_escape(char *s, int s_size, char *out, int out_size);
+void title_escape(char *t);
 char *un_xml_escape(char *value, char *output, int last);
+void digits_only(char *buf);
+void write_metadata(output_file_t *f, char *schema, siteinfo_t *s);
+void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t);
+tablenames_t *setup_table_names(char *prefix);
+
 int find_first_tag(input_file_t *f, char *holder, int holder_size);
 int find_attrs(input_file_t *f, int result, char *holder, int holder_size);
 int find_value(input_file_t *f, int s_ind, char *holder, int holder_size);
 int find_close_tag(input_file_t *f, int start, char *holder, int holder_size);
 int find_simple_close_tag(input_file_t *f, int start);
+
 int get_start_tag(input_file_t *f, char *tag_name);
 int get_elt_with_attrs(input_file_t *f, char *tag_name, char *holder, int holder_size, char *attrs, int attrs_size);
 int get_end_tag(input_file_t *f, char *tag_name);
+int get_attr( char *s, char *name, char *value, char **todo);
 
-void init_mwxml();
-void cleanup_mwxml(output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt);
-int do_contributor(input_file_t *f, contributor_t *c, int verbose);
 int find_rev_with_id(input_file_t *f, char *id);
+int find_page_with_id(input_file_t *f, char *id);
 int find_text_in_rev(input_file_t *f);
-char *sql_escape(char *s, int s_size, char *out, int out_size);
+
+int do_contributor(input_file_t *f, contributor_t *c, int verbose);
 int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, tablenames_t *t, int insrt_ignore, int get_sha1, int get_text_len, int text_commpress);
 int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, page_t *p, int verbose, tablenames_t *t, int insert_ignore);
-void digits_only(char *buf);
-int find_page_with_id(input_file_t *f, char *id);
 int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt, int verbose, tablenames_t *t, int insert_ignore, char *start_page_id);
 int do_namespace(input_file_t *f, namespace_t *n, int verbose);
 int do_namespaces(input_file_t *f, siteinfo_t *s, int verbose);
 int do_siteinfo(input_file_t *f, siteinfo_t **s, int verbose);
 int do_mw_header(input_file_t *f, int skipschema, char **schema, int verbose);
-void write_createtables_file(output_file_t *f, int nodrop, tablenames_t *t);
-tablenames_t *setup_table_names(char *prefix);
 
-void free_input_buffer(string_t *b);
-string_t *init_input_buffer();
-void free_bz2buf(bz2buffer_t *b);
-bz2buffer_t *init_bz2buf();
-void free_input_file(input_file_t *f);
-void free_output_file(output_file_t *f);
-input_file_t *init_input_file(char *xml_file);
-output_file_t *init_output_file(char *xml_file, mw_version_t *mwv);
-void close_input_file(input_file_t *f);
-void close_output_file(output_file_t *f);
+void init_mwxml();
+void cleanup_mwxml(output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt);
 
 void show_version(char *whoami, char *version_string);
 void usage(char *whoami, char *message);
@@ -237,10 +250,44 @@ char *get_filebase(char *file_name, int verbose);
 char *get_filesuffix(char *file_name, int verbose);
 int do_file_header(input_file_t *f, int skipschema, char **schema, siteinfo_t **s, int verbose);
 
-char *gzipit(char *contents, int *compressed_length, char *gz_buf, int gz_buf_length);
+static inline int mwv_any_greater(mw_version_t *mwv,int mj,int mn ) {
+  mw_version_t *head = mwv;
 
-void write_metadata(output_file_t *f, char *schema, siteinfo_t *s);
-int get_attr( char *s, char *name, char *value, char **todo);
-void title_escape(char *t);
+  if (!mj) return(1);
+  while (head) {
+    if (MWV_GREATER(head, mj, mn)) return(1);
+    else head = head->next;
+  }
+  return(0);
+}
+
+static inline int mwv_any_less(mw_version_t *mwv,int mj,int mn ) {
+  mw_version_t *head = mwv;
+
+  if (!mj) return(1);
+  while (head) {
+    if (MWV_LESS(head, mj, mn)) return(1);
+    else head = head->next;
+  }
+  return(0);
+}
+
+
+/* pass in the head of the output file list */
+static inline void write_if_mwv(output_file_t *f, int gt_major, int gt_minor, int lt_major, int lt_minor, char *out_buf, int verbose) {
+  mw_version_t *mwv;
+
+  mwv = f->mwv;
+
+  if (mwv_any_greater(mwv,gt_major,gt_minor) && mwv_any_less(mwv, lt_major, lt_minor)) {
+    while (f) { /* once per version */
+      mwv = f->mwv;
+      if (MWV_GREATER(mwv,gt_major,gt_minor) && MWV_LESS(mwv, lt_major, lt_minor)) put_line(f, out_buf);
+      f = f->next;
+    }
+    if (verbose > 2) fprintf(stderr, out_buf);
+  }
+  return;
+}
 
 #endif
