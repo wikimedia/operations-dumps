@@ -18,6 +18,84 @@
 #include "mwxml2sql.h"
 
 /*
+   args:
+      file_name      name of file
+      verbose        1 to write to stderr information about the
+                     filename as it is processed, 0 for quiet mode
+
+  returns:
+      name of file without suffix, or NULL on error
+      known suffixes are BZSUFFIX, GZSUFFIX, TXTSUFFIX (.gz .bz2 .txt)
+*/
+char *get_filebase(char *file_name, int verbose) {
+  char *start = NULL, *copy = NULL;
+
+  if (!file_name) return(NULL);
+  if ((start = strrchr(file_name, '.')) != NULL) {
+    if (!strcmp(start, BZSUFFIX) ||
+	!strcmp(start, GZSUFFIX) ||
+	!strcmp(start, TXTSUFFIX)) {
+    }
+    copy = (char *)malloc(start - file_name +1);
+    if (!copy) {
+      fprintf(stderr,"failed to get memory for output filename\n");
+      return(NULL);
+    }
+    strncpy(copy, file_name, start - file_name);
+    copy[start - file_name] = '\0';
+    return(copy);
+    if (verbose > 1)
+      fprintf(stderr,"passed %s and returning base %s\n", file_name, copy);
+  }
+  copy = (char *)malloc(strlen(file_name) +1);
+  if (!copy) {
+    fprintf(stderr,"failed to get memory for output filename\n");
+    return(NULL);
+  }
+  strcpy(copy, file_name);
+  return(copy);
+}
+
+/*
+   args:
+      file_name      name of file
+      verbose        1 to write to stderr information about the
+                     filename as it is processed, 0 for quiet mode
+
+  returns:
+      file suffix if there is one, or the empty string if there is none,
+      or NULL on error
+      known suffixes are BZSUFFIX, GZSUFFIX, TXTSUFFIX (.gz .bz2 .txt)
+*/
+char *get_filesuffix(char *file_name, int verbose) {
+  char *start = NULL, *copy = NULL;
+
+  if (!file_name) return(NULL);
+  if ((start = strrchr(file_name, '.')) != NULL) {
+    if (!strcmp(start, BZSUFFIX) ||
+	!strcmp(start, GZSUFFIX) ||
+	!strcmp(start, TXTSUFFIX)) {
+      copy = (char *)malloc(file_name+strlen(file_name) - start +1);
+      if (!copy) {
+	fprintf(stderr,"failed to get memory for output filename\n");
+	return(NULL);
+      }
+      strcpy(copy, start);
+      if (verbose > 1)
+	fprintf(stderr,"passed %s and returning suffix %s\n", file_name, copy);
+      return(copy);
+    }
+  }
+  copy = (char *)malloc(1);
+  if (!copy) {
+    fprintf(stderr,"failed to get memory for output filename\n");
+    return(NULL);
+  }
+  copy[0] = '\0';
+  return(copy);
+}
+
+/*
   args:
      contents             - data to compress
      compressed_length    - where length of compressed data will be stored
@@ -495,7 +573,8 @@ input_file_t *init_input_file(char *filename) {
     suffix       suffix of filename
     mwv          list of structures with information about the MediaWiki
                  versions for which sql output in these files will
-                 be produced
+                 be produced. If this is NULL then only one file will
+                 be produced, without a version name in it
 
   returns:
     allocated and filled in output file structure on success
@@ -511,10 +590,13 @@ input_file_t *init_input_file(char *filename) {
 output_file_t *init_output_file(char *basename, char *suffix, mw_version_t *mwv) {
   output_file_t *outf, *current, *head = NULL;
   mw_version_t *next = NULL;
+  int do_once = 1;
+  char *version = NULL;
 
-  /* do this now for each mwv... */
-  while (mwv) {
-    next = mwv->next;
+  /* do this now for each mwv... or once if mwv is NULL */
+  while (mwv || do_once) {
+    do_once = 0;
+    if (mwv) next = mwv->next;
 
     outf = (output_file_t *)malloc(sizeof(output_file_t));
     if (!outf) {
@@ -535,18 +617,21 @@ output_file_t *init_output_file(char *basename, char *suffix, mw_version_t *mwv)
 
     if (basename == NULL) {
       outf->filetype = PLAINTEXT;
-      outf->fd = stdin;
+      outf->fd = stdout;
       continue;
     }
 
     /* "basename-" + version + suffix (if there is one) */
-    outf->filename = (char *)malloc(strlen(basename) + (suffix?strlen(suffix):0) + strlen(outf->mwv->version) + 2);
+    if (outf->mwv) version = outf->mwv->version;
+    else version = NULL;
+
+    outf->filename = (char *)malloc(strlen(basename) + (suffix?strlen(suffix):0) + strlen(version) + 2);
     if (!outf->filename) {
       fprintf(stderr,"failed to get memory for output file information\n");
       free_output_file(head);
       return(NULL);
     }
-    sprintf(outf->filename, "%s-%s%s", basename, outf->mwv->version, suffix?suffix:"0");
+    sprintf(outf->filename, "%s%s%s%s", basename, version?"-":"", version?version:"", suffix?suffix:"");
     if (!suffix) {
       outf->filetype = PLAINTEXT;
       outf->fd = fopen (outf->filename, "w");

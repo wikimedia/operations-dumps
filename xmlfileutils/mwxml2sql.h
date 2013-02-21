@@ -210,6 +210,7 @@ void whine(char *message, ...);
 void print_sql_field(FILE *f, char *field, int isstring, int islast);
 void copy_sql_field(char *outbuf, char *field, int isstring, int islast);
 char *sql_escape(char *s, int s_size, char *out, int out_size);
+char *tab_escape(char *s, int s_size, char *out, int out_size);
 void title_escape(char *t);
 char *un_xml_escape(char *value, char *output, int last);
 void digits_only(char *buf);

@@ -178,7 +178,7 @@ char *un_xml_escape(char *value, char*output, int last) {
 
    returns:
       pointer to the next byte in s to be processed, or to NULL if all
-      bytes were processed 
+      bytes were processed
 
    this function escapes character strings for input to mysql,
    adding a trailing '\0' to the result
@@ -224,6 +224,66 @@ char *sql_escape(char *s, int s_size, char *out, int out_size) {
       break;
     case '\032':
       c= 'Z';
+      break;
+    default:
+      c = 0;
+      *to = *from;
+      to++;
+      copied++;
+      from++;
+      ind++;
+    }
+    if (c) {
+      *to = '\\';
+      to++;
+      copied++;
+      *to = c;
+      to++;
+      copied++;
+      from++;
+      ind++;
+    }
+  }
+  *to = '\0';
+  return(NULL);
+}
+
+/*
+  args:
+     s           string to escape
+     s_size      length of string to escape
+     out         holder for result
+     out_size    size of holder for result
+
+   returns:
+      pointer to the next byte in s to be processed, or to NULL if all
+      bytes were processed
+
+   this function escapes tabs in character strings for input to LOAD FILE
+   adding a trailing '\0' to the result (you should pass a string that
+   already has the remainder of the mysql escapes applied)
+
+   if s_size is 0, the string to escape must be null terminated
+   and its length is not checked.
+*/
+char *tab_escape(char *s, int s_size, char *out, int out_size) {
+  char c;
+  char *from ;
+  char *to;
+  int copied = 0;
+  int ind = 0;
+
+  from = s;
+  to = out;
+  while (*from || ind < s_size) {
+    if (copied +3 > out_size) {
+      /* null terminate here and return index */
+      *to = '\0';
+      return(from);
+    }
+    switch (*from) {
+    case '\t':
+      c = 't';
       break;
     default:
       c = 0;
