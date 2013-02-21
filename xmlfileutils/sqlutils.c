@@ -185,7 +185,7 @@ char *un_xml_escape(char *value, char*output, int last) {
    characters that are escaped are the below:
    \x00, \n, \r, \, ', " and \x1a
 
-   if s_size is 0, the string to escape mus be null terminated
+   if s_size is -1, the string to escape mus be null terminated
    and its length is not checked.
 */
 char *sql_escape(char *s, int s_size, char *out, int out_size) {
@@ -197,7 +197,7 @@ char *sql_escape(char *s, int s_size, char *out, int out_size) {
 
   from = s;
   to = out;
-  while (*from || ind < s_size) {
+  while ((!s_size && *from) || ind < s_size) {
     if (copied +3 > out_size) {
       /* null terminate here and return index */
       *to = '\0';
@@ -263,7 +263,7 @@ char *sql_escape(char *s, int s_size, char *out, int out_size) {
    adding a trailing '\0' to the result (you should pass a string that
    already has the remainder of the mysql escapes applied)
 
-   if s_size is 0, the string to escape must be null terminated
+   if s_size is -1, the string to escape must be null terminated
    and its length is not checked.
 */
 char *tab_escape(char *s, int s_size, char *out, int out_size) {
@@ -275,7 +275,8 @@ char *tab_escape(char *s, int s_size, char *out, int out_size) {
 
   from = s;
   to = out;
-  while (*from || ind < s_size) {
+
+  while ((s_size == -1 && *from) || ind < s_size) {
     if (copied +3 > out_size) {
       /* null terminate here and return index */
       *to = '\0';

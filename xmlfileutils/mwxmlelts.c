@@ -707,7 +707,7 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     }
   }
 
-  sql_escape(r.comment,0,escaped_comment, sizeof(escaped_comment));
+  sql_escape(r.comment,-1,escaped_comment, sizeof(escaped_comment));
   if (verbose > 1) {
     fprintf(stderr,"revision info: id %s, parentid %s, timestamp %s, minor %s, comment %s, sha1 %s, model %s, format %s, len %s, textid %s\n", r.id, r.parent_id, r.timestamp, r.minor, escaped_comment, r.sha1, r.model, r.format, r.text_len, r.text_id);
   }
@@ -988,7 +988,7 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
       return(0);
     }
   }
-  sql_escape(p.title,0, escaped_title, sizeof(escaped_title));
+  sql_escape(p.title,-1, escaped_title, sizeof(escaped_title));
   title_escape(escaped_title);
   /* we also need blank to _, see what else happens, woops */
   if (verbose > 1) {
