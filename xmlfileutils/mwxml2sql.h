@@ -18,6 +18,8 @@
 #include <zlib.h>
 #include <stdarg.h>
 
+#include "sha1.h"
+
 #define VERSION "0.0.1"
 
 #define MAX_TAG_NAME_LEN 256
@@ -250,6 +252,12 @@ void usage(char *whoami, char *message);
 char *get_filebase(char *file_name, int verbose);
 char *get_filesuffix(char *file_name, int verbose);
 int do_file_header(input_file_t *f, int skipschema, char **schema, siteinfo_t **s, int verbose);
+
+int tobase36(unsigned int *in, unsigned int *in_copy, unsigned int *temp, int in_len, unsigned int *out);
+int char2int(char c);
+int hexstring2int(char *s, int len, unsigned int *intbuf);
+char int2char(int i);
+void int2string(unsigned int *int_buf, int int_buf_len, char *s);
 
 static inline int mwv_any_greater(mw_version_t *mwv,int mj,int mn ) {
   mw_version_t *head = mwv;

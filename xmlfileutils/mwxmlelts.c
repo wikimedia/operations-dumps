@@ -18,6 +18,8 @@
 
 #include "mwxml2sql.h"
 
+#define SHA_DIGEST_LENGTH 20
+
 char page_in_process[MAX_ID_LEN];
 int page_rows_written;
 int rev_rows_written;
@@ -311,9 +313,9 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   int todo_length;
   char *todo, *todo_new;
   int text_length = 0;
-  SHA_CTX ctx;
+  sha1_context ctx;
   unsigned char sha1[SHA_DIGEST_LENGTH];
-  char sha1_string[SHA_DIGEST_LENGTH*2];
+  unsigned char sha1_string[SHA_DIGEST_LENGTH*2 +1];
   int i=0;
   char *compressed_content = NULL;
   int compressed_length = 0;
@@ -322,7 +324,14 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   char compressed_buf[TEXT_BUF_LEN_PADDED];
   char *compressed_ptr = NULL;
 
-  if (get_sha1) SHA1_Init(&ctx);
+  unsigned int sha1_copy[SHA_DIGEST_LENGTH*2 +1];
+  unsigned int sha1_temp[SHA_DIGEST_LENGTH*2 +1];
+  unsigned int sha1_num[SHA_DIGEST_LENGTH/3 +1];
+  int sha1_num_len;
+  unsigned int sha1_b36[SHA_DIGEST_LENGTH*8/5 + 6];
+  int sha1_b36_len;
+
+  if (get_sha1) sha1_starts(&ctx);
 
   ind = strstr(f->in_buf->content, "<text");
   if (!ind) return(0);
@@ -362,7 +371,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
     if (!endtag) {
       leftover = un_xml_escape(ind, raw, 0);
       if (get_text_length) text_length+= strlen(raw);
-      if (get_sha1) SHA1_Update(&ctx, raw, strlen(raw));
+      if (get_sha1) sha1_update(&ctx, (unsigned char *)raw, strlen(raw));
       if (text_compress) {
 	/* FIXME do something with this return value */
 	compressed_ptr = gzipit(raw, &compressed_length, compressed_buf, sizeof(compressed_buf));
@@ -406,7 +415,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
       un_xml_escape(ind, raw, 1);
       *endtag = '<';
       if (get_text_length) text_length+= strlen(raw);
-      if (get_sha1) SHA1_Update(&ctx, raw, strlen(raw));
+      if (get_sha1) sha1_update(&ctx, (unsigned char *)raw, strlen(raw));
       if (text_compress) {
 	/* FIXME do something with this return value */
 	compressed_ptr = gzipit(raw, &compressed_length, compressed_buf, sizeof(compressed_buf));
@@ -467,12 +476,16 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
      so we don't have to compute it.
   */
   if (get_sha1) {
-    SHA1_Final(sha1, &ctx);
-    /* fixme is this really the best way? look at it later */
-    for (i=0; i < SHA_DIGEST_LENGTH; i++) {
-            sprintf((char*)&(sha1_string[i*2]), "%02x", sha1[i]);
-    }
-    sprintf(r->sha1, "%s", sha1);
+    sha1_finish(&ctx, sha1);
+
+    /* base36 conversion, blah */
+    for (i=0; i < SHA_DIGEST_LENGTH; i++)
+      sprintf((char*)&(sha1_string[i*2]), "%02x", sha1[i]);
+
+    /*    sha1_num_len = hexstring2int((char *)sha1_string, SHA_DIGEST_LENGTH*2, sha1_num);*/
+    sha1_num_len = hexstring2int((char *)sha1_string, SHA_DIGEST_LENGTH*2, sha1_num);
+    sha1_b36_len = tobase36(sha1_num, sha1_copy, sha1_temp, sha1_num_len, sha1_b36);
+    int2string(sha1_b36, sha1_b36_len, r->sha1);
   }
 
   if (verbose > 1) fprintf(stderr,"text info: insert end of line written\n");

@@ -6,11 +6,10 @@ elements, nor logging xml elements.  It works with the
 xml dumps from the Wikimedia projects and that is all
 that it's intended to do.
 
-To install this program, you will need to have the libssl,
-libcrypto, libz and bz2 development libraries installed,
-as well as the gcc toolchain or an equivalent C compiler
-and its supporting libraries. You'll also need the 'make'
-utility.
+To install this program, you will need to have the libz and
+bz2 development libraries installed, as well as the gcc
+toolchain or an equivalent C compiler and its supporting
+libraries. You'll also need the 'make' utility.
 
 This program has been tested only on 64-bit Linux.  You can
 try building it on other platforms but without any support
@@ -101,3 +100,14 @@ and not very comprehensively.  Please help discover bugs!
 
 This does NOT support dumps from wikis with LiquidThread enabled.
 That's a feature set for a future version.
+
+LICENSE
+
+The files sha1.c and sha1.h are released by Christophe Levine under
+GPLv2 (see the file COPYING in this directory).  His web site is
+no longer available and the code has since been folded into many
+other projects but you can find it via archive.org:
+http://web.archive.org/web/20031123112259/http://www.cr0.net:8040/code/crypto/sha1/
+
+The remaining files are copyright Ariel Glenn 2013 and also released
+under the GPLv2 (see again the file COPYING in this directory).
