@@ -70,7 +70,7 @@ class Runner(object):
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
 		self.spawn = spawn
-		
+
 		if date:
 			# Override, continuing a past dump?
 			self.date = date
@@ -265,9 +265,9 @@ class Runner(object):
 			XmlLogging("Pull out all logging data")]
 		if self.wiki.hasFlaggedRevs():
 			self.items.append(
-				PublicTable( "flaggedpages", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending." ))
+				PublicTable("flaggedpages", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending."))
 			self.items.append(
-				PublicTable( "flaggedrevs", "This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under." ))
+				PublicTable("flaggedrevs", "This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under."))
 
 		if not self.wiki.isBig():
 			self.items.append(
@@ -465,7 +465,7 @@ class Runner(object):
 	# Report on the file size & status of the current output and output a link if were done
 	def reportFile(self, file, status):
 		filepath = self.publicPath(file)
-		if status == "in-progress" and exists (filepath):
+		if status == "in-progress" and exists(filepath):
 			size = prettySize(getsize(filepath))
 			return "<li class='file'>%s %s (written) </li>" % (file, size)
 		elif status == "done" and exists(filepath):
@@ -668,7 +668,7 @@ class XmlStub(Dump):
 	def listFiles(self, runner):
 		return ["stub-meta-history.xml.gz",
 			"stub-meta-current.xml.gz",
-			"stub-articles.xml.gz",]
+			"stub-articles.xml.gz", ]
 
 	def run(self, runner):
 		history = runner.publicPath("stub-meta-history.xml.gz")
@@ -679,16 +679,16 @@ class XmlStub(Dump):
 				os.remove(filename)
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
-  --wiki=%s \
-  --full \
-  --stub \
-  --report=10000 \
-  %s \
-  --server=%s \
-  --output=gzip:%s \
-  --output=gzip:%s \
+	--wiki=%s \
+	--full \
+	--stub \
+	--report=10000 \
+	%s \
+	--server=%s \
+	--output=gzip:%s \
+	--output=gzip:%s \
 	--filter=latest \
-  --output=gzip:%s \
+	--output=gzip:%s \
 	--filter=latest \
 	--filter=notalk \
 	--filter=namespace:\!NS_USER \
@@ -722,12 +722,12 @@ class XmlLogging(Dump):
 			os.remove(logging)
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
-  --wiki=%s \
-  --logs \
-  --report=10000 \
-  %s \
-  --server=%s \
-  --output=gzip:%s \
+	--wiki=%s \
+	--logs \
+	--report=10000 \
+	%s \
+	--server=%s \
+	--output=gzip:%s \
 """ % shellEscape((
 			runner.config.php,
 			runner.config.wikiDir,
@@ -804,13 +804,13 @@ class XmlDump(Dump):
 
 		dumpCommand = """
 %s -q %s/maintenance/dumpTextPass.php \
-  --wiki=%s \
-  %s \
-  %s \
-  %s \
-  --report=1000 \
-  --server=%s \
-  %s""" % shellEscape((
+	--wiki=%s \
+	%s \
+	%s \
+	%s \
+	--report=1000 \
+	--server=%s \
+	%s""" % shellEscape((
 			runner.config.php,
 			runner.config.wikiDir,
 			runner.dbName,
@@ -914,12 +914,12 @@ class AbstractDump(Dump):
 	def run(self, runner):
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
-  --wiki=%s \
-  --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
-  --current \
-  --report=1000 \
-  %s \
-  --server=%s \
+	--wiki=%s \
+	--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
+	--current \
+	--report=1000 \
+	%s \
+	--server=%s \
 """ % shellEscape((
 				runner.config.php,
 				runner.config.wikiDir,
@@ -929,9 +929,9 @@ class AbstractDump(Dump):
 				runner.dbServer))
 		for variant in self._variants(runner):
 			command = command + """  --output=file:%s \
-    --filter=namespace:NS_MAIN \
-    --filter=noredirect \
-    --filter=abstract%s \
+	--filter=namespace:NS_MAIN \
+	--filter=noredirect \
+	--filter=abstract%s \
 """ % shellEscape((
 				runner.publicPath(self._variantFile(variant)),
 				self._variantOption(variant)))
