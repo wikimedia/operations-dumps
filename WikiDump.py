@@ -8,13 +8,16 @@ import sys
 import threading
 import time
 
+
 def fileAge(filename):
 	return time.time() - os.stat(filename).st_mtime
+
 
 def atomicCreate(filename, mode='w'):
 	"""Create a file, aborting if it already exists..."""
 	fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
 	return os.fdopen(fd, mode)
+
 
 def shellEscape(param):
 	"""Escape a string parameter, or set of strings, for the shell."""
@@ -26,10 +29,12 @@ def shellEscape(param):
 	else:
 		return tuple([shellEscape(x) for x in param])
 
+
 def prettySize(size):
 	"""Return a string with an attractively formatted file size."""
 	quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
 	return _prettySize(size, quanta)
+
 
 def _prettySize(size, quanta):
 	if size < 1024 or len(quanta) == 1:
@@ -37,15 +42,19 @@ def _prettySize(size, quanta):
 	else:
 		return _prettySize(size / 1024.0, quanta[1:])
 
+
 def today():
 	return time.strftime("%Y%m%d", time.gmtime())
+
 
 def prettyTime():
 	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
+
 def prettyDate(key):
 	"Prettify a MediaWiki date key"
 	return "-".join((key[0:4], key[4:6], key[6:8]))
+
 
 def dumpFile(filename, text):
 	"""Dump a string to a file, as atomically as possible, via a temporary file in the same directory."""
@@ -61,11 +70,13 @@ def dumpFile(filename, text):
 	# Of course nothing else will work on Windows. ;)
 	os.rename(tempFilename, filename)
 
+
 def readFile(filename):
 	file = open(filename, "r")
 	text = file.read()
 	file.close()
 	return text
+
 
 def dbList(filename):
 	"""Read database list from a file"""
@@ -78,6 +89,7 @@ def dbList(filename):
 	infile.close()
 	dbs.sort()
 	return dbs
+
 
 class Config(object):
 	def __init__(self):
@@ -353,6 +365,7 @@ class Wiki(object):
 	def lockAge(self):
 		return fileAge(self.lockFile())
 
+
 class LockWatchdog(threading.Thread):
 	"""Touch the given file every 10 seconds until asked to stop."""
 	
@@ -388,6 +401,7 @@ class LockWatchdog(threading.Thread):
 	def touchLock(self):
 		"""Run me inside..."""
 		os.utime(self.lockfile, None)
+
 
 def cleanup():
 	"""Call cleanup handlers for any background threads..."""

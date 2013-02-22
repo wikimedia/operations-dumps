@@ -12,6 +12,7 @@ import WikiDump
 from os.path import dirname, exists, getsize, join, realpath
 from WikiDump import prettyTime, prettySize, shellEscape
 
+
 def splitPath(path):
 	# For some reason, os.path.split only does one level.
 	parts = []
@@ -24,6 +25,7 @@ def splitPath(path):
 		(path, file) = os.path.split(path)
 	return parts
 
+
 def relativePath(path, base):
 	"""Return a relative path to 'path' from the directory 'base'."""
 	path = splitPath(path)
@@ -34,6 +36,7 @@ def relativePath(path, base):
 	for prefix in base:
 		path.insert(0, "..")
 	return os.path.join(*path)
+
 
 def md5File(filename):
 	summer = md5.new()
@@ -46,14 +49,18 @@ def md5File(filename):
 	infile.close()
 	return summer.hexdigest()
 
+
 def md5FileLine(filename):
 	return "%s  %s\n" % (md5File(filename), os.path.basename(filename))
+
 
 def xmlEscape(text):
 	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+
 class BackupError(Exception):
 	pass
+
 
 class Runner(object):
 
@@ -559,6 +566,7 @@ class Runner(object):
 		rssPath = self.latestPath(file + "-rss.xml")
 		WikiDump.dumpFile(rssPath, rssText)
 
+
 class Dump(object):
 	def __init__(self, desc):
 		self._desc = desc
@@ -608,6 +616,7 @@ class Dump(object):
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__
 
+
 class PublicTable(Dump):
 	"""Dump of a table using MySQL's mysqldump utility."""
 
@@ -629,6 +638,7 @@ class PublicTable(Dump):
 
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__ + "." + self._table
+
 
 class PrivateTable(PublicTable):
 	"""Hidden table dumps for private data."""
@@ -693,6 +703,7 @@ class XmlStub(Dump):
 			articles))
 		runner.runCommand(command, callback=self.progressCallback)
 
+
 class XmlLogging(Dump):
 	""" Create a logging dump of all page activity """
 
@@ -725,6 +736,7 @@ class XmlLogging(Dump):
 			runner.dbServer,
 			logging))
 		runner.runCommand(command, callback=self.progressCallback)
+
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
@@ -840,6 +852,7 @@ class XmlDump(Dump):
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__ + "." + self._subset
 
+
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
 	could save 75% of download time for some users."""
@@ -847,6 +860,7 @@ class BigXmlDump(XmlDump):
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
 		return "--full"
+
 
 class XmlRecompressDump(Dump):
 	"""Take a .bz2 and recompress it as 7-Zip."""
@@ -892,6 +906,7 @@ class XmlRecompressDump(Dump):
 
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__ + "." + self._subset
+
 
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
@@ -946,6 +961,7 @@ class AbstractDump(Dump):
 
 	def listFiles(self, runner):
 		return [self._variantFile(x) for x in self._variants(runner)]
+
 
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""

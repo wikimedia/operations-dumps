@@ -5,6 +5,7 @@ import WikiDump
 
 config = WikiDump.Config()
 
+
 def generateIndex():
 	running = False
 	states = []
@@ -34,6 +35,7 @@ def generateIndex():
 		"status": status,
 		"items": "\n".join(states)}
 	
+
 def updateIndex():
 	outputFileName = os.path.join(config.publicDir, config.index)
 	WikiDump.dumpFile(outputFileName, generateIndex())
