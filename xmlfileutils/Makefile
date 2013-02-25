@@ -6,8 +6,8 @@
 CC=gcc
 LDFLAGS=
 BIGFILES=-D_FILE_OFFSET_BITS=64
-CFLAGS=-Wall -Winline -O2 $(BIGFILES)
-#CFLAGS=-Wall -Winline -g $(BIGFILES)
+CFLAGS=-Wall  -O2 $(BIGFILES)
+#CFLAGS=-Wall  -g $(BIGFILES)
 PREFIX=/usr/local
 
 SHELL=/bin/sh

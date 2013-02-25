@@ -296,7 +296,7 @@ static inline void write_if_mwv(output_file_t *f, int gt_major, int gt_minor, in
       if (MWV_GREATER(mwv,gt_major,gt_minor) && MWV_LESS(mwv, lt_major, lt_minor)) put_line(f, out_buf);
       f = f->next;
     }
-    if (verbose > 2) fprintf(stderr, out_buf);
+    if (verbose > 2) fprintf(stderr, "%s", out_buf);
   }
   return;
 }

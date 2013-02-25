@@ -14,7 +14,6 @@
 #include <bzlib.h>
 #include <zlib.h>
 #include <stdarg.h>
-#include <openssl/sha.h>
 
 #include "mwxml2sql.h"
 
@@ -57,7 +56,7 @@ void init_mwxml() {
   for each table if needed
  */
 void cleanup_mwxml(output_file_t *sqlp, output_file_t *sqlr, output_file_t *sqlt) {
-  char buf[10];
+  char buf[12];
 
   if (page_rows_written) {
     strcpy(buf,";\nCOMMIT;\n");
@@ -802,7 +801,7 @@ rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted", \
   if (rev_rows_written == MAX_REV_BATCH) {
     strcpy(out_buf,");\nCOMMIT;\n");
     put_line_all(sqlr, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
+    if (verbose > 2) fprintf(stderr,"%s", out_buf);
     rev_rows_written = 0;
   }
   else {
@@ -1074,7 +1073,7 @@ page_random, page_touched, page_latest, page_len", insert_ignore?"IGNORE":"", t-
   if (page_rows_written == MAX_PAGE_BATCH) {
     strcpy(out_buf,");\nCOMMIT;\n");
     put_line_all(sqlp, out_buf);
-    if (verbose > 2) fprintf(stderr,out_buf);
+    if (verbose > 2) fprintf(stderr,"%s", out_buf);
     page_rows_written = 0;
   }
   else {
