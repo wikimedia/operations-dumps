@@ -22,12 +22,14 @@ sql2txt: sql2txt.o filebuffers.o sqlutils.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o sql2txt sql2txt.o filebuffers.o sqlutils.o \
 	    -lbz2 -lz
 
-install: mwxml2sql sql2txt
+install: mwxml2sql sql2txt fifo_to_mysql.pl
 	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
 	cp -f mwxml2sql $(PREFIX)/bin/mwxml2sql
 	cp -f sql2txt $(PREFIX)/bin/sql2txt
+	cp -f fifo_to_mysql.pl $(PREFIX)/bin/fifo_to_mysql.pl
 	chmod a+x $(PREFIX)/bin/mwxml2sql
 	chmod a+x $(PREFIX)/bin/sql2txt
+	chmod a+x $(PREFIX)/bin/fifo_to_mysql.pl
 
 clean: 
 	rm -f *.o *.a mwxml2sql sql2txt
@@ -85,6 +87,7 @@ dist:
 	   $(DISTNAME)/sha1.h \
 	   $(DISTNAME)/sha1.c \
 	   $(DISTNAME)/base36.c \
+	   $(DISTNAME)/fifo_to_mysql.pl \
 	   $(DISTNAME)/Makefile \
 	   $(DISTNAME)/COPYING \
 	   $(DISTNAME)/README \

@@ -1,4 +1,4 @@
-This is a small set of tools to help folsk who want to import
+This is a small set of tools to help folks who want to import
 XML dumps into a local instance of MediaWiki.
 
 Tools:
@@ -13,7 +13,7 @@ elements, nor logging xml elements.  It works with the
 xml dumps from the Wikimedia projects and that is all
 that it's intended to do.
 
-To install this program, you will need to have the libz and
+To install and run this program, you will need to have the libz and
 bz2 development libraries installed, as well as the gcc
 toolchain or an equivalent C compiler and its supporting
 libraries. You'll also need the 'make' utility.
@@ -25,6 +25,23 @@ sql file converter, into a format that can be read by MySQL via
 LOAD DATA INFILE, a much faster process than having mysql do a pile
 of INSERTS. If you feed it data formatted differently from that
 output, or with rows broken across lines etc, it may produce garbage.
+
+To install and run this program, you will need to have the libz and
+bz2 development libraries installed, as well as the gcc
+toolchain or an equivalent C compiler and its supporting
+libraries. You'll also need the 'make' utility.
+
+fifo_to_mysql.pl
+
+This reads a tab-delimited file of table records, writes it
+in chunks to a specified fifo, and forks mysql to LOAD DATA INFILE
+from that fifo for each chunk.
+
+To install and run this program, you will need to have the libz and
+bz2 libraries installed, as well as the perl IO::Compress::Gzip,
+IO::Compress::Bzip2, Fcntl and POSIX modules. These are core modules
+so they should come by default with your perl package. You'll also
+need the 'make' utility.
 
 These programs have been tested only on 64-bit Linux and on FreeBSD.
 You can try building them on other platforms but without any support
@@ -42,6 +59,8 @@ else, edit the Makefile and change the line
 
 RUNNING
 
+A. mwxml2sql
+
 'mwxml2sql --help' will give you a comprehensive usage
 message.
 
@@ -55,6 +74,7 @@ mwxml2sql -v -s testing/enwiki-stubs-1114-1300.gz \
          -t testing/enwiki-pages-1114-1300.gz  \
          -f testing/sql_enwiki-1114-1300.gz -p t_ -m 1.20
 
+In this example, we have:
 -v: print progress messages
 -s: stubs file for input
 -t: text (page content) file for input
@@ -84,6 +104,57 @@ only.
 A run of mwimport (perl script) on the same hardware took slightly
 over two hours.
 
+B. sql2txt
+
+'sql2txt --help' will give you a comprehensive usage
+message.
+
+TL;DR version:  you need a possibly compressed (gz or bz2) file
+containing sql insert statements; provide this to sql2txt and
+save the tab delimited and escaped results to a (possibly
+compressed) file.
+
+Example use:
+
+sql2txt  -v -s testing/enwiki-iwlinks.sql.bz2 \
+         -t testing/enwiki-iwlinks.tabs.bz2
+
+In this example, we have:
+-v: print progress messages
+-s: sql file for input
+-t: tab delimited text file for output
+
+C. fifo_to_mysql.pl
+
+'fifo_to_mysql.pl --help' will give you a comprehensive usage
+message.
+
+TL;DR version:  you need a possibly compressed (gz or bz2) file
+containing tab-delimted and escaped data for an sql table;
+stuff your MySQL password in a conf file, provide fifo_to_mysql.pl
+with the sql filename, the conf file name, the db and table names
+and the number of bytes or lines to send to mysql per chunk, and
+it will write chunks of the data to a fifo, spawning mysql to
+LOAD DATA INFILE from that fifo for each chunk.
+
+Example use:
+
+for i in pagelinks page_props page redirect revision site_stats templatelinks text; do \
+    perl fifo_to_mysql.pl --db elwikt --table ${i} --sqlfile ../dump-restore/dump_${i}.tabs.bz2 \
+         --verbose --verbose --charset binary --mysqlopts unique_checks,foreign_key_checks \
+        --fifo /var/lib/mysql/fifos/mysql_fifo --passwdfile mysql-client-opts.cf; done
+
+In this example, we have:
+--db:          name of database into which to load data
+--table:       name of table into which to load data
+--sqlfile:     name of tab delimited and escaped data for the table
+--verbose:     print progress messages
+--charset:     character set for the server to use when loading the file
+               (binary indicates no conversion, this is likely safe)
+--mysqlopts:   session settings to turn off, for speeed
+--fifo:        path to fifo which mysql will read from
+--passwdfile:  mysql config file which will have the password of the user
+
 USING THE OUTPUT
 
 Making a local mirror with all current pages
@@ -98,8 +169,9 @@ will encounter problems.
 Convert it and all other needed sql tables to the format needed
 for LOAD DATA INFILE, using the command
 
-zcat blah.sql.gz | sql2txt > blah.txt
-(sqltxt --help for full usage message)
+zcat blah.sql.gz | sql2txt > blah.gz
+(see 'RUNNING' for more on this command).  You may decide you would
+rather use bz2 which will be slower but will save a lot of disk space.
 
 You can skip converting the image, imagelinks, oldimage and
 user_groups tables.  Loading in the other tables saves you from
@@ -112,13 +184,13 @@ change any settings you want to for speed (turning off for
 example foreign_key_checks and/or unique_checks).
 
 Now load your files in one at a time. (Tested on MySQL 5.5,
-probably ok on 5.1, probably broken on 4.x.) You may find that
-files that are multiple GB should be split into smaller files
-and fed in one at a time; let us know if that's the case so
-we can put it on our todo list.
+probably ok on 5.1, probably broken on 4.x.) If yu are working
+with large (> 500MB) files you may want to feed them to mysql
+in chunks.  You can do this by using the fifo_to_mysql.pl
+perl script; see the section 'RUNNING' for more on this command.
 
 If you don't have a ton of space you may want to convert your
-sql files one at a time and remove the plain text file after
+sql files one at a time and remove the output file after
 MySQL has read it in.
 
 Note that the other sql tables are not guaranteed to be 100% consistent
@@ -136,6 +208,13 @@ to page/rev/text tables and then loading in the other tables from our
 generated sql files will give you a lot of links and entries that won't
 be valid, and the other option, maintenance/rebuildall.php, will also be
 very slow.
+
+If you want to import files while keeping pre-existing content, these
+are likewise NOT the tools for you; they will cause mysql to whine
+about index conflicts due to page, revision or text ids already in
+your database that are included in your sql files to be loaded. Consider
+using maintenance/importDump.php (in your MediaWiki installation
+directory) instead.
 
 WARNINGS
 
