@@ -225,8 +225,20 @@ int do_line(input_file_t *sql, output_file_t *text, int verbose) {
     if (!start) skip++;
     else start+=7;
   }
-  else if (sql->in_buf->content[0] != '(') skip++;
-  else start = sql->in_buf->content;
+  else {
+    start = sql->in_buf->content;
+    /*
+       allow leading blanks, a separator, trailing blanks, because we
+       may be reading from the end of a previous tuple in the middle of a line
+       this means someone could sneak in an extra separator or even start a
+       line with one, stricly speaking that's garbage syntax, but let 'em
+       do it as long as the tuples are good, who cares
+       */
+    while (*start == ' ') start++;
+    if (*start == ',') start++;
+    while (*start == ' ') start++;
+    if (*start != '(') skip++;
+  }
 
   if (skip) return(0); /* don't process this line, it doesn't have a data tuple */
   buf[0] = '\n';
