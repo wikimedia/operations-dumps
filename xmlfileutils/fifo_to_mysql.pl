@@ -311,8 +311,11 @@ sub get_mysql_passwd {
     if ($o->{'mysqlpasswd'} eq "") {
 	print STDERR "Password for mysql user needed: ";
 	$mysqlpasswd = <STDIN>;
+	chomp($mysqlpasswd);
     }
-    chomp($mysqlpasswd);
+    else {
+	$mysqlpasswd = $o->{'mysqlpasswd'};
+    }
     return $mysqlpasswd;
 }
 
@@ -335,7 +338,7 @@ sub get_mysql_cmd {
     my @passwdfile_opts = ();
     if ($o->{'passwdfile'}) { @passwdfile_opts = ("--defaults-extra-file=$o->{'passwdfile'}"); }
     my @passwd_opts = ();
-    if ((! @passwdfile_opts) && $mysqlpasswd) { @passwd_opts = ("-p", $mysqlpasswd); }
+    if ((! @passwdfile_opts) && $mysqlpasswd) { @passwd_opts = ("-p" . $mysqlpasswd); }
 
     my @command = ("mysql", @passwdfile_opts, "-u", $o->{'mysqluser'}, @passwd_opts, "-e", "use $o->{'db'}; $begin_opts LOAD DATA INFILE '$o->{'fifo'}' INTO TABLE $o->{'table'} CHARACTER SET $o->{'charset'} $format ; $commit");
     return \@command;
