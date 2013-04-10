@@ -156,7 +156,7 @@ void usage(char *whoami, char *message) {
   fprintf(stderr,"Optional arguments:\n");
   fprintf(stderr,"\n");
   fprintf(stderr,"text        (t):   name of text xml file; .gz and .bz2 files will be silently uncompressed.\n");
-  fprintf(stderr,"                   if not specified, data will be read from stdin\n");
+  fprintf(stderr,"                   if not specified, no text file will be read and no text sql file will be written\n");
   fprintf(stderr,"mysqlfile   (f):   name of filename (possibly ending in .gz or .bz2 or .txt) which will be\n");
   fprintf(stderr,"                   used to derive the names of the sql files for the page, revision and text content\n");
   fprintf(stderr,"                   if none is specified, all data will be written to stdout, but since sql INSERT\n");
