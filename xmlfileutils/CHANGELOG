@@ -1,8 +1,23 @@
+10 Apr 2013
+
+    Release 0.0.2
+
+    * sqlfilter: filters sql table dumps against e.g. list of pageids
+      (and the column number of the pageid in the sql row) and writes
+      only those tuples that match
+    * wikiretriever.py: retrieves page titles and or content from a wiki
+    * wikicontent2sql.py: downloads all pages containing a given template,
+      swapping out talk pages for their corresponding pages (eg File talk
+      for File etc.), converts them to page, revision and table sql,
+      and filters downloaded sql table dumps according to the page ids
+      of the downloaded content, producing a pile of sql files for import
+    * various bugfixes
+
 25 Jan 2013
 
    Release 0.0.1
 
-   Features: 
+   Features:
     *  Reads stub and text content xml files in parallel, producing separate
        sql files for inserts to page, revision and text tables
     *  Reads bz2, gz or plain text content, writes bz2, gz or plaintext output

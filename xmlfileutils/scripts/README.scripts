@@ -1,0 +1,195 @@
+These are a few example scripts for helping with import
+of content into a new MediaWiki wiki.
+
+Scripts:
+
+wikiretriever.py
+
+This retrieves all page titles in a given namespace, or
+a given category, or that include a given template. etc.
+These titles can then be given to this same script to
+retrieve page content for those titles, as an XML file
+which can be used for import.
+
+To run this program, you will need to have python 2.6 or
+better and support for the gzip, bzip2 and urllib pytnon
+libraries. The script also uses the 'wikifile.py' file in
+this directory.
+
+
+wikicontent2sql.py
+
+This retrieves all pages from a wiki that include a given
+template on them or on their talk pages, converts the
+downloaded content file to sql, writes out a list of page
+ids for those pages, and uses the list to filter the
+sql table dumps for that wiki keeping only the rows for
+those page ids, and making your import time shorter.
+
+To run this program, you will need to have python 2.6
+or better, run on a platform that supports select.poll()
+such as a *nix OS, have supprt for gzip, bzip2 and urllib
+python libraries, and be able to build the C programs in the
+parent directory of this package, as they are used by this
+script.  The script also uses the 'wikifile.py' file in
+this directory.
+
+
+fifo_to_mysql.pl
+
+This reads a tab-delimited file of table records, writes it
+in chunks to a specified fifo, and forks mysql to LOAD DATA INFILE
+from that fifo for each chunk.
+
+To run this program, you will need to have the libz and
+bz2 libraries installed, as well as the perl IO::Compress::Gzip,
+IO::Compress::Bzip2, Fcntl and POSIX modules. These are core modules
+so they should come by default with your perl package.
+
+These programs have been tested only on 64-bit Linux. You can try
+running them on other platforms but without any support
+from the author.  If you do run them successfully on another platform,
+let us know and we'll include that information here.
+
+
+RUNNING
+
+A. wikiretriever.py
+
+'python wikiretriever.py --help' will give you a comprehensive usage
+message.
+
+TL;DR version:  know the hostname of the wiki, the template or
+category or namespace info, and decide where you want the output
+to go.  Titles of all pages that include the template or are
+in the category or namespace will be downloaded and the file
+name displayed at the end. You can use that file as input to
+the same script to get the page content.
+
+Example use:
+
+python wikiretriever.py --q namespace -p 828 -o temp \
+         -O module-pages.xml.gz -w el.wiktionary.org -v
+
+In this example we have:
+-q   query type (retrieve page titles from namespace)
+-p   param for query: namespace num (828 is the number for Lua Modules)
+-o   directory into which to write the output file
+-O   name of file which will get written into output directory
+-w   hostname of wiki
+-v   print progress messages
+
+To get the content you just downloaded, you could do
+
+python wikiretriever.py --q content \
+         -p catswiki/module-pages.xml.gz -o temp \
+         -O module-content.xml.gz -w el.wiktionary.org
+
+This downloads in batchs of 500 pages at a time, which
+is the standard limit for anon users.  You can authenticate
+to the wiki via this script and increase that number if
+you have a user with bot credentials.  This may not be wise
+for exporting page content, only for getting page titles.
+
+B. wikicontent2sql.py
+
+'python wikicontent2sql.py --help' will give you a comprehensive
+usage message.
+
+TL;DR version:  provide the language code and wiki type of
+the wiki, give the directory name where all the sql table
+dumps for the wiki were downloaded, give a format string
+for the names of the sql dump files (see below for example),
+the mediawikiversion for which to produce sql output,
+and paths if needed to the wikiretriever.py, sqlfilter
+and mwxml2sql programs if they are not in the current
+directory.  Specify an output directory and the script will
+write a serious of temp files, and then a series of sql files
+containing the converted downloade content and the filtered
+sql table dumps.  You can then import these into a fresh wiki.
+    
+containing sql insert statements; provide this to sql2txt and
+save the tab delimited and escaped results to a (possibly
+compressed) file.
+
+Example use:
+
+python wikicontent2sql.py  --template 'Template:Checkcopyright' \
+        --lang en --project wikiquote --output enwq --sqlfilter \
+	../sqlfilter --wcr ./wikiretriever.py --mwxml2sql ../mwxml2sql \
+	--mwversion 1.20 --verbose \
+	--sqlfiles 'enwqdump/enwikiquote-20130405-{t}.sql.gz'
+
+In this example, we have:
+--template   name of template, including the localized namespace (e.g.
+	     Modèle for french, etc.)
+--lang       language code for the wiki, e.g. fr, el, en
+--project    wiki type, e.g. wikipedia, wiktionary, etc.
+--output     name of output directory in which to write all files
+--sqlfilter  path to sqlfilter program (see README in parent dir for more info)
+--wcr        path to wikiretriever.py
+--mwxml2sql  path to mwxml2sql (see README in parent dir for more info)
+--mwversion  MediaWiki version for which to write sql output; this had
+             better match the version of MediaWiki used to dump the
+             sql tables you downloaded!
+--verbose    print progress messages
+--sqlfiles   filename format string for the sql table dumps you downloaded,
+	     in which '{t}' will be replaced by the various table names in
+	     order to generate the filenames
+
+
+C. fifo_to_mysql.pl
+
+'fifo_to_mysql.pl --help' will give you a comprehensive usage
+message.
+
+TL;DR version:  you need a possibly compressed (gz or bz2) file
+containing tab-delimted and escaped data for an sql table;
+stuff your MySQL password in a conf file, provide fifo_to_mysql.pl
+with the sql filename, the conf file name, the db and table names
+and the number of bytes or lines to send to mysql per chunk, and
+it will write chunks of the data to a fifo, spawning mysql to
+LOAD DATA INFILE from that fifo for each chunk.
+
+Example use:
+
+for i in pagelinks page_props page redirect revision site_stats templatelinks text; do \
+    perl fifo_to_mysql.pl --db elwikt --table ${i} --sqlfile ../dump-restore/dump_${i}.tabs.bz2 \
+         --verbose --verbose --charset binary --mysqlopts unique_checks,foreign_key_checks \
+        --fifo /var/lib/mysql/fifos/mysql_fifo --passwdfile mysql-client-opts.cf; done
+
+In this example, we have:
+--db:          name of database into which to load data
+--table:       name of table into which to load data
+--sqlfile:     name of tab delimited and escaped data for the table
+--verbose:     print progress messages
+--charset:     character set for the server to use when loading the file
+               (binary indicates no conversion, this is likely safe)
+--mysqlopts:   session settings to turn off, for speeed
+--fifo:        path to fifo which mysql will read from
+--passwdfile:  mysql config file which will have the password of the user
+
+USING THE OUTPUT
+
+These tools are for importing a subset of content into an
+empty wiki.
+
+Once you have produced the various sql files with 
+wikicontent2sql.py, you can import them into your MediaWiki
+installation's MySQL database.
+
+You can do this using the fifo_to_mysql.pl script, after
+converting them to the format needed by LOAD DATA INFILE,
+or if the files aren't very large, you can simply import them
+on the command line.  Importing them via the command line
+could be done for example by giving the command
+
+( echo "SET autocommit=0; SET unique_checks=0; SET foreign_key_checks=0;" ; \
+zcat frwiki-20130405-categorylinks.sql.gz ;  \
+echo "SET autocommit=1; SET unique_checks=1; SET foreign_key_checks=1;" \
+) | mysql -u root -p my-wiki-db-here
+
+for each sql file.  You should decide whether it's appropriate or
+not to turn off the settings as shown above for the imports depending
+on your needs.
+

@@ -1,0 +1,32 @@
+Outstanding issues which may or may not get fixed/done someday
+
+Good thing the python scripts are examples, meant to spark
+improvement by others or development of entirely new packages;
+you know you could write something better if you just sat down and
+spent some time, so go do it!
+
+sqlfilter could read INSERT statements that span multiple
+lines as long as each line is started by a tupe with possibly leading
+whitespace; this would let it process output from sql2txt
+
+timing tests with importDump.php to compare loading of content
+
+pretty sure some of these programs don't provide version information
+
+bash script to use sqlfilter on sql table X from mw version Y
+to write it in format for version Z (earlier version) by dropping
+columns as needed
+
+speeding up C code?  compare to speed of equiv python or perl scripts?
+
+do something about media import
+
+script to get all pages in category or all its subcategories etc
+
+maybe convert ooooold (2001 through 2003) dumps to a more modern
+format?
+
+in wikicontent2sql.py, we should be able to get away with not using
+a stub file and generating text len on the fly, all other data we need
+is in the content file downloaded; also we should be able to use
+regular content dumps and not just those produced by Special:Export.
