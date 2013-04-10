@@ -760,7 +760,7 @@ rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted", \
     strcpy(out_buf, ", rev_sha1");
     write_if_mwv(sqlr, 1,18,0,0,out_buf, verbose);    
 
-    strcpy(out_buf, ", rev_model, rev_format");
+    strcpy(out_buf, ", rev_content_model, rev_content_format");
     write_if_mwv(sqlr, 1,20,0,0,out_buf, verbose);    
 
     strcpy(out_buf,") VALUES\n");
@@ -783,7 +783,13 @@ rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted", \
   put_line_all(sqlr, out_buf);
   if (verbose > 2) fprintf(stderr,"(%s) %s",t->revs, out_buf);
 
-  sprintf(out_buf, ", %s, %s", r.text_len, r.parent_id);
+  strcpy(out_buf, ", ");
+  write_if_mwv(sqlr, 1, 9, 0, 0, out_buf, verbose);
+
+  copy_sql_field(out_buf, r.text_len[0]?r.text_len:NULL, 1, 0);
+  write_if_mwv(sqlr, 1, 9, 0, 0, out_buf, verbose);
+
+  copy_sql_field(out_buf, r.parent_id[0]?r.parent_id:NULL, 1, 1);
   write_if_mwv(sqlr, 1, 9, 0, 0, out_buf, verbose);
 
   sprintf(out_buf, ", '%s'", r.sha1);
