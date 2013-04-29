@@ -235,6 +235,9 @@ class Config(object):
 			"checkpointTime" : "0",
 			#"otherformats": {
 			"multistream" : "0",
+			# "pageslogging" : {
+			# number of rows to request in a single query, default is no batch, do them all
+			"loggingBatchsize" : "0",
 			}
 		self.conf = ConfigParser.SafeConfigParser(defaults)
 		self.conf.read(self.files)
@@ -299,6 +302,10 @@ class Config(object):
 		if not self.conf.has_section('cleanup'):
 			self.conf.add_section('cleanup')
 		self.keep = self.conf.getint("cleanup", "keep")
+
+		if not self.conf.has_section('pageslogging'):
+			self.conf.add_section('pageslogging')
+		self.loggingBatchsize = self.conf.getint("pageslogging","batchsize")
 
 	def parseConfFilePerProject(self, projectName = False):
 		# we need to read from the project section without falling back
