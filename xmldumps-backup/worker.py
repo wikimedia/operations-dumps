@@ -1,24 +1,10 @@
 # Worker process, does the actual dumping
 
-import getopt
-import hashlib
-import os
-import re
-import sys
-import time
-import subprocess
-import select
-import shutil
-import stat
-import signal
-import errno
-import glob
-import WikiDump
-import CommandManagement
-import Queue
-import thread
-import traceback
-import socket
+import getopt, hashlib, os, re, sys, errno, time
+import subprocess, select
+import shutil, stat, signal, glob
+import WikiDump, CommandManagement
+import Queue, thread, traceback, socket
 
 from os.path import exists
 from subprocess import Popen, PIPE
