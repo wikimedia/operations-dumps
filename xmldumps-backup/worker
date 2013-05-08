@@ -1,92 +1,150 @@
 #!/bin/bash
 
-# default number of failures of worker.py in a row before we decide
-# something serious is broken and we refuse to run
-MAXFAILS=3
-# default: don't pass special config file
-CONFIGFILE=""
-# default: no logging to file
-LOG=""
+usage() {
+    echo "$0: Unknown option $1"
+    echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
+    echo "          [--cutoff date]"
+    echo "--configfile   use specified file for config file (default: wikidump.conf)"
+    echo "--log          write log of (almost) everything written to stderr (default: no logging)"
+    echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
+    echo "--basedir      scripts and files are relative to this dir (default: location of this script)"
+    echo "--cutoff       dump wikis until all have a dump produced more recent than the specified cutoff,"
+    echo "               then exit.  format: yyyymmdd  OR  'today'"
+    echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
+    echo "               config file will be dumped"
+    echo
+    echo "If the file maintenance.txt is present, no more jobs will be run, and"
+    echo "this script will check the status again in 5 minutes."
+    echo "If the file exit.txt is present, no more new jobs will be started and"
+    echo "this script will terminate."
+    exit 1
+}
 
-failures=0
-WIKIDUMP_BASE=`dirname "$0"`
+set_defaults() {
+    # default number of failures of worker.py in a row before we decide
+    # something serious is broken and we refuse to run
+    MAXFAILS=3
+    # default: don't pass special config file
+    CONFIGFILE=""
+    # default: no logging to file
+    LOG=""
+    # default: no cutoff date
+    CUTOFF=""
+}
 
-while [ $# -gt 0 ]; do
-    if [ $1 == "--configfile" ]; then
-	CONFIGFILE="$2"
-	shift; shift
-    elif [ $1 == "--maxfails" ]; then
-	MAXFAILS="$2"
-	shift; shift
-    elif [ $1 == "--basedir" ]; then
-	WIKIDUMP_BASE="$2"
-	shift; shift
-    elif [ $1 == "--log" ]; then
-	LOG=true
-	shift;
-    elif [ $1 == "--wiki" ]; then
-	WIKI="$2"
-	shift; shift
-    else
-	echo "$0: Unknown option $1"
-	echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
-	echo "--configfile   use specified file for config file (default: wikidump.conf)"
-	echo "--log          write log of (almost) everything written to stderr (default: no logging)"
-	echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
-	echo "--basedir      scripts and files are relative to this dir (default: location of this script)"
-	echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
-	echo "               config file will be dumped"
-	echo 
-	echo "If the file maintenance.txt is present, no more jobs will be run, and"
-	echo "this script will check the status again in 5 minutes."
-	echo "If the file exit.txt is present, no more new jobs will be started and"
-	echo "this script will terminate."
-	exit 1
+process_opts() {
+    while [ $# -gt 0 ]; do
+	if [ $1 == "--configfile" ]; then
+	    CONFIGFILE="$2"
+	    shift; shift
+	elif [ $1 == "--maxfails" ]; then
+	    MAXFAILS="$2"
+	    shift; shift
+	elif [ $1 == "--basedir" ]; then
+	    WIKIDUMP_BASE="$2"
+	    shift; shift
+	elif [ $1 == "--log" ]; then
+	    LOG=true
+	    shift;
+	elif [ $1 == "--cutoff" ]; then
+	    CUTOFF="$2"
+	    shift; shift
+	elif [ $1 == "--wiki" ]; then
+	    WIKI="$2"
+	    shift; shift
+	else
+	    usage
+	fi
+    done
+}
+
+setup_python_args() {
+    # set up the command
+    pythonargs=( "$WIKIDUMP_BASE/worker.py" )
+    if [ ! -z "$CONFIGFILE" ]; then
+	pythonargs=( "${pythonargs[@]}" "--configfile" "$CONFIGFILE" )
     fi
-done
+    if [ ! -z "$LOG" ]; then
+	pythonargs=( "${pythonargs[@]}" "--log" )
+    fi
+    if [ ! -z "$CUTOFF" ]; then
+	if [ "$CUTOFF" == "today" ]; then
+	    # convert this to yyyymmdd, UTC always
+	    CUTOFF=`date -u +"%Y%m%d`
+	else
+	    # sanity check of arg
+	    result=`date -d "$CUTOFF"`
+	    if [ -z "$result" ]; then
+		echo "bad date given for cutoff arg"
+		exit 1
+	    fi
+	fi
+	cutoffargs=( "${pythonargs[@]}" "--cutoff" "$CUTOFF" )
+    fi
+    if [ ! -z "$WIKI" ]; then
+	pythonargs=( "${pythonargs[@]}" "$WIKI" )
+	cutoffargs=( "${cutoffargs[@]}" "$WIKI" )
+    fi
+}
 
-# set up the command
-pythonargs=( "$WIKIDUMP_BASE/worker.py" )
-if [ ! -z "$CONFIGFILE" ]; then
-    pythonargs=( "${pythonargs[@]}" "--configfile" "$CONFIGFILE" )
-fi
-if [ ! -z "$LOG" ]; then
-    pythonargs=( "${pythonargs[@]}" "--log" )
-fi
-if [ ! -z "$WIKI" ]; then
-    pythonargs=( "${pythonargs[@]}" "$WIKI" )
-fi
+dump_wiki() {
+    echo python ${pythonargs[@]}
+    python ${pythonargs[@]}
+    if [ $? -ne 0 ]; then
+	failures=$(($failures+1))
+	if [ $failures -gt $MAXFAILS ]; then
+	    echo "more than $MAXFAILS failures in a row, halting."
+	    exit 1
+	fi
+    else
+	failures=0
+    fi
+    if [ ! -z "$WIKI" ]; then
+	# we ran for a specific wiki, we don't loop even if it failed.
+	if [ $failures -gt 0 ]; then
+	    echo "Dump of wiki $WIKI failed."
+	    exit 1
+	else
+	    echo "Dump of wiki $WIKI succeeded."
+	    exit 0
+	fi
+    fi
+    echo "sleeping"
+    sleep 30
+}
 
-while true; do
+main_loop() {
     if [ -e "$WIKIDUMP_BASE/maintenance.txt" ]; then
 	echo "in maintenance mode (see 'maintenance.txt'), sleeping 5 minutes"
 	sleep 300
     elif [ -e "$WIKIDUMP_BASE/exit.txt" ]; then
 	echo "exit requested, remove 'exit.txt' to continue normal operations."
 	exit 0
-    else
-	echo python ${pythonargs[@]}
-	python ${pythonargs[@]}
-	if [ $? -ne 0 ]; then
-	    failures=$(($failures+1))
-	    if [ $failures -gt $MAXFAILS ]; then
-		echo "more than $MAXFAILS failures in a row, halting."
-		exit 1
-	    fi
+    elif [ ! -z "$CUTOFF" ]; then
+	# see if there are any wikis left with dumps that are not more recent than CUTOFF
+	echo ${cutoffargs[@]}
+	result=`python ${cutoffargs[@]}`
+	if [ -z "$result" ]; then
+	    # nope, so we are done
+	    echo "All wikis completed after cutoff $CUTOFF"
+	    exit 0
 	else
-	    failures=0
+	    # there's (at least) one wiki left to do... if some other worker
+	    # gets it and we do an 'extra' one it's not a disaster, so don't worry about
+	    # potential race
+	    dump_wiki
 	fi
-	if [ ! -z "$WIKI" ]; then
-	    # we ran for a specific wiki, we don't loop even if it failed.
-	    if [ $failures -gt 0 ]; then
-		echo "Dump of wiki $WIKI failed."
-		exit 1
-	    else
-		echo "Dump of wiki $WIKI succeeded."
-		exit 0
-	    fi
-	fi
-	echo "sleeping"
-	sleep 30
+    else
+	dump_wiki
     fi
+}
+
+failures=0
+WIKIDUMP_BASE=`dirname "$0"`
+set_defaults
+process_opts "$@"
+setup_python_args
+
+while true; do
+    main_loop
 done
