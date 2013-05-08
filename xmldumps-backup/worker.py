@@ -4032,7 +4032,7 @@ class TitleDump(Dump):
 		command = runner.dbServerInfo.buildSqlCommand(query, runner.wiki.config.gzip)
 		return runner.saveCommand(command, outfile)
 
-def findAndLockNextWiki(config, locksEnabled):
+def findAndLockNextWiki(config, locksEnabled, cutoff):
 	if config.halt:
 		print "Dump process halted by config."
 		return None
@@ -4040,10 +4040,15 @@ def findAndLockNextWiki(config, locksEnabled):
 	next = config.dbListByAge()
 	next.reverse()
 
-	print "Finding oldest unlocked wiki..."
+	if verbose and not cutoff:
+		print "Finding oldest unlocked wiki..."
 
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
+		if (cutoff):
+			lastRan = wiki.latestDump()
+			if lastRan > cutoff:
+				return None
 		try:
 			if (locksEnabled):
 				wiki.lock()
@@ -4060,7 +4065,7 @@ def usage(message = None):
 	if message:
 		print message
 	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log"
+	print "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff"
 	print "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the"
 	print "               rest of the job for the appropriate chunk if chunks are configured"
 	print "               or for the all the rest of the revisions if no chunks are configured;"
@@ -4095,6 +4100,9 @@ def usage(message = None):
 	print "--restartfrom: Do all jobs after the one specified via --job, including that one"
 	print "--log:         Log progress messages and other output to logfile in addition to"
 	print "               the usual console output"
+	print "--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which"
+	print "               dumps should be run, if its last dump was not after the cutoff date,"
+	print "               and exit, or if there are no such wikis, just exit"
 	print "--verbose:     Print lots of stuff (includes printing full backtraces for any exception)"
 	print "               This is used primarily for debugging"
 
@@ -4117,12 +4125,13 @@ if __name__ == "__main__":
 		afterCheckpoint = False
 		checkpointFile = None
 		pageIDRange = None
+		cutoff = None
 		result = False
 		verbose = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'verbose' ])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', 'verbose' ])
 		except:
 			usage("Unknown option specified")
 
@@ -4158,6 +4167,10 @@ if __name__ == "__main__":
 				htmlNotice = False
 			elif opt == "--pageidrange":
 				pageIDRange = val
+			elif opt == "--cutoff":
+				cutoff = val
+				if not cutoff.isdigit() or not len(cutoff) == 8:
+					usage("--cutoff value must be in yyyymmdd format")
 			elif opt == "--verbose":
 				verbose = True
 
@@ -4188,7 +4201,7 @@ if __name__ == "__main__":
 		else:
 			config = WikiDump.Config()
 
-		if dryrun or chunkToDo or (jobRequested and not restart):
+		if dryrun or chunkToDo or (jobRequested and not restart) or cutoff:
 			locksEnabled = False
 		else:
 			locksEnabled = True
@@ -4200,6 +4213,10 @@ if __name__ == "__main__":
 
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
+			if cutoff:
+				lastRan = wiki.latestDump()
+				if lastRan > cutoff:
+					wiki = None
 			if locksEnabled:
 				if forceLock and wiki.isLocked():
 					wiki.unlock()
@@ -4207,7 +4224,13 @@ if __name__ == "__main__":
 					wiki.lock()
 
 		else:
-			wiki = findAndLockNextWiki(config, locksEnabled)
+			wiki = findAndLockNextWiki(config, locksEnabled, cutoff)
+
+		if cutoff:
+			if wiki:
+				print wiki.dbName
+			WikiDump.cleanup()
+			sys.exit(0)
 
 		if wiki:
 			# process any per-project configuration options
