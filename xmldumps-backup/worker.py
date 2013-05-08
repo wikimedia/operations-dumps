@@ -378,8 +378,8 @@ class RunInfoFile(object):
 			except:
 				if (self.verbose):
 					exc_type, exc_value, exc_traceback = sys.exc_info()
-					print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
-				print "Couldn't save dump run info file. Continuing anyways"
+					sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+				sys.stderr.write("Couldn't save dump run info file. Continuing anyways\n")
 
 	def statusOfOldDumpIsDone(self, runner, date, jobName, jobDesc):
 		oldDumpRunInfoFilename=self._getDumpRunInfoFileName(date)
@@ -416,7 +416,7 @@ class RunInfoFile(object):
 		except:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			return False
 
 	#
@@ -490,7 +490,7 @@ class RunInfoFile(object):
 		except:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			return None
 
 	# find desc in there, look for "class='done'"
@@ -518,7 +518,7 @@ class RunInfoFile(object):
 		except:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			return None
 
 
@@ -740,12 +740,12 @@ class DumpItemList(object):
 					return True
 		if job == "noop" or job == "latestlinks":
 			return True
-		print "No job of the name specified exists. Choose one of the following:"
-		print "noop (runs no job but rewrites md5sums file and resets latest links)"
-		print "latestlinks (runs no job but resets latest links)"
-		print "tables (includes all items below that end in 'table')"
+		sys.stderr.write("No job of the name specified exists. Choose one of the following:\n")
+		sys.stderr.write("noop (runs no job but rewrites md5sums file and resets latest links)\n")
+		sys.stderr.write("latestlinks (runs no job but resets latest links)\n")
+		sys.stderr.write("tables (includes all items below that end in 'table')\n")
 		for item in self.dumpItems:
-			print "%s " % item.name()
+			sys.stderr.write("%s\n" % item.name())
 	        return False
 
 	def markFollowingJobsToRun(self):
@@ -1343,7 +1343,7 @@ class DumpFile(file):
 		except:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			raise BackupError("failed to rename file %s" % self.filename)
 
 		self.filename = os.path.join(self.dirname,newname)
@@ -1411,12 +1411,12 @@ class Status(object):
 		except:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			message = "Couldn't update status files. Continuing anyways"
 			if self.errorCallback:
 				self.errorCallback(message)
 			else:
-				print(message)
+				sys.stderr.write("%s\n" % message)
 
 	def _reportDatabaseStatusSummary(self, done = False):
 		"""Put together a brief status summary and link for the current database."""
@@ -1467,7 +1467,7 @@ class Status(object):
 		except:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			return "No prior dumps of this database stored."
 		prettyDate = TimeUtils.prettyDate(rawDate)
 		if done:
@@ -1686,7 +1686,7 @@ class Runner(object):
 	def logAndPrint(self, message):
 		if hasattr(self,'log') and self.log and self._loggingEnabled:
 			self.log.addToLogQueue("%s\n" % message)
-		print message
+		sys.stderr.write("%s\n" % message)
 
 	def forceNormalOption(self):
 		if self.wiki.config.forceNormal:
@@ -1824,7 +1824,7 @@ class Runner(object):
 				except Exception, ex:
 					exc_type, exc_value, exc_traceback = sys.exc_info()
 					if (self.verbose):
-						print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+						sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 					else:
 						self.debug("*** exception! " + str(ex))
 					item.setStatus("failed")
@@ -2188,7 +2188,7 @@ class Dump(object):
 		except Exception:
 			if (self.verbose):
 				exc_type, exc_value, exc_traceback = sys.exc_info()
-				print repr(traceback.format_exception(exc_type, exc_value, exc_traceback))
+				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 			self.setStatus("failed")
 			raise
 		self.setStatus("done")
@@ -4020,14 +4020,14 @@ class TitleDump(Dump):
 
 def findAndLockNextWiki(config, locksEnabled, cutoff):
 	if config.halt:
-		print "Dump process halted by config."
+		sys.stderr.write("Dump process halted by config.\n")
 		return None
 
 	next = config.dbListByAge()
 	next.reverse()
 
 	if verbose and not cutoff:
-		print "Finding oldest unlocked wiki..."
+		sys.stderr.write("Finding oldest unlocked wiki...\n")
 
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
@@ -4040,7 +4040,7 @@ def findAndLockNextWiki(config, locksEnabled, cutoff):
 				wiki.lock()
 			return wiki
 		except:
-			print "Couldn't lock %s, someone else must have got it..." % db
+			sys.stderr.write("Couldn't lock %s, someone else must have got it...\n" % db)
 			continue
 	return None
 
@@ -4049,7 +4049,7 @@ def xmlEscape(text):
 
 def usage(message = None):
 	if message:
-		print message
+		sys.stderr.write("%s\n" % message)
 	sys.stderr.write( "Usage: python worker.py [options] [wikidbname]\n" )
 	sys.stderr.write( "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff\n" )
 	sys.stderr.write( "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the\n" )
@@ -4241,17 +4241,17 @@ if __name__ == "__main__":
 					
 			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, verbose)
 			if (restart):
-				print "Running %s, restarting from job %s..." % (wiki.dbName, jobRequested)
+				sys.stderr.write("Running %s, restarting from job %s...\n" % (wiki.dbName, jobRequested))
 			elif (jobRequested):
-				print "Running %s, job %s..." % (wiki.dbName, jobRequested)
+				sys.stderr.write("Running %s, job %s...\n" % (wiki.dbName, jobRequested))
 			else:
-				print "Running %s..." % wiki.dbName
+				sys.stderr.write("Running %s...\n" % wiki.dbName)
 			result = runner.run()
 			# if we are doing one piece only of the dump, we don't unlock either
 			if locksEnabled:
 				wiki.unlock()
 		else:
-			print "No wikis available to run."
+			sys.stderr.write("No wikis available to run.\n")
 			result = True
 	finally:
 		WikiDump.cleanup()
