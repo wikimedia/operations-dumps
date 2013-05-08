@@ -4050,47 +4050,47 @@ def xmlEscape(text):
 def usage(message = None):
 	if message:
 		print message
-	print "Usage: python worker.py [options] [wikidbname]"
-	print "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff"
-	print "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the"
-	print "               rest of the job for the appropriate chunk if chunks are configured"
-	print "               or for the all the rest of the revisions if no chunks are configured;"
-	print "               only for jobs articlesdump, metacurrentdump, metahistorybz2dump."
-	print "--checkpoint:  Specify the name of the checkpoint file to rerun (requires --job,"
-	print "               depending on the file this may imply --chunk)"
-	print "--chunk:       Specify the number of the chunk to rerun (use with a specific job"
-	print "               to rerun, only if parallel jobs (chunks) are enabled)."
-	print "--configfile:  Specify an alternative configuration file to read."
-	print "               Default config file name: wikidump.conf"
-	print "--date:        Rerun dump of a given date (probably unwise)"
-	print "--addnotice:   Text message that will be inserted in the per-dump-run index.html"
-	print "               file; use this when rerunning some job and you want to notify the"
-	print "               potential downloaders of problems, for example.  This option "
-	print "               remains in effective for the specified wiki and date until"
-	print "               the delnotice option is given."
-	print "--delnotice:   Remove any notice that has been specified by addnotice, for"
-	print "               the given wiki and date."
-	print "--job:         Run just the specified step or set of steps; for the list,"
-	print "               give the option --job help"
-	print "               This option requires specifiying a wikidbname on which to run."
-	print "               This option cannot be specified with --force."
-	print "--dryrun:      Don't really run the job, just print what would be done (must be used"
-	print "               with a specified wikidbname on which to run"
-	print "--force:       remove a lock file for the specified wiki (dangerous, if there is"
-	print "               another process running, useful if you want to start a second later"
-	print "               run while the first dump from a previous date is still going)"
-	print "               This option cannot be specified with --job."
-	print "--noprefetch:  Do not use a previous file's contents for speeding up the dumps"
-	print "               (helpful if the previous files may have corrupt contents)"
-	print "--nospawn:     Do not spawn a separate process in order to retrieve revision texts"
-	print "--restartfrom: Do all jobs after the one specified via --job, including that one"
-	print "--log:         Log progress messages and other output to logfile in addition to"
-	print "               the usual console output"
-	print "--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which"
-	print "               dumps should be run, if its last dump was not after the cutoff date,"
-	print "               and exit, or if there are no such wikis, just exit"
-	print "--verbose:     Print lots of stuff (includes printing full backtraces for any exception)"
-	print "               This is used primarily for debugging"
+	sys.stderr.write( "Usage: python worker.py [options] [wikidbname]\n" )
+	sys.stderr.write( "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff\n" )
+	sys.stderr.write( "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the\n" )
+	sys.stderr.write( "               rest of the job for the appropriate chunk if chunks are configured\n" )
+	sys.stderr.write( "               or for the all the rest of the revisions if no chunks are configured;\n" )
+	sys.stderr.write( "               only for jobs articlesdump, metacurrentdump, metahistorybz2dump.\n" )
+	sys.stderr.write( "--checkpoint:  Specify the name of the checkpoint file to rerun (requires --job,\n" )
+	sys.stderr.write( "               depending on the file this may imply --chunk)\n" )
+	sys.stderr.write( "--chunk:       Specify the number of the chunk to rerun (use with a specific job\n" )
+	sys.stderr.write( "               to rerun, only if parallel jobs (chunks) are enabled).\n" )
+	sys.stderr.write( "--configfile:  Specify an alternative configuration file to read.\n" )
+	sys.stderr.write( "               Default config file name: wikidump.conf\n" )
+	sys.stderr.write( "--date:        Rerun dump of a given date (probably unwise)\n" )
+	sys.stderr.write( "--addnotice:   Text message that will be inserted in the per-dump-run index.html\n" )
+	sys.stderr.write( "               file; use this when rerunning some job and you want to notify the\n" )
+	sys.stderr.write( "               potential downloaders of problems, for example.  This option\n" )
+	sys.stderr.write( "               remains in effective for the specified wiki and date until\n" )
+	sys.stderr.write( "               the delnotice option is given.\n" )
+	sys.stderr.write( "--delnotice:   Remove any notice that has been specified by addnotice, for\n" )
+	sys.stderr.write( "               the given wiki and date.\n" )
+	sys.stderr.write( "--job:         Run just the specified step or set of steps; for the list,\n" )
+	sys.stderr.write( "               give the option --job help\n" )
+	sys.stderr.write( "               This option requires specifiying a wikidbname on which to run.\n" )
+	sys.stderr.write( "               This option cannot be specified with --force.\n" )
+	sys.stderr.write( "--dryrun:      Don't really run the job, just print what would be done (must be used\n" )
+	sys.stderr.write( "               with a specified wikidbname on which to run\n" )
+	sys.stderr.write( "--force:       remove a lock file for the specified wiki (dangerous, if there is\n" )
+	sys.stderr.write( "               another process running, useful if you want to start a second later\n" )
+	sys.stderr.write( "               run while the first dump from a previous date is still going)\n" )
+	sys.stderr.write( "               This option cannot be specified with --job.\n" )
+	sys.stderr.write( "--noprefetch:  Do not use a previous file's contents for speeding up the dumps\n" )
+	sys.stderr.write( "               (helpful if the previous files may have corrupt contents)\n" )
+	sys.stderr.write( "--nospawn:     Do not spawn a separate process in order to retrieve revision texts\n" )
+	sys.stderr.write( "--restartfrom: Do all jobs after the one specified via --job, including that one\n" )
+	sys.stderr.write( "--log:         Log progress messages and other output to logfile in addition to\n" )
+	sys.stderr.write( "               the usual console output\n" )
+	sys.stderr.write( "--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which\n" )
+	sys.stderr.write( "               dumps should be run, if its last dump was not after the cutoff date,\n" )
+	sys.stderr.write( "               and exit, or if there are no such wikis, just exit\n" )
+	sys.stderr.write( "--verbose:     Print lots of stuff (includes printing full backtraces for any exception)\n" )
+	sys.stderr.write( "               This is used primarily for debugging\n" )
 
 	sys.exit(1)
 
