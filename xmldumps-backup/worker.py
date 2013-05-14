@@ -4226,6 +4226,31 @@ if __name__ == "__main__":
 			config = WikiDump.Config(configFile)
 		else:
 			config = WikiDump.Config()
+		externals = [
+			'php', 'mysql', 'mysqldump', 'head', 'tail',
+			'checkforbz2footer', 'grep', 'gzip', 'bzip2',
+			'writeuptopageid', 'recompressxml', 'sevenzip', 'cat',]
+
+		failed = False
+                unknowns = []
+                notfound = []
+		for external in externals:
+			try:
+				ext = getattr(config, external)
+			except AttributeError:
+                                unknowns.append(external)
+                                failed = True
+			else:
+				if (not exists(ext)):
+                                        notfound.append(ext)
+                                        failed = True
+		if failed:
+                        if unknowns:
+                                sys.stderr.write("Unknown config param(s): %s\n" % ", ".join(unknowns))
+                        if notfound:
+                                sys.stderr.write("Command(s) not found: %s\n" % ", ".join(notfound))
+			sys.stderr.write("Exiting.\n")
+			sys.exit(1)
 
 		if dryrun or chunkToDo or (jobRequested and not restart  and not doLocking):
 			locksEnabled = False
