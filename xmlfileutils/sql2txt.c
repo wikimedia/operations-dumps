@@ -255,6 +255,28 @@ int do_line(input_file_t *sql, output_file_t *text, int verbose) {
 }
 
 /*
+   this function prints version information for the program to stdout
+*/
+void show_version(char *whoami, char *version_string) {
+  char * copyright =
+"Copyright (C) 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+"Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"sql2txt %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
+}
+
+/*
    args:
      whoami    name of calling program
      message   message to print out before usage information, if any
@@ -262,26 +284,35 @@ int do_line(input_file_t *sql, output_file_t *text, int verbose) {
 
    this function prints usage information for the program to stdout
 */
+
 void usage(char *whoami, char *message) {
+  char * help =
+"Usage: sql2txt [OPTION]...\n\n"
+"Sql2txt reads a possibly compressed stream of MySQL INSERT statements and\n"
+"converts it to tab-separated output suitable for import via LOAD DATA\n"
+"INFILE.\n\n"
+"Options:\n\n"
+"  -h, --help\n"
+"        Show summary of options; and exit.\n"
+"  -s, --sqlfile filename\n"
+"        Name of SQL file from which to read INSERT statements. If none\n"
+"        is specified, data will be read from stdin.  If a filename is\n"
+"        specified that ends in .gz or .bz2, the file will silently be\n"
+"        decompressed.\n"
+"  -t, --txtfile filename\n"
+"        Name of file to which to write output. If none is specified,\n"
+"        data will be written to stdout. If a filename is specified that\n"
+"        ends in .gz or .bz2, the file will be gzip or bzip2 compressed.\n"
+"  -v, --verbose\n"
+"        Write progress information to stderr.\n"
+"  -V, --version\n"
+"        Write version information to stderr.\n\n"
+"Report bugs in sql2txt to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also mwxml2sql(1), sqlfilter(1).\n\n";
   if (message) {
     fprintf(stderr,"%s\n\n",message);
   }
-  fprintf(stderr,"Usage: %s [--sqlfile filename] [--txtfile filename] [--verbose] [--help]\n", whoami);
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Reads a possibly compressed stream of MySQL INSERT statements and converts\n");
-  fprintf(stderr,"it to tab-separated output suitable for import via LOAD FILE\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Arguments:\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"sqlfile   (s):   name of sqlfile from which to read INSERT statements; if none\n");
-  fprintf(stderr,"                 is specified, data will be read from stdin.  If a filename is\n");
-  fprintf(stderr,"                 specified that ends in .gz or .bz2, the file will silently be\n");
-  fprintf(stderr,"                 decompressed.\n");
-  fprintf(stderr,"txtfile   (t):   name of file to which to write output; if none is specified,\n");
-  fprintf(stderr,"                 data will be written to stdout. If a filename is specified that\n");
-  fprintf(stderr,"                 ends in .gz or .bz2, the file will be gz or bz2 compressed.\n");
-  fprintf(stderr,"help      (h):   print this help message and exit\n");
-  fprintf(stderr,"verbose   (v):   write progress information to stderr.\n");
+  fprintf(stderr,"%s",help);
   exit(-1);
 }
 
@@ -292,6 +323,7 @@ int main(int argc, char **argv) {
 
   int help = 0;
   int verbose = 0;
+  int version = 0;
 
   char *sql_file = NULL;  /* contains mysql insert commands */
   char *text_file = NULL; /* output */
@@ -303,15 +335,16 @@ int main(int argc, char **argv) {
   char *filesuffix = NULL;
 
   struct option optvalues[] = {
-    {"sqlfile", required_argument, NULL, 'c'},
-    {"textfile", required_argument, NULL, 'f'},
+    {"sqlfile", required_argument, NULL, 's'},
+    {"textfile", required_argument, NULL, 't'},
     {"help", no_argument, NULL, 'h'},
     {"verbose", no_argument, NULL, 'v'},
+    {"version", no_argument, NULL, 'V'},
     {NULL, 0, NULL, 0}
   };
 
   while (1) {
-    optc=getopt_long(argc,argv,"hs:t:v", optvalues, &optindex);
+    optc=getopt_long(argc,argv,"hs:t:vV", optvalues, &optindex);
     if (optc==-1) break;
 
     switch(optc) {
@@ -327,12 +360,19 @@ int main(int argc, char **argv) {
     case 'v':
       verbose++; 
       break;
+    case 'V':
+      version++;
+      break;
     default:
       usage(argv[0],"unknown option or other error\n");
     }
   }
 
   if (help) usage(argv[0], NULL);
+  if (version) {
+    show_version(argv[0], VERSION);
+    exit(1);
+  }
 
   sql = init_input_file(sql_file);
   if (!sql) exit(1);

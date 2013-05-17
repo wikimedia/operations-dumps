@@ -20,7 +20,7 @@
 
 #include "sha1.h"
 
-#define VERSION "0.0.2"
+#define VERSION MWXML2SQLVERS
 
 #define MAX_TAG_NAME_LEN 256
 #define MAX_ATTRS_STR_LEN 256

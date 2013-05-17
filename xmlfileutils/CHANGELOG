@@ -1,4 +1,42 @@
-10 Apr 2013
+27 May 2013 Kent L. Miller <wpmirrordev@gmail.com>
+
+   Release 0.0.2-1
+
+    * mwxml2sql.c:
+      Doc: show_version() rewritten for compatibility with help2man.
+      Doc: usage() rewritten for compatibility with help2man.
+      Doc: man page generated with help2man
+    * sql2txt.c:
+      Bug fixed: long options, --sqlfile and --textfile, did not work.
+      Doc: show_version() written for compatibility with help2man.
+      Doc: usage() rewritten for compatibility with help2man.
+      Doc: man page generated with help2man
+      Option: added -V, --version option for use with help2man
+    * sqlfilter.c:
+      Doc: show_version() written for compatibility with help2man.
+      Doc: usage() rewritten for compatibility with help2man.
+      Doc: man page generated with help2man
+      Option: created -w, --version option for use by help2man
+    * Makefile:
+      Debian: build and deinstall targets written; clean target improved
+      Debian: install target rewritten to use: install $(DESTDIR)/...
+      Doc: man pages generated using `help2man'
+      MWXML2SQLVERS for Makefile dist version and for VERSION in source
+    * mwxml2sql.h:
+      VERSION passed from Makefile
+
+22 May 2013 Ariel T. Glenn <ariel@wikimedia.org>
+
+    * mwxmlelts.c:
+      handle text with <deleted /> instead of content
+      workaround for XML files that may contain duplicate text ids
+
+21 May 2013 Ariel T. Glenn <ariel@wikimedia.org>
+
+    * mwxmlelts.c:
+      convert revision timestamp from datestring format to db format
+
+10 Apr 2013 Ariel T. Glenn <ariel@wikimedia.org>
 
     Release 0.0.2
 
@@ -11,9 +49,9 @@
       for File etc.), converts them to page, revision and table sql,
       and filters downloaded sql table dumps according to the page ids
       of the downloaded content, producing a pile of sql files for import
-    * various bugfixes
+    * package: various bugfixes
 
-25 Jan 2013
+25 Jan 2013 Ariel T. Glenn <ariel@wikimedia.org>
 
    Release 0.0.1
 

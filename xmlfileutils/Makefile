@@ -3,17 +3,28 @@
 # 2013: see the file COPYING for details.
 # ------------------------------------------------------------------
 
+MWXML2SQLVERS  = "0.0.2"
+PROGRAM        = mwxml2sql
+DISTNAME       = $(PROGRAM)-$(MWXML2SQLVERS)
+NAME_MWXML2SQL = "convert MediaWiki XML dump file to MySQL INSERT commands"
+NAME_SQL2TXT   = "convert MySQL INSERT commands to tab-separated data"
+NAME_SQLFILTER = "filter MySQL INSERT commands with fields matching values"
+
+BINDIR         = $(DESTDIR)$(PREFIX)/usr/bin/
+MANDIR         = $(DESTDIR)$(PREFIX)/usr/share/man/man1/
+
+GZIP           = /bin/gzip
+HELP2MAN       = /usr/bin/help2man
+SHELL          = /bin/sh
+
 CC=gcc
 LDFLAGS=
 #LDFLAGS= -g
 BIGFILES=-D_FILE_OFFSET_BITS=64
-CFLAGS=-Wall  -O2 $(BIGFILES)
+CFLAGS=-Wall  -O2 $(BIGFILES) -DMWXML2SQLVERS=\"$(MWXML2SQLVERS)\"
 #CFLAGS=-Wall  -g $(BIGFILES)
-PREFIX=/usr/local
 
-SHELL=/bin/sh
-
-all: mwxml2sql sql2txt sqlfilter
+build: mwxml2sql sql2txt sqlfilter manpages
 
 mwxml2sql: mwxml2sql.o filebuffers.o xmltags.o mwxmlelts.o sqlutils.o base36.o sha1.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o mwxml2sql mwxml2sql.o filebuffers.o \
@@ -27,17 +38,41 @@ sqlfilter: sqlfilter.o filebuffers.o sqlutils.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o sqlfilter sqlfilter.o filebuffers.o sqlutils.o \
 	    -lbz2 -lz
 
+manpages: mwxml2sql.1.gz sql2txt.1.gz sqlfilter.1.gz
+
+mwxml2sql.1.gz: mwxml2sql
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_MWXML2SQL) \
+	            --no-discard-stderr ./mwxml2sql | $(GZIP) > mwxml2sql.1.gz
+
+sql2txt.1.gz: sql2txt
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_SQL2TXT) \
+	            --no-discard-stderr ./sql2txt | $(GZIP) > sql2txt.1.gz
+
+sqlfilter.1.gz: sqlfilter
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_SQLFILTER) \
+	            --no-discard-stderr ./sqlfilter | $(GZIP) > sqlfilter.1.gz
+
 install: mwxml2sql sql2txt sqlfilter
-	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
-	cp -f mwxml2sql $(PREFIX)/bin/mwxml2sql
-	cp -f sql2txt $(PREFIX)/bin/sql2txt
-	cp -f sqlfilter $(PREFIX)/bin/sqlfilter
-	chmod a+x $(PREFIX)/bin/mwxml2sql
-	chmod a+x $(PREFIX)/bin/sql2txt
-	chmod a+x $(PREFIX)/bin/sqlfilter
+	install --directory                      $(BINDIR)
+	install --mode=755   mwxml2sql           $(BINDIR)
+	install --mode=755   sql2txt             $(BINDIR)
+	install --mode=755   sqlfilter           $(BINDIR)
+	install --directory                      $(MANDIR)
+	install --mode=644   mwxml2sql.1.gz      $(MANDIR)
+	install --mode=644   sqlfilter.1.gz      $(MANDIR)
+	install --mode=644   sql2txt.1.gz        $(MANDIR)
+
+deinstall:
+	rm -f $(BINDIR)mwxml2sql
+	rm -f $(BINDIR)sql2txt
+	rm -f $(BINDIR)sqlfilter
+	rm -f $(MANDIR)mwxml2sql.1.gz
+	rm -f $(MANDIR)sqlfilter.1.gz
+	rm -f $(MANDIR)sql2txt.1.gz
 
 clean: 
-	rm -f *.o *.a mwxml2sql sql2txt sqlfilter
+	rm -f *.o *.a mwxml2sql sql2txt sqlfilter *~
+	rm -r mwxml2sql.1.gz sql2txt.1.gz sqlfilter.1.gz
 
 static: mwxml2sql_static sql2txt_static sqlfilter_static
 
@@ -84,7 +119,6 @@ distclean:
 	rm -f $(DISTNAME)
 	rm -f *.tar.gz
 
-DISTNAME=mwxml2sql-0.0.2
 dist: 
 	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)

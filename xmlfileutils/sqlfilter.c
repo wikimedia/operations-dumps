@@ -677,6 +677,28 @@ int do_line(input_file_t *sql, output_file_t *out, tuple_fields_t *fields, int c
 }
 
 /*
+   this function prints version information for the program to stderr
+*/
+void show_version(char *whoami, char *version_string) {
+  char * copyright =
+"Copyright (C) 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+"Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"sqlfilter %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
+}
+
+/*
    args:
      whoami    name of calling program
      message   message to print out before usage information, if any
@@ -685,52 +707,66 @@ int do_line(input_file_t *sql, output_file_t *out, tuple_fields_t *fields, int c
    this function prints usage information for the program to stderr
 */
 void usage(char *whoami, char *message) {
+  char * help =
+"Usage: sqlfilter [OPTION]...\n\n"
+"Sqlfilter reads a possibly compressed stream of MySQL INSERT statements,\n"
+"compares the contents of specified fields against lists of values and\n"
+"writes only those tuples (rows) for which the field values are found in\n"
+"the lists, to a possibly compressed output file. It can also write only\n"
+"specified columns (fields) from each tuple. Note that specifying matches\n"
+"for multple columns is an AND operation and that only exact match is\n"
+"supported. This is intended to be a very simple filter, not an SQL\n"
+"replacement.\n\n"
+"Options:\n\n"
+"  -c, --cols column-number[,column-number]...\n"
+"        Comma-separated list specifying columns to write out\n"
+"        (column-numbers starting with 1).  If this option is specified, \n"
+"        tuples (rows) must contain fewer than 32 fields. Default: write \n"
+"        out all columns.\n"
+"  -f, --filterfile filename\n"
+"        Name of file with column-number:value pairs against which rows\n"
+"        will be filtered. File must have one column-number:value pair per\n"
+"        line (column-numbers starting from 1).  Format: column-number:value\n"
+"        where the value should consist of either a string of digits, or a\n"
+"        string enclosed in single quotes and SQL-escaped. In particular\n"
+"        any single quotes in the string must be escaped with a backslash.\n"
+"        Default: no filter file (i.e. do not filter, unless --cols\n"
+"        argument is provided).\n"
+"  -h, --help\n"
+"        Show summary of options; and exit.\n"
+"  -o, --outputfile filename\n"
+"        Name of file to which output will be written. If none is\n"
+"        specified, data will be written to stdout. If a filename is\n"
+"        specified that ends in .gz or .bz2, the file will be gzip or.\n"
+"        bzip2 compressed.\n"
+"  -r, --raw\n"
+"        Write raw output without INSERT markup or parens, but with a \n"
+"        newline after each tuple; and do not write any other SQL\n"
+"        statements. Default: off (write all SQL markup)\n"
+"  -s, --sqlfile filename\n"
+"        Name of SQL file from which INSERT statements will be read. If\n"
+"        none is specified, data will be read from stdin.  If a filename is\n"
+"        specified that ends in .gz or .bz2, the file will silently be\n"
+"        decompressed.\n"
+"  -V, --value column-number:value\n"
+"        Column-number:value pair against which rows will be filtered\n"
+"        (overridden if --filterfile provided). To specify more than one\n"
+"        such pair give this option more than once. Format:\n"
+"        column-number:value, where the value should consist of either a\n"
+"        string of digits, or a string enclosed with single quotes and\n"
+"        SQL-escaped. In particular any single quotes in the string must be\n"
+"        escaped with a backslash. Default: none (i.e. do not filter,\n"
+"        unless --filterfile argument is provided).\n"
+"  -v, --verbose\n"
+"        Write progress information to stderr.\n"
+"  -w, --version\n"
+"        Write version information to stderr.\n\n"
+"Report bugs in sqlfilter to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also mwxml2sql(1), sql2txt(1).\n\n";
   if (message) {
     fprintf(stderr,"%s\n\n",message);
   }
-  fprintf(stderr,"Usage: %s [--sqlfile filename] [--outputfile filename] [--filterfile filename]\n",whoami);
-  fprintf(stderr,"          [--cols numberlist] [--value colnum:value]\n");
-  fprintf(stderr,"          [--verbose] [--help]\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Reads a possibly compressed stream of MySQL INSERT statements, compares the contents\n");
-  fprintf(stderr,"of specified fields against lists of values and writes only those tuples (rows) for which\n");
-  fprintf(stderr,"the field values are found in the lists, to a possibly compressed output file; it can also\n");
-  fprintf(stderr,"write only specified columns (fields) from each tuple\n");
-  fprintf(stderr,"Note that specifying matches for multple columns is an 'and' operation and that only\b");
-  fprintf(stderr,"exact match is supported; this is intended to be a very simple filter, not an sql replacement.\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Arguments:\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"sqlfile    (s):   name of sqlfile from which to read INSERT statements; if none\n");
-  fprintf(stderr,"                  is specified, data will be read from stdin.  If a filename is\n");
-  fprintf(stderr,"                  specified that ends in .gz or .bz2, the file will silently be\n");
-  fprintf(stderr,"                  decompressed.\n");
-  fprintf(stderr,"outputfile (o):   name of file to which to write output; if none is specified,\n");
-  fprintf(stderr,"                  data will be written to stdout. If a filename is specified that\n");
-  fprintf(stderr,"                  ends in .gz or .bz2, the file will be gz or bz2 compressed.\n");
-  fprintf(stderr,"filterfile (f):   name of file with column/value pairs to filter rows against, using first field\n");
-  fprintf(stderr,"                  in each tuple; file must have one column/value pair per line\n");
-  fprintf(stderr,"                  column numbers start from 1\n");
-  fprintf(stderr,"                  format:  colnum:value  where the value should consist of a string of\n");
-  fprintf(stderr,"                  digits or, if it is not a non-sero integer, it should be enclosed\n");
-  fprintf(stderr,"                  in single quotes and be sql-escaped, in particular if the value\n");
-  fprintf(stderr,"                  includes a single quote it must be escaped with a backslash\n");
-  fprintf(stderr,"                  default: no filter file, provide value argument or do not filter\n");
-  fprintf(stderr,"value     (V):   column/value pair against which to filter (oerriden if filterfile provided)\n");
-  fprintf(stderr,"                  To specify more than one such pair give this option more than once.\n");
-  fprintf(stderr,"                  Format: column:value where the value should be a string of digits or be");
-  fprintf(stderr,"                  enclosed with single quotes and sql-escaped; in particular any single\n");
-  fprintf(stderr,"                   quotes in the string must be escaped with a blackslash\n");
-  fprintf(stderr,"                  default: none, provide filterfile argument or do not filter\n");
-  fprintf(stderr,"cols       (c):   comma-separated list of column numbers to write out (starting with 1)\n");
-  fprintf(stderr,"                  for technical reasons having to do with the laziness of the coder, if\n");
-  fprintf(stderr,"                  this option is specified, tuples (rows) must contain fewer than 32 fields\n");
-  fprintf(stderr,"                  default: write them all out\n");
-  fprintf(stderr,"raw        (r):   write raw output without INSERT markup, parens, but with a newline after\n");
-  fprintf(stderr,"                  each tuple, and don't write any other sql directives out either\n");
-  fprintf(stderr,"                  default: off (write all sql markup)\n");
-  fprintf(stderr,"help       (h):   print this help message and exit\n");
-  fprintf(stderr,"verbose    (v):   write progress information to stderr.\n");
+  fprintf(stderr,"%s",help);
   exit(-1);
 }
 
@@ -981,6 +1017,7 @@ int main(int argc, char **argv) {
   int raw = 0;
   int help = 0;
   int verbose = 0;
+  int version = 0;
 
   char *sql_file = NULL;  /* contains mysql insert commands */
   char *output_file = NULL; /* output */
@@ -1010,11 +1047,12 @@ int main(int argc, char **argv) {
     {"raw", no_argument, NULL, 'r'},
     {"help", no_argument, NULL, 'h'},
     {"verbose", no_argument, NULL, 'v'},
+    {"version", no_argument, NULL, 'w'},
     {NULL, 0, NULL, 0}
   };
 
   while (1) {
-    optc=getopt_long(argc,argv,"c:f:ho:rs:vV:", optvalues, &optindex);
+    optc=getopt_long(argc,argv,"c:f:ho:rs:vV:w", optvalues, &optindex);
     if (optc==-1) break;
 
     switch(optc) {
@@ -1043,12 +1081,19 @@ int main(int argc, char **argv) {
     case 'v':
       verbose++; 
       break;
+    case 'w':
+      version++;
+      break;
     default:
       usage(argv[0],"unknown option or other error\n");
     }
   }
 
   if (help) usage(argv[0], NULL);
+  if (version) {
+    show_version(argv[0], VERSION);
+    exit(1);
+  }
 
   if (cols) {
     start = cols;

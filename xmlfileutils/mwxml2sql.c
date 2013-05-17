@@ -44,13 +44,27 @@
      whoami          name of calling program
      version_string  version of calling program
 
-  this function displays version information for the calling
-  program
+   this function displays version information for the calling program
  */
 void show_version(char *whoami, char *version_string) {
-  fprintf(stderr,"%s: version %s\n", whoami, version_string);
-  fprintf(stderr,"supported input schema versions: 0.4 through 0.8\n");
-  fprintf(stderr,"supported output MediaWiki versions: 1.5 through 1.21\n");
+  char * copyright =
+"Copyright (C) 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+"Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"mwxml2sql %s\n", version_string);
+  fprintf(stderr,"Supported input schema versions: 0.4 through 0.8.\n");
+  fprintf(stderr,"Supported output MediaWiki versions: 1.5 through 1.21.\n\n");
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
 }
 
 /*
@@ -136,49 +150,65 @@ mw_version_t *check_mw_version(char *specified) {
    this function prints usage information for the program to stdout
 */
 void usage(char *whoami, char *message) {
+  char * help =
+"Usage: mwxml2sql [OPTIONS] --mediawiki versionstring --stubs filename\n\n"
+"Mwxml2sql reads a possibily compressed stream of MediaWiki XML pages and\n"
+"writes possibly compressed SQL files containing INSERT statements for\n"
+"page, revision, and text tables.\n\n"
+"Options:\n\n"
+"Mandatory arguments:\n\n"
+"  -m, --mediawiki version-string\n"
+"        Version of MediaWiki for which to output SQL. Supported versions\n"
+"        are shown by the --version option. The version-string is used to\n"
+"        generate the names of the SQL files for the page, revision, and\n"
+"        text content.\n"
+"  -s, --stubs filename\n"
+"        Name of `stub-articles' XML dump file. If a filename is specified\n"
+"        that ends in .gz or .bz2, the file will silently be decompressed.\n\n"
+"Optional arguments:\n\n"
+"  -t, --text filename\n"
+"        Name of `pages-articles' XML dump file. If a filename is specified\n"
+"        that ends in .gz or .bz2, the file will silently be decompressed.\n"
+"        If not specified, no pages-articles file will be read and no text\n"
+"        SQL file will be written.\n"
+"  -f, --mysqlfile filename-template\n"
+"        Filename (possibly ending in .gz or .bz2 or .txt) which will be\n"
+"        used as a template to generate the names of the SQL files for the\n"
+"        page, revision, and text content.  If the filename-template is \n"
+"        enwiki-yyyymmdd.sql, then the SQL output will be written to\n"
+"        enwiki-yyyymmdd-page.sql-1.19, enwiki-yyyymmdd-revision.sql-1.19,\n"
+"        and enwiki-yyyymmdd-text.sql-1.19.  If none is specified, all data\n"
+"        will be written to stdout. Note however that because the INSERT\n"
+"        statements are batched on the assumption that they will be put\n"
+"        to three separate files, this might not be what you want.\n"
+"        Use this if you want to keep the existing data and are importing\n"
+"        changes that have been made to the original site since then.\n"
+"  -p, --tableprefix string\n"
+"        If your database has this prefix before all table names, it will\n"
+"        be prepended to all table names in the SQL output.\n\n"
+"Flags:\n\n"
+"  -c, --compress\n"
+"        Compress text revisions in the SQL output (requires the 'text'\n"
+"        option). If this option is not set, the CREATE TABLE statement for\n"
+"        the 'text' table will include parameters for InnoDB table-based\n"
+"        compression.\n"
+"  -h, --help\n"
+"        Show summary of options; and exit\n"
+"  -n, --nodrop\n"
+"        Do not write DROP TABLE IF EXISTS statement before the CREATE\n"
+"        TABLE statement in the SQL output; but do write INSERT IGNORE\n"
+"        statements rather than plain INSERT statements.\n"
+"  -v, --verbose\n"
+"        Produce debugging output to stderr. This option can be used\n"
+"        multiple times to increase verbosity.\n"
+"  -V, --version\n"
+"        Write version information to stderr; and exit.\n\n"
+"Report bugs in mwxml2sql to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also sql2txt(1), sqlfilter(1).\n\n";
   if (message) {
     fprintf(stderr,"%s\n\n",message);
   }
-  fprintf(stderr,"Usage: %s --mediawiki versionstring --stubs filename [--text filename]\n", whoami);
-  fprintf(stderr,"               [--mysqlfile filename] [--tableprefix string]\n");
-  fprintf(stderr,"               [--compress] [--help] [--nodrop] [--version] [--verbose] \n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Reads a possibily compressed stream of MediaWiki XML pages and writes the plaintext or\n");
-  fprintf(stderr,"compressed sql file of inserts to page, revision and text tables.\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Mandatory arguments:\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"mediawiki   (m):   version of mediawiki for which to output sql;  supported versions are\n");
-  fprintf(stderr,"                   shown in the program version information, available via the 'version' option\n");
-  fprintf(stderr,"                   used to derive the names of the sql files for the page, revision and text content\n");
-  fprintf(stderr,"stubs       (s):   name of stubs xml file; .gz and .bz2 files will be silently uncompressed.\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Optional arguments:\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"text        (t):   name of text xml file; .gz and .bz2 files will be silently uncompressed.\n");
-  fprintf(stderr,"                   if not specified, no text file will be read and no text sql file will be written\n");
-  fprintf(stderr,"mysqlfile   (f):   name of filename (possibly ending in .gz or .bz2 or .txt) which will be\n");
-  fprintf(stderr,"                   used to derive the names of the sql files for the page, revision and text content\n");
-  fprintf(stderr,"                   if none is specified, all data will be written to stdout, but since sql INSERT\n");
-  fprintf(stderr,"                   statements are batched on the assumption that they will be in three separate\n");
-  fprintf(stderr,"                   files, this will likely not be what you want.\n");
-  fprintf(stderr,"                   use this if you want to keep the existing data and are importing changes\n");
-  fprintf(stderr,"                   that have been made to the original site since then\n");
-  fprintf(stderr,"tableprefix (p):   your database has this prefix before all table names; it will be added in\n");
-  fprintf(stderr,"                   front of table names in the mysql output\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"Flags:\n");
-  fprintf(stderr,"\n");
-  fprintf(stderr,"compress    (t):   compress text revisions in the sql output (requires the 'text' option\n");
-  fprintf(stderr,"                   if this option is not set, the text table create statement will include\n");
-  fprintf(stderr,"                   parameters for InnoDB table-based compression instead.\n");
-  fprintf(stderr,"help        (h):   print this help message and exit\n");
-  fprintf(stderr,"nodrop      (n):   in the CREATE TABLES sql output, do not add DROP IF EXISTS beforehand;\n");
-  fprintf(stderr,"                   if this option is given, INSERT IGNORE statements will be written instead\n");
-  fprintf(stderr,"                   of plain INSERTs\n");
-  fprintf(stderr,"version     (V):   print version information for this program and exit\n");
-  fprintf(stderr,"verbose     (v):   produce lots of debugging output to stderr.  This option can be used\n");
-  fprintf(stderr,"                   multiple times to increase verbosity.\n");
+  fprintf(stderr,"%s",help);
   exit(-1);
 }
 
@@ -243,7 +273,7 @@ int main(int argc, char **argv) {
   };
 
   while (1) {
-    optc=getopt_long(argc,argv,"hf:i:m:p:s:t:Vv", optvalues, &optindex);
+    optc=getopt_long(argc,argv,"cf:hi:m:np:s:t:vV", optvalues, &optindex);
     if (optc==-1) break;
 
     switch(optc) {
@@ -299,12 +329,10 @@ int main(int argc, char **argv) {
   }
 
   if (!mw_version) {
-    show_version(argv[0], VERSION);
     usage(argv[0], "missing required 'mediawiki' option");
   }
   mwv = check_mw_version(mw_version);
   if (!mwv) {
-    show_version(argv[0], VERSION);
     usage(argv[0], "bad 'mediawiki' option given");
   }
 
