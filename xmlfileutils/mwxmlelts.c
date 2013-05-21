@@ -596,6 +596,10 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   }
 
   get_elt_with_attrs(stubs, TIMESTAMP, r.timestamp, sizeof(r.timestamp), NULL, 0);
+  if (r.timestamp[0]) {
+    /* fix up r.timestamp, it is in format 2006-09-08T04:15:52Z but needs to be in format 20130118111419 */
+    digits_only(r.timestamp);
+  }
 
   if (get_line(stubs) == NULL) {
     whine("abrupt end of revision data in rev id %s", r.id);
@@ -1034,9 +1038,6 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
       return(0);
     }
   }
-  /* fix up page.touched, it is in format 2006-09-08T04:15:52Z but needs to be in format 20130118111419 */
-  digits_only(p.touched);
-
   if (!page_rows_written) {
     strcpy(out_buf,"BEGIN;\n");
     put_line_all(sqlp, out_buf);
