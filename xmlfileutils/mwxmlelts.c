@@ -358,8 +358,8 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
   }
   /* text: old_text old_flags */
   /* write the beginning piece */
-  snprintf(buf, sizeof(buf),						\
-	   "(%s, '",r->text_id);
+  snprintf(buf, sizeof(buf),"(%s, '",r->text_id);
+
   put_line_all(sqlt, buf);
 
   if (verbose > 1) fprintf(stderr,"text info: insert start of line written\n");
@@ -656,9 +656,23 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     }
     else if (! result) break;
     if (!strcmp(name, "id"))
-      strcpy(r.text_id, value);
+      if (insert_ignore)
+	/* separate revisions can have the same text id if only the metadata was changed,
+	   e.g. the page was protected.  use the original text ids therefore only
+	   if we are going to write INSERT IGNORE to ignore dup entries */
+	strcpy(r.text_id, value);
+      else
+	/* fallback since the rev id is guaranteed to be unique, is use this as the text
+	   id, this means the resulting db won't be quite identical to the one from
+	   which data was dumped */
+	strcpy(r.text_id, r.id);
     else if (!strcmp(name, "bytes"))
       strcpy(r.text_len, value);
+    else if (!strcmp(name, "deleted")) {
+      strcpy(r.text_id, "0");
+      strcpy(r.text_len, "0");
+      break;
+    }
     else {
       whine("unknown attribute in text tag");
       break;
