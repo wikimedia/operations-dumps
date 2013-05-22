@@ -1,7 +1,12 @@
 Here's the preparation you will need to do in order to use the reader:
 
 * Create a multistream bz2 file from the XML file of article texts you wish to use.
+  This will contain concatenated bz2 streams, each stream containing 100 pages,
+  and each stream capable of being treated as a separate bz2 file as far as
+  bzip2 libraries or the language bindings of your choice go.
 * Create an index file for the multistream bz2 file.
+  This will contain lines with the following:
+  file-offset:page-id:page-title lines
 * Create a sorted version of the index file (beware, on some platforms including linux
   you must specify the C locale for sort not to give an ordering useless for the next step)
 * Create a ToC file for the index file.

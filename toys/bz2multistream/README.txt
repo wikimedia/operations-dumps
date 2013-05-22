@@ -15,8 +15,9 @@ Another potential use for this format is by researchers, analysts
 or contributors who may want to work with specific multiple article texts
 at once in an automated fashion.
 
-See INSTALL.txt for how to generated the needed files and how
-to run the article text retrieval script.
+See INSTALL.txt for how to generated the needed files, the contents
+of the bz2 content and index files, and how to run the article text
+retrieval script.
 
 Platforms:
 
