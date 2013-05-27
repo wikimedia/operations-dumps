@@ -557,6 +557,7 @@ class DumpItemList(object):
 	def __init__(self, wiki, prefetch, spawn, chunkToDo, checkpointFile, singleJob, chunkInfo, pageIDRange, runInfoFile, dumpDir):
 		self.wiki = wiki
 		self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
+		self._hasWikidata = self.wiki.hasWikidata()
 		self._prefetch = prefetch
 		self._spawn = spawn
 		self.chunkInfo = chunkInfo
@@ -663,6 +664,10 @@ class DumpItemList(object):
 			self.dumpItems.append(
 				PublicTable( "flaggedrevs", "flaggedrevstable","This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under." ))
 					      
+		if self._hasWikidata:
+			self.dumpItems.append(
+				PublicTable( "wb_items_per_site", "wbitemspersitetable","For each Wikidata item, this contains rows with the corresnponding page name on a given wiki project." ))
+
 		self.dumpItems.append(
 			BigXmlDump("meta-history",
 				   "metahistorybz2dump",
