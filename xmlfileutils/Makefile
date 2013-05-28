@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------
 
 MWXML2SQLVERS  = "0.0.2"
-PROGRAM        = mwxml2sql
+PROGRAM        = mediawiki-mwxml2sql
 DISTNAME       = $(PROGRAM)-$(MWXML2SQLVERS)
 NAME_MWXML2SQL = "convert MediaWiki XML dump file to MySQL INSERT commands"
 NAME_SQL2TXT   = "convert MySQL INSERT commands to tab-separated data"
@@ -72,7 +72,7 @@ deinstall:
 
 clean: 
 	rm -f *.o *.a mwxml2sql sql2txt sqlfilter *~
-	rm -r mwxml2sql.1.gz sql2txt.1.gz sqlfilter.1.gz
+	rm -f mwxml2sql.1.gz sql2txt.1.gz sqlfilter.1.gz
 
 static: mwxml2sql_static sql2txt_static sqlfilter_static
 
