@@ -1,0 +1,157 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "DxtTGgEs",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4188,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "spaces/tabs at the end of the line",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxjTEBEI",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4193,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "space at the end of the line",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxrSvdH0",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4195,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "You probably want to keep the style of variable names in this file -- it is using camelCaseNotation.  Also, veryLongVariablesAreHardToRead, so as long as you don\u0027t call things \"xx\", something short and meaningful will make it easier for everyone to understand.",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxrToFLc",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4196,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "are those spaces in front of this line? should keep indentation consistent with the rest of the file - tabs seemed to have been used everywhere else.",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxlTjkNw",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4201,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "spaces indentation",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxhTBCDI",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4204,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "parens",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxnTejA8",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4205,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "space indentation",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxpS0.NA",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4207,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "python doesn\u0027t need parenthesis in the if statement, so better keep it consistent with the rest of the code",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "DxpTtGMc",
+        "filename": "xmldumps-backup/worker.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 4208,
+      "author": {
+        "id": 571
+      },
+      "writtenOn": "2013-05-31T19:57:05Z",
+      "side": 1,
+      "message": "more spaces indentation",
+      "revId": "06ad96a4a39410d658f55c03b833eef3596db02f",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
