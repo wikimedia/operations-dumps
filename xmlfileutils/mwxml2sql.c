@@ -151,7 +151,7 @@ mw_version_t *check_mw_version(char *specified) {
 */
 void usage(char *whoami, char *message) {
   char * help =
-"Usage: mwxml2sql [OPTIONS] --mediawiki versionstring --stubs filename\n\n"
+"Usage: mwxml2sql [OPTIONS] <-m|--mediawiki versionstring> <-s|--stubs filename>\n\n"
 "Mwxml2sql reads a possibily compressed stream of MediaWiki XML pages and\n"
 "writes possibly compressed SQL files containing INSERT statements for\n"
 "page, revision, and text tables.\n\n"

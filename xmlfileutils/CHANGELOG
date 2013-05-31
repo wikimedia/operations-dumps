@@ -1,4 +1,4 @@
-27 May 2013 Kent L. Miller <wpmirrordev@gmail.com>
+29 May 2013 Kent L. Miller <wpmirrordev@gmail.com>
 
    Release 0.0.2-1
 
@@ -20,6 +20,7 @@
     * Makefile:
       Debian: build and deinstall targets written; clean target improved
       Debian: install target rewritten to use: install $(DESTDIR)/...
+      Debian: dist renamed `mediawiki-mwxml2sql-0.0.2.tar.gz'
       Doc: man pages generated using `help2man'
       MWXML2SQLVERS for Makefile dist version and for VERSION in source
     * mwxml2sql.h:

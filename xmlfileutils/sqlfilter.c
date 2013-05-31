@@ -737,7 +737,7 @@ void usage(char *whoami, char *message) {
 "  -o, --outputfile filename\n"
 "        Name of file to which output will be written. If none is\n"
 "        specified, data will be written to stdout. If a filename is\n"
-"        specified that ends in .gz or .bz2, the file will be gzip or.\n"
+"        specified that ends in .gz or .bz2, the file will be gzip or\n"
 "        bzip2 compressed.\n"
 "  -r, --raw\n"
 "        Write raw output without INSERT markup or parens, but with a \n"
