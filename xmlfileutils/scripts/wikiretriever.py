@@ -281,7 +281,7 @@ class Content(object):
             raise WikiRetrieveErr("no mediawiki end tag found, uh oh.")
         return(content[start+12:-13])
 
-    def getAllTitles(self):
+    def getAllEntries(self):
         """Retrieve page content for all titles in accordance with arguments
         given to constructor, in batches, writing it out to a file.
         On error (failure to retrieve some content), raises WikiRetrieveErr exception"""
@@ -328,7 +328,7 @@ class Content(object):
         self.outputFd.close()
         self.inputFd.close()
 
-class Titles(object):
+class Entries(object):
     """Base class for downloading page titles from a wiki, given a
     WikiConnection object for it. This class also provides methods for
     converting titles into various formats (linked, sql escaped, etc.)."""
@@ -423,8 +423,8 @@ class Titles(object):
             else:
                 self.outputFd.write("%s\n" % t)
 
-    def getAllTitles(self):
-        """Retrieve page titles from wiki in accordance with arguments
+    def getAllEntries(self):
+        """Retrieve entries such as page titles from wiki in accordance with arguments
         given to constructor, in batches, writing them out to a file.
         On error (failure to rerieve some titles), raises WikiRetrieveErr exception."""
 
@@ -442,7 +442,7 @@ class Titles(object):
         count = 0
         while True:
             count = count + self.batchSize
-            titles = self.getBatchOfTitles()
+            titles = self.getBatchOfEntries()
             self.writeTitles(titles)
             if not len(titles):
                 # not always an error
@@ -453,8 +453,11 @@ class Titles(object):
                 break
         self.outputFd.close()
 
-    def getBatchOfTitles(self):
-        """Retrieve on batch of page titles via the MediaWiki api
+    def extractItemsFromXml(self, tree):
+        return [ self.deSanitize(entry.get("title").encode("utf8")) for entry in tree.iter(self.entryTagName) ]
+
+    def getBatchOfEntries(self):
+        """Retrieve one batch of entries such as page titles via the MediaWiki api
         If the servers are overloaded it will retry up to maxRetries, waiting a few
         seconds between retries.
         NOTE:
@@ -469,11 +472,9 @@ class Titles(object):
         up in a loop getting the same batch every time.
         See bugs https://bugzilla.wikimedia.org/show_bug.cgi?id=35786 and
         https://bugzilla.wikimedia.org/show_bug.cgi?id=24782 for more info.
+        """
 
-        Arguments:
-        titles   -- list of page titles"""
-
-        titles = []
+        entries = []
         contents = None
         url = self.url
 
@@ -531,11 +532,11 @@ class Titles(object):
             #  <p pageid="34635826" ns="0" title="B" />
             #  <item userid="271058" user="YurikBot" ns="0" title="Achmet II" />
             # etc.
-            titles = [ self.deSanitize(entry.get("title").encode("utf8")) for entry in tree.iter(self.entryTagName) ]
+            entries = self.extractItemsFromXml(tree)
 
-        return titles
+        return entries
 
-class CatTitles(Titles):
+class CatTitles(Entries):
     """Retrieves titles of pages in a given category.  Does not include
     subcategories but that might be nice for the future."""
 
@@ -560,7 +561,7 @@ class CatTitles(Titles):
         # format <cm ns="10" title="Πρότυπο:-ακρ-" />
         self.entryTagName = "cm"
 
-class EmbeddedTitles(Titles):
+class EmbeddedTitles(Entries):
     """Retrieves titles of pages that have a specific page embedded in them
     (link, used as template, etc.)"""
 
@@ -585,7 +586,7 @@ class EmbeddedTitles(Titles):
         # format <ei pageid="230229" ns="0" title="μερικοί" />
         self.entryTagName = "ei"
 
-class NamespaceTitles(Titles):
+class NamespaceTitles(Entries):
     """Retrieves titles of pages in a given namespace."""
 
     def __init__(self, wikiConn, namespace, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
@@ -609,7 +610,71 @@ class NamespaceTitles(Titles):
         # format <p pageid="34635826" ns="0" title="B" />
         self.entryTagName = "p"
 
-class UserContribsTitles(Titles):
+class Users(Entries):
+    """Retrieves all user names, ids and edit counts."""
+
+    def __init__(self, wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+        """Constructor. Arguments:
+        wikiConn    -- initialized WikiConnection object for a wiki
+        outDirName  -- directory in which to write any output files
+        outFileName -- filename for content output
+        linked      -- whether or not to write the user names as links
+                       in wikimarup (i.e. with [[ ]] around them)
+        sqlEscaped  -- whether or not to write the user names in sql-escaped
+                       format, enclosed in single quotes and with various
+                       characters quoted with backslash
+        batchSize   -- number of users to request info for at once (default 500)
+        retries     -- number of times to wait and retry if dbs are lagged, before giving up
+        verbose     -- display progress messages on stderr"""
+
+        super( Users, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        self.url = "%s&list=allusers&auprop=editcount&aulimit=%d" % ( self.wikiConn.queryApiUrlBase, self.batchSize )
+        # format <u userid="146308" name="!" editcount="93" />
+        self.entryTagName = "u"
+
+    def writeUserInfo(self, users):
+        """Write userinfo to an open file,
+        optionally formatting for sql use
+        Arguments:
+        userinfo  -- list of tuples (username, userid, editcount) to write"""
+
+        for (name, id, editcount) in users:
+            if sqlEscaped:
+                name = self.sqlEscape(name)
+            if linked:
+                self.outputFd.write("[[%s]] %s %s\n" % (name, id, editcount))
+            else:
+                self.outputFd.write("%s %s %s\n" % (name, id, editcount))
+
+    def extractItemsFromXml(self, tree):
+        return [ ( self.deSanitize(entry.get("name").encode("utf8")), entry.get("userid"), entry.get("editcount") )  for entry in tree.iter(self.entryTagName) ]
+
+    def getAllEntries(self):
+        """Retrieve user info from wiki in accordance with arguments
+        given to constructor, in batches, writing them out to a file.
+        On error (failure to rerieve some batch of users), raises
+        WikiRetrieveErr exception."""
+
+        self.more = True
+
+        self.outputFd = File.openOutput(self.outFileName)
+
+        count = 0
+        while True:
+            count = count + self.batchSize
+            users = self.getBatchOfEntries()
+            self.writeUserInfo(users)
+            if not len(users):
+                # not always an error
+                break
+            # FIXME is there a possibility that there will be a continue elt and
+            # we'll be served the same users again?
+            if not self.more:
+                break
+        self.outputFd.close()
+
+
+class UserContribsTitles(Entries):
     """Retrieves pages edited by a given user, within a specified date range"""
 
     def __init__(self, wikiConn, userName, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
@@ -773,7 +838,7 @@ def usage(message):
     if message:
         sys.stderr.write(message)
         sys.stderr.write("\n")
-    sys.stderr.write("Usage: python %s --query querytype --param value [--wiki wikiname]\n" % sys.argv[0])
+    sys.stderr.write("Usage: python %s --query querytype [--param value] [--wiki wikiname]\n" % sys.argv[0])
     sys.stderr.write("                 [--outputdir dirname] [--outputfile filename]\n")
     sys.stderr.write("                 [--startdate datestring] [--enddate datestring]\n")
     sys.stderr.write("                 [--linked] [--sqlEscaped] [--batchsize batchsize]\n")
@@ -791,10 +856,12 @@ def usage(message):
     sys.stderr.write("script is running, the results will be inconsistent and maybe broken. These changes\n")
     sys.stderr.write("are rare but do happen.\n")
     sys.stderr.write("\n")
-    sys.stderr.write("--query (-q):      one of 'category', 'embeddedin', 'namespace', 'usercontribs'\n")
-    sys.stderr.write("--param (-p):      for titles: name of the category for which to get titles or name of the\n")
+    sys.stderr.write("--query (-q):      one of 'category', 'embeddedin', 'namespace', 'usercontribs', 'users' or 'content'\n")
+    sys.stderr.write("--param (-p):      namndatory for all queries but 'users'\n")
+    sys.stderr.write("                   for titles: name of the category for which to get titles or name of the\n")
     sys.stderr.write("                   article for which to get links, or the number of the namespace from which\n")
-    sys.stderr.write("                   to get all titles, or the user for which to get changes\n")
+    sys.stderr.write("                   to get all titles, or the user for which to get changes; for the 'users'\n")
+    sys.stderr.write("                   query this option should not be specified\n")
     sys.stderr.write("                   for content: name of the file containing titles for download\n")
     sys.stderr.write("                   for the namespace query, standard namespaces (with their unlocalized names) are:\n")
     sys.stderr.write("                   0    Main (content)   1    Talk\n")
@@ -853,6 +920,7 @@ def usage(message):
     sys.stderr.write("             -o junk -v\n")
     sys.stderr.write("   python %s -q namespace --param 10 -w as.wikisource.org \\\n" % sys.argv[0])
     sys.stderr.write("             -o junk -v\n")
+    sys.stderr.write("   python %s -q users -w el.wikisource.org -o wikisourceusers --sqlescape -v\n" % sys.argv[0])
     sys.stderr.write("   python %s --query content --param page_titles/titles-2013-03-28-064814.gz \\\n" % sys.argv[0])
     sys.stderr.write("             --outputdir junk_content\n")
     sys.exit(1)
@@ -923,7 +991,7 @@ if __name__ == "__main__":
     if len(remainder) > 0:
         usage("Unknown option specified: <%s>" % remainder[0])
 
-    if not query or not param: 
+    if not query or (query != 'users' and not param):
         usage("Missing mandatory option query or param")
 
     if authFile:
@@ -939,7 +1007,8 @@ if __name__ == "__main__":
     wikiConn.login()
 
     if query != "content":
-        param =  urllib.pathname2url(param)
+        if param:
+            param =  urllib.pathname2url(param)
     if query == "category":
         retriever = CatTitles(wikiConn, param, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "embeddedin":
@@ -950,10 +1019,12 @@ if __name__ == "__main__":
         retriever = UserContribsTitles(wikiConn, param, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "content":
         retriever = Content(wikiConn, param, outDirName, outFileName, batchSize, maxRetries, verbose)
+    elif query == 'users':
+        retriever = Users(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     else:
         usage("Unknown query type specified")
 
-    retriever.getAllTitles()
+    retriever.getAllEntries()
 
     # this is the only thing we display to the user, unless verbose is set.
     # wrapper scripts that call this program can grab this in order to do
