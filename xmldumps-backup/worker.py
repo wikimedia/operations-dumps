@@ -580,6 +580,7 @@ class DumpItemList(object):
 			    self._singleJob == 'latestlinks' or 
 			    self._singleJob == 'xmlpagelogsdump' or
 			    self._singleJob == 'pagetitlesdump' or
+			    self._singleJob == 'allpagetitlesdump' or
 			    self._singleJob.endswith('recombine')):
 				raise BackupError("You cannot specify a chunk with the job %s, exiting.\n" % self._singleJob)
 
@@ -590,6 +591,7 @@ class DumpItemList(object):
 			    self._singleJob == 'latestlinks' or 
 			    self._singleJob == 'xmlpagelogsdump' or
 			    self._singleJob == 'pagetitlesdump' or
+			    self._singleJob == 'allpagetitlesdump' or
 			    self._singleJob == 'abstractsdump' or
 			    self._singleJob == 'xmlstubsdump' or
 			    self._singleJob.endswith('recombine')):
@@ -626,7 +628,8 @@ class DumpItemList(object):
 			PublicTable("redirect", "redirecttable", "Redirect list"),
 			PublicTable("iwlinks", "iwlinkstable", "Interwiki link tracking records"),
 
-			TitleDump("pagetitlesdump", "List of page titles"),
+			TitleDump("pagetitlesdump", "List of page titles in main namespace"),
+			AllTitleDump("allpagetitlesdump", "List of all page titles"),
 
 			AbstractDump("abstractsdump","Extracted page abstracts for Yahoo", self._getChunkToDo("abstractsdump"), self.chunkInfo.getPagesPerChunkAbstract())]
 
@@ -2691,7 +2694,7 @@ class PublicTable(Dump):
 	def run(self, runner):
 		retries = 0
 		# try this initially and see how it goes
-		maxretries = 3 
+		maxretries = 3
 		files = self.listOutputFilesForBuildCommand(runner.dumpDir)
 		if (len(files) > 1):
 			raise BackupError("table dump %s trying to produce more than one file" % self.dumpName)
@@ -4024,6 +4027,28 @@ class TitleDump(Dump):
 			raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
 		command = runner.dbServerInfo.buildSqlCommand(query, runner.wiki.config.gzip)
 		return runner.saveCommand(command, outfile)
+
+class AllTitleDump(TitleDump):
+
+	def getDumpName(self):
+		return "all-titles"
+
+	def run(self, runner):
+		retries = 0
+		maxretries = 3
+		query="select page_title from page;"
+		files = self.listOutputFilesForBuildCommand(runner.dumpDir)
+		if len(files) > 1:
+			raise BackupError("all titles dump trying to produce more than one output file")
+		fileObj = files[0]
+		outFilename = runner.dumpDir.filenamePublicPath(fileObj)
+		error = self.saveSql(query, outFilename, runner)
+		while (error and retries < maxretries):
+			retries = retries + 1
+			time.sleep(5)
+			error = self.saveSql(query, outFilename, runner)
+		if (error):
+			raise BackupError("error dumping all titles list")
 
 def findAndLockNextWiki(config, locksEnabled, cutoff):
 	if config.halt:
