@@ -611,7 +611,7 @@ class NamespaceTitles(Entries):
         self.entryTagName = "p"
 
 class Users(Entries):
-    """Retrieves all user names, ids and edit counts."""
+    """Retrieves all user names, ids, editcounts and registration info."""
 
     def __init__(self, wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
@@ -628,26 +628,26 @@ class Users(Entries):
         verbose     -- display progress messages on stderr"""
 
         super( Users, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
-        self.url = "%s&list=allusers&auprop=editcount&aulimit=%d" % ( self.wikiConn.queryApiUrlBase, self.batchSize )
-        # format <u userid="146308" name="!" editcount="93" />
+        self.url = "%s&list=allusers&auprop=editcount|registration&aulimit=%d" % ( self.wikiConn.queryApiUrlBase, self.batchSize )
+        # format <u userid="146308" name="!" editcount="93" registration="2004-12-04T19:39:42Z" />
         self.entryTagName = "u"
 
     def writeUserInfo(self, users):
         """Write userinfo to an open file,
         optionally formatting for sql use
         Arguments:
-        userinfo  -- list of tuples (username, userid, editcount) to write"""
+        userinfo  -- list of tuples (username, userid, editcount, registration) to write"""
 
-        for (name, id, editcount) in users:
+        for (name, id, editcount, registration) in users:
             if sqlEscaped:
                 name = self.sqlEscape(name)
             if linked:
-                self.outputFd.write("[[%s]] %s %s\n" % (name, id, editcount))
+                self.outputFd.write("[[%s]] %s %s '%s'\n" % (name, id, editcount, registration))
             else:
-                self.outputFd.write("%s %s %s\n" % (name, id, editcount))
+                self.outputFd.write("%s %s %s '%s'\n" % (name, id, editcount, registration))
 
     def extractItemsFromXml(self, tree):
-        return [ ( self.deSanitize(entry.get("name").encode("utf8")), entry.get("userid"), entry.get("editcount") )  for entry in tree.iter(self.entryTagName) ]
+        return [ ( self.deSanitize(entry.get("name").encode("utf8")), entry.get("userid"), entry.get("editcount"), entry.get("registration") )  for entry in tree.iter(self.entryTagName) ]
 
     def getAllEntries(self):
         """Retrieve user info from wiki in accordance with arguments
