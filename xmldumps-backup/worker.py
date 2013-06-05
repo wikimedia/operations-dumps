@@ -672,6 +672,8 @@ class DumpItemList(object):
 				PublicTable( "wb_items_per_site", "wbitemspersitetable","For each Wikidata item, this contains rows with the corresnponding page name on a given wiki project." ))
 			self.dumpItems.append(
 				PublicTable( "wb_terms", "wbtermstable","For each Wikidata item, this contains rows with a label, an alias and  a description of the item in a given language." ))
+			self.dumpItems.append(
+				PublicTable( "sites", "sitestable","This contains the SiteMatrix information from meta.wikimedia.org provided as a table." ))
 
 		self.dumpItems.append(
 			BigXmlDump("meta-history",
