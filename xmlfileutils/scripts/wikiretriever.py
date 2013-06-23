@@ -873,95 +873,98 @@ def usage(message):
     if message:
         sys.stderr.write(message)
         sys.stderr.write("\n")
-    sys.stderr.write("Usage: python %s --query querytype [--param value] [--wiki wikiname]\n" % sys.argv[0])
-    sys.stderr.write("                 [--outputdir dirname] [--outputfile filename]\n")
-    sys.stderr.write("                 [--startdate datestring] [--enddate datestring]\n")
-    sys.stderr.write("                 [--linked] [--sqlEscaped] [--batchsize batchsize]\n")
-    sys.stderr.write("                 [--auth username:password] [--authfile filename] [--verbose]\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("This script uses the MediaWiki api to download titles of pages in a\n")
-    sys.stderr.write("specific category, or that include a specific template, or that were\n")
-    sys.stderr.write("edited by a specific user on a specified wiki.\n")
-    sys.stderr.write("Alternatively it can retrieve content for a list of titles.\n")
-    sys.stderr.write("The script may be run as an an anonymous user on that wiki, or with\n")
-    sys.stderr.write("authentication.\n")  
-    sys.stderr.write("The path to the output file will be written to stdout just before the program\n")
-    sys.stderr.write("exits, if the run was successful.\n")
-    sys.stderr.write("Warning: if there happens to be a schema change or namespace change while this\n")
-    sys.stderr.write("script is running, the results will be inconsistent and maybe broken. These changes\n")
-    sys.stderr.write("are rare but do happen.\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("--query (-q):      one of 'category', 'embeddedin', 'log', 'namespace', 'usercontribs', 'users' or 'content'\n")
-    sys.stderr.write("--param (-p):      namndatory for all queries but 'users'\n")
-    sys.stderr.write("                   for titles: name of the category for which to get titles or name of the\n")
-    sys.stderr.write("                   article for which to get links, or the number of the namespace from which\n")
-    sys.stderr.write("                   to get all titles, or the user for which to get changes; for the 'users'\n")
-    sys.stderr.write("                   query this option should not be specified\n")
-    sys.stderr.write("                   for log: the log action for which log entries should be retrieved, e.g. upload/upload\n");
-    sys.stderr.write("                   or move/move_redir; a full list of such entries can be found at http://www.mediawiki.org/w/api.php\n");
-    sys.stderr.write("                   under the section list=logevents, parameter leaction\n");
-    sys.stderr.write("                   for content: name of the file containing titles for download\n")
-    sys.stderr.write("                   for the namespace query, standard namespaces (with their unlocalized names) are:\n")
-    sys.stderr.write("                   0    Main (content)   1    Talk\n")
-    sys.stderr.write("                   2    User             3    User talk\n")
-    sys.stderr.write("                   4    Project          5    Project talk\n")
-    sys.stderr.write("                   6    File             7    File talk\n")
-    sys.stderr.write("                   8    MediaWiki        9    MediaWiki talk\n")
-    sys.stderr.write("                   10   Template         11   Template talk\n")
-    sys.stderr.write("                   12   Help             13   Help talk\n")
-    sys.stderr.write("                   14   Category         15   Category talk\n")
-    sys.stderr.write("                   828  Module           829  Module talk\n")
-    sys.stderr.write("--wiki (-w):       name of the wiki from which to get the category titles\n")
-    sys.stderr.write("                   default: en.wikipedia.org\n")
-    sys.stderr.write("--outputdir (-o):  relative or full path to the directory where all files will\n")
-    sys.stderr.write("                   be created; directory will be created if it does not exist\n")
-    sys.stderr.write("--outputfile (-O): filename for titles or content output, if it ends in gz or bz2,\n")
-    sys.stderr.write("                   the file will be compressed appropriately\n")
-    sys.stderr.write("                   default: for title listings, titles-wikiname-yyyy-mm-dd-hhmmss.gz\n")
-    sys.stderr.write("                   and for content retrieval, content-wikiname--yyyy-mm-dd-hhmmss.gz\n")
-    sys.stderr.write("--startdate (-S):  start date of titles, for usercontribs or log queries, must be later than enddate\n")
-    sys.stderr.write("--enddate (-E):    end date of titles, for usercontribs or log queries\n")
-    sys.stderr.write("--linked (-l):     write titles as wikilinks with [[ ]] around the text\n")
-    sys.stderr.write("--sqlescaped (-s): write titles with character escaping as for sql INSERT statements\n")
-    sys.stderr.write("--batchsize (-b):  number of titles to get at once (for bots and sysadmins this\n")
-    sys.stderr.write("                   can be 5000, but for other users 500, which is the default)\n")
-    sys.stderr.write("--retries (-r):    number of times a given http request will be retried if the\n")
-    sys.stderr.write("                   wiki databases are lagged, before giving up\n")
-    sys.stderr.write("                   default: 20\n")
-    sys.stderr.write("--auth (-a):       username:password if you need to authenticate for the\n")
-    sys.stderr.write("                   action or to use a large batchsize; if password is not provided\n")
-    sys.stderr.write("                   the user will be prompted to enter one\n")
-    sys.stderr.write("--authfile (-A):   name of file containing authentication information; values that\n")
-    sys.stderr.write("                   are specified via the auth option will override this\n")
-    sys.stderr.write("                   file format: each line contains keyword<spaces>value\n")
-    sys.stderr.write("                   lines with blanks or starting with # will be skipped,\n")
-    sys.stderr.write("                   keywords are username and password\n")
-    sys.stderr.write("--verbose (-v):    display messages about what the program is doing\n")
-    sys.stderr.write("--help:            display this usage message\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("Date format can be one of the following:\n")
-    sys.stderr.write("   now|today [- num[d|h|m|s]]    (days, hours, minutes, seconds, default s)\n")
-    sys.stderr.write("   yyyy-MM-dd [hh:mm:ss]         (UTC time)\n")
-    sys.stderr.write("Examples:\n")
-    sys.stderr.write("   today\n")
-    sys.stderr.write("   now-30d\n")
-    sys.stderr.write("   now-3600 (seconds implied)\n")
-    sys.stderr.write("   2013-02-01\n")
-    sys.stderr.write("   2013-03-12 14:01:59\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("Example usage:\n")
-    sys.stderr.write("   python %s --query category --param 'Πρότυπα για τα μέρη του λόγου' \\\n" % sys.argv[0])
-    sys.stderr.write("             --wiki el.wiktionary.org\n")
-    sys.stderr.write("   python %s --query usercontribs --param ArielGlenn --startdate now \\\n" % sys.argv[0])
-    sys.stderr.write("             --enddate 2012-05-01 --outputdir junk\n")
-    sys.stderr.write("   python %s --query embeddedin --param 'Template:WikiProject Cats' \\\n" % sys.argv[0])
-    sys.stderr.write("             -o junk -v\n")
-    sys.stderr.write("   python %s -q namespace --param 10 -w as.wikisource.org \\\n" % sys.argv[0])
-    sys.stderr.write("             -o junk -v\n")
-    sys.stderr.write("   python %s -q log -p upload/upload -o wikisourceuploads -S 2012-05-03 -E 2012-05-01\n" % sys.argv[0])
-    sys.stderr.write("   python %s -q users -w el.wikisource.org -o wikisourceusers --sqlescape -v\n" % sys.argv[0])
-    sys.stderr.write("   python %s --query content --param page_titles/titles-2013-03-28-064814.gz \\\n" % sys.argv[0])
-    sys.stderr.write("             --outputdir junk_content\n")
+    usageMessage = """
+Usage: python %s --query querytype [--param value] [--wiki wikiname]
+                 [--outputdir dirname] [--outputfile filename]
+                 [--startdate datestring] [--enddate datestring]
+                 [--linked] [--sqlEscaped] [--batchsize batchsize]
+                 [--auth username:password] [--authfile filename] [--verbose]
+""" % sys.argv[0]
+    usageMessage = usageMessage + """
+This script uses the MediaWiki api to download titles of pages in a
+specific category, or that include a specific template, or that were
+edited by a specific user on a specified wiki.
+Alternatively it can retrieve content for a list of titles.
+The script may be run as an an anonymous user on that wiki, or with
+authentication.
+The path to the output file will be written to stdout just before the program
+exits, if the run was successful.
+Warning: if there happens to be a schema change or namespace change while this
+script is running, the results will be inconsistent and maybe broken. These changes
+are rare but do happen.
+
+--query (-q):      one of 'category', 'embeddedin', 'log', 'namespace', 'usercontribs', 'users' or 'content'
+--param (-p):      namndatory for all queries but 'users'
+                   for titles: name of the category for which to get titles or name of the
+                   article for which to get links, or the number of the namespace from which
+                   to get all titles, or the user for which to get changes; for the 'users'
+                   query this option should not be specified
+                   for log: the log action for which log entries should be retrieved, e.g. upload/upload
+                   or move/move_redir; a full list of such entries can be found at http://www.mediawiki.org/w/api.php
+                   under the section list=logevents, parameter leaction
+                   for content: name of the file containing titles for download
+                   for the namespace query, standard namespaces (with their unlocalized names) are:
+                   0    Main (content)   1    Talk
+                   2    User             3    User talk
+                   4    Project          5    Project talk
+                   6    File             7    File talk
+                   8    MediaWiki        9    MediaWiki talk
+                   10   Template         11   Template talk
+                   12   Help             13   Help talk
+                   14   Category         15   Category talk
+                   828  Module           829  Module talk
+--wiki (-w):       name of the wiki from which to get the category titles
+                   default: en.wikipedia.org
+--outputdir (-o):  relative or full path to the directory where all files will
+                   be created; directory will be created if it does not exist
+--outputfile (-O): filename for titles or content output, if it ends in gz or bz2
+                   the file will be compressed appropriately
+                   default: for title listings, titles-wikiname-yyyy-mm-dd-hhmmss.gz
+                   and for content retrieval, content-wikiname--yyyy-mm-dd-hhmmss.gz
+--startdate (-S):  start date of titles, for usercontribs or log queries, must be later than enddate
+--enddate (-E):    end date of titles, for usercontribs or log queries
+--linked (-l):     write titles as wikilinks with [[ ]] around the text
+--sqlescaped (-s): write titles with character escaping as for sql INSERT statements
+--batchsize (-b):  number of titles to get at once (for bots and sysadmins this
+                   can be 5000, but for other users 500, which is the default)
+--retries (-r):    number of times a given http request will be retried if the
+                   wiki databases are lagged, before giving up
+                   default: 20
+--auth (-a):       username:password if you need to authenticate for the
+                   action or to use a large batchsize; if password is not provided
+                   the user will be prompted to enter one
+--authfile (-A):   name of file containing authentication information; values that
+                   are specified via the auth option will override this
+                   file format: each line contains keyword<spaces>value
+                   lines with blanks or starting with # will be skipped,
+                   keywords are username and password
+--verbose (-v):    display messages about what the program is doing
+--help:            display this usage message
+
+Date format can be one of the following:
+   now|today [- num[d|h|m|s]]    (days, hours, minutes, seconds, default s)
+   yyyy-MM-dd [hh:mm:ss]         (UTC time)
+Examples:
+   today
+   now-30
+   now-3600 (seconds implied)
+   2013-02-01
+   2013-03-12 14:01:59
+"""
+    usageMessage = usageMessage + """
+Example usage:
+   python %s --query category --param 'Πρότυπα για τα μέρη του λόγου' \\
+             --wiki el.wiktionary.org
+   python %s --query usercontribs --param ArielGlenn --startdate now \\
+             --enddate 2012-05-01 --outputdir junk
+   python %s --query embeddedin --param 'Template:WikiProject Cats' -o junk -v
+   python %s -q namespace --param 10 -w as.wikisource.org -o junk -v
+   python %s -q log -p upload/upload -o wikisourceuploads -S 2012-05-03 -E 2012-05-01
+   python %s -q users -w el.wikisource.org -o wikisourceusers --sqlescape -v
+   python %s --query content --param page_titles/titles-2013-03-28-064814.gz \\
+             --outputdir junk_content\n")
+""" % ( sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0] )
+    sys.stderr.write(usageMessage)
     sys.exit(1)
 
 if __name__ == "__main__":
@@ -1023,7 +1026,7 @@ if __name__ == "__main__":
         elif opt in ["-v", "--verbose"]:
             verbose = True
         elif opt in ["-h", "--help"]:
-            usage("Options help:\n")
+            usage("Options help:")
         else:
             usage("Unknown option specified: %s" % opt )
 
