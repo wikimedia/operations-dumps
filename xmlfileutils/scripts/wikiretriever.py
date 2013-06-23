@@ -708,6 +708,41 @@ class UserContribsTitles(Entries):
         self.startDate = startDate
         self.endDate = endDate
 
+class LogEventsTitles(Entries):
+    """Retrieves titles frm log entries for a given log type and action, within a specified date range"""
+
+    def __init__(self, wikiConn, logEventAction, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+        """Constructor. Arguments:
+        wikiConn       -- initialized WikiConnection object for a wiki
+        logEventAction -- log type and action, separated by '/'  e.g. 'upload/overwrite'
+        startDate      -- starting timestamp for log events,
+                          now|today [- num[d|h|m|s]] (days, hours, minutes, seconds, default s) or
+                          yyyy-MM-dd [hh:mm:ss]      (UTC time)
+        endDate        -- ending timestamp  for log events,
+                          now|today [- num[d|h|m|s]] (days, hours, minutes, seconds, default s) or
+                          yyyy-MM-dd [hh:mm:ss]      (UTC time)
+        outDirName     -- directory in which to write any output files
+        outFileName    -- filename for content output
+        linked         -- whether or not to write the page titles as links
+                          in wikimarup (i.e. with [[ ]] around them)
+        sqlEscaped     -- whether or not to write the page titles in sql-escaped
+                          format, enclosed in single quotes and with various
+                          characters quoted with backslash
+        batchSize      -- number of pages to download at once (default 500)
+        retries        -- number of times to wait and retry if dbs are lagged, before giving up
+        verbose        -- display progress messages on stderr"""
+
+        super( LogEventsTitles, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        self.logEventAction = logEventAction
+        self.url = "%s&list=logevents&leaction=%s&lelimit=%d&leprop=title" % ( self.wikiConn.queryApiUrlBase, self.logEventAction, self.batchSize )
+        # format: <item ns="6" title="File:Glenmmont Fire Station.jpg" />
+        self.entryTagName = "item"
+        # need these for "&lestart=<startdate>&leend=<enddate>"
+        self.startDateParam = "lestart"
+        self.endDateParam = "leend"
+        self.startDate = startDate
+        self.endDate = endDate
+
 # parse user-supplied dates, compute 'now - d/m/s' expressions,
 # format date strings for use in retrieving user contribs (or other lists
 # which can be limited by time interval)
@@ -856,12 +891,15 @@ def usage(message):
     sys.stderr.write("script is running, the results will be inconsistent and maybe broken. These changes\n")
     sys.stderr.write("are rare but do happen.\n")
     sys.stderr.write("\n")
-    sys.stderr.write("--query (-q):      one of 'category', 'embeddedin', 'namespace', 'usercontribs', 'users' or 'content'\n")
+    sys.stderr.write("--query (-q):      one of 'category', 'embeddedin', 'log', 'namespace', 'usercontribs', 'users' or 'content'\n")
     sys.stderr.write("--param (-p):      namndatory for all queries but 'users'\n")
     sys.stderr.write("                   for titles: name of the category for which to get titles or name of the\n")
     sys.stderr.write("                   article for which to get links, or the number of the namespace from which\n")
     sys.stderr.write("                   to get all titles, or the user for which to get changes; for the 'users'\n")
     sys.stderr.write("                   query this option should not be specified\n")
+    sys.stderr.write("                   for log: the log action for which log entries should be retrieved, e.g. upload/upload\n");
+    sys.stderr.write("                   or move/move_redir; a full list of such entries can be found at http://www.mediawiki.org/w/api.php\n");
+    sys.stderr.write("                   under the section list=logevents, parameter leaction\n");
     sys.stderr.write("                   for content: name of the file containing titles for download\n")
     sys.stderr.write("                   for the namespace query, standard namespaces (with their unlocalized names) are:\n")
     sys.stderr.write("                   0    Main (content)   1    Talk\n")
@@ -881,8 +919,8 @@ def usage(message):
     sys.stderr.write("                   the file will be compressed appropriately\n")
     sys.stderr.write("                   default: for title listings, titles-wikiname-yyyy-mm-dd-hhmmss.gz\n")
     sys.stderr.write("                   and for content retrieval, content-wikiname--yyyy-mm-dd-hhmmss.gz\n")
-    sys.stderr.write("--startdate (-S):  start date of titles, for usercontribs queries\n")
-    sys.stderr.write("--enddate (-E):    end date of titles, for usercontribs queries\n")
+    sys.stderr.write("--startdate (-S):  start date of titles, for usercontribs or log queries, must be later than enddate\n")
+    sys.stderr.write("--enddate (-E):    end date of titles, for usercontribs or log queries\n")
     sys.stderr.write("--linked (-l):     write titles as wikilinks with [[ ]] around the text\n")
     sys.stderr.write("--sqlescaped (-s): write titles with character escaping as for sql INSERT statements\n")
     sys.stderr.write("--batchsize (-b):  number of titles to get at once (for bots and sysadmins this\n")
@@ -920,6 +958,7 @@ def usage(message):
     sys.stderr.write("             -o junk -v\n")
     sys.stderr.write("   python %s -q namespace --param 10 -w as.wikisource.org \\\n" % sys.argv[0])
     sys.stderr.write("             -o junk -v\n")
+    sys.stderr.write("   python %s -q log -p upload/upload -o wikisourceuploads -S 2012-05-03 -E 2012-05-01\n" % sys.argv[0])
     sys.stderr.write("   python %s -q users -w el.wikisource.org -o wikisourceusers --sqlescape -v\n" % sys.argv[0])
     sys.stderr.write("   python %s --query content --param page_titles/titles-2013-03-28-064814.gz \\\n" % sys.argv[0])
     sys.stderr.write("             --outputdir junk_content\n")
@@ -1000,7 +1039,7 @@ if __name__ == "__main__":
     if username and not password:
         password = getpass.getpass("Password: ")
         
-    if not query == "usercontribs" and (startDate or endDate):
+    if not ( query == "usercontribs" or query == "log" ) and (startDate or endDate):
         usage("startdate or enddate specified for wrong query type")
         
     wikiConn = WikiConnection(wikiName, username, password, verbose)
@@ -1017,6 +1056,8 @@ if __name__ == "__main__":
         retriever = NamespaceTitles(wikiConn, param, outDirName, outFileName,  linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "usercontribs":
         retriever = UserContribsTitles(wikiConn, param, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+    elif query == "log":
+        retriever = LogEventsTitles(wikiConn, param, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "content":
         retriever = Content(wikiConn, param, outDirName, outFileName, batchSize, maxRetries, verbose)
     elif query == 'users':
