@@ -30,7 +30,8 @@ all: checkforbz2footer \
 	dumpbz2filefromoffset \
 	dumplastbz2block \
 	findpageidinbz2xml \
-	recompressxml
+	recompressxml \
+	writeuptopageid
 
 dumplastbz2block: $(OBJSBZ) mwbzlib.o dumplastbz2block.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o dumplastbz2block dumplastbz2block.o mwbzlib.o  $(OBJSBZ) -lbz2
@@ -47,23 +48,28 @@ dumpbz2filefromoffset: $(OBJSBZ) mwbzlib.o dumpbz2filefromoffset.o
 recompressxml: $(OBJSBZ) recompressxml.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o recompressxml recompressxml.o -lbz2
 
-install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset recompressxml
+writeuptopage: $(OBJSBZ) writeuptopageid.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o writeuptopageid writeuptopageid.o -lbz2
+
+install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset recompressxml writeuptopageid
 	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
 	cp -f dumplastbz2block $(PREFIX)/bin/dumplastbz2block
 	cp -f findpageidinbz2xml $(PREFIX)/bin/findpageidinbz2xml
 	cp -f checkforbz2footer $(PREFIX)/bin/checkforbz2footer
 	cp -f dumpbz2filefromoffset $(PREFIX)/bin/dumpbz2filefromoffset
 	cp -f recompressxml $(PREFIX)/bin/recompressxml
+	cp -f writeuptopageid $(PREFIX)/bin/writeuptopageid
 	chmod a+x $(PREFIX)/bin/dumplastbz2block
 	chmod a+x $(PREFIX)/bin/findpageidinbz2xml
 	chmod a+x $(PREFIX)/bin/checkforbz2footer
 	chmod a+x $(PREFIX)/bin/dumpbz2filefromoffset
 	chmod a+x $(PREFIX)/bin/recompressxml
+	chmod a+x $(PREFIX)/bin/writeuptopageid
 
 clean: 
 	rm -f *.o *.a dumplastbz2block findpageidinbz2xml \
 		checkforbz2footer dumpbz2filefromoffset \
-		recompressxml
+		recompressxml writeuptopageid
 
 bzlibfuncs.o: bzlibfuncs.c bzlib.h bzlib_private.h
 	$(CC) $(CFLAGS) -c bzlibfuncs.c
@@ -81,6 +87,8 @@ dumpbz2filefromoffset.o: dumpbz2filefromoffset.c
 	$(CC) $(CFLAGS) -c dumpbz2filefromoffset.c
 recompressxml.o: recompressxml.c
 	$(CC) $(CFLAGS) -c recompressxml.c
+writeuptopageid.o: writeuptopageid.c
+	$(CC) $(CFLAGS) -c writeuptopageid.c
 
 distclean: clean
 
@@ -89,6 +97,7 @@ dist:
 	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)
 	tar cvf $(DISTNAME).tar \
+	   $(DISTNAME)/writeuptopageid.c \
 	   $(DISTNAME)/recompressxml.c \
 	   $(DISTNAME)/dumplastbz2block.c \
 	   $(DISTNAME)/findpageidinbz2xml.c \
