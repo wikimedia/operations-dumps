@@ -1,0 +1,106 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "69c609db_39c7179b",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 23,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-04T20:33:24Z",
+      "side": 1,
+      "message": "You should retain environment variables like CFLAGS, and not override them.",
+      "revId": "f95db55f7ec2f824ae84fea884043301f9e7416b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_19c4db92",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 37,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-04T20:33:24Z",
+      "side": 1,
+      "message": "Don\u0027t hardcode /usr/local in a makefile",
+      "revId": "f95db55f7ec2f824ae84fea884043301f9e7416b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_9938cb9e",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 53,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-04T20:33:24Z",
+      "side": 1,
+      "message": "no need for CFLAGS during linking",
+      "revId": "f95db55f7ec2f824ae84fea884043301f9e7416b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_79c18f82",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 108,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-04T20:33:24Z",
+      "side": 1,
+      "message": "I assume you meant to install them into MANDIR",
+      "revId": "f95db55f7ec2f824ae84fea884043301f9e7416b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_59be53fc",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 110,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-04T20:33:24Z",
+      "side": 1,
+      "message": "Normally I think it\u0027s called uninstall",
+      "revId": "f95db55f7ec2f824ae84fea884043301f9e7416b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_b93307c3",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 116,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-04T20:33:24Z",
+      "side": 1,
+      "message": "you are not removing installed manpages",
+      "revId": "f95db55f7ec2f824ae84fea884043301f9e7416b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
