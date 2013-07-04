@@ -8,10 +8,59 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <regex.h>
+#include <getopt.h>
 #include "mwbzutils.h"
 
+void usage(char *message) {
+  char * help =
+"Usage: dumpbz2filefromoffset [--version|--help]\n"
+"   or: dumpbz2filefromoffset <infile> <offset>\n\n"
+"Find the first bz2 block in a file after the specified offset, uncompress\n"
+"and write contents from that point on to stdout, starting with the first\n"
+"<page> tag encountered.\n\n"
+"The starting <mediawiki> tag and the <siteinfo> header from the file will\n"
+"be written out first.\n\n"
+"Note that some bytes from the very last block may be lost if the blocks are\n"
+"not byte-aligned. This is due to the bzip2 crc at the eof being wrong.\n\n"
+"Exits with BZ_OK on success, various BZ_ errors otherwise.\n\n"
+"Options:\n\n"
+"Flags:\n\n"
+"  -h, --help       Show this help message\n"
+"  -v, --version    Display the version of this program and exit\n\n"
+"Arguments:\n\n"
+"  <infile>         Name of the file to check\n"
+"  <offset>         byte in the file from which to start processing\n\n"
+"Report bugs in dumpbz2filefromoffset to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also checkforbz2footer(1), dumplastbz2block(1), findpageidinbz2xml(1),\n"
+    "recompressxml(1), writeuptopageid(1)\n\n";
+  if (message) {
+    fprintf(stderr,"%s\n\n",message);
+  }
+  fprintf(stderr,"%s",help);
+  exit(-1);
+}
+
+void show_version(char *version_string) {
+  char * copyright =
+"Copyright (C) 2011, 2012, 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+    "Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"dumpbz2filefromoffset %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
+}
+
 /* 
-   dump the <meadiawiki> header (up through
+   dump the <mediawiki> header (up through
    </siteinfo> close tag) found at the 
    beginning of xml dump files. 
    returns:
@@ -206,47 +255,51 @@ int dump_from_first_page_id_after_offset(int fin, off_t position) {
   return(0);
 }
 
-/*
-  find the first bz2 block after the specified offset,
-  uncompress from that point on, write out the
-  contents starting with the first <page> tag,
-  prefacing first with the <mediawiki> header from
-  the beginning of the file, up through </siteinfo>.
-
-  note that we may lose some bytes from the very last
-  block if the blocks are bit shifted, because the
-  bzip crc at end of file will be wrong.  (needs testing to
-  find a workaround, simply not feeding in the crc doesn't
-  suffice)
-
-  for purposes of the XML dumps this is fine, since we use
-  this tool to generate prefetch data starting from
-  a given pageid, rather than needing to uncompress
-  gigabytes of data to get to the point in the file
-  we want.
-
-  returns:
-    BZ_OK on success, various BZ_ errors otherwise.
-*/
 int main(int argc, char **argv) {
   int fin, res;
   off_t position;
 
-  if (argc != 3) {
-    fprintf(stderr,"usage: %s infile position\n", argv[0]);
+  int optc;
+  int optindex=0;
+
+  struct option optvalues[] = {
+    {"help", 0, 0, 'h'},
+    {"version", 0, 0, 'v'},
+    {NULL, 0, NULL, 0}
+  };
+
+  if (argc < 2 || argc > 3) {
+    usage("Missing or bad options/arguments");
     exit(-1);
   }
 
-  fin = open (argv[1], O_RDONLY);
+  while (1) {
+    optc=getopt_long_only(argc,argv,"hv", optvalues, &optindex);
+    if (optc=='h')
+      usage(NULL);
+    else if (optc=='v')
+      show_version(VERSION);
+    else if (optc==-1) break;
+    else usage("Unknown option or other error\n");
+  }
+
+  if (optind >= argc) {
+    usage("Missing filename argument.");
+  }
+
+  fin = open (argv[optind], O_RDONLY);
   if (fin < 0) {
-    fprintf(stderr,"failed to open file %s for read\n", argv[1]);
+    fprintf(stderr,"failed to open file %s for read\n", argv[optind]);
     exit(-1);
   }
-
-  position = atoll(argv[2]);
+  optind++;
+  if (optind >= argc) {
+    usage("Missing offset argument.");
+  }
+  position = atoll(argv[optind]);
   if (position <(off_t)0) {
-    fprintf(stderr,"please specify a position >= 0.\n");
-    fprintf(stderr,"usage: %s infile position\n", argv[0]);
+    fprintf(stderr,"please specify an offset >= 0.\n");
+    fprintf(stderr,"usage: %s infile offset\n", argv[0]);
     exit(-1);
   }
   /* input file, starting position in file, length of buffer for reading */

@@ -7,24 +7,55 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <getopt.h>
 #include "mwbzutils.h"
 
+void usage(char *message) {
+  char * help =
+"Usage: dumplastbz2block [--version|--help]\n"
+"   or: dumplastbz2block <infile>\n\n"
+"Find the last bz2 block marker in a file and dump whatever can be\n"
+"decompressed after that point.  The header of the file must be intact\n"
+"in order for any output to be produced.\n"
+"This will produce output for truncated files as well, as long as there\n"
+"is 'enough' data after the block marker.\n"
+"Exits with 0 if some decompressed data was written, 1 if no data could\n"
+"be uncompressed and -1 on error.\n\n"
+"Options:\n\n"
+"Flags:\n\n"
+"  -h, --help       Show this help message\n"
+"  -v, --version    Display the version of this program and exit\n\n"
+"Arguments:\n\n"
+"  <infile>         Name of the file to process\n\n"
+"Report bugs in dumplastbz2block to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also checkforbz2footer(1), dumpbz2filefromoffset(1), findpageidinbz2xml(1),\n"
+"recompressxml(1), writeuptopageid(1)\n\n";
+  if (message) {
+    fprintf(stderr,"%s\n\n",message);
+  }
+  fprintf(stderr,"%s",help);
+  exit(-1);
+}
 
-/* 
-   Find the last bz2 block marker in a file
-   and dump whatever can be decompressed after
-   that point.  The header of the file must
-   be intact in order for any output to be produced.
-   This will produce output for truncated files as well,
-   as long as there is "enough" data after the block 
-   marker.
+void show_version(char *version_string) {
+  char * copyright =
+"Copyright (C) 2011, 2012, 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+    "Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"dumplastbz2block %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
+}
 
-   Arguments: the name of the file to check, presumably 
-   a bzipped file. 
-   Outputs: the decompressed data at the end of the file.
-   Exits with 0 if decompression of some data can be done,
-   1 if decompression fails, and -1 on error.
-*/
 
 int main(int argc, char **argv) {
 
@@ -37,14 +68,37 @@ int main(int argc, char **argv) {
   int firstblock = 1;
   int length = 5000; /* output buffer size */
 
+  int optc;
+  int optindex=0;
+
+  struct option optvalues[] = {
+    {"help", 0, 0, 'h'},
+    {"version", 0, 0, 'v'},
+    {NULL, 0, NULL, 0}
+  };
+
   if (argc != 2) {
-    fprintf(stderr,"usage: %s infile\n", argv[0]);
+    usage("Missing option or argument.");
     exit(-1);
   }
 
-  fin = open (argv[1], O_RDONLY);
+  while (1) {
+    optc=getopt_long_only(argc,argv,"hv", optvalues, &optindex);
+    if (optc=='h')
+      usage(NULL);
+    else if (optc=='v')
+      show_version(VERSION);
+    else if (optc==-1) break;
+    else usage("Unknown option or other error\n");
+  }
+
+  if (optind >= argc) {
+    usage("Missing filename argument.");
+  }
+
+  fin = open (argv[optind], O_RDONLY);
   if (fin < 0) {
-    fprintf(stderr,"failed to open file %s for read\n", argv[1]);
+    fprintf(stderr,"failed to open file %s for read\n", argv[optind]);
     exit(-1);
   }
 
@@ -96,4 +150,3 @@ int main(int argc, char **argv) {
   close(fin);
   exit(0);
 }
-

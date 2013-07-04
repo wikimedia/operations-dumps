@@ -13,106 +13,145 @@
 # in the file LICENSE_BZ.
 #
 # All other files are released under the GPL, copyright (C) Ariel T. Glenn
-# 2010-2010: see the file COPYING for details.
+# 2010-2013: see the file COPYING for details.
 # ------------------------------------------------------------------
 
-CC=gcc
-LDFLAGS=
-BIGFILES=-D_FILE_OFFSET_BITS=64
-CFLAGS=-Wall -Winline -O2 -g $(BIGFILES)
-PREFIX=/usr/local
+VERSION        = "0.0.4"
+CC            ?= gcc
+BIGFILES       = -D_FILE_OFFSET_BITS=64
+CPPFLAGS      += $(BIGFILES) -DVERSION=\"$(VERSION)\"
+CFLAGS        ?= -Wall -O2
 
-SHELL=/bin/sh
+build: checkforbz2footer dumpbz2filefromoffset \
+	dumplastbz2block findpageidinbz2xml \
+	recompressxml writeuptopageid compressedmanpages
 
-OBJSBZ= bzlibfuncs.o
+NAME_CHECKFORBZ2FOOTER       = "Check if bzip2 file ends with bz2 magic footer"
+NAME_DUMPBZ2FILEFROMOFFSET   = "Write MediaWiki XML pages from bzip2 file starting from offset"
+NAME_DUMPLASTBZ2BLOCK        = "Find last bz2 block in bzip2 file and dump contents"
+NAME_FINDPAGEIDINBZ2XML      = "Display offset of bz2 block for given page id in bzip2 MediaWiki XML file"
+NAME_RECOMPRESSXML           = "Bz2 compress MediaWiki XML input in batches of pages"
+NAME_WRITEUPTOPAGEID         = "Write range of page content from MediaWiki XML input"
 
-all: checkforbz2footer \
-	dumpbz2filefromoffset \
-	dumplastbz2block \
-	findpageidinbz2xml \
-	recompressxml \
-	writeuptopageid
+PREFIX        ?= "/usr/local"
+BINDIR         = $(DESTDIR)$(PREFIX)/bin/
+MANDIR         = $(DESTDIR)$(PREFIX)/share/man/man1/
+DOCDIR         = $(DESTDIR)$(PREFIX)/share/doc/mwbzutils/
 
-dumplastbz2block: $(OBJSBZ) mwbzlib.o dumplastbz2block.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o dumplastbz2block dumplastbz2block.o mwbzlib.o  $(OBJSBZ) -lbz2
+GZIP           = /bin/gzip
+HELP2MAN       = /usr/bin/help2man
+SHELL          = /bin/sh
 
-findpageidinbz2xml: $(OBJSBZ) mwbzlib.o httptiny.o findpageidinbz2xml.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o findpageidinbz2xml findpageidinbz2xml.o httptiny.o mwbzlib.o $(OBJSBZ) -lbz2 -lz
+DISTNAME       = mwbzutils-$(VERSION)
+
+LIBS           = -lbz2
+OBJSBZ         = bzlibfuncs.o
+OBJS           = mwbzlib.o $(OBJSBZ)
 
 checkforbz2footer: $(OBJSBZ) mwbzlib.o checkforbz2footer.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o checkforbz2footer checkforbz2footer.o mwbzlib.o $(OBJSBZ) -lbz2
+	$(CC) $(LDFLAGS) -o checkforbz2footer checkforbz2footer.o $(OBJS) $(LIBS)
 
 dumpbz2filefromoffset: $(OBJSBZ) mwbzlib.o dumpbz2filefromoffset.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o dumpbz2filefromoffset dumpbz2filefromoffset.o mwbzlib.o $(OBJSBZ) -lbz2
+	$(CC) $(LDFLAGS) -o dumpbz2filefromoffset dumpbz2filefromoffset.o $(OBJS) $(LIBS)
+
+dumplastbz2block: $(OBJSBZ) mwbzlib.o dumplastbz2block.o
+	$(CC) $(LDFLAGS) -o dumplastbz2block dumplastbz2block.o $(OBJS) $(LIBS)
+
+findpageidinbz2xml: $(OBJSBZ) mwbzlib.o httptiny.o findpageidinbz2xml.o
+	$(CC) $(LDFLAGS) -o findpageidinbz2xml findpageidinbz2xml.o httptiny.o $(OBJS) $(LIBS) -lz
 
 recompressxml: $(OBJSBZ) recompressxml.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o recompressxml recompressxml.o -lbz2
+	$(CC) $(LDFLAGS) -o recompressxml recompressxml.o $(LIBS)
 
 writeuptopage: $(OBJSBZ) writeuptopageid.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o writeuptopageid writeuptopageid.o -lbz2
+	$(CC) $(LDFLAGS) -o writeuptopageid writeuptopageid.o
 
-install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset recompressxml writeuptopageid
-	if ( test ! -d $(PREFIX)/bin ) ; then mkdir -p $(PREFIX)/bin ; fi
-	cp -f dumplastbz2block $(PREFIX)/bin/dumplastbz2block
-	cp -f findpageidinbz2xml $(PREFIX)/bin/findpageidinbz2xml
-	cp -f checkforbz2footer $(PREFIX)/bin/checkforbz2footer
-	cp -f dumpbz2filefromoffset $(PREFIX)/bin/dumpbz2filefromoffset
-	cp -f recompressxml $(PREFIX)/bin/recompressxml
-	cp -f writeuptopageid $(PREFIX)/bin/writeuptopageid
-	chmod a+x $(PREFIX)/bin/dumplastbz2block
-	chmod a+x $(PREFIX)/bin/findpageidinbz2xml
-	chmod a+x $(PREFIX)/bin/checkforbz2footer
-	chmod a+x $(PREFIX)/bin/dumpbz2filefromoffset
-	chmod a+x $(PREFIX)/bin/recompressxml
-	chmod a+x $(PREFIX)/bin/writeuptopageid
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+compressedmanpages: docs/dumplastbz2block.1.gz docs/findpageidinbz2xml.1.gz \
+	docs/checkforbz2footer.1.gz docs/dumpbz2filefromoffset.1.gz \
+	docs/recompressxml.1.gz docs/writeuptopageid.1.gz
+
+docs/%.1.gz: docs/%.1
+	cat $< | $(GZIP) > $@
+
+# this target should only be made when updating the source if the version
+# or the usage mssages change
+manpages: dumplastbz2block.1 findpageidinbz2xml.1 \
+	checkforbz2footer.1 dumpbz2filefromoffset.1 \
+	recompressxml.1 writeuptopageid.1
+	echo "Don't forget to commit your manpage changes to the repo"
+
+checkforbz2footer.1 : checkforbz2footer
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_CHECKFORBZ2FOOTER) \
+		--no-discard-stderr ./checkforbz2footer > docs/checkforbz2footer.1
+dumpbz2filefromoffset.1 : dumpbz2filefromoffset
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_DUMPBZ2FILEFROMOFFSET) \
+		--no-discard-stderr ./dumpbz2filefromoffset > docs/dumpbz2filefromoffset.1
+dumplastbz2block.1 : dumplastbz2block
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_DUMPLASTBZ2BLOCK) \
+		--no-discard-stderr ./dumplastbz2block > docs/dumplastbz2block.1
+findpageidinbz2xml.1 : findpageidinbz2xml
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_FINDPAGEIDINBZ2XML) \
+		--no-discard-stderr ./findpageidinbz2xml > docs/findpageidinbz2xml.1
+recompressxml.1 : recompressxml
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_RECOMPRESSXML) \
+		--no-discard-stderr ./recompressxml > docs/recompressxml.1
+writeuptopageid.1 : writeuptopageid
+	$(HELP2MAN) --section 1 --no-info --name $(NAME_WRITEUPTOPAGEID) \
+		--no-discard-stderr ./writeuptopageid > docs/writeuptopageid.1
+
+install: dumplastbz2block findpageidinbz2xml checkforbz2footer dumpbz2filefromoffset \
+	recompressxml writeuptopageid compressedmanpages
+	install --directory                         $(BINDIR)
+	install --mode=755   checkforbz2footer      $(BINDIR)
+	install --mode=755   dumplastbz2block       $(BINDIR)
+	install --mode=755   dumpbz2filefromoffset  $(BINDIR)
+	install --mode=755   findpageidinbz2xml     $(BINDIR)
+	install --mode=755   recompressxml          $(BINDIR)
+	install --mode=755   writeuptopageid        $(BINDIR)
+	install --directory                         $(MANDIR)
+	install --mode=644   docs/*.1.gz            $(MANDIR)
+	install --directory                         $(DOCDIR)
+	install --mode=644   README                 $(DOCDIR)
+	install --mode=644   LICENSE_BZ             $(DOCDIR)
+	install --mode=644   COPYING                $(DOCDIR)
+
+uninstall:
+	rm -f $(BINDIR)dumplastbz2block
+	rm -f $(BINDIR)findpageidinbz2xml
+	rm -f $(BINDIR)checkforbz2footer
+	rm -f $(BINDIR)dumpbz2filefromoffset
+	rm -f $(BINDIR)recompressxml
+	rm -f $(BINDIR)writeuptopageid
+	rm -f $(MANDIR)*.1.gz
+	rm -f $(DOCDIR)README
+	rm -f $(DOCDIR)LICENSE_BZ
+	rm -f $(DOCDIR)COPYING
 
 clean: 
 	rm -f *.o *.a dumplastbz2block findpageidinbz2xml \
 		checkforbz2footer dumpbz2filefromoffset \
-		recompressxml writeuptopageid
-
-bzlibfuncs.o: bzlibfuncs.c bzlib.h bzlib_private.h
-	$(CC) $(CFLAGS) -c bzlibfuncs.c
-mwbzlib.o: mwbzlib.c bzlib.h bzlib_private.h mwbzutils.h
-	$(CC) $(CFLAGS) -c mwbzlib.c
-httptiny.o: httptiny.c
-	$(CC) $(CFLAGS) -c httptiny.c
-dumplastbz2block.o: dumplastbz2block.c
-	$(CC) $(CFLAGS) -c dumplastbz2block.c
-findpageidinbz2xml.o: findpageidinbz2xml.c
-	$(CC) $(CFLAGS) -c findpageidinbz2xml.c
-checkforbz2footer.o: checkforbz2footer.c
-	$(CC) $(CFLAGS) -c checkforbz2footer.c
-dumpbz2filefromoffset.o: dumpbz2filefromoffset.c
-	$(CC) $(CFLAGS) -c dumpbz2filefromoffset.c
-recompressxml.o: recompressxml.c
-	$(CC) $(CFLAGS) -c recompressxml.c
-writeuptopageid.o: writeuptopageid.c
-	$(CC) $(CFLAGS) -c writeuptopageid.c
+		recompressxml writeuptopageid docs/*.1.gz
 
 distclean: clean
+	rm -f $(DISTNAME)
+	rm -f *.tar.gz
 
-DISTNAME=mwbzutils-0.0.3
+reallyclean: distclean
+	rm -f docs/*.1
+
 dist: 
 	rm -f $(DISTNAME)
 	ln -s -f . $(DISTNAME)
 	tar cvf $(DISTNAME).tar \
-	   $(DISTNAME)/writeuptopageid.c \
-	   $(DISTNAME)/recompressxml.c \
-	   $(DISTNAME)/dumplastbz2block.c \
-	   $(DISTNAME)/findpageidinbz2xml.c \
-	   $(DISTNAME)/checkforbz2footer.c \
-	   $(DISTNAME)/dumpbz2filefromoffset.c \
-	   $(DISTNAME)/httptiny.c \
-	   $(DISTNAME)/mwbzlib.c \
-	   $(DISTNAME)/mwbzutils.h \
-	   $(DISTNAME)/bzlibfuncs.c \
-	   $(DISTNAME)/bzlib.h \
-	   $(DISTNAME)/bzlib_private.h \
+	   $(DISTNAME)/*.c \
+	   $(DISTNAME)/*.h \
 	   $(DISTNAME)/Makefile \
 	   $(DISTNAME)/LICENSE_BZ \
 	   $(DISTNAME)/COPYING \
 	   $(DISTNAME)/README \
-	   $(DISTNAME)/CHANGES
+	   $(DISTNAME)/CHANGES \
+	   $(DISTNAME)/docs/*1
 	gzip -v $(DISTNAME).tar
-

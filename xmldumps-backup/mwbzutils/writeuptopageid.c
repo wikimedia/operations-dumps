@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <string.h>
+#include <getopt.h>
 
 typedef enum { None, StartHeader, EndHeader, StartPage, AtPageID, WriteMem, Write, EndPage, AtLastPageID } States;
 
@@ -10,13 +11,52 @@ typedef enum { None, StartHeader, EndHeader, StartPage, AtPageID, WriteMem, Writ
    namespaces will one project want? */
 #define MAXHEADERLEN 524289
 
-void usage(char *me) {
-  fprintf(stderr,"Usage: %s startPageID [endPageID]\n",me);
-  fprintf(stderr,"Copies the contents of an XML file starting with and including startPageID\n");
-  fprintf(stderr,"and up to but not including endPageID. This program is used in processing XML\n");
-  fprintf(stderr,"dump files that were only partially written, as well as in writing partial\n");
-  fprintf(stderr,"stub files for reruns of those dump files.\n");
-  fprintf(stderr,"If endPageID is ommitted, all pages starting from startPageID will be copied.\n");
+void usage(char *message) {
+  char * help =
+"Usage: writeuptopageid [--version|--help]\n"
+"   or: writeuptopageid <startpageid> <endpageid>\n\n"
+"Reads a MediaWiki XML file from stdin anfd writes a range of pages from the file\n"
+"to stdout, starting with and including the startpageid, up to but not including\n"
+"the endpageid.\n"
+"This program can be used in processing XML dump files that were only partially\n"
+"written, as well as in writing partial stub files for reruns of those dump files.\n"
+"If endPageID is ommitted, all pages starting from startPageID will be copied.\n\n"
+"Options:\n\n"
+"Flags:\n\n"
+"  -h, --help       Show this help message\n"
+"  -v, --version    Display the version of this program and exit\n\n"
+"Arguments:\n\n"
+"  <startpageid>   id of the first page to write\n"
+"  <endpageid>     id of the page at which to stop writing; if omitted, all pages through eof\n"
+"                   will be written\n\n"
+"Report bugs in writeuptopageid to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also checkforbz2footer(1), dumpbz2filefromoffset(1), dumplastbz2block(1),\n"
+    "findpageidinbz2xml(1), recompressxml(1)\n\n";
+ if (message) {
+   fprintf(stderr,"%s\n\n",message);
+ }
+ fprintf(stderr,"%s",help);
+ exit(-1);
+}
+
+
+void show_version(char *version_string) {
+  char * copyright =
+"Copyright (C) 2011, 2012, 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+    "Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"writeuptopageid %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
 }
 
 /* note that even if we have only read a partial line
@@ -130,29 +170,51 @@ int main(int argc,char **argv) {
      length of time. */
   char mem[MAXHEADERLEN];
 
+  int optc;
+  int optindex=0;
+
+  struct option optvalues[] = {
+    {"help", 0, 0, 'h'},
+    {"version", 0, 0, 'v'},
+    {NULL, 0, NULL, 0}
+  };
+
   if (argc < 2 || argc > 3) {
-    usage(argv[0]);
+    usage(NULL);
     exit(-1);
   }
 
+  while (1) {
+    optc=getopt_long_only(argc,argv,"hv", optvalues, &optindex);
+    if (optc=='h')
+      usage(NULL);
+    else if (optc=='v')
+      show_version(VERSION);
+    else if (optc==-1) break;
+    else usage("Unknown option or other error\n");
+  }
+
+  if (optind >= argc) {
+    usage("Missing filename argument.");
+  }
+
   errno = 0;
-  startPageID = strtol(argv[1], &nonNumeric, 10);
+  startPageID = strtol(argv[optind], &nonNumeric, 10);
   if (startPageID == 0 || 
       *nonNumeric != 0 ||
       nonNumeric == (char *) &startPageID || 
       errno != 0) {
-    fprintf (stderr,"The value you entered for startPageID must be a positive integer.\n");
-    usage(argv[0]);
+    usage("The value you entered for startPageID must be a positive integer.");
     exit(-1);
   }
-  if (argc == 3) {
-    endPageID = strtol(argv[2], &nonNumeric, 10);
+  optind++;
+  if (optind < argc) {
+    endPageID = strtol(argv[optind], &nonNumeric, 10);
     if (endPageID == 0 || 
 	*nonNumeric != 0 ||
 	nonNumeric == (char *) &endPageID || 
 	errno != 0) {
-      fprintf (stderr,"The value you entered for endPageID must be a positive integer.\n");
-      usage(argv[0]);
+      usage("The value you entered for endPageID must be a positive integer.\n");
       exit(-1);
     }
   }

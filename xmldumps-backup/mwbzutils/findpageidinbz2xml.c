@@ -13,6 +13,63 @@
 #include <zlib.h>
 #include "mwbzutils.h"
 
+void usage(char *message) {
+  char * help =
+"Usage: findpageidinbz2xml --filename file --pageid id [--stubfile] [--useapi] [--verbose]\n"
+"       [--help] [--version]\n\n"
+"Show the offset of the bz2 block in the specified MediaWiki XML dump file\n"
+"containing the given page id.  This assumes that the bz2 header of the file\n"
+"is intact and that page ids are steadily increasing throughout the file.\n\n"
+"If the page id is found, a line in the following format will be written to stdout:\n"
+"    position:xxxxx pageid:nnn\n\n"
+"where 'xxxxx' is the offset of the block from the beginning of the file, and\n"
+"'nnn' is the id of the first page encountered in that block.\n\n"
+"Note:\n"
+"This program may use the MediaWiki api to find page ids from revision ids\n"
+"if 'useapi' is specified.\n"
+"It may use a stub file to find page ids from rev ids if 'stubfile' is specified.\n"
+"It will only do one of the above if it has been reading from the file for some\n"
+"large number of iterations without findind a page tag (some pages have > 500K\n"
+"revisions and a heck of a lot of text).\n"
+"If both 'useapi' and 'stubfile' are specified, the api will be used as it is faster.\n\n"
+"Exits with 0 in success, -1 on error.\n\n"
+"Options:\n\n"
+"  -f, --filename   name of file to search\n"
+"  -p, --pageid     page_id of page for which to search\n"
+"  -s, --stubfile   name of MediaWiki XML stub file to fall back on (see 'Note' above)\n"
+"  -a, --useapi     fall back to the api if stuck (see 'Note' above)\n"
+"  -V, --verbose    show search process; specify multiple times for more output\n"
+"  -h, --help       Show this help message\n"
+"  -V, --version    Display the version of this program and exit\n\n"
+"Report bugs in checkforbz2footer to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also dumpbz2filefromoffset(1), dumplastbz2block(1), findpageidinbz2xml(1),\n"
+    "recompressxml(1), writeuptopageid(1)\n\n";
+  if (message) {
+    fprintf(stderr,"%s\n\n",message);
+  }
+  fprintf(stderr,"%s",help);
+  exit(-1);
+}
+
+void show_version(char *version_string) {
+  char * copyright =
+"Copyright (C) 2011, 2012, 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+    "Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"findpageidinbz2xml %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
+}
+
 /* 
    find the first bz2 block marker in the file, 
    from its current position,
@@ -484,36 +541,6 @@ int do_iteration(iter_info_t *iinfo, int fin, page_info_t *pinfo, int use_api, i
   }
 }
 
-
-void usage(char *whoami, char *message) {
-  if (message) {
-    fprintf(stderr,message);
-  }
-  fprintf(stderr,"usage: %s --filename file --pageid id [--stubfile] [--useapi] [--verbose]\n", whoami);
-  exit(1);
-}
-
-/*
-  given a bzipped and possibly truncated file, and a page id, 
-  hunt for the page id in the file; this assume that the
-  bz2 header is intact and that page ids are steadily increasing
-  throughout the file. 
-
-  writes the offset of the relevant block (from beginning of file) 
-  and the first pageid found in that block, to stdout
-
-  it may use the api to find page ids from rev ids if use_api is specified
-  it may use a stub file to find page ids from rev ids if stubfile is specified
-  it will only do these if it has been reading from awhile without
-  findind a page tag (some pages have > 500K revisions and a heck of
-  a lot of text)
-  if both use_api and stubfile are specified, we will use_api, it's faster
-
-  format of output:
-     position:xxxxx pageid:nnn
-
-  returns: 0 on success, -1 on error
-*/
 int main(int argc, char **argv) {
   int fin, res, page_id=0;
   off_t position, interval, file_size;
@@ -529,45 +556,51 @@ int main(int argc, char **argv) {
 
   struct option optvalues[] = {
     {"filename", 1, 0, 'f'},
+    {"help", 0, 0, 'h'},
     {"pageid", 1, 0, 'p'},
     {"useapi", 0, 0, 'a'},
-    {"verbose", 0, 0, 'v'},
     {"stubfile", 1, 0, 's'},
+    {"verbose", 0, 0, 'v'},
+    {"version", 0, 0, 'V'},
     {NULL, 0, NULL, 0}
   };
 
   while (1) {
-    optc=getopt_long_only(argc,argv,"filename:pageid:useapi:stubfile:verbose", optvalues, &optindex);
+    optc=getopt_long_only(argc,argv,"f:hp:as:vV", optvalues, &optindex);
     if (optc=='f') {
      filename=optarg;
     }
     else if (optc=='p') {
-      if (!(isdigit(optarg[0]))) usage(argv[0],NULL);
+      if (!(isdigit(optarg[0]))) usage(NULL);
       page_id=atoi(optarg);
     }
-    else if (optc=='a') 
+    else if (optc=='a')
       use_api=1;
     else if (optc=='s') {
       use_stub=1;
       stubfile = optarg;
     }
-    else if (optc=='v') 
+    else if (optc=='h')
+      usage(NULL);
+    else if (optc=='v')
       verbose++;
+    else if (optc=='V')
+      show_version(VERSION);
     else if (optc==-1) break;
-    else usage(argv[0],"Unknown option or other error\n");
+    else usage("Unknown option or other error\n");
   }
 
   if (! filename || ! page_id) {
-    usage(argv[0],NULL);
+    usage(NULL);
   }
 
   if (page_id <1) {
-    usage(argv[0], "Please specify a page_id >= 1.\n");
+    usage("Please specify a page_id >= 1.\n");
   }
 
   fin = open (filename, O_RDONLY);
   if (fin < 0) {
-    fprintf(stderr,"Failed to open file %s for read\n", argv[1]);
+    fprintf(stderr,"Failed to open file %s for read\n", filename);
     exit(1);
   }
 

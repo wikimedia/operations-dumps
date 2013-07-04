@@ -31,6 +31,54 @@ regex_t compiledMatchIdExpr;
 
 bz_stream strm_indx;
 
+void usage(char *message) {
+  char * help =
+"Usage: recompressxml --pagesperstream n [--buildindex filename] [--verbose]\n"
+"   or: recompressxml [--version|--help]\n\n"
+"Reads a stream of XML pages from stdin and writes to stdout the bz2 compressed\n"
+"data, one bz2 stream (header, blocks, footer) per specified number of pages.\n\n"
+"Options:\n\n"
+"  -p, --pagesperstream:  Compress this number of pages in each complete\n"
+"                         bz2stream before opening a new stream.  The siteinfo\n"
+"                         header is written to a separate stream at the beginning\n"
+"                         of all output, and the closing mediawiki tag is written\n"
+"                         into a separate stream at the end.\n"
+"  -b, --buildindex:      Generate a file containing an index of pages ids and titles\n"
+"                         per stream.  Each line contains: offset-to-stream:pageid:pagetitle\n"
+"                         If filename ends in '.bz2' the file will be written in bz2 format.\n"
+"  -v, --verbose:         Write lots of debugging output to stderr.  This option can be used\n"
+"                         multiple times to increase verbosity.\n";
+"  -h, --help             Show this help message\n"
+"  -V, --version          Display the version of this program and exit\n\n"
+"Report bugs in checkforbz2footer to <https://bugzilla.wikimedia.org/>.\n\n"
+"See also checkforbz2footer(1), dumpbz2filefromoffset(1), dumplastbz2block(1),\n"
+"findpageidinbz2xml(1), writeuptopageid(1)\n\n";
+  if (message) {
+    fprintf(stderr,"%s\n\n",message);
+  }
+  fprintf(stderr,"%s",help);
+  exit(-1);
+}
+
+void show_version(char *version_string) {
+  char * copyright =
+"Copyright (C) 2011, 2012, 2013 Ariel T. Glenn.  All rights reserved.\n\n"
+"This program is free software: you can redistribute it and/or modify it\n"
+"under the  terms of the GNU General Public License as published by the\n"
+"Free Software Foundation, either version 2 of the License, or (at your\n"
+"option) any later version.\n\n"
+"This  program  is  distributed  in the hope that it will be useful, but\n"
+"WITHOUT ANY WARRANTY; without even the implied warranty of \n"
+"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General\n"
+"Public License for more details.\n\n"
+"You should have received a copy of the GNU General Public License along\n"
+"with this program.  If not, see <http://www.gnu.org/licenses/>\n\n"
+    "Written by Ariel T. Glenn.\n";
+  fprintf(stderr,"recompressxml %s\n", version_string);
+  fprintf(stderr,"%s",copyright);
+  exit(-1);
+}
+
 void setupIndexBz2Stream() {
   int bz_verbosity = 0;
   int bz_workFactor = 0;
@@ -257,27 +305,6 @@ void writeCompressedXmlBlock(int header, int count, off_t *fileOffset, FILE *ind
   return;
 }
 
-void usage(char *whoami, char *message) {
-  if (message) {
-    fprintf(stderr,"%s",message);
-  }
-  fprintf(stderr,"Usage: %s --pagesperstream n [--buildindex indexfilename] [--verbose]\n\n", whoami);
-  fprintf(stderr,"Reads a stream of XML pages from stdin,\n");
-  fprintf(stderr,"and writes to stdout the bz2 compressed\n");
-  fprintf(stderr,"data, one bz2 stream per count pages.\n\n");
-  fprintf(stderr,"Options:\n");
-  fprintf(stderr,"pagesperstream: compress this many pages in each complete bz2stream before\n");
-  fprintf(stderr,"                opening a new stream.  The siteinfo header is written to a\n");
-  fprintf(stderr,"                separate stream at the beginning of all output, and the closing\n");
-  fprintf(stderr,"                mediawiki tag is written into a separate stream at the end.\n");
-  fprintf(stderr,"buildindex:     generate a file containing an index of pages ids and titles\n");
-  fprintf(stderr,"                per stream.  Each line contains: offset-to-stream:pageid:pagetitle\n");
-  fprintf(stderr,"                If filename ends in '.bz2' the file will be written in bz2 format.\n");
-  fprintf(stderr,"verbose:        produce lots of debugging output to stderr.  This option can be used\n");
-  fprintf(stderr,"                multiple times to increase verbosity.\n");
-  exit(-1);
-}
-
 int main(int argc, char **argv) {
   int optindex=0;
   int optc;
@@ -285,8 +312,10 @@ int main(int argc, char **argv) {
 
   struct option optvalues[] = {
     {"buildindex", 1, 0, 'b'},
+    {"help", 0, 0, 'h'},
     {"pagesperstream", 1, 0, 'p'},
     {"verbose", 0, 0, 'v'},
+    {"version", 0, 0, 'V'},
     {NULL, 0, NULL, 0}
   };
 
@@ -297,22 +326,26 @@ int main(int argc, char **argv) {
   int indexcompressed = 0;
 
   while (1) {
-    optc=getopt_long_only(argc,argv,"pagesperstream:buildindex:verbose", optvalues, &optindex);
+    optc=getopt_long_only(argc,argv,"p:b:v", optvalues, &optindex);
     if (optc=='b') {
       indexFilename = optarg;
     }
+    else if (optc=='h')
+      usage(NULL);
     else if (optc=='p') {
-      if (!(isdigit(optarg[0]))) usage(argv[0],NULL);
+      if (!(isdigit(optarg[0]))) usage(NULL);
       count=atoi(optarg);
     }
-    else if (optc=='v') 
+    else if (optc=='v')
       verbose++;
+    else if (optc=='V')
+      show_version(VERSION);
     else if (optc==-1) break;
-    else usage(argv[0],"unknown option or other error\n");
+    else usage("unknown option or other error\n");
   }
 
   if (count <= 0) {
-    usage(argv[0],"bad or no argument given for count.\n");
+    usage("bad or no argument given for count.\n");
   }
 
   if (indexFilename) {
@@ -321,7 +354,7 @@ int main(int argc, char **argv) {
     }
     indexfd = fopen(indexFilename, "w");
     if (! indexfd) {
-      usage(argv[0],"failed to open index file for write.\n");
+      usage("failed to open index file for write.\n");
     }
     if (!strcmp(indexFilename+(strlen(indexFilename)-4),".bz2")) {
       if (verbose) {
