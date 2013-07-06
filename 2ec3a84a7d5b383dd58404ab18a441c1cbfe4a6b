@@ -1,0 +1,242 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "69c609db_22435771",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "dont override CC unconditionally",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_c24d239c",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 21,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "not needed if empty",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_e2481f8e",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 23,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "dont override CPPFLAGS unconditionally",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_0248db87",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "Why -Winline?",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_625d4f45",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "don\u0027t end with \\ at the end",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_0241fb5d",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 50,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "what\u0027s different between bzlibfuncs and mwbzlib?",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_e2313f0c",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 93,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "depend on manpages as well",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_425ad34e",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 133,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "remove generated manpages",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_223cf7de",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 134,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "also you might want to resolve headers dependices",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_c236c301",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 162,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "why not use generics?",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_6226efd2",
+        "filename": "xmldumps-backup/mwbzutils/checkforbz2footer.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 70,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "use getopt instead of hardwiring",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_4223f3c0",
+        "filename": "xmldumps-backup/mwbzutils/dumpbz2filefromoffset.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 268,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "use getopt",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_a230e701",
+        "filename": "xmldumps-backup/mwbzutils/dumplastbz2block.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 77,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "use getopt",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_822debaa",
+        "filename": "xmldumps-backup/mwbzutils/writeuptopageid.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 179,
+      "author": {
+        "id": 406
+      },
+      "writtenOn": "2013-07-06T20:13:18Z",
+      "side": 1,
+      "message": "use getopt",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
