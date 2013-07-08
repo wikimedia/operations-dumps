@@ -104,6 +104,24 @@
     },
     {
       "key": {
+        "uuid": "69c609db_13ecae8f",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 50,
+      "author": {
+        "id": 6
+      },
+      "writtenOn": "2013-07-08T09:49:28Z",
+      "side": 1,
+      "message": "bzlibfuncs is part of the bzlib library, I needed to tweak it a bit for this purpose. mwbzlib is a bunch of library routines that let me work with arbitrary chunks of bzipped data, byte aligned or not, relying on some of those functions.",
+      "parentUuid": "69c609db_0241fb5d",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "69c609db_e2313f0c",
         "filename": "xmldumps-backup/mwbzutils/Makefile",
         "patchSetId": 3
@@ -121,6 +139,24 @@
     },
     {
       "key": {
+        "uuid": "69c609db_7301a23c",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 93,
+      "author": {
+        "id": 6
+      },
+      "writtenOn": "2013-07-08T09:49:28Z",
+      "side": 1,
+      "message": "It shouldn\u0027t depend on them in the sense that the man pages must not be required to be generated from the binaries.  This would break cross-architecture debian package builds (since help2man calls the executable to gen the man page, and this would fail).",
+      "parentUuid": "69c609db_e2313f0c",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "69c609db_425ad34e",
         "filename": "xmldumps-backup/mwbzutils/Makefile",
         "patchSetId": 3
@@ -132,6 +168,24 @@
       "writtenOn": "2013-07-06T20:13:18Z",
       "side": 1,
       "message": "remove generated manpages",
+      "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c609db_53fe2636",
+        "filename": "xmldumps-backup/mwbzutils/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 133,
+      "author": {
+        "id": 6
+      },
+      "writtenOn": "2013-07-08T09:49:28Z",
+      "side": 1,
+      "message": "See above, we want to keep these and check them in even.",
+      "parentUuid": "69c609db_425ad34e",
       "revId": "2ec3a84a7d5b383dd58404ab18a441c1cbfe4a6b",
       "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
       "unresolved": false
