@@ -32,10 +32,10 @@ if [ "$username" != "root" ]; then
 fi
 
 while [ $# -gt 0 ]; do
-    if [ $1 == "--deploydir" ]; then
+    if [ "$1" == "--deploydir" ]; then
 	deploydir="$2"
 	shift; shift
-    elif [ $1 == "--hosts" ]; then
+    elif [ "$1" == "--hosts" ]; then
 	hostnames="$2"
 	shift; shift
     else
@@ -107,8 +107,9 @@ fi
 
 # make sure the directory exists before we try to copy it to the remote hosts
 if [ ! -d "$basedir/deploy/$deploydir" ]; then
-    echo "Directory $basedir/deploy/$deploydir does not exist or it's not a directory, exiting"
-    exit 1
+    echo "Directory $basedir/deploy/$deploydir does not exist or it's not a directory,"
+    echo "did you forget to specify --deploydir?"
+    usage
 fi
 
 exitcode=0
@@ -116,7 +117,7 @@ exitcode=0
 echo "Copying..."
 
 for h in $hostnames; do
-    ssh root@$h "mkdir -p $basedir/deploy/"
+    ssh root@$h "mkdir -p $deploymentbase"
     scp -rp -q -o ConnectTimeOut=20 $basedir/deploy/$deploydir  root@$h:$deploymentbase/
     if [ $? -ne 0 ]; then
 	# serious whine
@@ -124,6 +125,10 @@ for h in $hostnames; do
 	exitcode=1
     fi
 done
+
+if [ "$exitcode" == "1" ]; then
+    exit 1
+fi
 
 # why don't we do this on the source host? because all kinds of people have access there, and we don't want them to 
 # see passwords or whatever that might be in config files.
@@ -136,6 +141,10 @@ for h in $hostnames; do
 	exitcode=1
     fi
 done
+
+if [ "$exitcode" == "1" ]; then
+    exit 1
+fi
 
 echo "Done!"
 
