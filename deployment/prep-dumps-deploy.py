@@ -13,13 +13,14 @@ class Error(Exception):
 def dateToDigits(dateString):
 	if '-' not in dateString:
 		return None
-	month, rest = dateString.split('-', 1)
+	month, day, year  = dateString.split('-', 2)
 	if not month.isdigit():
 		if not month in monthNames:
 			return None
 		else:
-			month = monthNames.index(month)
-	return "%s-%s" % ( int(month), rest)
+			month = int(monthNames.index(month)) + 1
+		day = int(day)
+	return "%s%02d%02d" % ( year, month, day)
 
 def getLatestDeployDate(deploydir):
 	try:
@@ -39,8 +40,7 @@ def getLatestDeployDate(deploydir):
 	if not len(deployDates.keys()):
 		return None
 	dates = deployDates.keys()
-	dates.sort()
-	dates.reverse()
+	dates.sort(reverse = True)
 	return deployDates[dates[0]]
 
 # modified from the python copytree implementation
@@ -160,7 +160,7 @@ if __name__ == "__main__":
 		
 	fullPathSrc = os.path.join(deploydir,latestDeployDate)
 
-	print "Setting up deployment dir", fullPathDest
+	print "Setting up deployment dir", fullPathDest, "from", latestDeployDate
 
 	if os.path.isdir(fullPathDest):
 		print "New deployment dir already exists. overwrite, remove and copy, or skip [O/r/s]? ",
