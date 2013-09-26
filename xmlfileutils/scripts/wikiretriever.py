@@ -333,13 +333,14 @@ class Entries(object):
     WikiConnection object for it. This class also provides methods for
     converting titles into various formats (linked, sql escaped, etc.)."""
 
-    def __init__(self, wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose):
+    def __init__(self, wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose):
         """Constructor. Arguments:
+        props       -- comma-separated list of additional properties to request
         wikiConn    -- initialized WikiConnection object for a wiki
         outDirName  -- directory in which to write any output files
         outFileName -- filename for content output
         linked      -- whether or not to write the page titles as links
-                       in wikimarup (i.e. with [[ ]] around them)
+                       in wikimarkup (i.e. with [[ ]] around them)
         sqlEscaped  -- whether or not to write the page titles in sql-escaped
                        format, enclosed in single quotes and with various
                        characters quoted with backslash
@@ -348,6 +349,15 @@ class Entries(object):
         verbose     -- display progress messages on stderr"""
 
         self.wikiConn = wikiConn
+        if props:
+            if ',' in props:
+                props = props.split(',')
+            else:
+                props = [ props ]
+        else:
+            props = []
+        self.props = props # extra properties requested by the caller
+
         self.outDirName = outDirName
         if not os.path.isdir(self.outDirName):
             os.makedirs(self.outDirName)
@@ -370,14 +380,36 @@ class Entries(object):
         self.startDateSecs = None
         self.endDateSecs = None
 
-
         # subclasses should set these up as appropriate
         self.url = None
-        self.entryTagName = None
+        self.entryTagName = None  # the one or two letter prefix that is the name of the XML tag
+                                  # for every entry returned of this query type, e.g. "rc" for recent changes
         self.startDate = None
         self.endDate = None
         self.startDateParam = None
         self.endDateParam = None
+
+        self.paramPrefix = None   # the one or two letter prefix that is tacked on to all standard
+                                  # param names for this query type, override this if it's not the
+                                  # same as entryTagName
+
+    def setupPropsAttrs(self, defaultProps, extraProps, xmlAttrs):
+        """set up the properties that will be requested for each entry,
+        along with the attributes that will be extracted from each XML entry
+        Note that some queries don't take property lists at all, so the lists
+        might be empty. They should never be None but we'll handle that justincase.
+        Arguments:
+        defaultProps  -- properties we always want for the type of query (e.g. 'title')
+        extraProps    -- additional properties the caller requested
+        xmlAttrs      -- attributes present in the xml though not specifically requested"""
+        self.propsToRequest = self.combineListsNoDups([defaultProps, extraProps])
+        self.attrsToExtract = self.combineListsNoDups([xmlAttrs,defaultProps,extraProps])
+        if not self.paramPrefix:
+            self.paramPrefix = self.entryTagName
+        if len(self.propsToRequest):
+            self.propParam = '&' + self.paramPrefix + "prop=" + '|'.join(self.propsToRequest)
+        else:
+            self.propParam = ""
 
     def sqlEscape(self, title):
         """Escape title in preparation for it to be written
@@ -409,19 +441,37 @@ class Entries(object):
         title = title.replace("&amp;", '&') # this one must be last
         return title
 
-    def writeTitles(self, titles):
-        """Write list of titles to an open file,
-        optionally formatting them for sql use
+    def combineListsNoDups(self, listOfLists):
+        """Combines all passed lists into one, maintaining order and
+        dropping duplicates.
         Arguments:
-        titles   -- list of titles to write"""
+        listOfLists -- list of lists which will be combined in order"""
 
-        for t in titles:
-            if sqlEscaped:
-                t = self.sqlEscape(t)
+        newList  = []
+        for l in listOfLists:
+            if not l:
+                continue
+            for item in l:
+                if item not in newList:
+                    newList.append(item)
+        return newList
+
+    def writeEntryInfo(self, entries):
+        """Write list of entries to an open file, optionally formatting
+        them for sql use, and possibly linking the first element in each
+        entry, which should be the title or username or other linkable attribute
+        Arguments:
+        entries   -- list of entries to write, typically containing a title
+                     along with possibly other attributes"""
+
+        for e in entries:
+            # escape all fields but link only the first, if requested
             if linked:
-                self.outputFd.write("[[%s]]\n" % t)
+                e[0] = "[[" + e[0] + "]]"
+            if sqlEscaped:
+                self.outputFd.write(" ".join([ self.sqlEscape(attr) for attr in e]) + "\n")
             else:
-                self.outputFd.write("%s\n" % t)
+                self.outputFd.write(" ".join(e) + "\n")
 
     def getAllEntries(self):
         """Retrieve entries such as page titles from wiki in accordance with arguments
@@ -442,9 +492,9 @@ class Entries(object):
         count = 0
         while True:
             count = count + self.batchSize
-            titles = self.getBatchOfEntries()
-            self.writeTitles(titles)
-            if not len(titles):
+            entries = self.getBatchOfEntries()
+            self.writeEntryInfo(entries)
+            if not len(entries):
                 # not always an error
                 break
             # FIXME is there a possibility that there will be a continue elt and
@@ -454,7 +504,7 @@ class Entries(object):
         self.outputFd.close()
 
     def extractItemsFromXml(self, tree):
-        return [ self.deSanitize(entry.get("title").encode("utf8")) for entry in tree.iter(self.entryTagName) ]
+        return [ [ self.deSanitize(entry.get(a).encode("utf8")) for a in self.attrsToExtract ] for entry in tree.iter(self.entryTagName) ]
 
     def getBatchOfEntries(self):
         """Retrieve one batch of entries such as page titles via the MediaWiki api
@@ -540,7 +590,7 @@ class CatTitles(Entries):
     """Retrieves titles of pages in a given category.  Does not include
     subcategories but that might be nice for the future."""
 
-    def __init__(self, wikiConn, catName, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+    def __init__(self, wikiConn, catName, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
         wikiConn    -- initialized WikiConnection object for a wiki
         catName     -- name of category from which to retrieve page titles
@@ -555,17 +605,18 @@ class CatTitles(Entries):
         retries     -- number of times to wait and retry if dbs are lagged, before giving up
         verbose     -- display progress messages on stderr"""
 
-        super( CatTitles, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        super( CatTitles, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
         self.catName = catName
-        self.url = "%s&list=categorymembers&cmtitle=Category:%s&cmprop=title&cmlimit=%d" % ( self.wikiConn.queryApiUrlBase, self.catName, self.batchSize )
         # format <cm ns="10" title="Πρότυπο:-ακρ-" />
         self.entryTagName = "cm"
+        self.setupPropsAttrs([ "title" ], self.props, [])
+        self.url = "%s&list=categorymembers&cmtitle=Category:%s&cmlimit=%d%s" % ( self.wikiConn.queryApiUrlBase, self.catName, self.batchSize, self.propParam )
 
 class EmbeddedTitles(Entries):
     """Retrieves titles of pages that have a specific page embedded in them
     (link, used as template, etc.)"""
 
-    def __init__(self, wikiConn, pageTitle, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+    def __init__(self, wikiConn, pageTitle, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
         wikiConn    -- initialized WikiConnection object for a wiki
         pageTitle   -- title of page for which to find all pages with it embedded
@@ -580,16 +631,17 @@ class EmbeddedTitles(Entries):
         retries     -- number of times to wait and retry if dbs are lagged, before giving up
         verbose     -- display progress messages on stderr"""
 
-        super( EmbeddedTitles, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        super( EmbeddedTitles, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
         self.pageTitle = pageTitle
-        self.url = "%s&list=embeddedin&eititle=%s&eilimit=%d" % ( self.wikiConn.queryApiUrlBase, self.pageTitle, self.batchSize )
         # format <ei pageid="230229" ns="0" title="μερικοί" />
         self.entryTagName = "ei"
+        self.setupPropsAttrs([], self.props, [ "title" ])
+        self.url = "%s&list=embeddedin&eititle=%s&eilimit=%d" % ( self.wikiConn.queryApiUrlBase, self.pageTitle, self.batchSize )
 
 class NamespaceTitles(Entries):
     """Retrieves titles of pages in a given namespace."""
 
-    def __init__(self, wikiConn, namespace, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+    def __init__(self, wikiConn, namespace, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
         wikiConn    -- initialized WikiConnection object for a wiki
         namespace   -- number of namespace for which to get page titles
@@ -604,16 +656,20 @@ class NamespaceTitles(Entries):
         retries     -- number of times to wait and retry if dbs are lagged, before giving up
         verbose     -- display progress messages on stderr"""
 
-        super( NamespaceTitles, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        super( NamespaceTitles, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        if not namespace.isdigit():
+            raise WikiRetrieveErr("namespace should be a number but was %s" % namespace)
+
         self.namespace = namespace
-        self.url = "%s&list=allpages&apnamespace=%s&aplimit=%d" % ( self.wikiConn.queryApiUrlBase, self.namespace, self.batchSize )
         # format <p pageid="34635826" ns="0" title="B" />
         self.entryTagName = "p"
+        self.setupPropsAttrs([], self.props, [ "title" ])
+        self.url = "%s&list=allpages&apnamespace=%s&aplimit=%d" % ( self.wikiConn.queryApiUrlBase, self.namespace, self.batchSize )
 
 class Users(Entries):
     """Retrieves all user names, ids, editcounts and registration info."""
 
-    def __init__(self, wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+    def __init__(self, wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
         wikiConn    -- initialized WikiConnection object for a wiki
         outDirName  -- directory in which to write any output files
@@ -627,63 +683,25 @@ class Users(Entries):
         retries     -- number of times to wait and retry if dbs are lagged, before giving up
         verbose     -- display progress messages on stderr"""
 
-        super( Users, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
-        self.url = "%s&list=allusers&auprop=editcount|registration&aulimit=%d" % ( self.wikiConn.queryApiUrlBase, self.batchSize )
+        super( Users, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
         # format <u userid="146308" name="!" editcount="93" registration="2004-12-04T19:39:42Z" />
         self.entryTagName = "u"
+        self.paramPrefix = "au"
+        self.setupPropsAttrs([ "editcount", "registration" ], self.props, [ "name", "userid" ])
 
-    def writeUserInfo(self, users):
-        """Write userinfo to an open file,
-        optionally formatting for sql use
-        Arguments:
-        userinfo  -- list of tuples (username, userid, editcount, registration) to write"""
+        self.url = "%s&list=allusers&aulimit=%d%s" % ( self.wikiConn.queryApiUrlBase, self.batchSize, self.propParam )
 
-        for (name, id, editcount, registration) in users:
-            if sqlEscaped:
-                name = self.sqlEscape(name)
-            if linked:
-                self.outputFd.write("[[%s]] %s %s '%s'\n" % (name, id, editcount, registration))
-            else:
-                self.outputFd.write("%s %s %s '%s'\n" % (name, id, editcount, registration))
+class RCTitles(Entries):
+    """Retrieves page titles in recent changes, within a specified date range"""
 
-    def extractItemsFromXml(self, tree):
-        return [ ( self.deSanitize(entry.get("name").encode("utf8")), entry.get("userid"), entry.get("editcount"), entry.get("registration") )  for entry in tree.iter(self.entryTagName) ]
-
-    def getAllEntries(self):
-        """Retrieve user info from wiki in accordance with arguments
-        given to constructor, in batches, writing them out to a file.
-        On error (failure to rerieve some batch of users), raises
-        WikiRetrieveErr exception."""
-
-        self.more = True
-
-        self.outputFd = File.openOutput(self.outFileName)
-
-        count = 0
-        while True:
-            count = count + self.batchSize
-            users = self.getBatchOfEntries()
-            self.writeUserInfo(users)
-            if not len(users):
-                # not always an error
-                break
-            # FIXME is there a possibility that there will be a continue elt and
-            # we'll be served the same users again?
-            if not self.more:
-                break
-        self.outputFd.close()
-
-
-class UserContribsTitles(Entries):
-    """Retrieves pages edited by a given user, within a specified date range"""
-
-    def __init__(self, wikiConn, userName, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+    def __init__(self, wikiConn, namespace, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
         wikiConn    -- initialized WikiConnection object for a wiki
-        startDate   -- starting timestamp for edits, 
+        namespace   -- number of namespace for which to get page titles
+        startDate   -- starting timestamp for edits,
                        now|today [- num[d|h|m|s]] (days, hours, minutes, seconds, default s) or
                        yyyy-MM-dd [hh:mm:ss]      (UTC time)
-        endDate     -- ending timestamp  for edits, 
+        endDate     -- ending timestamp  for edits,
                        now|today [- num[d|h|m|s]] (days, hours, minutes, seconds, default s) or
                        yyyy-MM-dd [hh:mm:ss]      (UTC time)
         outDirName  -- directory in which to write any output files
@@ -697,11 +715,56 @@ class UserContribsTitles(Entries):
         retries     -- number of times to wait and retry if dbs are lagged, before giving up
         verbose     -- display progress messages on stderr"""
 
-        super( UserContribsTitles, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        super( RCTitles, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        self.namespace = namespace
+        # format: <rc type="edit" ns="0" title="The Blind Assassin" />
+        self.entryTagName = "rc"
+        self.setupPropsAttrs([ "title" ], self.props, [])
+        # if the props include 'sizes' we need to pull that out of attrsToExtract and put in oldlen and newlen
+        if "sizes" in self.attrsToExtract:
+            ind = self.attrsToExtract.index("sizes")
+            self.attrsToExtract[ind:ind+1] = [ "oldlen", "newlen" ]
+        if self.namespace:
+            if not self.namespace.isdigit():
+                raise WikiRetrieveErr("namespace should be a number but was %s" % namespace)
+            self.url = "%s&list=recentchanges&rcnamespace=%s&rclimit=%d%s" % ( self.wikiConn.queryApiUrlBase, self.namespace, self.batchSize, self.propParam )
+        else:
+            self.url = "%s&list=recentchanges&rclimit=%d%s" % ( self.wikiConn.queryApiUrlBase, self.batchSize, self.propParam )
+        # need these for "&rcstart=$rcstartdate&rcend=$rcenddate"
+        self.startDateParam = "rcstart"
+        self.endDateParam = "rcend"
+        self.startDate = startDate
+        self.endDate = endDate
+
+class UserContribsTitles(Entries):
+    """Retrieves pages edited by a given user, within a specified date range"""
+
+    def __init__(self, wikiConn, userName, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+        """Constructor. Arguments:
+        wikiConn    -- initialized WikiConnection object for a wiki
+        startDate   -- starting timestamp for edits,
+                       now|today [- num[d|h|m|s]] (days, hours, minutes, seconds, default s) or
+                       yyyy-MM-dd [hh:mm:ss]      (UTC time)
+        endDate     -- ending timestamp  for edits,
+                       now|today [- num[d|h|m|s]] (days, hours, minutes, seconds, default s) or
+                       yyyy-MM-dd [hh:mm:ss]      (UTC time)
+        outDirName  -- directory in which to write any output files
+        outFileName -- filename for content output
+        linked      -- whether or not to write the page titles as links
+                       in wikimarup (i.e. with [[ ]] around them)
+        sqlEscaped  -- whether or not to write the page titles in sql-escaped
+                       format, enclosed in single quotes and with various
+                       characters quoted with backslash
+        batchSize   -- number of pages to download at once (default 500)
+        retries     -- number of times to wait and retry if dbs are lagged, before giving up
+        verbose     -- display progress messages on stderr"""
+
+        super( UserContribsTitles, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
         self.userName = userName
-        self.url = "%s&list=usercontribs&ucuser=%s&uclimit=%d&ucprop=title" % ( self.wikiConn.queryApiUrlBase, self.userName, self.batchSize )
         # format: <item userid="271058" user="YurikBot" ns="0" title="Achmet II" />
         self.entryTagName = "item"
+        self.setupPropsAttrs([ "title" ], self.props, [])
+        self.url = "%s&list=usercontribs&ucuser=%s&uclimit=%d%s" % ( self.wikiConn.queryApiUrlBase, self.userName, self.batchSize, self.propParam )
         # need these for "&ucstart=$rcstartdate&ucend=$rcenddate"
         self.startDateParam = "ucstart"
         self.endDateParam = "ucend"
@@ -711,7 +774,7 @@ class UserContribsTitles(Entries):
 class LogEventsTitles(Entries):
     """Retrieves titles frm log entries for a given log type and action, within a specified date range"""
 
-    def __init__(self, wikiConn, logEventAction, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
+    def __init__(self, wikiConn, logEventAction, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose):
         """Constructor. Arguments:
         wikiConn       -- initialized WikiConnection object for a wiki
         logEventAction -- log type and action, separated by '/'  e.g. 'upload/overwrite'
@@ -732,11 +795,13 @@ class LogEventsTitles(Entries):
         retries        -- number of times to wait and retry if dbs are lagged, before giving up
         verbose        -- display progress messages on stderr"""
 
-        super( LogEventsTitles, self ).__init__(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
+        super( LogEventsTitles, self ).__init__(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, retries, verbose)
         self.logEventAction = logEventAction
-        self.url = "%s&list=logevents&leaction=%s&lelimit=%d&leprop=title" % ( self.wikiConn.queryApiUrlBase, self.logEventAction, self.batchSize )
         # format: <item ns="6" title="File:Glenmmont Fire Station.jpg" />
         self.entryTagName = "item"
+        self.setupPropsAttrs([ "title" ], self.props, [])
+
+        self.url = "%s&list=logevents&leaction=%s&lelimit=%d%s" % ( self.wikiConn.queryApiUrlBase, self.logEventAction, self.batchSize, self.propParam )
         # need these for "&lestart=<startdate>&leend=<enddate>"
         self.startDateParam = "lestart"
         self.endDateParam = "leend"
@@ -754,7 +819,7 @@ class Date(object):
 
         self.timePattern = re.compile("\s+([0-9]+):([0-9])+(:[0-9]+)?$")
         self.datePattern = re.compile("^([0-9]{4})-([0-9][0-9]?)-([0-9][0-9]?)$")
-        self.incrPattern = re.compile("^(now|today)\s*-\s*([0-9]+)([dhms])$")
+        self.incrPattern = re.compile("^(now|today)\s*-\s*([0-9]+)([dhms]?)$")
 
     def getDateFormatString(self):
         """Return format string we use with strftime for converting all
@@ -768,7 +833,7 @@ class Date(object):
         Arguments:
         dateString  -- date string to convert"""
 
-        if dateString == "now" or self.dateString == "today":
+        if dateString == "now" or dateString == "today":
             return time.strftime(self.getDateFormatString(),time.gmtime(time.time()))
         result = self.incrPattern.search(dateString)
         if result:
@@ -894,7 +959,7 @@ script is running, the results will be inconsistent and maybe broken. These chan
 are rare but do happen.
 
 --query (-q):      one of 'category', 'embeddedin', 'log', 'namespace', 'usercontribs', 'users' or 'content'
---param (-p):      namndatory for all queries but 'users'
+--param (-p):      mandatory for all queries but 'users' and 'rc'
                    for titles: name of the category for which to get titles or name of the
                    article for which to get links, or the number of the namespace from which
                    to get all titles, or the user for which to get changes; for the 'users'
@@ -902,6 +967,7 @@ are rare but do happen.
                    for log: the log action for which log entries should be retrieved, e.g. upload/upload
                    or move/move_redir; a full list of such entries can be found at http://www.mediawiki.org/w/api.php
                    under the section list=logevents, parameter leaction
+                   for rc: namespace for which to retrieve titles (if not specified, retrieve all changes)
                    for content: name of the file containing titles for download
                    for the namespace query, standard namespaces (with their unlocalized names) are:
                    0    Main (content)   1    Talk
@@ -913,6 +979,9 @@ are rare but do happen.
                    12   Help             13   Help talk
                    14   Category         15   Category talk
                    828  Module           829  Module talk
+--props (-P):      additional properties to retrieve (e.g. timestamp, user, etc) as known to MW api
+                   separated by commas; may be used with all query types except for 'embeddedin'
+                   and 'namespace'
 --wiki (-w):       name of the wiki from which to get the category titles
                    default: en.wikipedia.org
 --outputdir (-o):  relative or full path to the directory where all files will
@@ -962,14 +1031,17 @@ Example usage:
    python %s -q log -p upload/upload -o wikisourceuploads -S 2012-05-03 -E 2012-05-01
    python %s -q users -w el.wikisource.org -o wikisourceusers --sqlescape -v
    python %s --query content --param page_titles/titles-2013-03-28-064814.gz \\
-             --outputdir junk_content\n")
-""" % ( sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0] )
+             --outputdir junk_content
+   python %s -q rc --param 3 -w en.wikipedia.org -o junk -v --startdate now \\
+             --enddate 2013-09-25 --props user,comment,sizes -s
+""" % ( sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0] )
     sys.stderr.write(usageMessage)
     sys.exit(1)
 
 if __name__ == "__main__":
     param = None
     query = None
+    props = None
     batchSize = 500
     wikiName = "en.wikipedia.org"
     linked = False  # whether to write the page titles with [[ ]] around them
@@ -985,7 +1057,7 @@ if __name__ == "__main__":
     endDate = None
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "q:p:S:E:w:o:O:lsb:r:a:A:vh", ["query=", "param=", "startdate=", "enddate=", "wiki=", "outputdir=", "outputfile=", "linked", "sqlescaped", "batchsize=", "retries=", "auth=", "authfile=", "verbose", "help" ])
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "q:p:P:S:E:w:o:O:lsb:r:a:A:vh", ["query=", "param=", "props=", "startdate=", "enddate=", "wiki=", "outputdir=", "outputfile=", "linked", "sqlescaped", "batchsize=", "retries=", "auth=", "authfile=", "verbose", "help" ])
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
 
@@ -999,6 +1071,8 @@ if __name__ == "__main__":
             authFile = val
         elif opt in ["-p", "--param"]:
             param = val
+        elif opt in ["-P", "--props"]:
+            props = val
         elif opt in ["-S", "--startdate"]:
             startDate = val
         elif opt in ["-E", "--enddate"]:
@@ -1042,9 +1116,12 @@ if __name__ == "__main__":
     if username and not password:
         password = getpass.getpass("Password: ")
         
-    if not ( query == "usercontribs" or query == "log" ) and (startDate or endDate):
+    if not ( query == "usercontribs" or query == "log" or query == "rc") and (startDate or endDate):
         usage("startdate or enddate specified for wrong query type")
         
+    if props and ( query == "embeddedin" or query == "namespace" ):
+        usage("props specified for wrong query type")
+
     wikiConn = WikiConnection(wikiName, username, password, verbose)
     wikiConn.login()
 
@@ -1052,19 +1129,21 @@ if __name__ == "__main__":
         if param:
             param =  urllib.pathname2url(param)
     if query == "category":
-        retriever = CatTitles(wikiConn, param, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+        retriever = CatTitles(wikiConn, param, props, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "embeddedin":
-        retriever = EmbeddedTitles(wikiConn, param, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+        retriever = EmbeddedTitles(wikiConn, param, props, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "namespace":
-        retriever = NamespaceTitles(wikiConn, param, outDirName, outFileName,  linked, sqlEscaped, batchSize, maxRetries, verbose)
+        retriever = NamespaceTitles(wikiConn, param, props, outDirName, outFileName,  linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "usercontribs":
-        retriever = UserContribsTitles(wikiConn, param, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+        retriever = UserContribsTitles(wikiConn, param, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "log":
-        retriever = LogEventsTitles(wikiConn, param, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+        retriever = LogEventsTitles(wikiConn, param, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+    elif query == 'rc':
+        retriever = RCTitles(wikiConn, param, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "content":
-        retriever = Content(wikiConn, param, outDirName, outFileName, batchSize, maxRetries, verbose)
+        retriever = Content(wikiConn, param, props, outDirName, outFileName, batchSize, maxRetries, verbose)
     elif query == 'users':
-        retriever = Users(wikiConn, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
+        retriever = Users(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     else:
         usage("Unknown query type specified")
 
