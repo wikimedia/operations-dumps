@@ -196,7 +196,8 @@ class Config(object):
 			"smtpserver": "localhost",
 			"staleage": "3600",
 			#"database": {
-			"user": "root",
+			# these are now set in getDbUserAndPassword() if needed
+			"user": "",
 			"password": "",
 			#"tools": {
 			"php": "/bin/php",
@@ -251,8 +252,63 @@ class Config(object):
 			print "The mandatory setting 'dir' in the section 'wiki' was not defined."
 			raise ConfigParser.NoOptionError('wiki','dir')
 
+		self.dbUser = None
+		self.dbPassword = None
 		self.parseConfFileGlobally()
 		self.parseConfFilePerProject()
+		self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
+
+	def parsePHPAssignment(self, line):
+		# not so much parse as grab a string to the right of the equals sign,
+		# we expect a line that has  ... = "somestring" ;
+		# with single or double quotes, spaes or not.  but nothing more complicated.
+		equalspattern ="=\s*(\"|')(.+)(\"|')\s*;"
+		result = re.search(equalspattern, line)
+		if result:
+			return result.group(2)
+		else:
+			return ""
+
+	def getDbUserAndPassword(self):
+		# check MW adminsettings file for these if we didn't have values for
+		# them in the conf file; failing that we fall back on defaults specified
+		# here
+
+		if self.dbUser: # already set via conf file, don't override
+			return
+
+		defaultDbUser = "root"
+		defaultDbPassword = ""
+
+		if not self.conf.has_option("wiki", "adminsettings"):
+			self.dbUser = defaultDbUser
+			self.dbPassword = defaultDbPassword
+			return
+
+		fd = open(os.path.join(self.wikiDir,self.conf.get("wiki","adminsettings")), "r")
+		lines = fd.readlines()
+		fd.close()
+
+		# we are digging through a php file and expecting to find
+		# lines more or less like the below.. anything more complicated we're not going to handle.
+		# $wgDBadminuser = 'something';
+		# $wgDBuser = $wgDBadminuser = "something" ;
+
+		for l in lines:
+			if "$wgDBadminuser" in l:
+				self.dbUser = self.parsePHPAssignment(l)
+			elif "$wgDBuser" in l:
+				defaultDbUser = self.parsePHPAssignment(l)
+			elif "$wgDBadminpassword" in l:
+				self.dbPassword = self.parsePHPAssignment(l)
+			elif "$wgDBpassword" in l:
+				defaultDbPassword = self.parsePHPAssignment(l)
+
+		if not self.dbUser:
+			self.dbUser = defaultDbUser
+		if not self.dbPassword:
+			self.dbPassword = defaultDbPassword
+		return
 
 	def parseConfFileGlobally(self):
 		self.dbList = MiscUtils.dbList(self.conf.get("wiki", "dblist"))
@@ -321,8 +377,13 @@ class Config(object):
 
 		if not self.conf.has_section('database'):
 			self.conf.add_section('database')
-		self.dbUser = self.getOptionForProjectOrDefault(conf, "database", "user",0)
-		self.dbPassword = self.getOptionForProjectOrDefault(conf, "database", "password",0)
+
+		dbUser = self.getOptionForProjectOrDefault(conf, "database", "user",0)
+		if dbUser:
+			self.dbUser = dbUser
+		dbPassword = self.getOptionForProjectOrDefault(conf, "database", "password",0)
+		if dbPassword:
+			self.dbPassword = dbPassword
 
 		if not self.conf.has_section('chunks'):
 			self.conf.add_section('chunks')
