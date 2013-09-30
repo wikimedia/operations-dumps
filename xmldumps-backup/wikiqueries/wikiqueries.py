@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import ConfigParser
+import WikiDump
 import subprocess
 import socket
 import time
@@ -37,7 +38,7 @@ class OutputFile(ContentFile):
     def getFileName(self):
         return fileNameFormat.format(w=self.wikiName, d=self.date)
 
-class Config(object):
+class Config(WikiDump.Config):
     def __init__(self, configFile=False):
         self.projectName = False
 
@@ -58,8 +59,7 @@ class Config(object):
             "temp":"/wikiqueries/temp",
             "fileperms": "0640",
             #"database": {
-            "user": "root",
-            "password": "",
+            # these are now set in getDbUserAndPassword() if needed
             #"tools": {
             "php": "/bin/php",
             "gzip": "/usr/bin/gzip",
@@ -82,6 +82,7 @@ class Config(object):
             raise ConfigParser.NoOptionError('wiki','mediawiki')
 
         self.parseConfFile()
+        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
 
     def parseConfFile(self):
         self.mediawiki = self.conf.get("wiki", "mediawiki")
@@ -96,10 +97,17 @@ class Config(object):
         self.fileperms = self.conf.get("output", "fileperms")
         self.fileperms = int(self.fileperms,0)
 
+        self.wikiDir = self.mediawiki # the parent class methods want this
+        self.dbUser = None
+        self.dbPassword = None
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
-        self.dbUser = self.conf.get("database", "user")
-        self.dbPassword = self.conf.get("database", "password")
+        if self.conf.has_option('database', 'user'):
+            self.dbUser = self.conf.get("database", "user")
+        if self.conf.has_option('database', 'password'):
+            self.dbPassword = self.conf.get("database", "password")
+        sys.stderr.write("here we have %s and %s\n" % (self.dbUser, self.dbPassword))
+        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
 
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')
