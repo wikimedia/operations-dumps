@@ -151,7 +151,7 @@ class MaxRevIDLock(Lock):
         self.wikiName = wikiName
         self.lockFile = MaxRevIDLockFile(self._config, self.date, self.wikiName)
 
-class Config(object):
+class Config(WikiDump.Config):
     def __init__(self, configFile=False):
         self.projectName = False
 
@@ -176,8 +176,7 @@ class Config(object):
             "delay": "43200",
             "maxrevidstaleinterval": "3600",
             #"database": {
-            "user": "root",
-            "password": "",
+            # moved defaults to getDbUserAndPassword
             #"tools": {
             "mediawiki" : "",
             "php": "/bin/php",
@@ -203,6 +202,7 @@ class Config(object):
             raise ConfigParser.NoOptionError('wiki','mediawiki')
 
         self.parseConfFile()
+        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
 
     def parseConfFile(self):
         self.mediawiki = self.conf.get("wiki", "mediawiki")
@@ -237,10 +237,16 @@ class Config(object):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
 
+        self.wikiDir = self.mediawiki # the parent class methods want this
+        self.dbUser = None
+        self.dbPassword = None
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
-        self.dbUser = self.conf.get("database", "user")
-        self.dbPassword = self.conf.get("database", "password")
+        if self.conf.has_option('database', 'user'):
+            self.dbUser = self.conf.get("database", "user")
+        if self.conf.has_option('database', 'password'):
+            self.dbPassword = self.conf.get("database", "password")
+        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
 
     def readTemplate(self, name):
         template = os.path.join(self.templateDir, name)
