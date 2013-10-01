@@ -41,6 +41,9 @@ recompressxml=/usr/local/bin/recompressxml
 keep=10
 
 [chunks]
-chunksEnabled=True
+chunksEnabled=1
 pagesPerChunkHistory=10000,50000,50000,50000,50000
 pagesPerChunkAbstract=100000,100000
+
+[pageslogging]
+batchsize=1000
