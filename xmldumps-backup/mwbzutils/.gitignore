@@ -1,6 +1,8 @@
 *.o
+*.gz
 checkforbz2footer
 dumpbz2filefromoffset
 dumplastbz2block
 findpageidinbz2xml
 recompressxml
+writeuptopageid
