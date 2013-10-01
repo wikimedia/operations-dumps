@@ -324,7 +324,7 @@ class PageAndEditStats(object):
 	def getStatistics(self, dbName, ignore):
 		"""Get statistics for the wiki"""
 
-		query = "select MAX(page_id) from page;"
+		query = "select MAX(page_id) from %spage;" % self.dbServerInfo.dBTablePrefix
 		results = None
 		retries = 0
 		maxretries = 5
@@ -339,7 +339,7 @@ class PageAndEditStats(object):
 		lines = results.splitlines()
 		if (lines and lines[1]):
 			self.totalPages = int(lines[1])
-		query = "select MAX(rev_id) from revision;"
+		query = "select MAX(rev_id) from %srevision;" % self.dbServerInfo.dBTablePrefix
 		retries = 0
 		results = None
 		results = self.dbServerInfo.runSqlAndGetOutput(query)
@@ -2951,7 +2951,7 @@ class XmlLogging(Dump):
 
 	def getMaxLogID(self, runner):
 		dbServerInfo = DbServerInfo(runner.wiki, runner.dbName)
-		query = "select MAX(log_id) from logging;"
+		query = "select MAX(log_id) from %slogging;" % dbServerInfo.dBTablePrefix
 		results = None
 		retries = 0
 		maxretries = 5
