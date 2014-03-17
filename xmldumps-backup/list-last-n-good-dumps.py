@@ -18,7 +18,7 @@ class WikiConfig(object):
     def __init__(self, ConfigFile):
         home = os.path.dirname(sys.argv[0])
         self.files = [
-            os.path.join(home,configFile),
+            os.path.join(home, configFile),
             "/etc/wikidump.conf",
             os.path.join(os.getenv("HOME"), ".wikidump.conf")]
         defaults = {
@@ -26,7 +26,7 @@ class WikiConfig(object):
             "dblist": "/dumps/all.dblist",
             #"output": {
             "public": "/dumps/public",
-            "temp":"/dumps/temp",
+            "temp": "/dumps/temp",
         }
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -38,6 +38,7 @@ class WikiConfig(object):
         self.tempDir = self.conf.get("output", "temp")
         self.dbList = sorted(filter(None, [db.strip() for db in open(
             self.conf.get("wiki", "dblist")).readlines()]))
+
 
 class DumpList(object):
     """This class generates a list of the last n sets of XML
