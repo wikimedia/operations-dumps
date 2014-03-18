@@ -106,7 +106,6 @@ class Config(WikiDump.Config):
             self.dbUser = self.conf.get("database", "user")
         if self.conf.has_option('database', 'password'):
             self.dbPassword = self.conf.get("database", "password")
-        sys.stderr.write("here we have %s and %s\n" % (self.dbUser, self.dbPassword))
         self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
 
         if not self.conf.has_section('tools'):
