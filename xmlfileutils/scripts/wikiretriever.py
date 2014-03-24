@@ -1141,7 +1141,7 @@ if __name__ == "__main__":
     elif query == 'rc':
         retriever = RCTitles(wikiConn, param, props, startDate, endDate, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     elif query == "content":
-        retriever = Content(wikiConn, param, props, outDirName, outFileName, batchSize, maxRetries, verbose)
+        retriever = Content(wikiConn, param, outDirName, outFileName, batchSize, maxRetries, verbose)
     elif query == 'users':
         retriever = Users(wikiConn, props, outDirName, outFileName, linked, sqlEscaped, batchSize, maxRetries, verbose)
     else:
