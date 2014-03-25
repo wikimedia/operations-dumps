@@ -93,7 +93,7 @@ def usage(message=None):
     if message:
         sys.stderr.write(message + "\n")
 
-    usage_message = """Usage: python wmfgetremoteimages.py --outputdir dirname
+    usage_message = """Usage: python listmediaperproject.py --outputdir dirname
                   [--remoterepo reponame] [--localonly] [--remoteonly]
                   [--verbose] [--wqconfig filename] [wqpath filename] [wiki]
 
