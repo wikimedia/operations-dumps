@@ -1,24 +1,17 @@
 import os
 import sys
-import re
-import gzip
 import getopt
 import time
-import ConfigParser
-import subprocess
-import codecs
 from subprocess import Popen, PIPE
 from wikiqueries import Config
 
 
 class MediaPerProject(object):
-    def __init__(self, conf, outputDir, remoteRepoName, reuseRepoDate,
-                 verbose, wqConfigFile, wqPath, overwrite):
+    def __init__(self, conf, outputDir, remoteRepoName,
+                 verbose, wqConfigFile, wqPath, overwrite, wiki=None):
         self.conf = conf
         self.outputDir = outputDir
-        self.reuseRepoDate = reuseRepoDate
         self.remoteRepoName = remoteRepoName
-        self.remoteRepoMediaDict = None
         self.verbose = verbose
         self.date = time.strftime("%Y%m%d", time.gmtime())
         self.fileNameFormat = "{w}-{d}-wikiqueries.gz"
@@ -27,35 +20,27 @@ class MediaPerProject(object):
         self.overwrite = overwrite
         if not os.path.exists(outputDir):
             os.makedirs(outputDir)
-        self.wikisToDo = [w for w in self.conf.allWikisList
-                          if w not in self.conf.privateWikisList and
-                          w not in self.conf.closedWikisList]
+        if wiki is not None:
+            self.wikisToDo = [wiki]
+        else:
+            self.wikisToDo = [w for w in self.conf.allWikisList
+                              if w not in self.conf.privateWikisList and
+                              w not in self.conf.closedWikisList]
 
     def getFileNameFormat(self, phase):
         return "{w}-{d}-" + phase + "-wikiqueries.gz"
 
-    def generateSqlFiles(self):
+    def writeLocalMedia(self):
         if self.verbose:
-            print "Starting round one wikiqueries for imagelinks table"
-        self.doWikiQueries('select distinct il_to from imagelinks',
-                           self.getFileNameFormat("links"))
+            print "Starting round one wikiqueries for image table"
+        if len(self.wikisToDo) == 1:
+            wiki = self.wikisToDo[0]
+        else:
+            wiki = None
+        self.doWikiQueries('select img_name, img_timestamp from image',
+                           self.getFileNameFormat("local"), wiki)
         if self.verbose:
             print "Done round one!!"
-            print "Starting round two wikiqueries for image table"
-        self.doWikiQueries('select img_name, img_timestamp from image',
-                           self.getFileNameFormat("local"))
-        if self.verbose:
-            print "Done round two!!"
-        if self.verbose:
-            print "Starting round three wikiquries for remote redirs"
-        self.doWikiQueries("select p.page_title, r.rd_title from"
-                           " redirect as r, page as p where"
-                           " rd_namespace = 6 and p.page_id = r.rd_from"
-                           " and page_namespace = 6",
-                           self.getFileNameFormat("redirs"),
-                           self.remoteRepoName)
-        if self.verbose:
-            print "Done round three!!"
 
     def doWikiQueries(self, query, fileNameFormat, wiki=None):
         if not os.path.exists(wqConfigFile):
@@ -76,169 +61,32 @@ class MediaPerProject(object):
             print "About to run wikiqueries:", commandString
         try:
             proc = Popen(command, stderr=PIPE)
-            output, error = proc.communicate()  # no output, ignore it
+            output_unused, error = proc.communicate()
             if proc.returncode:
                 print ("command '%s failed with return code %s and error %s"
-                       % (command, proc.returncode,  error))
+                       % (command, proc.returncode, error))
                 sys.exit(1)
         except:
             print "command %s failed" % command
             raise
 
-    def writeRemoteHostedMediaList(self, db, remoteRepoMediaDict):
-        if db == self.remoteRepoName:
-            if self.verbose:
-                print "Skipping", db, "because it's the remote repo"
-            return
+    def writeRemoteMedia(self):
         if self.verbose:
-            print "Doing db", db
+            print "Starting round two wikiqueries for global image links table"
 
-        # get all media used on a project and remotely stored (or
-        # they just don't exist; links to nonexistent media still
-        # go into the links table so we'll get those too)
-
-        if not os.path.exists(self.getPath(self.getMediaLinksFileName(db))):
-            if self.verbose:
-                print "Skipping", db,
-                print "since sql files for it were not generated"
-            return
-
-        # links may have initial lowercase; media titles are
-        # all initial uppercase.
-
-        # can't use codecs.getreader()gzip.open()) because it will
-        # find '\n' in multibyte chars
-        mediaLinksFd = gzip.open(self.getPath(
-            self.getMediaLinksFileName(db)), "rb")
-        mediaLinks = filter(None, [self.safeDecode(line)
-                                   for line in mediaLinksFd])
-        mediaLinks = [line[0].upper() + line.strip()[1:]
-                      for line in mediaLinks]
-        mediaLinksFd.close()
-
-        localMediaFd = gzip.open(self.getPath(
-            self.getLocalMediaFileName(db)), "rb")
-        localMediaDict = self.getMediaDict(localMediaFd)
-        localMediaFd.close()
-
-        remoteHostedMedia = [m for m in mediaLinks if m not in localMediaDict]
-
-        # replace all the remoteHosted entries that we find in the remote redir
-        # list with the titles of the redirect targets.
-        remoteMediaRedirsFd = gzip.open(self.getPath(
-            self.getremoteMediaRedirsFileName(self.date)), "rb")
-        remoteMediaRedirsDict = self.getMediaRedirsDict(remoteMediaRedirsFd)
-        remoteMediaRedirsFd.close()
-
-        remoteHostedMediaNoRedirs = set([remoteMediaRedirsDict[f]
-                                         if f in remoteMediaRedirsDict
-                                         else f for f in remoteHostedMedia])
-        remoteHostedMediaExists = [m for m in remoteHostedMediaNoRedirs
-                                   if m in remoteRepoMediaDict]
-
-        outFd = codecs.getwriter("utf-8")(gzip.open(
-            self.getPath(self.getRemoteMediaFileName(db)), "wb"))
-        for f in remoteHostedMediaExists:
-            outFd.write("%s\t%s\n" % (f, self.remoteRepoMediaDict[f]))
-        outFd.close()
-        if self.verbose:
-            print "Done!"
-
-    def safeDecode(self, line):
-        try:
-            line = line.strip().decode("utf-8")
-        except UnicodeDecodeError:
-            print "unicode decode failed, line is", line
-            line = None
-        return line
-
-    def getMediaRedirsDict(self, RedirsFd):
-        redirsDict = {}
-        for line in RedirsFd:
-            line = self.safeDecode(line)
-            fromTitle, toTitle = self.getSqlFields(line, 2)
-            if fromTitle and toTitle:
-                redirsDict[fromTitle] = toTitle
-        return redirsDict
-
-    # sure this is functionally identical to getmediaredirsdict
-    # but we may want more fields in here later so it's split out
-    def getMediaDict(self, mediaFd):
-        mediaDict = {}
-        for line in mediaFd:
-            line = self.safeDecode(line)
-            title, timestamp = self.getSqlFields(line, 2)
-            if title and timestamp:
-                mediaDict[title] = timestamp
-        return mediaDict
-
-    def getSqlFields(self, line, numFields):
-        if not line or not '\t' in line:
-            return None, None
-        return line.split('\t', 1)
-
-    def initializeRemoteRepoMediaDict(self):
-        if self.verbose:
-            print "setting up list of media from remote repo"
-        if not self.remoteRepoMediaDict:
-            if reuseRepoDate:
+        for w in self.wikisToDo:
+            if w == self.remoteRepoName:
                 if self.verbose:
-                    print "attempting to reuse previously",
-                    print "generated remote repo media list"
-                try:
-                    self.readRemoteRepoMediaDict(self.reuseRepoDate)
-                except:
-                    pass
-        if not self.remoteRepoMediaDict:
-            if self.verbose:
-                print "reading current list of remote repo media"
-            try:
-                self.readRemoteRepoMediaDict()
-            except:
-                print "failed to read remote repo media list"
-                sys.exit(1)
-
-    def readRemoteRepoMediaDict(self, date=None):
-        remoteRepoMediaDictFd = gzip.open(self.getPath(
-            self.getRemoteRepoFileName(date)), "rb")
-        self.remoteRepoMediaDict = self.getMediaDict(remoteRepoMediaDictFd)
-        remoteRepoMediaDictFd.close()
-
-    def getPath(self, fileName):
-        return(os.path.join(self.outputDir, fileName))
-
-    def getFileName(self, phase, wiki, date):
-        if not date:
-            date = self.date
-        return (self.getFileNameFormat(phase).format(w=wiki, d=date))
-
-    def getremoteMediaRedirsFileName(self, date=None):
-        return self.getFileName("redirs", self.remoteRepoName, date)
-
-    def getRemoteRepoFileName(self, date=None):
-        return self.getFileName("local", self.remoteRepoName, date)
-
-    def getMediaLinksFileName(self, wiki, date=None):
-        return self.getFileName("links", wiki, date)
-
-    def getLocalMediaFileName(self, wiki, date=None):
-        return self.getFileName("local", wiki, date)
-
-    def getRemoteMediaFileName(self, wiki, date=None):
-        return self.getFileName("remote", wiki, date)
-
-    def doAllProjects(self):
-        self.initializeRemoteRepoMediaDict()
-        if wiki:
-            dbList = [wiki]
-        else:
-            dbList = self.wikisToDo
+                    print "Skipping", w, "because it's the remote repo"
+            else:
+                if self.verbose:
+                    print "Doing db", w
+                self.doWikiQueries('select gil_to from globalimagelinks'
+                                   ' where gil_wiki= "%s"' % w,
+                                   self.getFileNameFormat("remote").format(
+                                       w=w, d='{d}'), self.remoteRepoName)
         if self.verbose:
-            print "Starting generation of remote media lists for all wikis"
-        for db in dbList:
-            self.writeRemoteHostedMediaList(db, self.remoteRepoMediaDict)
-        if self.verbose:
-            print "Done with generation of remote media lists for all wikis"
+            print "Done round two!!"
 
 
 def usage(message=None):
@@ -246,7 +94,7 @@ def usage(message=None):
         sys.stderr.write(message + "\n")
 
     usage_message = """Usage: python wmfgetremoteimages.py --outputdir dirname
-                  [--remoterepo reponame] [--reuseremoterepolist]
+                  [--remoterepo reponame] [--localonly] [--remoteonly]
                   [--verbose] [--wqconfig filename] [wqpath filename] [wiki]
 
 This script produces a list of media files in use on the local wiki stored on a
@@ -254,16 +102,16 @@ remote repo (e.g. commons).
 
 --outputdir:      where to put the list of remotely hosted media per project
 --remotereponame: name of the remote repo that houses media for projects
-                  default: 'commons'
---nooverwrite:    if run for the same date and wiki(s), dobn't overwrite
+                  default: 'commonswiki'
+--nooverwrite:    if run for the same wiki(s) on the same date, don't overwrite
                   existing files
 --verbose:        print lots of status messages
 --wqconfig:       relative or absolute path of wikiquery config file
                   default: wikiqueries.conf
 --wqpath:         relative or absolute path of the wikiqieries python script
                   default: wikiqueries.py
---sqlonly:        only do the sql queries (first half of run)
---listsonly:      only generate the lists from the sql files (second half
+--localonly:      only generate the lists of local media (first half of run)
+--remoteonly:     only generate the lists of remotely hosted media (second half
                   of run)
 """
     sys.stderr.write(usage_message)
@@ -272,12 +120,11 @@ remote repo (e.g. commons).
 
 if __name__ == "__main__":
     outputDir = None
-    remoteRepoName = "commons"
-    reuseRepoDate = None
+    remoteRepoName = "commonswiki"
     verbose = False
     wiki = None
-    sqlOnly = False
-    listsOnly = False
+    remoteOnly = False
+    localOnly = False
     # by default we will overwrite existing files for
     # the same date and wiki(s)
     overwrite = True
@@ -287,7 +134,7 @@ if __name__ == "__main__":
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [
             "outputdir=", "remotereponame=", "wqconfig=", "wqpath=",
-            "reuseremoterepolist=", "sqlonly", "listsonly",
+            "remoteonly", "localonly",
             "nooverwrite", "verbose"])
     except:
         usage("Unknown option specified")
@@ -297,12 +144,10 @@ if __name__ == "__main__":
             outputDir = val
         elif opt == "--remotereponame":
             remoteRepoName = val
-        elif opt == "--reuseremoterepolist":
-            reuseRepoDate = val
-        elif opt == "--sqlonly":
-            sqlOnly = True
-        elif opt == "--listsonly":
-            listsOnly = True
+        elif opt == "--remoteonly":
+            remoteOnly = True
+        elif opt == "--localonly":
+            localOnly = True
         elif opt == "--nooverwrite":
             overwrite = False
         elif opt == "--verbose":
@@ -312,34 +157,36 @@ if __name__ == "__main__":
             if not os.sep in val:
                 wqConfigFile = os.path.join(os.getcwd(), wqConfigFile)
             # bummer but we can't really avoid ita
-            config = Config(wqConfigFile)
         elif opt == "--wqpath":
             wqPath = val
             if not os.sep in val:
                 wqPath = os.path.join(os.getcwd(), wqPath)
 
-    if len(remainder) > 0:
-        if not remainder.isalpha():
-            usage("Unknown option specified")
+    if len(remainder) == 1:
+        if not remainder[0].isalpha():
+            usage("Unknown argument(s) specified")
         else:
-            wiki = remainder
+            wiki = remainder[0]
+    elif len(remainder) > 1:
+        usage("Unknown argument(s) specified")
 
     if not outputDir:
         usage("One or more mandatory options missing")
-    if listsOnly and sqlOnly:
-        usage("Only one of 'listsonly' and 'sqlonly'"
+    if localOnly and remoteOnly:
+        usage("Only one of 'localonly' and 'remoteonly'"
               " may be specified at once.")
 
-    mpp = MediaPerProject(config, outputDir, remoteRepoName, reuseRepoDate,
-                          verbose, wqConfigFile, wqPath, overwrite)
-    if not listsOnly:
+    config = Config(wqConfigFile)
+
+    mpp = MediaPerProject(config, outputDir, remoteRepoName,
+                          verbose, wqConfigFile, wqPath, overwrite, wiki)
+    if not remoteOnly:
         if verbose:
-            print "generating sql output from all projects"
-        mpp.generateSqlFiles()
-    # we'll need the list of existing remote repo media to compare against
-    if not sqlOnly:
+            print "generating lists of local media on each project"
+        mpp.writeLocalMedia()
+    if not localOnly:
         if verbose:
-            print "generating remote hosted media list for all projects"
-        mpp.doAllProjects()
+            print "generating remote hosted media lists for all projects"
+        mpp.writeRemoteMedia()
     if verbose:
         print "all projects completed."
