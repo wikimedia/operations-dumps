@@ -53,7 +53,7 @@ def generateIndex(otherIndexhtml = None, sortedByDb=False):
             otherIndexLink = ('Also view sorted by <a href="%s">%s</a>'
                               % (os.path.basename(otherIndexhtml), otherSortedBy))
 
-	return config.readTemplate("progress.html") % {
+	return config.readTemplate("download-index.html") % {
                 "otherIndexLink": otherIndexLink,
 		"status": status,
 		"items": "\n".join(states)}
