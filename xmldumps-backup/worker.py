@@ -669,9 +669,9 @@ class DumpItemList(object):
 					      
 		if self._hasWikidata:
 			self.dumpItems.append(
-				PublicTable( "wb_items_per_site", "wbitemspersitetable","For each Wikidata item, this contains rows with the corresnponding page name on a given wiki project." ))
+				PublicTable( "wb_items_per_site", "wbitemspersitetable","For each Wikidata item, this contains rows with the corresponding page name on a given wiki project." ))
 			self.dumpItems.append(
-				PublicTable( "wb_terms", "wbtermstable","For each Wikidata item, this contains rows with a label, an alias and  a description of the item in a given language." ))
+				PublicTable( "wb_terms", "wbtermstable","For each Wikidata item, this contains rows with a label, an alias and a description of the item in a given language." ))
 			self.dumpItems.append(
 				PublicTable( "wb_entity_per_page", "wbentityperpagetable","Contains a mapping of page ids and entity ids, with an additional entity type column." ))
 			self.dumpItems.append(
