@@ -675,6 +675,8 @@ class DumpItemList(object):
 			self.dumpItems.append(
 				PublicTable( "wb_entity_per_page", "wbentityperpagetable","Contains a mapping of page ids and entity ids, with an additional entity type column." ))
 			self.dumpItems.append(
+				PublicTable( "wb_property_info", "wbpropertyinfo", "Contains a mapping of Wikidata property ids and data types." ))
+			self.dumpItems.append(
 				PublicTable( "sites", "sitestable","This contains the SiteMatrix information from meta.wikimedia.org provided as a table." ))
 
 		self.dumpItems.append(
