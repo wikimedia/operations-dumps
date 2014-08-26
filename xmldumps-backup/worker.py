@@ -628,6 +628,7 @@ class DumpItemList(object):
 			#PrivateTable("text", "texttable", "Text blob storage. May be compressed, etc."), // ?
 			PublicTable("redirect", "redirecttable", "Redirect list"),
 			PublicTable("iwlinks", "iwlinkstable", "Interwiki link tracking records"),
+			PublicTable("geo_tags", "geotagstable", "List of pages' geographical coordinates"),
 
 			TitleDump("pagetitlesdump", "List of page titles in main namespace"),
 			AllTitleDump("allpagetitlesdump", "List of all page titles"),
