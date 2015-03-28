@@ -53,6 +53,7 @@ class DumpItemList(object):
         self.wiki = wiki
         self._has_flagged_revs = self.wiki.hasFlaggedRevs()
         self._has_wikidata = self.wiki.hasWikidata()
+        self._has_global_usage = self.wiki.has_global_usage()
         self._is_wikidata_client = self.wiki.isWikidataClient()
         self._prefetch = prefetch
         self._spawn = spawn
@@ -181,6 +182,10 @@ class DumpItemList(object):
                 PublicTable("wb_changes_subscription", "wbchangessubscriptiontable", "Tracks which Wikibase Client wikis are using which items."))
             self.dump_items.append(
                 PublicTable("sites", "sitestable", "This contains the SiteMatrix information from meta.wikimedia.org provided as a table."))
+
+        if self._has_global_usage:
+            self.dump_items.append(
+                PublicTable("globalimagelinks", "globalimagelinkstable", "Global wiki media/files usage records."))
 
         if self._is_wikidata_client:
             self.dump_items.append(
@@ -333,7 +338,6 @@ class DumpItemList(object):
     def _report_dump_runinfo_line(self, item):
         # even if the item has never been run we will at least have "waiting" in the status
         return "name:%s; status:%s; updated:%s" % (item.name(), item.status(), item.updated())
-
 
 class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None, restart=False, notice="", dryrun=False, loggingEnabled=False, chunk_to_do=False, checkpoint_file=None, page_id_range=None, skipdone=False, verbose=False):
