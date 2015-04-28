@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "0ed113e2_9f1d1f7b",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 43,
+      "author": {
+        "id": 164
+      },
+      "writtenOn": "2015-04-28T00:54:33Z",
+      "side": 1,
+      "message": "Should we just use an ISO timestamp? Example: 2015-04-28T00:41:47.748Z\n\nThat\u0027s pretty easy to parse (especially if always using UTC), more precise and does not run into issues if we dump multiple times per day.",
+      "revId": "53d32611fd39f3568f5805868d7b0f2fc90f369e",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "0ed113e2_5f17b756",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 80,
+      "author": {
+        "id": 164
+      },
+      "writtenOn": "2015-04-28T00:54:33Z",
+      "side": 1,
+      "message": "Isn\u0027t \u0027full\u0027 just a run without an existing DB?",
+      "revId": "53d32611fd39f3568f5805868d7b0f2fc90f369e",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
