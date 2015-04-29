@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "0ed113e2_5f6ec6c5",
+        "filename": "xmldumps-backup/README.config",
+        "patchSetId": 1
+      },
+      "lineNbr": 67,
+      "author": {
+        "id": 287
+      },
+      "writtenOn": "2015-04-29T17:47:22Z",
+      "side": 1,
+      "message": "extraneous tab?",
+      "revId": "d5f6fee4504064edfc9a63a5a9dcee99376e7f9a",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
