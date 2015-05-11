@@ -558,6 +558,7 @@ class DumpItemList(object):
 		self.wiki = wiki
 		self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
 		self._hasWikidata = self.wiki.hasWikidata()
+		self._isWikidataClient = self.wiki.isWikidataClient()
 		self._prefetch = prefetch
 		self._spawn = spawn
 		self.chunkInfo = chunkInfo
@@ -680,6 +681,10 @@ class DumpItemList(object):
 				PublicTable( "wb_changes_subscription", "wbchangessubscriptiontable","Tracks which Wikibase Client wikis are using which items." ))
 			self.dumpItems.append(
 				PublicTable( "sites", "sitestable","This contains the SiteMatrix information from meta.wikimedia.org provided as a table." ))
+
+		if self._isWikidataClient:
+			self.dumpItems.append(
+				PublicTable( "wbc_entity_usage", "wbcentityusagetable","Tracks which pages use which Wikidata items or properties and what aspect (e.g. item label) is used." ))
 
 		self.dumpItems.append(
 			BigXmlDump("meta-history",
