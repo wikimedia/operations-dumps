@@ -176,6 +176,7 @@ class Config(object):
 			"privatelist": "",
 			"flaggedrevslist": "",
 			"wikidatalist": "",
+			"wikidataclientlist": "",
 #			"dir": "",
 			"forcenormal": "0",
 			"halt": "0",
@@ -313,6 +314,7 @@ class Config(object):
 		self.privateList = MiscUtils.dbList(self.conf.get("wiki", "privatelist"))
 		self.flaggedRevsList = MiscUtils.dbList(self.conf.get("wiki", "flaggedrevslist"))
 		self.wikidataList = MiscUtils.dbList(self.conf.get("wiki", "wikidatalist"))
+		self.wikidataClientList = MiscUtils.dbList(self.conf.get("wiki", "wikidataclientlist"))
 		self.forceNormal = self.conf.getint("wiki", "forcenormal")
 		self.halt = self.conf.getint("wiki", "halt")
 
@@ -491,6 +493,9 @@ class Wiki(object):
 	def hasWikidata(self):
 		return self.dbName in self.config.wikidataList
 	
+	def isWikidataClient(self):
+		return self.dbName in self.config.wikidataClientList
+
 	def isLocked(self):
 		return os.path.exists(self.lockFile())
 	
