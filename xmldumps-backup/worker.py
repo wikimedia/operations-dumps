@@ -2954,25 +2954,6 @@ class XmlLogging(Dump):
 	def getFileExt(self):
 		return "gz"
 
-	def getMaxLogID(self, runner):
-		dbServerInfo = DbServerInfo(runner.wiki, runner.dbName)
-		query = "select MAX(log_id) from %slogging;" % dbServerInfo.dBTablePrefix
-		results = None
-		retries = 0
-		maxretries = 5
-		results = dbServerInfo.runSqlAndGetOutput(query)
-		while (results == None and retries < maxretries):
-			retries = retries + 1
-			time.sleep(5)
-			results = dbServerInfo.runSqlAndGetOutput(query)
-		if (not results):
-			return None
-		lines = results.splitlines()
-		if (lines and lines[1]):
-			return int(lines[1])
-		else:
-			return None
-
 	def getTempFilename(self, name, number):
 		return name + "-" + str(number)
 
@@ -2986,68 +2967,16 @@ class XmlLogging(Dump):
 			raise BackupError("php command %s not found" % runner.wiki.config.php)
 		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
 
-		# do logging table in batches to avoid taking days to dump (wikidata for example)
-		maxLogId = self.getMaxLogID(runner)
-		if not maxLogId:
-			raise BackupError("error retrieving max id from logging table")
+                logging = runner.dumpDir.filenamePublicPath(outputFileObj)
 
-		batchsize = runner.wiki.config.loggingBatchsize
-		if batchsize:
-			startId = 0
-			tempFiles = []
-			tempFileObjs = []
-			while startId < maxLogId:
-				endId = startId + batchsize
-				fileObjThisBatch = DumpFilename(runner.wiki, outputFileObj.date, self.getTempFilename(outputFileObj.dumpName,startId), outputFileObj.fileType, outputFileObj.fileExt)
-				tempFileObjs.append(fileObjThisBatch)
-				logging = runner.dumpDir.filenamePublicPath(fileObjThisBatch)
-				tempFiles.append(logging)
-				command = [ "%s" % runner.wiki.config.php, "-q" ]
-				command.extend(scriptCommand)
-				command.extend(["--wiki=%s" % runner.dbName,
-						"--logs", "--report=10000",
-						"%s" % runner.forceNormalOption(),
-						"--start=%s" % startId,
-						"--end=%s" % endId,
-						"--output=gzip:%s" % logging ])
-				pipeline = [ command ]
-				series = [ pipeline ]
-				error = runner.runCommand([ series ], callbackStderr=self.progressCallback,
-						  callbackStderrArg=runner)
-				if (error):
-					raise BackupError("error dumping log files")
-				startId = endId
-			# recombine these now
-			if (not exists( runner.wiki.config.gzip ) ):
-				raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-			compressionCommand = runner.wiki.config.gzip
-			compressionCommand = "%s > " % runner.wiki.config.gzip
-			uncompressionCommand = [ "%s" % runner.wiki.config.gzip, "-dc" ]
-			recombineCommandString = self.buildRecombineCommandString(runner, tempFileObjs, outputFileObj, compressionCommand, uncompressionCommand )
-			recombineCommand = [ recombineCommandString ]
-			recombinePipeline = [ recombineCommand ]
-			series = [ recombinePipeline ]
-			result = runner.runCommand([ series ], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
-			if result:
-				error = result
-			if (error):
-				raise BackupError("error recombining pages-logging files")
-			# clean up those intermediate files now
-			for f in tempFiles:
-				os.remove(f)
-		else:
-			logging = runner.dumpDir.filenamePublicPath(outputFileObj)
-			command = [ "%s" % runner.wiki.config.php, "-q" ]
-			command.extend(scriptCommand)
-			command.extend(["--wiki=%s" % runner.dbName,
-					"--logs", "--report=10000",
-					"%s" % runner.forceNormalOption(),
-					"--output=gzip:%s" % logging ])
-			pipeline = [ command ]
-			series = [ pipeline ]
-			error = runner.runCommand([ series ], callbackStderr=self.progressCallback, callbackStderrArg=runner)
-			if (error):
-				raise BackupError("error dmping log files")
+                command = [ "/usr/bin/python", "xmllogs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.dbName,
+                            runner.forceNormalOption(), "--outfile", logging ]
+
+                pipeline = [ command ]
+                series = [ pipeline ]
+                error = runner.runCommand([ series ], callbackStderr=self.progressCallback, callbackStderrArg=runner)
+                if (error):
+                        raise BackupError("error dumping log files")
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
