@@ -4121,6 +4121,8 @@ def usage(message = None):
 	sys.stderr.write( "               another process running, useful if you want to start a second later\n" )
 	sys.stderr.write( "               run while the first dump from a previous date is still going)\n" )
 	sys.stderr.write( "               This option cannot be specified with --job.\n" )
+        sys.stderr.write( "--exclusive    Even if rerunning just one job of a wiki, get a lock to make sure no other\n")
+        sys.stderr.write( "               runners try to work on that wiki. Default: for single jobs, don't lock\n")
 	sys.stderr.write( "--noprefetch:  Do not use a previous file's contents for speeding up the dumps\n" )
 	sys.stderr.write( "               (helpful if the previous files may have corrupt contents)\n" )
 	sys.stderr.write( "--nospawn:     Do not spawn a separate process in order to retrieve revision texts\n" )
@@ -4154,11 +4156,12 @@ if __name__ == "__main__":
 		pageIDRange = None
 		cutoff = None
 		result = False
+                doLocking = False
 		verbose = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', 'verbose' ])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "exclusive", 'verbose' ])
 		except:
 			usage("Unknown option specified")
 
@@ -4198,6 +4201,8 @@ if __name__ == "__main__":
 				cutoff = val
 				if not cutoff.isdigit() or not len(cutoff) == 8:
 					usage("--cutoff value must be in yyyymmdd format")
+                        elif opt == "--exclusive":
+                                doLocking = True
 			elif opt == "--verbose":
 				verbose = True
 
@@ -4226,7 +4231,7 @@ if __name__ == "__main__":
 		else:
 			config = WikiDump.Config()
 
-		if dryrun or chunkToDo or (jobRequested and not restart) or cutoff:
+		if dryrun or chunkToDo or (jobRequested and not restart  and not doLocking) or cutoff:
 			locksEnabled = False
 		else:
 			locksEnabled = True
@@ -4242,7 +4247,7 @@ if __name__ == "__main__":
 				lastRan = wiki.latestDump()
 				if lastRan > cutoff:
 					wiki = None
-			if locksEnabled:
+			if wiki is not None and locksEnabled:
 				if forceLock and wiki.isLocked():
 					wiki.unlock()
 				if locksEnabled:
