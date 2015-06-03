@@ -4162,6 +4162,8 @@ def usage(message = None):
 	sys.stderr.write( "--configfile:  Specify an alternative configuration file to read.\n" )
 	sys.stderr.write( "               Default config file name: wikidump.conf\n" )
 	sys.stderr.write( "--date:        Rerun dump of a given date (probably unwise)\n" )
+        sys.stderr.write( "               If 'last' is given as the value, will rerun dump from last run date if any,\n")
+        sys.stderr.write( "               or today if there has never been a previous run\n")
 	sys.stderr.write( "--addnotice:   Text message that will be inserted in the per-dump-run index.html\n" )
 	sys.stderr.write( "               file; use this when rerunning some job and you want to notify the\n" )
 	sys.stderr.write( "               potential downloaders of problems, for example.  This option\n" )
@@ -4338,7 +4340,14 @@ if __name__ == "__main__":
 			# process any per-project configuration options
 			config.parseConfFilePerProject(wiki.dbName)
 
-			if not date:
+                        if date == 'last':
+                                dumps = sorted(wiki.dumpDirs())
+                                if dumps:
+                                        date = dumps[-1]
+                                else:
+                                        date = None
+
+			if date is None or not date:
 				date = TimeUtils.today()
 			wiki.setDate(date)
 
