@@ -2837,16 +2837,10 @@ class XmlStub(Dump):
 		historyFile = runner.dumpDir.filenamePublicPath(DumpFilename(runner.wiki, f.date, self.historyDumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint, f.temp))
 		currentFile = runner.dumpDir.filenamePublicPath(DumpFilename(runner.wiki, f.date, self.currentDumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint, f.temp))
 		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
-		command = [ "%s" % runner.wiki.config.php, "-q" ]
-		command.extend(scriptCommand)
-		command.extend(["--wiki=%s" % runner.dbName,
-				"--full", "--stub", "--report=10000",
-				"%s" % runner.forceNormalOption(),
-				"--output=gzip:%s" % historyFile,
-				"--output=gzip:%s" % currentFile,
-				"--filter=latest", "--output=gzip:%s" % articlesFile,
-				"--filter=latest", "--filter=notalk", "--filter=namespace:!NS_USER"
-				])
+
+                command = [ "/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.dbName,
+                            runner.forceNormalOption(), "--articles", articlesFile,
+                            "--history", historyFile, "--current", currentFile ]
 
 		if (f.chunk):
 			# set up start end end pageids for this piece
