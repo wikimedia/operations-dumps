@@ -4200,8 +4200,6 @@ if __name__ == "__main__":
 
 		if dryrun and (len(remainder) == 0):
 			usage("--dryrun requires the name of a wikidb to be specified")
-		if jobRequested and (len(remainder) == 0):
-			usage("--job option requires the name of a wikidb to be specified")
 		if (jobRequested and forceLock):
 	       		usage("--force cannot be used with --job option")
 		if (restart and not jobRequested):
