@@ -4128,8 +4128,10 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
 		if (cutoff):
-			lastRan = wiki.latestDump()
-			if lastRan > cutoff:
+#			lastRan = wiki.latestDump()
+#			if lastRan >= cutoff:
+                        lastUpdated = wiki.dateTouchedLatestDump()
+                        if lastUpdated >= cutoff:
 				return None
                 if check_job_status:
                         if checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
@@ -4191,7 +4193,7 @@ def usage(message = None):
 	sys.stderr.write( "--log:         Log progress messages and other output to logfile in addition to\n" )
 	sys.stderr.write( "               the usual console output\n" )
 	sys.stderr.write( "--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which\n" )
-	sys.stderr.write( "               dumps should be run, if its last dump was not after the cutoff date,\n" )
+	sys.stderr.write( "               dumps should be run, if its last dump was older than the cutoff date,\n" )
 	sys.stderr.write( "               and exit, or if there are no such wikis, just exit\n" )
 	sys.stderr.write( "--verbose:     Print lots of stuff (includes printing full backtraces for any exception)\n" )
 	sys.stderr.write( "               This is used primarily for debugging\n" )
@@ -4216,7 +4218,7 @@ if __name__ == "__main__":
 		checkpointFile = None
 		pageIDRange = None
 		cutoff = None
-		result = False
+		exitcode = 1
                 skipdone = False
                 doLocking = False
 		verbose = False
@@ -4295,7 +4297,7 @@ if __name__ == "__main__":
 		else:
 			config = WikiDump.Config()
 
-		if dryrun or chunkToDo or (jobRequested and not restart  and not doLocking) or cutoff:
+		if dryrun or chunkToDo or (jobRequested and not restart  and not doLocking):
 			locksEnabled = False
 		else:
 			locksEnabled = True
@@ -4308,8 +4310,10 @@ if __name__ == "__main__":
 		if len(remainder) > 0:
 			wiki = WikiDump.Wiki(config, remainder[0])
 			if cutoff:
+                                # fixme if we asked for a specific job then check that job only
+                                # not the dir
 				lastRan = wiki.latestDump()
-				if lastRan > cutoff:
+				if lastRan >= cutoff:
 					wiki = None
 			if wiki is not None and locksEnabled:
 				if forceLock and wiki.isLocked():
@@ -4330,11 +4334,6 @@ if __name__ == "__main__":
                         else:
                                 check_job_status = False
 			wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time, check_job_status, date, jobRequested, pageIDRange, chunkToDo, checkpointFile)
-		if cutoff:
-			if wiki:
-				print wiki.dbName
-			WikiDump.cleanup()
-			sys.exit(0)
 
 		if wiki:
 			# process any per-project configuration options
@@ -4372,16 +4371,15 @@ if __name__ == "__main__":
 				sys.stderr.write("Running %s, job %s...\n" % (wiki.dbName, jobRequested))
 			else:
 				sys.stderr.write("Running %s...\n" % wiki.dbName)
-			result = runner.run()
+                        result = runner.run()
+                        if result is not None and result:
+                                exitcode = 0
 			# if we are doing one piece only of the dump, we don't unlock either
 			if locksEnabled:
 				wiki.unlock()
 		else:
 			sys.stderr.write("No wikis available to run.\n")
-			result = True
+                        exitcode = 255
 	finally:
 		WikiDump.cleanup()
-	if result == False:
-		sys.exit(1)
-	else:
-		sys.exit(0)
+        sys.exit(exitcode)
