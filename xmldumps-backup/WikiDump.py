@@ -316,7 +316,6 @@ class Config(object):
 		self.privateList = MiscUtils.dbList(self.conf.get("wiki", "privatelist"))
 		self.flaggedRevsList = MiscUtils.dbList(self.conf.get("wiki", "flaggedrevslist"))
 		self.wikidataList = MiscUtils.dbList(self.conf.get("wiki", "wikidatalist"))
-		self.wikiDir = self.conf.get("wiki", "dir")
 		self.forceNormal = self.conf.getint("wiki", "forcenormal")
 		self.halt = self.conf.getint("wiki", "halt")
 
@@ -397,6 +396,10 @@ class Config(object):
 		if not self.conf.has_section('otherformats'):
 			self.conf.add_section('otherformats')
 		self.multistreamEnabled = self.getOptionForProjectOrDefault(conf, 'otherformats', 'multistream', 1)
+
+                if not self.conf.has_section('wiki'):
+                        self.conf.add_section('wiki')
+		self.wikiDir = self.getOptionForProjectOrDefault(conf, "wiki", "dir", 0)
 
 	def getOptionForProjectOrDefault(self, conf, sectionName, itemName, isInt):
 		if (conf.has_section(self.projectName)):
