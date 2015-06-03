@@ -10,7 +10,7 @@ def addToFilename(filename, infix):
     main, suffix = filename.split('.',1)
     return main + "-" + infix + ("." + suffix if suffix else "")
 
-def generateIndex(otherIndexhtml = None, sortedByDb=False):
+def generateIndex(otherIndexhtml = None, sortedByDb=False, showlocks=True):
 	running = False
 	states = []
 	
@@ -24,13 +24,14 @@ def generateIndex(otherIndexhtml = None, sortedByDb=False):
 		if wiki.isStale():
 			print dbName + " is stale"
 			wiki.cleanupStaleLock()
-		if wiki.isLocked():
-                    try:
+                if showlocks:
+                    if wiki.isLocked():
+                        try:
                             f = open( wiki.lockFile(), 'r' )
                             (host, pid) = f.readline().split(" ") 
                             f.close()
                             print dbName, "is locked by pid", pid, "on", host 
-                    except: 
+                        except:
                             print dbName, "is locked" 
 		running = running or wiki.isLocked()
 		states.append(wiki.statusLine())
@@ -70,7 +71,7 @@ def updateIndex():
 
 	tempFilename = outputFileNameSortedByDb + ".tmp"
 	file = open(tempFilename, "wt")
-	file.write(generateIndex(otherIndexhtml=outputFileName, sortedByDb=True))
+	file.write(generateIndex(otherIndexhtml=outputFileName, sortedByDb=True, showlocks=False))
 	file.close()
 	os.rename(tempFilename, outputFileNameSortedByDb)
 
