@@ -622,7 +622,18 @@ class Wiki(object):
 			else:
 				return dirs[index]
 		else:
-			return None
+                        return None
+
+        def dateTouchedLatestDump(self):
+                mtime = 0
+                last = self.latestDump()
+                if last:
+                        dumpStatus = os.path.join(self.publicDir(), last, "status.html")
+                        try:
+                                mtime = os.stat(dumpStatus).st_mtime
+                        except:
+                                pass
+                return time.strftime("%Y%m%d", time.gmtime(mtime))
 
 	def dumpDirs(self):
 		"""List all dump directories for the given database."""

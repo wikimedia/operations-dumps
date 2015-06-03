@@ -8,7 +8,7 @@ usage() {
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
     echo "--basedir      scripts and files are relative to this dir (default: location of this script)"
-    echo "--cutoff       dump wikis until all have a dump produced more recent than the specified cutoff,"
+    echo "--cutoff       dump wikis until all have a dump produced  as recent as the specified cutoff,"
     echo "               then exit.  format: yyyymmdd  OR  'today'"
     echo "--date         (re)do dump runs of specified date (yyyymmdd) OR 'last'"
     echo "--skipdone     skip any dump jobs that ran successfully (this makes sense only for reruns)"
@@ -17,6 +17,7 @@ usage() {
     echo "               default is true for all runs except those where --job is specified"
     echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
     echo "               config file will be dumped"
+    echo "--onepass      if there are no wikis to dump (--skipdone option) then exit"
     echo
     echo "If the file maintenance.txt is present, no more jobs will be run, and"
     echo "this script will check the status again in 5 minutes."
@@ -43,6 +44,8 @@ set_defaults() {
     JOB=""
     # default for one job: no locking
     EXCLUSIVE=""
+    # if no wikis are left to run, exit
+    ONEPASS=""
 }
 
 process_opts() {
@@ -71,6 +74,9 @@ process_opts() {
 	elif [ $1 == "--job" ]; then
 	    JOB="$2"
 	    shift; shift
+	elif [ $1 == "--onepass" ]; then
+	    ONEPASS=true
+	    shift
 	elif [ $1 == "--skipdone" ]; then
 	    SKIPDONE=true
 	    shift
@@ -120,7 +126,7 @@ setup_python_args() {
     if [ ! -z "$CUTOFF" ]; then
 	if [ "$CUTOFF" == "today" ]; then
 	    # convert this to yyyymmdd, UTC always
-	    CUTOFF=`date -u +"%Y%m%d`
+	    CUTOFF=`date -u +"%Y%m%d"`
 	else
 	    # sanity check of arg
 	    result=`date -d "$CUTOFF"`
@@ -129,18 +135,25 @@ setup_python_args() {
 		exit 1
 	    fi
 	fi
-	cutoffargs=( "${pythonargs[@]}" "--cutoff" "$CUTOFF" )
+	pythonargs=( "${pythonargs[@]}" "--cutoff" "$CUTOFF" )
     fi
     if [ ! -z "$WIKI" ]; then
 	pythonargs=( "${pythonargs[@]}" "$WIKI" )
-	cutoffargs=( "${cutoffargs[@]}" "$WIKI" )
     fi
 }
 
 dump_wiki() {
     echo python ${pythonargs[@]}
     python ${pythonargs[@]}
-    if [ $? -ne 0 ]; then
+    result=$?
+    if [ $result -eq 255 ]; then
+	if [ ! -z "$ONEPASS" -o  ! -z "$CUTOFF" ]; then
+            exit 0
+            # this isn't a failure but rather 'no wikis available to run'
+            result=0
+	fi
+    fi
+    if [ $result -ne 0 ]; then
 	failures=$(($failures+1))
 	if [ $failures -gt $MAXFAILS ]; then
 	    echo "more than $MAXFAILS failures in a row, halting."
@@ -170,20 +183,6 @@ main_loop() {
     elif [ -e "$WIKIDUMP_BASE/exit.txt" ]; then
 	echo "exit requested, remove 'exit.txt' to continue normal operations."
 	exit 0
-    elif [ ! -z "$CUTOFF" ]; then
-	# see if there are any wikis left with dumps that are not more recent than CUTOFF
-	echo ${cutoffargs[@]}
-	result=`python ${cutoffargs[@]}`
-	if [ -z "$result" ]; then
-	    # nope, so we are done
-	    echo "All wikis completed after cutoff $CUTOFF"
-	    exit 0
-	else
-	    # there's (at least) one wiki left to do... if some other worker
-	    # gets it and we do an 'extra' one it's not a disaster, so don't worry about
-	    # potential race
-	    dump_wiki
-	fi
     else
 	dump_wiki
     fi
