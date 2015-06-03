@@ -1848,6 +1848,9 @@ class Runner(object):
 			if item.status() == "done":
 				self.checksums.cpMd5TmpFileToPermFile()
  				self.runUpdateItemFileInfo(item)
+                        elif item.status() == "waiting":
+                                # don't update the md5 file for this item.
+                                continue
 			else:
 				# Here for example status is "failed". But maybe also
 				# "in-progress", if an item chooses to override dump(...) and
