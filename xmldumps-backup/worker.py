@@ -743,16 +743,18 @@ class DumpItemList(object):
 	# the rest of the names expand to single items)
 	# and mark the items in the list as such
 	# return False if there is no such dump or set of dumps
-        def markDumpsToRun(self,job):
+        def markDumpsToRun(self,job, skipgood=False):
 		if (job == "tables"):
 			for item in self.dumpItems:
 				if (item.name()[-5:] == "table"):
-					item.setToBeRun(True)
+                                        if not skipgood or item.status() != "done":
+                                                item.setToBeRun(True)
 			return True
 		else:
 			for item in self.dumpItems:
 				if (item.name() == job):
-					item.setToBeRun(True)
+                                        if not skipgood or item.status() != "done":
+                                                item.setToBeRun(True)
 					return True
 		if job == "noop" or job == "latestlinks":
 			return True
@@ -764,20 +766,22 @@ class DumpItemList(object):
 			sys.stderr.write("%s\n" % item.name())
 	        return False
 
-	def markFollowingJobsToRun(self):
+	def markFollowingJobsToRun(self, skipgood=False):
 		# find the first one marked to run, mark the following ones
 		i = 0;
 		for item in self.dumpItems:
 			i = i + 1;
 			if item.toBeRun():
 				for j in range(i,len(self.dumpItems)):
-					self.dumpItems[j].setToBeRun(True)
+                                        if not skipgood or item.status() != "done":
+                                                self.dumpItems[j].setToBeRun(True)
 				break
 
-	def markAllJobsToRun(self):
+	def markAllJobsToRun(self, skipgood=False):
 		"""Marks each and every job to be run"""
 		for item in self.dumpItems:
-			item.setToBeRun( True )
+                        if not skipgood or item.status() != "done":
+                                item.setToBeRun( True )
 					      
 	def findItemByName(self, name):
 		for item in self.dumpItems:
@@ -1577,7 +1581,7 @@ class NoticeFile(object):
 		return os.path.join(self.wiki.publicDir(), self.wiki.date)
 
 class Runner(object):
-	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None, verbose = False):
+	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None, skipdone = False, verbose = False):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
@@ -1590,6 +1594,7 @@ class Runner(object):
 		self._chunkToDo = chunkToDo
 		self.checkpointFile = checkpointFile
 		self.pageIDRange = pageIDRange
+                self.skipdone = skipdone
 		self.verbose = verbose
 
 		if (self.checkpointFile):
@@ -1801,14 +1806,15 @@ class Runner(object):
 				if (not reply in [ "y", "Y" ]):
 					raise RuntimeError( "No run information available for previous dump, exiting" )
 
-			if (not self.dumpItemList.markDumpsToRun(self.jobRequested)):
-			# probably no such job
-				raise RuntimeError( "No job marked to run, exiting" )
+			if (not self.dumpItemList.markDumpsToRun(self.jobRequested, self.skipdone)):
+                                # probably no such job
+                                sys.stderr.write( "No job marked to run, exiting" )
+                                return None
 			if (restart):
 				# mark all the following jobs to run as well 
-				self.dumpItemList.markFollowingJobsToRun()
+				self.dumpItemList.markFollowingJobsToRun(self.skipdone)
 		else:
-			self.dumpItemList.markAllJobsToRun();
+			self.dumpItemList.markAllJobsToRun(self.skipdone);
 
 		Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName )
 
@@ -4059,12 +4065,61 @@ class AllTitleDump(TitleDump):
 		if (error):
 			raise BackupError("error dumping all titles list")
 
-def findAndLockNextWiki(config, locksEnabled, cutoff):
+
+def checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
+        '''
+        see if dump run on specific date completed specific job(s)
+        or if no job was specified, ran to completion
+        '''
+        if not date:
+                return False
+
+        if date == 'last':
+                dumps = sorted(wiki.dumpDirs())
+                if dumps:
+                        date = dumps[-1]
+                else:
+                        # never dumped so that's the same as 'job didn't run'
+                        return False
+
+        wiki.setDate(date)
+
+        runInfoFile = RunInfoFile(wiki, False)
+        chunkInfo = Chunk(wiki, wiki.dbName)
+        dumpDir = DumpDir(wiki, wiki.dbName)
+        dumpItemList = DumpItemList(wiki, False, False, chunkToDo, checkpointFile, job, chunkInfo, pageIDRange, runInfoFile, dumpDir)
+        if not dumpItemList.oldRunInfoRetrieved:
+                # failed to get the run's info so let's call it 'didn't run'
+                return False
+
+        results = dumpItemList._runInfoFile.getOldRunInfoFromFile()
+        if (results):
+                for runInfoObj in results:
+                        dumpItemList._setDumpItemRunInfo(runInfoObj)
+
+        # mark the jobs we would run
+	if (job):
+                dumpItemList.markDumpsToRun(job, True)
+                if (restart):
+                        dumpItemList.markFollowingJobsToRun(True)
+        else:
+                dumpItemList.markAllJobsToRun(True)
+
+        # see if there are any to run. no? then return True (all job(s) done)
+        # otherwise return False (still some to do)
+        for item in dumpItemList.dumpItems:
+                if item.toBeRun():
+                        return False
+        return True
+
+
+def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_job_status=False,
+                        date=None, job=None, pageIDRange=None, chunkToDo=None, checkpointFile=None):
 	if config.halt:
 		sys.stderr.write("Dump process halted by config.\n")
 		return None
 
-	next = config.dbListByAge()
+	next = config.dbListByAge(bystatustime)
 	next.reverse()
 
 	if verbose and not cutoff:
@@ -4076,6 +4131,9 @@ def findAndLockNextWiki(config, locksEnabled, cutoff):
 			lastRan = wiki.latestDump()
 			if lastRan > cutoff:
 				return None
+                if check_job_status:
+                        if checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
+                                continue
 		try:
 			if (locksEnabled):
 				wiki.lock()
@@ -4127,6 +4185,7 @@ def usage(message = None):
 	sys.stderr.write( "               (helpful if the previous files may have corrupt contents)\n" )
 	sys.stderr.write( "--nospawn:     Do not spawn a separate process in order to retrieve revision texts\n" )
 	sys.stderr.write( "--restartfrom: Do all jobs after the one specified via --job, including that one\n" )
+        sys.stderr.write( "--skipdone:    Do only jobs that are not already succefully completed\n")
 	sys.stderr.write( "--log:         Log progress messages and other output to logfile in addition to\n" )
 	sys.stderr.write( "               the usual console output\n" )
 	sys.stderr.write( "--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which\n" )
@@ -4156,12 +4215,13 @@ if __name__ == "__main__":
 		pageIDRange = None
 		cutoff = None
 		result = False
+                skipdone = False
                 doLocking = False
 		verbose = False
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "exclusive", 'verbose' ])
+								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone", "exclusive", 'verbose' ])
 		except:
 			usage("Unknown option specified")
 
@@ -4201,6 +4261,8 @@ if __name__ == "__main__":
 				cutoff = val
 				if not cutoff.isdigit() or not len(cutoff) == 8:
 					usage("--cutoff value must be in yyyymmdd format")
+                        elif opt == "--skipdone":
+                                skipdone = True
                         elif opt == "--exclusive":
                                 doLocking = True
 			elif opt == "--verbose":
@@ -4254,8 +4316,18 @@ if __name__ == "__main__":
 					wiki.lock()
 
 		else:
-			wiki = findAndLockNextWiki(config, locksEnabled, cutoff)
-
+                        # if the run is across all wikis and we are just doing one job,
+                        # we want the age of the wikis by the latest status update
+                        # and not the date the run started
+                        if jobRequested:
+                                check_status_time = True
+                        else:
+                                check_status_time = False
+                        if skipdone:
+                                check_job_status = True
+                        else:
+                                check_job_status = False
+			wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time, check_job_status, date, jobRequested, pageIDRange, chunkToDo, checkpointFile)
 		if cutoff:
 			if wiki:
 				print wiki.dbName
@@ -4283,7 +4355,8 @@ if __name__ == "__main__":
 				if not jobRequested or not jobRequested in [ 'articlesdump', 'metacurrentdump', 'metahistorybz2dump' ]:
 					usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(afterCheckpointJobs))
 					
-			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, verbose)
+			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, skipdone, verbose)
+
 			if (restart):
 				sys.stderr.write("Running %s, restarting from job %s...\n" % (wiki.dbName, jobRequested))
 			elif (jobRequested):

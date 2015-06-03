@@ -3,7 +3,7 @@
 usage() {
     echo "$0: Unknown option $1"
     echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
-    echo "          [--cutoff date] [--date date] [--job job] [--exclusive]"
+    echo "          [--cutoff date] [--date date] [--job job] [--skipdone] [--exclusive]"
     echo "--configfile   use specified file for config file (default: wikidump.conf)"
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
@@ -11,6 +11,7 @@ usage() {
     echo "--cutoff       dump wikis until all have a dump produced more recent than the specified cutoff,"
     echo "               then exit.  format: yyyymmdd  OR  'today'"
     echo "--date         (re)do dump runs of specified date (yyyymmdd) OR 'last'"
+    echo "--skipdone     skip any dump jobs that ran successfully (this makes sense only for reruns)"
     echo "--job          do only the specified job for wiki(s)"
     echo "--exclusive    lock the wiki so other runners can't operate on it at the same time"
     echo "               default is true for all runs except those where --job is specified"
@@ -36,6 +37,8 @@ set_defaults() {
     CUTOFF=""
     # default: no date specified
     DATE=""
+    # default: run all jobs, not just failed ones
+    SKIPDONE=""
     # default: run all jobs
     JOB=""
     # default for one job: no locking
@@ -68,6 +71,9 @@ process_opts() {
 	elif [ $1 == "--job" ]; then
 	    JOB="$2"
 	    shift; shift
+	elif [ $1 == "--skipdone" ]; then
+	    SKIPDONE=true
+	    shift
 	elif [ $1 == "--exclusive" ]; then
 	    EXCLUSIVE=true
 	    shift
@@ -88,6 +94,9 @@ setup_python_args() {
     fi
     if [ ! -z "$JOB" ]; then
 	pythonargs=( "${pythonargs[@]}" "--job" "$JOB" )
+    fi
+    if [ ! -z "$SKIPDONE" ]; then
+	pythonargs=( "${pythonargs[@]}" "--skipdone" )
     fi
     if [ ! -z "$EXCLUSIVE" ]; then
 	pythonargs=( "${pythonargs[@]}" "--exclusive" )
