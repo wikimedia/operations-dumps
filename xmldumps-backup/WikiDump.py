@@ -413,7 +413,7 @@ class Config(object):
 		else:
 			return(self.conf.get(sectionName,itemName))
 				
-	def dbListByAge(self):
+	def dbListByAge(self, use_status_time=False):
 		"""
 		Sort wikis in reverse order of last successful dump :
 
@@ -435,6 +435,7 @@ class Config(object):
 		index page links.
 		"""
 		available = []
+                today = int(TimeUtils.today())
 		for db in self.dbList:
 			wiki = Wiki(self, db)
 
@@ -445,13 +446,17 @@ class Config(object):
 			if last:
 				dumpStatus = os.path.join(wiki.publicDir(), last, "status.html")
 				try:
+                                        if use_status_time:
+                                                # only use the status file time, not the dir date
+                                                date = today
+                                        else:
+                                                date = today - int(last)
 					# tack on the file mtime so that if we have multiple wikis
 					# dumped on the same day, they get ordered properly
-					date = int(TimeUtils.today()) - int(last)
-					age = FileUtils.fileAge(dumpStatus)
+                                        age = FileUtils.fileAge(dumpStatus)
 					status = FileUtils.readFile(dumpStatus)
 				except:
-					print "dump dir %s corrupt?" % dumpStatus
+					print "dump dir missing status file %s?" % dumpStatus
 			dumpFailed = (status == '') or ('dump aborted' in status)
 			available.append((dumpFailed, date, age, db))
 		available.sort()
