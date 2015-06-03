@@ -3,7 +3,7 @@
 usage() {
     echo "$0: Unknown option $1"
     echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
-    echo "          [--cutoff date] [--date date] [--job job]"
+    echo "          [--cutoff date] [--date date] [--job job] [--exclusive]"
     echo "--configfile   use specified file for config file (default: wikidump.conf)"
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
@@ -12,6 +12,8 @@ usage() {
     echo "               then exit.  format: yyyymmdd  OR  'today'"
     echo "--date         (re)do dump runs of specified date (yyyymmdd) OR 'last'"
     echo "--job          do only the specified job for wiki(s)"
+    echo "--exclusive    lock the wiki so other runners can't operate on it at the same time"
+    echo "               default is true for all runs except those where --job is specified"
     echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
     echo "               config file will be dumped"
     echo
@@ -36,6 +38,8 @@ set_defaults() {
     DATE=""
     # default: run all jobs
     JOB=""
+    # default for one job: no locking
+    EXCLUSIVE=""
 }
 
 process_opts() {
@@ -64,6 +68,9 @@ process_opts() {
 	elif [ $1 == "--job" ]; then
 	    JOB="$2"
 	    shift; shift
+	elif [ $1 == "--exclusive" ]; then
+	    EXCLUSIVE=true
+	    shift
 	else
 	    usage
 	fi
@@ -81,6 +88,9 @@ setup_python_args() {
     fi
     if [ ! -z "$JOB" ]; then
 	pythonargs=( "${pythonargs[@]}" "--job" "$JOB" )
+    fi
+    if [ ! -z "$EXCLUSIVE" ]; then
+	pythonargs=( "${pythonargs[@]}" "--exclusive" )
     fi
     if [ ! -z "$DATE" ]; then
 	if [ "$DATE" == "today" ]; then
