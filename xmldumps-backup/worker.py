@@ -2880,7 +2880,7 @@ class XmlStub(Dump):
 				commands.append(series)
 		error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
 		if (error):
-			raise BackupError("error producing stub files" % self._subset)
+			raise BackupError("error producing stub files")
 
 class RecombineXmlStub(Dump):
 	def __init__(self, name, desc, itemForXmlStubs):
