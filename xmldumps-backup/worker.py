@@ -3622,7 +3622,7 @@ class XmlRecompressDump(Dump):
 			inputFile = DumpFilename(self.wiki, None, f.dumpName, f.fileType, self.itemForRecompression.fileExt, f.chunk, f.checkpoint)
 			outfile = runner.dumpDir.filenamePublicPath(f)
 			infile = runner.dumpDir.filenamePublicPath(inputFile)
-			commandPipe = [ [ "%s -dc %s | %s a -si %s"  % (self.wiki.config.bzip2, infile, self.wiki.config.sevenzip, outfile) ] ]
+			commandPipe = [ [ "%s -dc %s | %s a -mx=4 -si %s"  % (self.wiki.config.bzip2, infile, self.wiki.config.sevenzip, outfile) ] ]
 			commandSeries.append(commandPipe)
 		return(commandSeries)
 
@@ -3745,7 +3745,7 @@ class RecombineXmlRecompressDump(Dump):
 				raise BackupError("No input files for %s found" % self.name())
 			if (not exists( self.wiki.config.sevenzip ) ):
 				raise BackupError("sevenzip command %s not found" % self.wiki.config.sevenzip)
-			compressionCommand = "%s a -si" % self.wiki.config.sevenzip
+			compressionCommand = "%s a -mx=4 -si" % self.wiki.config.sevenzip
 			uncompressionCommand = [ "%s" % self.wiki.config.sevenzip, "e", "-so" ]
 
 			recombineCommandString = self.buildRecombineCommandString(runner, files, outputFile, compressionCommand, uncompressionCommand )
