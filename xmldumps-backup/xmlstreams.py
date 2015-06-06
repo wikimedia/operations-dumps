@@ -105,6 +105,9 @@ def run_script(command, outfiles, shouldendwith=None):
                             if remainder != shouldendwith:
                                 os.unlink(outfile)
                                 failed = True
+    else:
+        failed = True
+
     if failed:
         return False
     else:
@@ -116,9 +119,6 @@ def catfile(inputfile, process):
     read a file, cat it as fast as possible to the
     stdin of the process passed, then go away
     '''
-    if not os.path.exists(inputfile):
-        sys.stderr.write("no such file: %s\n" % inputfile)
-        sys.exit(1)
     with open(inputfile, "r") as filed:
         while True:
             content = filed.read(1048576)
@@ -194,7 +194,10 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
     maxretries = 3
     timeout = 60
     while retries < maxretries:
-        result = run_script(command, outfiles, ends_with)
+        try:
+            result = run_script(command, outfiles, ends_with)
+        except:
+            result = False
         if result:
             break
         time.sleep(timeout)
@@ -203,12 +206,26 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
     if not result:
         sys.stderr.write("failed job after max retries\n")
         for filetype in outfiles:
-            os.unlink(outfiles[filetype]['temp'])
-            # these partial output files can be used later with a 
-            # run that dumps the rest of the pages, and a recombine 
-            outfiles[filetype]['compr'].stdin.close()
+            try:
+                # these partial output files can be used later with a
+                # run that dumps the rest of the pages, and a recombine
+                # so we don't remove them
+                outfiles[filetype]['compr'].stdin.close()
+
+                # don't remove the temp files either, might be useful
+                # for checking the problem later
+                # os.unlink(outfiles[filetype]['temp'])
+            except:
+                pass
         sys.exit(1)
 
     for filetype in outfiles:
+        # any exception here means we don't unlink the temp files;
+        # this is intentional, might examine them or re-use them
         catfile(outfiles[filetype]['temp'], outfiles[filetype]['compr'])
-        os.unlink(outfiles[filetype]['temp'])
+
+    for filetype in outfiles:
+        try:
+            os.unlink(outfiles[filetype]['temp'])
+        except:
+            pass
