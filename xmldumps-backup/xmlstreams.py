@@ -50,9 +50,9 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
     piece_command.append("--skip-footer")
     if interval <= end:
         upto = interval + start
-        piece_command.extend(["--end", str(upto)])
     else:
-        upto = end
+        upto = end+1
+    piece_command.extend(["--end", str(upto)])
 
     do_xml_piece(piece_command, outfiles, ends_with, dryrun)
 
