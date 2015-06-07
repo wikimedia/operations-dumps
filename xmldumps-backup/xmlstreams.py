@@ -74,6 +74,9 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
 
     do_xml_piece(piece_command, outfiles, dryrun=dryrun)
 
+    if dryrun:
+        return
+
     for filetype in outfiles:
         outfiles[filetype]['compr'].stdin.close()
 
