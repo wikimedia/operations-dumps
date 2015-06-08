@@ -633,9 +633,12 @@ class Wiki(object):
                                 pass
                 return time.strftime("%Y%m%d", time.gmtime(mtime))
 
-	def dumpDirs(self):
+	def dumpDirs(self, private=False):
 		"""List all dump directories for the given database."""
-		base = self.publicDir()
+                if private:
+                        base = self.privateDir()
+                else:
+                        base = self.publicDir()
 		digits = re.compile(r"^\d{4}\d{2}\d{2}$")
 		dates = []
 		try:
@@ -648,7 +651,6 @@ class Wiki(object):
 		return dates
 	
 	# private....
-	
 	def lockFile(self):
 		return os.path.join(self.privateDir(), "lock")
 	

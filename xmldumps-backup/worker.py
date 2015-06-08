@@ -1831,6 +1831,7 @@ class Runner(object):
 
 		self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
 		self.cleanOldDumps()
+		self.cleanOldDumps(private=True)
 
 		# Informing what kind backup work we are about to do
 		if (self.jobRequested):
@@ -1909,12 +1910,17 @@ class Runner(object):
 		else:
 			return True
 
-	def cleanOldDumps(self):
+	def cleanOldDumps(self, private=False):
 		"""Removes all but the wiki.config.keep last dumps of this wiki.
 		If there is already a directory for todays dump, this is omitted in counting and
 		not removed."""
 		if self._cleanOldDumpsEnabled:
-			old = self.wiki.dumpDirs()
+                        if private:
+                                old = self.wiki.dumpDirs(private=True)
+                                dumptype='private'
+                        else:
+                                old = self.wiki.dumpDirs()
+                                dumptype='public'
 			if old:
 				if old[-1] == self.wiki.date:
 					# If we're re-running today's (or jobs from a given day's) dump, don't count it as one
@@ -1925,11 +1931,14 @@ class Runner(object):
 					old = old[:-(self.wiki.config.keep)]
 			if old:
 				for dump in old:
-					self.showRunnerState("Purging old dump %s for %s" % (dump, self.dbName))
-					base = os.path.join(self.wiki.publicDir(), dump)
+					self.showRunnerState("Purging old %s dump %s for %s" % (dumptype, dump, self.dbName))
+                                        if private:
+                                                base = os.path.join(self.wiki.privateDir(), dump)
+                                        else:
+                                                base = os.path.join(self.wiki.publicDir(), dump)
 					shutil.rmtree("%s" % base)
 			else:
-				self.showRunnerState("No old dumps to purge.")
+				self.showRunnerState("No old %s dumps to purge." % dumptype)
 
 	def showRunnerState(self, message):
 		self.debug(message)
@@ -2361,10 +2370,14 @@ class Dump(object):
 				# we only rerun this one, so just remove this one
 				if exists(dumpDir.filenamePublicPath(self.checkpointFile)):
 					os.remove(dumpDir.filenamePublicPath(self.checkpointFile))
+				elif exists(dumpDir.filenamePrivatePath(self.checkpointFile)):
+					os.remove(dumpDir.filenamePrivatePath(self.checkpointFile))
 			files = self.listOutputFilesForCleanup(dumpDir)
 			for f in files:
 				if exists(dumpDir.filenamePublicPath(f)):
 					os.remove(dumpDir.filenamePublicPath(f))
+				elif exists(dumpDir.filenamePrivatePath(f)):
+					os.remove(dumpDir.filenamePrivatePath(f))
 
 	def getChunkList(self):
 		if self._chunksEnabled:
