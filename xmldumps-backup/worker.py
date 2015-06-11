@@ -3791,28 +3791,22 @@ class AbstractDump(Dump):
 		return ""
 
         def buildCommand(self, runner, f):
-		if (not exists( runner.wiki.config.php ) ):
-			raise BackupError("php command %s not found" % runner.wiki.config.php)
-		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
-		command = [ "%s" % runner.wiki.config.php, "-q" ]
-		command.extend(scriptCommand)
-		version = MultiVersion.MWVersion(runner.wiki.config, runner.dbName)
-		if version:
-			abstractFilterCommand = "--plugin=AbstractFilter:%s/%s/extensions/ActiveAbstract/AbstractFilter.php" % (runner.wiki.config.wikiDir, version)
-		else:
-			abstractFilterCommand = "--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php" % runner.wiki.config.wikiDir
-		command.extend([ "--wiki=%s" % runner.dbName,
-				 abstractFilterCommand,
-				 "--current", "--report=1000", "%s" % runner.forceNormalOption(),
-				 ])
 
+                command = [ "/usr/bin/python", "xmlabstracts.py", "--config", runner.wiki.config.files[0],
+                            "--wiki", runner.dbName, runner.forceNormalOption() ]
+
+                outputs = []
+                variants = []
 		for v in self._variants():
 			variantOption = self._variantOption(v)
 			dumpName = self.dumpNameFromVariant(v)
 			fileObj = DumpFilename(runner.wiki, f.date, dumpName, f.fileType, f.fileExt, f.chunk, f.checkpoint)
-			command.extend( [ "--output=file:%s" % runner.dumpDir.filenamePublicPath(fileObj),
-					  "--filter=namespace:NS_MAIN", "--filter=noredirect",
-					  "--filter=abstract%s" % variantOption ] )
+                        outputs.append(runner.dumpDir.filenamePublicPath(fileObj))
+                        variants.append(variantOption)
+
+                command.extend( [ "--outfiles=%s" % ",".join(outputs),
+                                  "--variants=%s" %  ",".join(variants) ] )
+
 		if (f.chunk):
 			# set up start end end pageids for this piece
 			# note there is no page id 0 I guess. so we start with 1
