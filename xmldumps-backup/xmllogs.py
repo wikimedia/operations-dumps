@@ -26,10 +26,10 @@ def dologsbackup(wikidb, outfile,
     outfiles = {'logs': {'name': outfile}}
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(wikiconf.tempDir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
-    if dryrun:
-        outfiles[filetype]['compr'] = None
-    else:
-        outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
+        if dryrun:
+            outfiles[filetype]['compr'] = None
+        else:
+            outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
 
     script_command = worker.MultiVersion.MWScriptAsArray(wikiconf, "dumpBackup.php")
     command = [wikiconf.php, "-q"] + script_command
