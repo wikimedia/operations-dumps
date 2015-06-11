@@ -28,10 +28,10 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
                 'articles': {'name': articles_file}}
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(wikiconf.tempDir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
-    if dryrun:
-        outfiles[filetype]['compr'] = None
-    else:
-        outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
+        if dryrun:
+            outfiles[filetype]['compr'] = None
+        else:
+            outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
 
     script_command = worker.MultiVersion.MWScriptAsArray(wikiconf, "dumpBackup.php")
     command = [wikiconf.php, "-q"] + script_command
