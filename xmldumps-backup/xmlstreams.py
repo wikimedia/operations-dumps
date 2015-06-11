@@ -140,6 +140,15 @@ def gzippit(outfile):
     return process
 
 
+def catit(outfile):
+    '''
+    start a cat process that reads from stdin
+    and writes to the specified file
+    '''
+    process = Popen("cat > %s" % outfile, stdin=PIPE, shell=True, bufsize=-1)
+    return process
+
+
 def get_max_id(wikiconf, wikidb, id_field, table):
     '''
     retrieve the largest id for this wiki from the db for specific table
