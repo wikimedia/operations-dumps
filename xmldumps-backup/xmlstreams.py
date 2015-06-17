@@ -44,18 +44,12 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
         if interval > max_interval:
             interval = max_interval
 
-    # run first
+    # get just the header
     piece_command = [field for field in command]
-    piece_command.extend(["--start", str(start)])
-    piece_command.append("--skip-footer")
-    if interval <= end:
-        upto = interval + start
-    else:
-        upto = end+1
-    piece_command.extend(["--end", str(upto)])
+    piece_command.extend(["--skip-footer", "--start=1", "--end=1"])
+    do_xml_piece(piece_command, outfiles, dryrun=dryrun)
 
-    do_xml_piece(piece_command, outfiles, ends_with, dryrun)
-
+    upto = 1
     while upto <= end:
         piece_command = [field for field in command]
         piece_command.append("--skip-header")
@@ -68,10 +62,9 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
         upto = upto + interval
         do_xml_piece(piece_command, outfiles, ends_with, dryrun)
 
-    piece_command = [field for field in command]
     # get just the footer
+    piece_command = [field for field in command]
     piece_command.extend(["--skip-header", "--start=1", "--end=1"])
-
     do_xml_piece(piece_command, outfiles, dryrun=dryrun)
 
     if dryrun:
