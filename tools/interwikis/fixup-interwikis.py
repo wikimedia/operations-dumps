@@ -20,7 +20,7 @@ class IWCdbUpdater(object):
                 sys.stderr.write("No such file %s, would download Wikimedia interwiki cdb file\n" % self.cdbFile)
             elif self.verbose:
                 sys.stderr.write("No such file %s, downloading Wikimedia interwiki cdb file\n" % self.cdbFile)
-            url = "http://noc.wikimedia.org/interwiki/interwiki.cdb"
+            url = "https://noc.wikimedia.org/conf/interwiki.cdb"
             urllib.urlretrieve(url, self.cdbFile)
 
         self.oldcdbfd = cdb.init(self.cdbFile)
