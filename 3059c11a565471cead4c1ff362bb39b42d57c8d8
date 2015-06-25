@@ -1,0 +1,106 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "8ec42329_e248e733",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 152,
+      "author": {
+        "id": 64
+      },
+      "writtenOn": "2015-06-25T03:26:02Z",
+      "side": 1,
+      "message": "Shouldn\u0027t this follow line 131 above in the naming of the function? Instead of \"uncompress\", it should be called \"uncompress_file\" like the above.",
+      "revId": "3059c11a565471cead4c1ff362bb39b42d57c8d8",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8ec42329_e2d3072e",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 291,
+      "author": {
+        "id": 64
+      },
+      "writtenOn": "2015-06-25T03:26:02Z",
+      "side": 1,
+      "message": "Shouldn\u0027t we use HTTPS here, or is it not supported in the nodejs dumper?",
+      "revId": "3059c11a565471cead4c1ff362bb39b42d57c8d8",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8ec42329_c2c60b6b",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 303,
+      "author": {
+        "id": 64
+      },
+      "writtenOn": "2015-06-25T03:26:02Z",
+      "side": 1,
+      "message": "Extra blank line",
+      "revId": "3059c11a565471cead4c1ff362bb39b42d57c8d8",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8ec42329_62c07755",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 624,
+      "author": {
+        "id": 64
+      },
+      "writtenOn": "2015-06-25T03:26:02Z",
+      "side": 1,
+      "message": "Can\u0027t seem to find such a script, is there one available?",
+      "revId": "3059c11a565471cead4c1ff362bb39b42d57c8d8",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8ec42329_027f3311",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 625,
+      "author": {
+        "id": 64
+      },
+      "writtenOn": "2015-06-25T03:26:02Z",
+      "side": 1,
+      "message": "Typo, should be \"index.html.tmpl\"",
+      "revId": "3059c11a565471cead4c1ff362bb39b42d57c8d8",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8ec42329_a2773f35",
+        "filename": "otherdumps/htmldumper.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 741,
+      "author": {
+        "id": 64
+      },
+      "writtenOn": "2015-06-25T03:26:02Z",
+      "side": 1,
+      "message": "Should the option be \"h\" or \"-h\"?",
+      "revId": "3059c11a565471cead4c1ff362bb39b42d57c8d8",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
