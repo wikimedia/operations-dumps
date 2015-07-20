@@ -65,7 +65,7 @@ Options:
   --outfile (-o):      full path to xml logs dump that will be created
 
   --start (-s):        starting log id to dump (default: 1)
-  --end (-e):          ending log id to dump (default: dump all)
+  --end (-e):          ending log id to dump, exclusive of this entry (default: dump all)
 
   --force-normal (-f): if set, this argument will be passed through to dumpBackup.php
                        (default: unset)
@@ -134,7 +134,7 @@ def main():
         if not end.isdigit():
             usage("value for --end must be a number")
         else:
-            end = int(end)
+            end = int(end) - 1
 
     if not os.path.exists(configfile):
         usage("no such file found: " + configfile)
