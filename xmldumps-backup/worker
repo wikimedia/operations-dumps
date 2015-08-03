@@ -3,7 +3,7 @@
 usage() {
     echo "$0: Unknown option $1"
     echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
-    echo "          [--cutoff date] [--date date] [--job job] [--skipdone] [--exclusive]"
+    echo "          [--cutoff date] [--date date] [--job job] [--skipjobs joblist] [--skipdone] [--exclusive]"
     echo "--configfile   use specified file for config file (default: wikidump.conf)"
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
@@ -13,6 +13,7 @@ usage() {
     echo "--date         (re)do dump runs of specified date (yyyymmdd) OR 'last'"
     echo "--skipdone     skip any dump jobs that ran successfully (this makes sense only for reruns)"
     echo "--job          do only the specified job for wiki(s)"
+    echo "--skipjobs     comma separated list of jobs not to run on the wiki(s)"
     echo "--exclusive    lock the wiki so other runners can't operate on it at the same time"
     echo "               default is true for all runs except those where --job is specified"
     echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
@@ -42,6 +43,8 @@ set_defaults() {
     SKIPDONE=""
     # default: run all jobs
     JOB=""
+    # default: run all jobs
+    SKIPJOBS=""
     # default for one job: no locking
     EXCLUSIVE=""
     # if no wikis are left to run, exit
@@ -74,6 +77,9 @@ process_opts() {
 	elif [ $1 == "--job" ]; then
 	    JOB="$2"
 	    shift; shift
+	elif [ $1 == "--skipjobs" ]; then
+	    SKIPJOBS="$2"
+	    shift; shift
 	elif [ $1 == "--onepass" ]; then
 	    ONEPASS=true
 	    shift
@@ -100,6 +106,9 @@ setup_python_args() {
     fi
     if [ ! -z "$JOB" ]; then
 	pythonargs=( "${pythonargs[@]}" "--job" "$JOB" )
+    fi
+    if [ ! -z "$SKIPJOBS" ]; then
+	pythonargs=( "${pythonargs[@]}" "--skipjobs" "$SKIPJOBS" )
     fi
     if [ ! -z "$SKIPDONE" ]; then
 	pythonargs=( "${pythonargs[@]}" "--skipdone" )
