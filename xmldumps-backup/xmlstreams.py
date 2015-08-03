@@ -49,7 +49,7 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
     piece_command.extend(["--skip-footer", "--start=1", "--end=1"])
     do_xml_piece(piece_command, outfiles, dryrun=dryrun)
 
-    upto = 1
+    upto = start
     while upto <= end:
         piece_command = [field for field in command]
         piece_command.append("--skip-header")
@@ -159,6 +159,8 @@ def get_max_id(wikiconf, wikidb, id_field, table):
     if results:
         lines = results.splitlines()
         if lines and lines[1]:
+            if not lines[1].isdigit():
+                return 0  #probably NULL or missing table
             end = int(lines[1])
             return end
 
