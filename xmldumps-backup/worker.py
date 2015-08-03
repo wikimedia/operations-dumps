@@ -554,7 +554,7 @@ class RunInfo(object):
 		self._toBeRun = toBeRun
 
 class DumpItemList(object):
-	def __init__(self, wiki, prefetch, spawn, chunkToDo, checkpointFile, singleJob, chunkInfo, pageIDRange, runInfoFile, dumpDir):
+	def __init__(self, wiki, prefetch, spawn, chunkToDo, checkpointFile, singleJob, skipJobs, chunkInfo, pageIDRange, runInfoFile, dumpDir):
 		self.wiki = wiki
 		self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
 		self._hasWikidata = self.wiki.hasWikidata()
@@ -565,6 +565,7 @@ class DumpItemList(object):
 		self.checkpointFile = checkpointFile
 		self._chunkToDo = chunkToDo
 		self._singleJob = singleJob
+                self.skipJobs = skipJobs
 		self._runInfoFile = runInfoFile
 		self.dumpDir = dumpDir
 		self.pageIDRange = pageIDRange
@@ -733,6 +734,10 @@ class DumpItemList(object):
 		else:
 			self.oldRunInfoRetrieved = False
 
+        def appendJob(self, jobname, job):
+                if jobname not in self.skipJobs:
+                        self.dumpItems.append(job)
+
 	def reportDumpRunInfo(self, done=False):
 		"""Put together a dump run info listing for this database, with all its component dumps."""
 		runInfoLines = [self._reportDumpRunInfoLine(item) for item in self.dumpItems]
@@ -741,9 +746,10 @@ class DumpItemList(object):
 		text = text + "\n"
 		return text
 
-	def allPossibleJobsDone(self):
+	def allPossibleJobsDone(self, skipJobs):
 		for item in self.dumpItems:
-			if (item.status() != "done" and item.status() != "failed"):
+			if (item.status() != "done" and item.status() != "failed"
+                            and item.status() != "skipped"):
 				return False
 		return True
 
@@ -755,12 +761,16 @@ class DumpItemList(object):
 		if (job == "tables"):
 			for item in self.dumpItems:
 				if (item.name()[-5:] == "table"):
-                                        if not skipgood or item.status() != "done":
+                                        if item.name in self.skipJobs:
+                                                item.setSkipped()
+                                        elif not skipgood or item.status() != "done":
                                                 item.setToBeRun(True)
 			return True
 		else:
 			for item in self.dumpItems:
 				if (item.name() == job):
+                                        if item.name in self.skipJobs:
+                                                item.setSkipped()
                                         if not skipgood or item.status() != "done":
                                                 item.setToBeRun(True)
 					return True
@@ -781,14 +791,18 @@ class DumpItemList(object):
 			i = i + 1;
 			if item.toBeRun():
 				for j in range(i,len(self.dumpItems)):
-                                        if not skipgood or item.status() != "done":
+                                        if item.name in self.skipJobs:
+                                                item.setSkipped()
+                                        elif not skipgood or item.status() != "done":
                                                 self.dumpItems[j].setToBeRun(True)
 				break
 
 	def markAllJobsToRun(self, skipgood=False):
 		"""Marks each and every job to be run"""
 		for item in self.dumpItems:
-                        if not skipgood or item.status() != "done":
+                        if item.name() in self.skipJobs:
+                                item.setSkipped()
+                        elif not skipgood or item.status() != "done":
                                 item.setToBeRun( True )
 					      
 	def findItemByName(self, name):
@@ -1589,7 +1603,7 @@ class NoticeFile(object):
 		return os.path.join(self.wiki.publicDir(), self.wiki.date)
 
 class Runner(object):
-	def __init__(self, wiki, prefetch=True, spawn=True, job=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None, skipdone = False, verbose = False):
+	def __init__(self, wiki, prefetch=True, spawn=True, job=None, skipJobs=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None, skipdone = False, verbose = False):
 		self.wiki = wiki
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
@@ -1664,6 +1678,11 @@ class Runner(object):
 
 		self.jobRequested = job
 
+                if skipJobs is None:
+                        self.skipJobs = []
+                else:
+                        self.skipJobs = skipJobs.split(",")
+
 		if self.jobRequested == "latestlinks":
 			self._statusEnabled = False
 			self._checksummerEnabled = False
@@ -1697,7 +1716,7 @@ class Runner(object):
 		self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled, self.verbose)
 
 		# some or all of these dumpItems will be marked to run
-		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.chunkInfo, self.pageIDRange, self.runInfoFile, self.dumpDir)
+		self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.skipJobs, self.chunkInfo, self.pageIDRange, self.runInfoFile, self.dumpDir)
 		# only send email failure notices for full runs
 		if (self.jobRequested):
 			email = False
@@ -1863,7 +1882,7 @@ class Runner(object):
 			if item.status() == "done":
 				self.checksums.cpMd5TmpFileToPermFile()
  				self.runUpdateItemFileInfo(item)
-                        elif item.status() == "waiting":
+                        elif item.status() == "waiting" or item.status() == "skipped":
                                 # don't update the md5 file for this item.
                                 continue
 			else:
@@ -1872,8 +1891,8 @@ class Runner(object):
 				# forgets to set the status. This is a failure as well.
 				self.runHandleFailure()
 
-		if (self.dumpItemList.allPossibleJobsDone()):
-			# All jobs are either in status "done" or "failed"
+		if (self.dumpItemList.allPossibleJobsDone(self.skipJobs)):
+			# All jobs are either in status "done", "wating", "failed",."skipped"
 			self.status.updateStatusFiles("done")
 		else:
 			# This may happen if we start a dump now and abort before all items are
@@ -1891,7 +1910,7 @@ class Runner(object):
 		if (self.jobRequested):
 			# special case...
 			if self.jobRequested == "latestlinks":
-				if (self.dumpItemList.allPossibleJobsDone()):
+				if (self.dumpItemList.allPossibleJobsDone(self.skipJobs)):
 					self.symLinks.removeSymLinksFromOldRuns(self.wiki.date)
 					self.feeds.cleanupFeeds()
 
@@ -2175,6 +2194,10 @@ class Dump(object):
 
 	def setToBeRun(self,toBeRun):
 		self.runInfo.setToBeRun(toBeRun)
+
+        def setSkipped(self):
+                self.setStatus("skipped")
+                self.setToBeRun(False)
 
 	# sometimes this will be called to fill in data from an old
 	# dump run; in those cases we don't want to clobber the timestamp
@@ -4090,7 +4113,7 @@ def usage(message = None):
 	if message:
 		sys.stderr.write("%s\n" % message)
 	sys.stderr.write( "Usage: python worker.py [options] [wikidbname]\n" )
-	sys.stderr.write( "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff\n" )
+	sys.stderr.write( "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --skipjobs, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff\n" )
 	sys.stderr.write( "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the\n" )
 	sys.stderr.write( "               rest of the job for the appropriate chunk if chunks are configured\n" )
 	sys.stderr.write( "               or for the all the rest of the revisions if no chunks are configured;\n" )
@@ -4115,6 +4138,8 @@ def usage(message = None):
 	sys.stderr.write( "               give the option --job help\n" )
 	sys.stderr.write( "               This option requires specifiying a wikidbname on which to run.\n" )
 	sys.stderr.write( "               This option cannot be specified with --force.\n" )
+	sys.stderr.write( "--skipjobs:    Comma separated list of jobs not to run on the wiki(s)\n" )
+	sys.stderr.write( "               give the option --job help\n" )
 	sys.stderr.write( "--dryrun:      Don't really run the job, just print what would be done (must be used\n" )
 	sys.stderr.write( "               with a specified wikidbname on which to run\n" )
 	sys.stderr.write( "--force:       remove a lock file for the specified wiki (dangerous, if there is\n" )
@@ -4147,6 +4172,7 @@ if __name__ == "__main__":
 		spawn = True
 		restart = False
 		jobRequested = None
+                skipJobs = None
 		enableLogging = False
 		log = None
 		htmlNotice = ""
@@ -4163,7 +4189,7 @@ if __name__ == "__main__":
 
 		try:
 			(options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-								 ['date=', 'job=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone", "exclusive", 'verbose' ])
+								 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone", "exclusive", 'verbose' ])
 		except:
 			usage("Unknown option specified")
 
@@ -4189,6 +4215,8 @@ if __name__ == "__main__":
 				dryrun = True
 			elif opt == "--job":
 				jobRequested = val
+			elif opt == "--skipjobs":
+				skipJobs = val
 			elif opt == "--restartfrom":
 				restart = True
 			elif opt == "--log":
@@ -4326,7 +4354,7 @@ if __name__ == "__main__":
 				if not jobRequested or not jobRequested in [ 'articlesdump', 'metacurrentdump', 'metahistorybz2dump' ]:
 					usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(afterCheckpointJobs))
 					
-			runner = Runner(wiki, prefetch, spawn, jobRequested, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, skipdone, verbose)
+			runner = Runner(wiki, prefetch, spawn, jobRequested, skipJobs, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, skipdone, verbose)
 
 			if (restart):
 				sys.stderr.write("Running %s, restarting from job %s...\n" % (wiki.dbName, jobRequested))
