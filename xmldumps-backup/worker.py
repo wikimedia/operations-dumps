@@ -1678,10 +1678,9 @@ class Runner(object):
 
 		self.jobRequested = job
 
+                self.skipJobs = skipJobs
                 if skipJobs is None:
                         self.skipJobs = []
-                else:
-                        self.skipJobs = skipJobs.split(",")
 
 		if self.jobRequested == "latestlinks":
 			self._statusEnabled = False
@@ -4027,7 +4026,7 @@ class AllTitleDump(TitleDump):
 			raise BackupError("error dumping all titles list")
 
 
-def checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
+def checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
         '''
         see if dump run on specific date completed specific job(s)
         or if no job was specified, ran to completion
@@ -4048,7 +4047,7 @@ def checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
         runInfoFile = RunInfoFile(wiki, False)
         chunkInfo = Chunk(wiki, wiki.dbName)
         dumpDir = DumpDir(wiki, wiki.dbName)
-        dumpItemList = DumpItemList(wiki, False, False, chunkToDo, checkpointFile, job, chunkInfo, pageIDRange, runInfoFile, dumpDir)
+        dumpItemList = DumpItemList(wiki, False, False, chunkToDo, checkpointFile, job, skipjobs, chunkInfo, pageIDRange, runInfoFile, dumpDir)
         if not dumpItemList.oldRunInfoRetrieved:
                 # failed to get the run's info so let's call it 'didn't run'
                 return False
@@ -4075,7 +4074,7 @@ def checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
 
 
 def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_job_status=False,
-                        date=None, job=None, pageIDRange=None, chunkToDo=None, checkpointFile=None):
+                        date=None, job=None, skipjobs=None, pageIDRange=None, chunkToDo=None, checkpointFile=None):
 	if config.halt:
 		sys.stderr.write("Dump process halted by config.\n")
 		return None
@@ -4095,7 +4094,7 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
                         if lastUpdated >= cutoff:
 				return None
                 if check_job_status:
-                        if checkJobDone(wiki, date, job, pageIDRange, chunkToDo, checkpointFile):
+                        if checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
                                 continue
 		try:
 			if (locksEnabled):
@@ -4257,6 +4256,11 @@ if __name__ == "__main__":
 		if pageIDRange and checkpointFile:
 			usage("--pageidrange option cannot be used with --checkpoint option")
 
+                if skipJobs is None:
+                        skipJobs = []
+                else:
+                        skipJobs = skipJobs.split(",")
+
 		# allow alternate config file
 		if (configFile):
 			config = WikiDump.Config(configFile)
@@ -4324,7 +4328,7 @@ if __name__ == "__main__":
                                 check_job_status = True
                         else:
                                 check_job_status = False
-			wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time, check_job_status, date, jobRequested, pageIDRange, chunkToDo, checkpointFile)
+			wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time, check_job_status, date, jobRequested, skipJobs, pageIDRange, chunkToDo, checkpointFile)
 
 		if wiki:
 			# process any per-project configuration options
