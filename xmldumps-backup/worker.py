@@ -4092,7 +4092,8 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
 #			if lastRan >= cutoff:
                         lastUpdated = wiki.dateTouchedLatestDump()
                         if lastUpdated >= cutoff:
-				return None
+#				return None
+			        continue
                 if check_job_status:
                         if checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
                                 continue
