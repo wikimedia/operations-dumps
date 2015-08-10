@@ -1999,7 +1999,7 @@ class Runner(object):
 						checkpoint = item.checkpointFile.checkpoint
 
 				for d in dumpNames:
-					self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint )
+					self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint, onlychunks=item.onlychunks)
 
 				self.feeds.cleanupFeeds()
 
@@ -2071,7 +2071,7 @@ class SymLinks(object):
 	# if the args are False or None, we remove all the old links for all values of the arg.
 	# example: if chunk is False or None then we remove all old values for all chunks
 	# "old" means "older than the specified datestring".
-	def removeSymLinksFromOldRuns(self, dateString, dumpName=None, chunk=None, checkpoint=None):
+	def removeSymLinksFromOldRuns(self, dateString, dumpName=None, chunk=None, checkpoint=None, onlychunks=False):
 		# fixme this needs to do more work if there are chunks or checkpoint files linked in here from
 		# earlier dates. checkpoint ranges change, and configuration of chunks changes too, so maybe
 		# old files still exist and the links need to be removed because we have newer files for the
@@ -2090,7 +2090,7 @@ class SymLinks(object):
 						# fixme check that these are ok if the value is None
 						if dumpName and (fileObj.dumpName != dumpName):
 							continue
-						if chunk and (fileObj.chunk != chunk):
+						if (chunk or onlychunks) and (fileObj.chunk != chunk):
 							continue
 						if checkpoint and (fileObj.checkpoint != checkpoint):
 							continue
@@ -2159,6 +2159,8 @@ class Dump(object):
 		# called last by child classes in their constructor, so that
 		# their functions overriding things like the dumpbName can
 		# be set up before we use them to set class attributes.)
+		if not hasattr(self, 'onlychunks'):
+			self.onlychunks = False
 		if not hasattr(self, '_chunksEnabled'):
 			self._chunksEnabled = False
 		if not hasattr(self, '_checkpointsEnabled'):
@@ -2817,6 +2819,7 @@ class XmlStub(Dump):
 		self._chunks = chunks
 		if self._chunks:
 			self._chunksEnabled = True
+			self.onlychunks = True
 		self.historyDumpName = "stub-meta-history"
 		self.currentDumpName = "stub-meta-current"
 		self.articlesDumpName = "stub-articles"
@@ -3032,6 +3035,7 @@ class XmlDump(Dump):
 		self._chunks = chunks
 		if self._chunks:
 			self._chunksEnabled = True
+			self.onlychunks = True
 		self._pageID = {}
 		self._chunkToDo = chunkToDo
 
@@ -3801,6 +3805,7 @@ class AbstractDump(Dump):
 		self._chunks = chunks
 		if self._chunks:
 			self._chunksEnabled = True
+			self.onlychunks = True
 		Dump.__init__(self, name, desc)
 
 	def getDumpName(self):
