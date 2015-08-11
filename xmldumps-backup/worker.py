@@ -578,6 +578,7 @@ class DumpItemList(object):
 		if (self._singleJob and self._chunkToDo):
 			if (self._singleJob[-5:] == 'table' or
 			    self._singleJob[-9:] == 'recombine' or
+                            self._singleJob == 'createdirs' or
 			    self._singleJob == 'noop' or
 			    self._singleJob == 'latestlinks' or
 			    self._singleJob == 'xmlpagelogsdump' or
@@ -590,6 +591,7 @@ class DumpItemList(object):
 			if (self._singleJob[-5:] == 'table' or
 			    self._singleJob[-9:] == 'recombine' or
 			    self._singleJob == 'noop' or
+                            self._singleJob == 'createdirs' or
 			    self._singleJob == 'latestlinks' or
 			    self._singleJob == 'xmlpagelogsdump' or
 			    self._singleJob == 'pagetitlesdump' or
@@ -774,11 +776,12 @@ class DumpItemList(object):
                                         if not skipgood or item.status() != "done":
                                                 item.setToBeRun(True)
 					return True
-		if job == "noop" or job == "latestlinks":
+		if job == "noop" or job == "latestlinks" or job == "createdirs":
 			return True
 		sys.stderr.write("No job of the name specified exists. Choose one of the following:\n")
 		sys.stderr.write("noop (runs no job but rewrites md5sums file and resets latest links)\n")
 		sys.stderr.write("latestlinks (runs no job but resets latest links)\n")
+		sys.stderr.write("createdirs (runs no job but creates dump dirs for the given date)\n")
 		sys.stderr.write("tables (includes all items below that end in 'table')\n")
 		for item in self.dumpItems:
 			sys.stderr.write("%s\n" % item.name())
@@ -1684,6 +1687,8 @@ class Runner(object):
 
 		if self.jobRequested == "latestlinks":
 			self._statusEnabled = False
+
+		if self.jobRequested == "latestlinks" or self.jobRequested == "createdirs":
 			self._checksummerEnabled = False
 			self._runInfoFileEnabled = False
 			self._noticeFileEnabled = False
@@ -1889,6 +1894,13 @@ class Runner(object):
 				# "in-progress", if an item chooses to override dump(...) and
 				# forgets to set the status. This is a failure as well.
 				self.runHandleFailure()
+
+                # special case
+                if self.jobRequested == "createdirs":
+                        if not os.path.exists(os.path.join(self.wiki.publicDir(), self.wiki.date)):
+                                os.makedirs(os.path.join(self.wiki.publicDir(), self.wiki.date))
+                        if not os.path.exists(os.path.join(self.wiki.privateDir(), self.wiki.date)):
+                                os.makedirs(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
 		if (self.dumpItemList.allPossibleJobsDone(self.skipJobs)):
 			# All jobs are either in status "done", "wating", "failed",."skipped"
