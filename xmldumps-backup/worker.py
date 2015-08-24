@@ -364,6 +364,9 @@ class PageAndEditStats(object):
 class BackupError(Exception):
 	pass
 
+class BackupPrereqError(Exception):
+	pass
+
 class RunInfoFile(object):
 	def __init__(self, wiki, enabled, verbose = False):
 		self.wiki = wiki
@@ -1687,10 +1690,10 @@ class Runner(object):
 
 		if self.jobRequested == "latestlinks":
 			self._statusEnabled = False
+			self._runInfoFileEnabled = False
 
 		if self.jobRequested == "latestlinks" or self.jobRequested == "createdirs":
 			self._checksummerEnabled = False
-			self._runInfoFileEnabled = False
 			self._noticeFileEnabled = False
 			self._makeDirEnabled = False
 			self._cleanOldDumpsEnabled = False
@@ -1879,9 +1882,13 @@ class Runner(object):
 					exc_type, exc_value, exc_traceback = sys.exc_info()
 					if (self.verbose):
 						sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-					else:
-						self.debug("*** exception! " + str(ex))
-					item.setStatus("failed")
+					else:	
+                                                if exc_type.__name__ == 'BackupPrereqError':
+					                self.debug(str(ex))
+                                                else:
+					                self.debug("*** exception! " + str(ex))
+                                        if exc_type.__name__ != 'BackupPrereqError':
+					        item.setStatus("failed")
 
 			if item.status() == "done":
 				self.checksums.cpMd5TmpFileToPermFile()
@@ -1903,7 +1910,7 @@ class Runner(object):
                                 os.makedirs(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
 		if (self.dumpItemList.allPossibleJobsDone(self.skipJobs)):
-			# All jobs are either in status "done", "wating", "failed",."skipped"
+			# All jobs are either in status "done", "waiting", "failed", "skipped"
 			self.status.updateStatusFiles("done")
 		else:
 			# This may happen if we start a dump now and abort before all items are
@@ -2258,17 +2265,23 @@ class Dump(object):
 		"""Attempt to run the operation, updating progress/status info."""
 		try:
 			for prerequisiteItem in self._prerequisiteItems:
-				if prerequisiteItem.status() != "done":
-					raise BackupError("Required job %s not marked as done, not starting job %s" % ( prerequisiteItem.name(),self.name() ) )
+				if prerequisiteItem.status() == "failed":
+					raise BackupError("Required job %s failed, not starting job %s" % ( prerequisiteItem.name(),self.name() ) )
+				elif prerequisiteItem.status() != "done":
+					raise BackupPrereqError("Required job %s not marked as done, not starting job %s" % ( prerequisiteItem.name(),self.name() ) )
 
 			self.run(runner)
 			self.postRun(runner)
 		except Exception:
+			exc_type, exc_value, exc_traceback = sys.exc_info()
 			if (self.verbose):
-				exc_type, exc_value, exc_traceback = sys.exc_info()
 				sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-			self.setStatus("failed")
+                        if exc_type.__name__ == 'BackupPrereqError':
+			        self.setStatus("waiting")
+                        else:
+			        self.setStatus("failed")
 			raise
+
 		self.setStatus("done")
 
 	def run(self, runner):
@@ -4043,10 +4056,16 @@ class AllTitleDump(TitleDump):
 			raise BackupError("error dumping all titles list")
 
 
-def checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
+def checkJobs(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile, prereqs=False):
         '''
+        if prereqs is False:
         see if dump run on specific date completed specific job(s)
         or if no job was specified, ran to completion
+
+        if prereqs is True:
+        see if dump run on specific date completed prereqs for specific job(s)
+        or if no job was specified, return True
+
         '''
         if not date:
                 return False
@@ -4058,6 +4077,9 @@ def checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFi
                 else:
                         # never dumped so that's the same as 'job didn't run'
                         return False
+
+        if not job and prereqs:
+                return True
 
         wiki.setDate(date)
 
@@ -4082,16 +4104,31 @@ def checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFi
         else:
                 dumpItemList.markAllJobsToRun(True)
 
-        # see if there are any to run. no? then return True (all job(s) done)
-        # otherwise return False (still some to do)
-        for item in dumpItemList.dumpItems:
-                if item.toBeRun():
-                        return False
-        return True
+        if not prereqs:
+                # see if there are any to run. no? then return True (all job(s) done)
+                # otherwise return False (still some to do)
+                for item in dumpItemList.dumpItems:
+                        if item.toBeRun():
+                                return False
+                return True
+        else:
+                # get the list of prereqs, see if they are all status done, if so
+                # return True, otherwise False (still some to do)
+                prereqItems = []
+                for item in dumpItemList.dumpItems:
+                        if (item.name() == job):
+                                prereqItems = item._prerequisiteItems
+                        break
+
+                for item in prereqItems:
+                        if item.status() != "done":
+                                return False
+                return True
 
 
 def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_job_status=False,
-                        date=None, job=None, skipjobs=None, pageIDRange=None, chunkToDo=None, checkpointFile=None):
+                        check_prereq_status=False, date=None, job=None, skipjobs=None, pageIDRange=None,
+                        chunkToDo=None, checkpointFile=None):
 	if config.halt:
 		sys.stderr.write("Dump process halted by config.\n")
 		return None
@@ -4102,26 +4139,35 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
 	if verbose and not cutoff:
 		sys.stderr.write("Finding oldest unlocked wiki...\n")
 
+        # if we skip locked wikis which are missing the prereqs for this job,
+        # there are still wikis where this job needs to run
+        missingPrereqs = False
 	for db in next:
 		wiki = WikiDump.Wiki(config, db)
 		if (cutoff):
-#			lastRan = wiki.latestDump()
-#			if lastRan >= cutoff:
                         lastUpdated = wiki.dateTouchedLatestDump()
                         if lastUpdated >= cutoff:
-#				return None
 			        continue
                 if check_job_status:
-                        if checkJobDone(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
+                        if checkJobs(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
                                 continue
 		try:
 			if (locksEnabled):
 				wiki.lock()
 			return wiki
 		except:
+                        if check_prereq_status:
+                                # if we skip locked wikis which are missing the prereqs for this job,
+                                # there are still wikis where this job needs to run
+                                if not checkJobs(wiki, date, job, skipjobs, pageIDRange, chunkToDo,
+                                                 checkpointFile, prereqs=True):
+                                        missingPrereqs = True
 			sys.stderr.write("Couldn't lock %s, someone else must have got it...\n" % db)
 			continue
-	return None
+        if missingPrereqs:
+                return False
+        else:
+	        return None
 
 def xmlEscape(text):
 	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -4346,9 +4392,15 @@ if __name__ == "__main__":
                                 check_job_status = True
                         else:
                                 check_job_status = False
-			wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time, check_job_status, date, jobRequested, skipJobs, pageIDRange, chunkToDo, checkpointFile)
+                        if jobRequested and skipdone:
+                                check_prereq_status = True
+                        else:
+                                check_prereq_status = False
+			wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time,
+                                                   check_job_status, check_prereq_status,
+                                                   date, jobRequested, skipJobs, pageIDRange, chunkToDo, checkpointFile)
 
-		if wiki:
+		if wiki is not None and wiki:
 			# process any per-project configuration options
 			config.parseConfFilePerProject(wiki.dbName)
 
@@ -4390,6 +4442,9 @@ if __name__ == "__main__":
 			# if we are doing one piece only of the dump, we don't unlock either
 			if locksEnabled:
 				wiki.unlock()
+                elif wiki is not None:
+			sys.stderr.write("Wikis available to run but prereqs not complete.\n")
+                        exitcode = 0
 		else:
 			sys.stderr.write("No wikis available to run.\n")
                         exitcode = 255

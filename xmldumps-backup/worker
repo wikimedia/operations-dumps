@@ -157,9 +157,8 @@ dump_wiki() {
     result=$?
     if [ $result -eq 255 ]; then
 	if [ ! -z "$ONEPASS" -o  ! -z "$CUTOFF" ]; then
-            exit 0
             # this isn't a failure but rather 'no wikis available to run'
-            result=0
+            exit 0
 	fi
     fi
     if [ $result -ne 0 ]; then
