@@ -3,7 +3,8 @@
 usage() {
     echo "$0: Unknown option $1"
     echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
-    echo "          [--cutoff date] [--date date] [--job job] [--skipjobs joblist] [--skipdone] [--exclusive]"
+    echo "          [--cutoff date] [--date date] [--job job] [--skipjobs joblist] [--skipdone]"
+    echo "          [--exclusive] [--onepass] [--sleep]"
     echo "--configfile   use specified file for config file (default: wikidump.conf)"
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
@@ -19,6 +20,7 @@ usage() {
     echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
     echo "               config file will be dumped"
     echo "--onepass      if there are no wikis to dump (--skipdone option) then exit"
+    echo "--sleep        time to sleep between jobs, default 30 seconds"
     echo
     echo "If the file maintenance.txt is present, no more jobs will be run, and"
     echo "this script will check the status again in 5 minutes."
@@ -49,6 +51,8 @@ set_defaults() {
     EXCLUSIVE=""
     # if no wikis are left to run, exit
     ONEPASS=""
+    # time to sleep between wikis, in seconds
+    SLEEP=30
 }
 
 process_opts() {
@@ -79,6 +83,9 @@ process_opts() {
 	    shift; shift
 	elif [ $1 == "--skipjobs" ]; then
 	    SKIPJOBS="$2"
+	    shift; shift
+	elif [ $1 == "--sleep" ]; then
+	    SLEEP="$2"
 	    shift; shift
 	elif [ $1 == "--onepass" ]; then
 	    ONEPASS=true
@@ -181,7 +188,7 @@ dump_wiki() {
 	fi
     fi
     echo "sleeping"
-    sleep 30
+    sleep "$SLEEP"
 }
 
 main_loop() {
