@@ -1692,6 +1692,10 @@ class Runner(object):
 			self._statusEnabled = False
 			self._runInfoFileEnabled = False
 
+		if self.jobRequested == "createdirs":
+			self._symLinksEnabled = False
+			self._feedsEnabled = False
+
 		if self.jobRequested == "latestlinks" or self.jobRequested == "createdirs":
 			self._checksummerEnabled = False
 			self._noticeFileEnabled = False
