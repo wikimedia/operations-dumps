@@ -1100,6 +1100,8 @@ Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job,
 
 
 def main():
+    os.environ['DUMPS'] = str(os.getpid())
+
     try:
         date = None
         config_file = False

@@ -203,6 +203,8 @@ main_loop() {
     fi
 }
 
+DUMPS="wrapper"
+export DUMPS
 failures=0
 WIKIDUMP_BASE=`dirname "$0"`
 set_defaults

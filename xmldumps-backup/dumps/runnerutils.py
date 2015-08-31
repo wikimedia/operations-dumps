@@ -226,7 +226,7 @@ class Status(object):
         # runs going at once (think en pedia, one finishing up the history, another
         # starting at the beginning to get the new abstracts and stubs).
         try:
-            dumps_in_order = self.wiki.latest_dump(all=True)
+            dumps_in_order = self.wiki.latest_dump(return_all=True)
             me_index = dumps_in_order.index(self.wiki.date)
             # don't wrap around to the newest dump in the list!
             if me_index > 0:
