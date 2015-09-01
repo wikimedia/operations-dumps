@@ -231,6 +231,8 @@ class Config(object):
 			"revsPerChunkHistory" : False,
 			# pages per chunk for abstract runs
 			"pagesPerChunkAbstract" : False,
+                        # number of chunks for abstract dumps, overrides pagesPerChunkAbstract
+                        "chunksForAbstract" : 0,
 			# whether or not to recombine the history pieces
 			"recombineHistory" : "1",
 			# do we write out checkpoint files at regular intervals? (article/metacurrent/metahistory
@@ -384,6 +386,7 @@ class Config(object):
 		self.chunksEnabled = self.getOptionForProjectOrDefault(conf, "chunks","chunksEnabled",1)
 		self.pagesPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkHistory",0)
 		self.revsPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","revsPerChunkHistory",0)
+		self.chunksForAbstract = self.getOptionForProjectOrDefault(conf, "chunks","chunksForAbstract",0)
 		self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkAbstract",0)
 		self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks","recombineHistory",1)
 		self.checkpointTime = self.getOptionForProjectOrDefault(conf, "chunks","checkpointTime",1)

@@ -79,9 +79,18 @@ class Chunk(object, ):
 		self.wiki = wiki
 		self._chunksEnabled = self.wiki.config.chunksEnabled
 		if (self._chunksEnabled):
+			self.Stats = PageAndEditStats(self.wiki,dbName, errorCallback)
+			if (not self.Stats.totalEdits or not self.Stats.totalPages):
+				raise BackupError("Failed to get DB stats, exiting")
+                        if self.wiki.config.chunksForAbstract:
+                                # we add 200 padding to cover new pages that may be added
+                                pagesPerChunk = self.Stats.totalPages/int(self.wiki.config.chunksForAbstract) + 200
+                                self._pagesPerChunkAbstract = [ pagesPerChunk for i in range(0, int(self.wiki.config.chunksForAbstract)) ]
+                        else:
+			        self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(self.wiki.config.pagesPerChunkAbstract)
+
 			self._pagesPerChunkHistory = self.convertCommaSepLineToNumbers(self.wiki.config.pagesPerChunkHistory)
 			self._revsPerChunkHistory = self.convertCommaSepLineToNumbers(self.wiki.config.revsPerChunkHistory)
-			self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(self.wiki.config.pagesPerChunkAbstract)
 			self._recombineHistory = self.wiki.config.recombineHistory
 		else:
 			self._pagesPerChunkHistory = False
@@ -89,9 +98,6 @@ class Chunk(object, ):
 			self._pagesPerChunkAbstract = False
 			self._recombineHistory = False
 		if (self._chunksEnabled):
-			self.Stats = PageAndEditStats(self.wiki,dbName, errorCallback)
-			if (not self.Stats.totalEdits or not self.Stats.totalPages):
-				raise BackupError("Failed to get DB stats, exiting")
 			if (self._revsPerChunkHistory):
 				if (len(self._revsPerChunkHistory) == 1):
 					self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalEdits, self._pagesPerChunkHistory[0])
@@ -133,7 +139,7 @@ class Chunk(object, ):
 		return self._pagesPerChunkAbstract
 
 	def getNumChunksAbstract(self):
-		return self._numChunksAbtsract
+		return self._numChunksAbstract
 
 	def getPagesPerChunkHistory(self):
 		return self._pagesPerChunkHistory
@@ -3847,7 +3853,6 @@ class AbstractDump(Dump):
 		return ""
 
         def buildCommand(self, runner, f):
-
                 command = [ "/usr/bin/python", "xmlabstracts.py", "--config", runner.wiki.config.files[0],
                             "--wiki", runner.dbName, runner.forceNormalOption() ]
 
