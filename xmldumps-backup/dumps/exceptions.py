@@ -1,8 +1,8 @@
 # dump-specific exceptions
 
 class BackupError(Exception):
-	pass
+    pass
 
 class BackupPrereqError(Exception):
-	pass
+    pass
 
