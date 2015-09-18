@@ -144,7 +144,7 @@ class DumpFilename(object):
             self.lastPageID = result.group('last')
             self.checkpoint = "p" + self.firstPageID + "p" + self.lastPageID
             if self.fileType and self.fileType.endswith("-" + self.checkpoint):
-                self.fileType = self.fileType[:-1 * ( len(self.checkpoint) + 1 ) ]
+                self.fileType = self.fileType[:-1 * (len(self.checkpoint) + 1)]
 
         self.chunkPattern = "(?P<chunk>[0-9]+)$"
         self.compiledChunkPattern = re.compile(self.chunkPattern)
@@ -242,15 +242,15 @@ class DumpFile(file):
 
         pipeline = self.setupUncompressionCommand()
 
-        if (not exists( self._wiki.config.head ) ):
+        if (not exists(self._wiki.config.head)):
             raise BackupError("head command %s not found" % self._wiki.config.head)
         head = self._wiki.config.head
         headEsc = MiscUtils.shellEscape(head)
-        pipeline.append([ head, "-500" ])
+        pipeline.append([head, "-500"])
         # without shell
         p = CommandPipeline(pipeline, quiet=True)
         p.runPipelineAndGetOutput()
-        if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[ -signal.SIGPIPE, pipeline[0] ]] or p.getFailedCommandsWithExitValue() == [[ signal.SIGPIPE + 128, pipeline[0] ]]:
+        if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[-signal.SIGPIPE, pipeline[0]]] or p.getFailedCommandsWithExitValue() == [[signal.SIGPIPE + 128, pipeline[0]]]:
             self.firstLines = p.output()
         return(self.firstLines)
 
@@ -272,17 +272,17 @@ class DumpFile(file):
             return None
         pipeline = []
         if self.fileObj.fileExt == 'bz2':
-            command = [ self._wiki.config.bzip2, '-dc' ]
+            command = [self._wiki.config.bzip2, '-dc']
         elif self.fileObj.fileExt == 'gz':
-            command = [ self._wiki.config.gzip, '-dc' ]
+            command = [self._wiki.config.gzip, '-dc']
         elif self.fileObj.fileExt == '7z':
-            command = [ self._wiki.config.sevenzip, "e", "-so" ]
+            command = [self._wiki.config.sevenzip, "e", "-so"]
         else:
-            command = [ self._wiki.config.cat ]
+            command = [self._wiki.config.cat]
 
-        if (not exists( command[0] ) ):
-            raise BackupError( "command %s to uncompress/read file not found" % command[0] )
-        command.append( self.filename )
+        if (not exists(command[0])):
+            raise BackupError("command %s to uncompress/read file not found" % command[0])
+        command.append(self.filename)
         pipeline.append(command)
         return(pipeline)
 
@@ -312,18 +312,18 @@ class DumpFile(file):
 
         # Setting up the pipeline depending on the file extension
         if self.fileObj.fileExt == "bz2":
-            if (not exists( self._wiki.config.checkforbz2footer ) ):
+            if (not exists(self._wiki.config.checkforbz2footer)):
                 raise BackupError("checkforbz2footer command %s not found" % self._wiki.config.checkforbz2footer)
             checkforbz2footer = self._wiki.config.checkforbz2footer
             pipeline = []
-            pipeline.append([ checkforbz2footer, self.filename ])
+            pipeline.append([checkforbz2footer, self.filename])
         else:
             if self.fileObj.fileExt == 'gz':
-                pipeline = [ [ self._wiki.config.gzip, "-dc", self.filename, ">", "/dev/null" ] ]
+                pipeline = [[self._wiki.config.gzip, "-dc", self.filename, ">", "/dev/null"]]
             elif self.fileObj.fileExt == '7z':
                 # Note that 7z does return 0, if archive contains
                 # garbage /after/ the archive end
-                pipeline = [ [ self._wiki.config.sevenzip, "e", "-so", self.filename, ">", "/dev/null" ] ]
+                pipeline = [[self._wiki.config.sevenzip, "e", "-so", self.filename, ">", "/dev/null"]]
             else:
                 # we do't know how to handle this type of file.
                 return self.isTruncated
@@ -452,7 +452,7 @@ class DumpDir(object):
     # chunks should be a list of value(s) or True / False / None
     #
     # note that we ignore files with ".truncated". these are known to be bad.
-    def _getFilesFiltered(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = None, temp = None, checkpoint = None ):
+    def _getFilesFiltered(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = None, temp = None, checkpoint = None):
         if not date:
             date = self._wiki.date
         fileObjs = self.getFilesInDir(date)
@@ -488,15 +488,15 @@ class DumpDir(object):
         """ Sort the given list in the way that humans expect.
         """
         convert = lambda text: int(text) if text.isdigit() else text
-        alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key.filename) ]
-        l.sort( key=alphanum_key )
+        alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key.filename)]
+        l.sort(key=alphanum_key)
 
     # list all checkpoint files that exist, filtering by the given args.
     # if we get None for an arg then we accept all values for that arg in the filename
     # if we get False for an arg (chunks, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getCheckpointFilesExisting(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = False, temp = False ):
+    def getCheckpointFilesExisting(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = False, temp = False):
         return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint = True)
 
     # list all non-checkpoint files that exist, filtering by the given args.
@@ -504,6 +504,6 @@ class DumpDir(object):
     # if we get False for an arg (chunk, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getRegularFilesExisting(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = False, temp = False ):
+    def getRegularFilesExisting(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = False, temp = False):
         return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint = False)
 

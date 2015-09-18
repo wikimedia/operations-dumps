@@ -27,7 +27,7 @@ class CommandPipeline(object):
     """
     def __init__(self, commands, quiet = False, shell = False):
         if (not isinstance(commands,list)):
-            self._commands = [ commands ]
+            self._commands = [commands]
         else:
             self._commands = commands
         self._output = None
@@ -117,7 +117,7 @@ class CommandPipeline(object):
 
             stderrOpt = PIPE
 
-            process = Popen( command, stdout=stdoutOpt, stdin=stdinOpt, stderr=stderrOpt,
+            process = Popen(command, stdout=stdoutOpt, stdin=stdinOpt, stderr=stderrOpt,
                      preexec_fn=self.subprocess_setup, shell= self._shell)
             
             if (command == self._commands[0]):
@@ -130,7 +130,7 @@ class CommandPipeline(object):
 
             if not self._quiet:
                 print "command %s (%s) started... " % (commandString, process.pid)
-            self._processes.append( process )
+            self._processes.append(process)
             previousProcess = process
 
         self._lastProcessInPipe = process
@@ -193,9 +193,9 @@ class CommandPipeline(object):
     def getFailedCommandsWithExitValue(self):
         """yields failed commands of a pipeline, along with exit values"""
         failedCommands = []
-        for index, exitValue in enumerate( self._exitValues ):
+        for index, exitValue in enumerate(self._exitValues):
             if exitValue != 0:
-                failedCommands.append( [ exitValue, self._commands[index] ] );
+                failedCommands.append([exitValue, self._commands[index]]);
 
         if len(failedCommands):
             return failedCommands
@@ -310,13 +310,13 @@ class CommandPipeline(object):
         self.setReturnCodes()
 
 class CommandSeries(object):
-    """Run a list of command pipelines in serial ( e.g. tar cvfp distro/ distro.tar; chmod 644 distro.tar   )
+    """Run a list of command pipelines in serial (e.g. tar cvfp distro/ distro.tar; chmod 644 distro.tar  )
     It takes as args: series of pipelines (each pipeline is a list of commands)"""
     def __init__(self, commandSeries, quiet = False, shell = False):
         self._commandSeries = commandSeries
         self._commandPipelines = []
         for pipeline in commandSeries:
-            self._commandPipelines.append( CommandPipeline(pipeline, quiet, shell) )
+            self._commandPipelines.append(CommandPipeline(pipeline, quiet, shell))
         self._inProgressPipeline = None
 
     def startCommands(self, readInputFromCaller=False):
@@ -493,7 +493,7 @@ class OutputQueueItem(object):
     getStderrChannel = staticmethod(getStderrChannel)
 
 class CommandsInParallel(object):
-    """Run a pile of commandSeries in parallel ( e.g. dump articles 1 to 100K, 
+    """Run a pile of commandSeries in parallel (e.g. dump articles 1 to 100K, 
     dump articles 100K+1 to 200K, ...).  This takes as arguments: a list of series 
     of pipelines (each pipeline is a list of commands, each series is a list of 
     pipelines), as well as a possible callback which is used to capture all output
@@ -503,11 +503,11 @@ class CommandsInParallel(object):
     and the individual pipelines are not provided with a file to save output, 
     then output is written     to stderr.
     Callbackinterval is in milliseconds, defaults is 20 seconds"""
-    def __init__(self, commandSeriesList, callbackStderr = None, callbackStdout = None, callbackTimed = None, callbackStderrArg=None, callbackStdoutArg = None, callbackTimedArg = None, quiet = False, shell = False, callbackInterval = 20000 ):
+    def __init__(self, commandSeriesList, callbackStderr = None, callbackStdout = None, callbackTimed = None, callbackStderrArg=None, callbackStdoutArg = None, callbackTimedArg = None, quiet = False, shell = False, callbackInterval = 20000):
         self._commandSeriesList = commandSeriesList
         self._commandSerieses = []
         for series in self._commandSeriesList:
-            self._commandSerieses.append( CommandSeries(series, quiet, shell) )
+            self._commandSerieses.append(CommandSeries(series, quiet, shell))
         # for each command series running in parallel,
         # in cases where a command pipeline in the series generates output, the callback
         # will be called with a line of output from the pipeline as it becomes available
@@ -598,32 +598,32 @@ class CommandsInParallel(object):
 def testcallback(output = None):
     outputFile = open("/home/ariel/src/mediawiki/testing/outputsaved.txt","a")
     if (output == None):
-        outputFile.write( "no output for me.\n" )
+        outputFile.write("no output for me.\n")
     else:
         outputFile.write(output)
     outputFile.close()
 
 if __name__ == "__main__":
-    command1 = [ "/usr/bin/vmstat", "1", "10" ]
-    command2 = [ "/usr/sbin/lnstat", "-i", "7", "-c", "5", "-k", "arp_cache:entries,rt_cache:in_hit,arp_cache:destroys", ">", "/home/ariel/src/mediawiki/testing/savelnstat.txt" ]
-    command3 = [ "/usr/bin/iostat", "9", "2" ]
-    command4 = [ '/bin/touch', "/home/ariel/src/mediawiki/testing/touchfile" ]
-    command5 = [ "/bin/grep", "write", "/home/ariel/src/mediawiki/testing/mysubsagain.py" ]
-    command6 = [ "/bin/grep", "-v", "FIXME" ]
+    command1 = ["/usr/bin/vmstat", "1", "10"]
+    command2 = ["/usr/sbin/lnstat", "-i", "7", "-c", "5", "-k", "arp_cache:entries,rt_cache:in_hit,arp_cache:destroys", ">", "/home/ariel/src/mediawiki/testing/savelnstat.txt"]
+    command3 = ["/usr/bin/iostat", "9", "2"]
+    command4 = ['/bin/touch', "/home/ariel/src/mediawiki/testing/touchfile"]
+    command5 = ["/bin/grep", "write", "/home/ariel/src/mediawiki/testing/mysubsagain.py"]
+    command6 = ["/bin/grep", "-v", "FIXME"]
     # this file does not end in a newline. let's see what happens.
-    command7 = [ "/bin/cat", "/home/ariel/src/mediawiki/testing/blob" ]
-    pipeline1 = [ command1 ]
-    pipeline2 = [ command2 ]
-    pipeline3 = [ command3 ]
-    pipeline4 = [ command4 ]
-    pipeline5 = [ command5, command6 ]
-    pipeline6 = [ command7 ]
-    series1 = [ pipeline1, pipeline4 ]
-    series2 = [ pipeline2 ]
-    series3 = [ pipeline3 ]
-    series4 = [ pipeline5 ]
-    series5 = [ pipeline6 ]
-    parallel = [ series1, series2, series3, series4, series5 ]
+    command7 = ["/bin/cat", "/home/ariel/src/mediawiki/testing/blob"]
+    pipeline1 = [command1]
+    pipeline2 = [command2]
+    pipeline3 = [command3]
+    pipeline4 = [command4]
+    pipeline5 = [command5, command6]
+    pipeline6 = [command7]
+    series1 = [pipeline1, pipeline4]
+    series2 = [pipeline2]
+    series3 = [pipeline3]
+    series4 = [pipeline5]
+    series5 = [pipeline6]
+    parallel = [series1, series2, series3, series4, series5]
     commands = CommandsInParallel(parallel, callbackStdout=testcallback)
     commands.runCommands()
     if commands.exitedSuccessfully():
