@@ -48,7 +48,7 @@ class DumpFilename(object):
     chinkInt          chunk number as int
     """
 
-    def __init__(self, wiki, date = None, dumpName = None, filetype = None, ext = None, chunk = None, checkpoint = None, temp = False):
+    def __init__(self, wiki, date=None, dumpName=None, filetype=None, ext=None, chunk=None, checkpoint=None, temp=False):
         """Constructor.  Arguments: the dump name as it should appear in the filename,
         the date if different than the date of the dump run, the chunk number
         if there is one, and temp which is true if this is a temp file (ending in "-tmp")
@@ -158,7 +158,7 @@ class DumpFilename(object):
 
         return True
 
-    def newFilename(self, dumpName, filetype, ext, date = None, chunk = None, checkpoint = None, temp = None):
+    def newFilename(self, dumpName, filetype, ext, date=None, chunk=None, checkpoint=None, temp=None):
         if not chunk:
             chunk = ""
         if not date:
@@ -206,7 +206,7 @@ class DumpFile(file):
                           looking for page and id tags, wihout other tags in between. (hmm)
     filename          full filename with directory
     """
-    def __init__(self, wiki, filename, fileObj = None, verbose = False):
+    def __init__(self, wiki, filename, fileObj=None, verbose=False):
         """takes full filename including path"""
         self._wiki = wiki
         self.filename = filename
@@ -361,7 +361,7 @@ class DumpDir(object):
         self._chunkFileCache = {}
         self._checkpointFileCache = {}
 
-    def filenamePrivatePath(self, dumpFile, dateString = None):
+    def filenamePrivatePath(self, dumpFile, dateString=None):
         """Given a DumpFilename object, produce the full path to the filename in the date subdir
         of the the private dump dir for the selected database.
         If a different date is specified, use that instead"""
@@ -369,7 +369,7 @@ class DumpDir(object):
             dateString = self._wiki.date
         return os.path.join(self._wiki.privateDir(), dateString, dumpFile.filename)
 
-    def filenamePublicPath(self, dumpFile, dateString = None):
+    def filenamePublicPath(self, dumpFile, dateString=None):
         """Given a DumpFilename object produce the full path to the filename in the date subdir
         of the public dump dir for the selected database.
         If this database is marked as private, use the private dir instead.
@@ -385,7 +385,7 @@ class DumpDir(object):
         is the path to the directory for public dumps)."""
         return os.path.join(self._wiki.publicDir(), "latest")
 
-    def webPath(self, dumpFile, dateString = None):
+    def webPath(self, dumpFile, dateString=None):
         """Given a DumpFilename object produce the full url to the filename for the date of
         the dump for the selected database."""
         if (not dateString):
@@ -393,7 +393,7 @@ class DumpDir(object):
         return os.path.join(self._wiki.webDir(), dateString, dumpFile.filename)
 
 
-    def webPathRelative(self, dumpFile, dateString = None):
+    def webPathRelative(self, dumpFile, dateString=None):
         """Given a DumpFilename object produce the url relative to the docroot for the filename for the date of
         the dump for the selected database."""
         if (not dateString):
@@ -414,7 +414,7 @@ class DumpDir(object):
             return True
 
     # warning: date can also be "latest"
-    def getFilesInDir(self, date = None):
+    def getFilesInDir(self, date=None):
         if not date:
             date = self._wiki.date
         if (self.dirCacheOutdated(date)):
@@ -452,7 +452,7 @@ class DumpDir(object):
     # chunks should be a list of value(s) or True / False / None
     #
     # note that we ignore files with ".truncated". these are known to be bad.
-    def _getFilesFiltered(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = None, temp = None, checkpoint = None):
+    def _getFilesFiltered(self, date=None, dumpName=None, fileType=None, fileExt=None, chunks=None, temp=None, checkpoint=None):
         if not date:
             date = self._wiki.date
         fileObjs = self.getFilesInDir(date)
@@ -496,14 +496,14 @@ class DumpDir(object):
     # if we get False for an arg (chunks, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getCheckpointFilesExisting(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = False, temp = False):
-        return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint = True)
+    def getCheckpointFilesExisting(self, date=None, dumpName=None, fileType=None, fileExt=None, chunks=False, temp=False):
+        return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint=True)
 
     # list all non-checkpoint files that exist, filtering by the given args.
     # if we get None for an arg then we accept all values for that arg in the filename
     # if we get False for an arg (chunk, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getRegularFilesExisting(self, date = None, dumpName = None, fileType = None, fileExt = None, chunks = False, temp = False):
-        return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint = False)
+    def getRegularFilesExisting(self, date=None, dumpName=None, fileType=None, fileExt=None, chunks=False, temp=False):
+        return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint=False)
 

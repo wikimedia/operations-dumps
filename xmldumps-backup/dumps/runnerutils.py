@@ -10,7 +10,7 @@ from subprocess import Popen, PIPE
 from WikiDump import FileUtils, MiscUtils, TimeUtils
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
 from dumps.jobs import *
-                                                                                                                
+
 def xmlEscape(text):
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -22,7 +22,7 @@ class Maintenance(object):
         they are running as soon as possible."""
         return exists("maintenance.txt")
 
-    def exitIfInMaintenanceMode(message = None):
+    def exitIfInMaintenanceMode(message=None):
         """Call this from possible exit points of running jobs
         in order to exit if we need to"""
         if Maintenance.inMaintenanceMode():
@@ -36,7 +36,7 @@ class Maintenance(object):
 
 
 class Checksummer(object):
-    def __init__(self,wiki,dumpDir, enabled = True, verbose = False):
+    def __init__(self,wiki,dumpDir, enabled=True, verbose=False):
         self.wiki = wiki
         self.dumpDir = dumpDir
         self.verbose = verbose
@@ -97,7 +97,7 @@ class Checksummer(object):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-    def __init__(self, wiki, dumpDir, items, checksums, enabled, email = True, noticeFile = None, errorCallback=None, verbose = False):
+    def __init__(self, wiki, dumpDir, items, checksums, enabled, email=True, noticeFile=None, errorCallback=None, verbose=False):
         self.wiki = wiki
         self.dbName = wiki.dbName
         self.dumpDir = dumpDir
@@ -164,7 +164,7 @@ class Status(object):
             else:
                 sys.stderr.write("%s\n" % message)
 
-    def _reportDatabaseStatusSummary(self, done = False):
+    def _reportDatabaseStatusSummary(self, done=False):
         """Put together a brief status summary and link for the current database."""
         status = self._reportStatusSummaryLine(done)
         html = self.wiki.reportStatusLine(status)
@@ -175,7 +175,7 @@ class Status(object):
         else:
             return html
 
-    def _reportDatabaseStatusDetailed(self, done = False):
+    def _reportDatabaseStatusDetailed(self, done=False):
         """Put together a status page for this database, with all its component dumps."""
         self.noticeFile.refreshNotice()
         statusItems = [self._reportItem(item) for item in self.items]
