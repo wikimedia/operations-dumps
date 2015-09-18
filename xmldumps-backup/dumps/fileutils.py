@@ -60,7 +60,7 @@ class DumpFilename(object):
             filename =  self.newFilename(dumpName, filetype, ext, date, chunk, checkpoint, temp)
             self.newFromFilename(filename)
 
-    def isExt(self,ext):
+    def isExt(self, ext):
         if ext == "gz" or ext == "bz2" or ext == "7z" or ext == "html" or ext == "txt":
             return True
         else:
@@ -105,9 +105,9 @@ class DumpFilename(object):
             self.isTempFile = True
             self.temp = "-tmp"
 
-        if ('.' in self.filename):
-            (fileBase, self.fileExt) = self.filename.rsplit('.',1)
-            if (self.temp):
+        if '.' in self.filename:
+            (fileBase, self.fileExt) = self.filename.rsplit('.', 1)
+            if self.temp:
                 self.fileExt = self.fileExt[:-4];
         else:
             return False
@@ -118,13 +118,13 @@ class DumpFilename(object):
             self.fileExt = ""
         else:
             if '.' in fileBase:
-                (fileBase, self.fileType) = fileBase.split('.',1)
+                (fileBase, self.fileType) = fileBase.split('.', 1)
 
         # some files are not of this form, we skip them
         if not '-' in fileBase:
             return False
 
-        (self.dbName, self.date, self.dumpName) = fileBase.split('-',2)
+        (self.dbName, self.date, self.dumpName) = fileBase.split('-', 2)
         if not self.date or not self.dumpName:
             self.dumpName = fileBase
         else:
@@ -235,14 +235,14 @@ class DumpFile(file):
 
     def getFirst500Lines(self):
         if self.firstLines:
-            return(self.firstLines)
+            return self.firstLines
 
         if not self.filename or not exists(self.filename):
             return None
 
         pipeline = self.setupUncompressionCommand()
 
-        if (not exists(self._wiki.config.head)):
+        if not exists(self._wiki.config.head):
             raise BackupError("head command %s not found" % self._wiki.config.head)
         head = self._wiki.config.head
         headEsc = MiscUtils.shellEscape(head)
@@ -252,20 +252,20 @@ class DumpFile(file):
         p.runPipelineAndGetOutput()
         if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[-signal.SIGPIPE, pipeline[0]]] or p.getFailedCommandsWithExitValue() == [[signal.SIGPIPE + 128, pipeline[0]]]:
             self.firstLines = p.output()
-        return(self.firstLines)
+        return self.firstLines
 
     # unused
     # xml, sql, text
     def determineFileContentsType(self):
         output = self.getFirst500Lines()
-        if (output):
+        if output:
             pageData = output
-            if (pageData.startswith('<mediawiki')):
-                return('xml')
-            if (pageData.startswith('-- MySQL dump')):
-                return('sql')
-            return('txt')
-        return(None)
+            if pageData.startswith('<mediawiki'):
+                return 'xml'
+            if pageData.startswith('-- MySQL dump'):
+                return 'sql'
+            return 'txt'
+        return None
 
     def setupUncompressionCommand(self):
         if not self.filename or not exists(self.filename):
@@ -280,11 +280,11 @@ class DumpFile(file):
         else:
             command = [self._wiki.config.cat]
 
-        if (not exists(command[0])):
+        if not exists(command[0]):
             raise BackupError("command %s to uncompress/read file not found" % command[0])
         command.append(self.filename)
         pipeline.append(command)
-        return(pipeline)
+        return pipeline
 
     # unused
     # return its first and last page ids from name or from contents, depending
@@ -295,16 +295,16 @@ class DumpFile(file):
     # right. stupid compressed files. um.... do we have stream wrappers? no. this is python
     # what's the easy was to read *some* compressed data into a buffer?
     def findFirstPageIDInFile(self):
-        if (self.firstPageID):
-            return(self.firstPageID)
+        if self.firstPageID:
+            return self.firstPageID
         output = self.getFirst500Lines()
-        if (output):
+        if output:
             pageData = output
             titleAndIDPattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '(<ns>[0-9]+</ns>\s*)?' + '<id>(?P<pageid>\d+?)</id>')
             result = titleAndIDPattern.search(pageData)
-            if (result):
+            if result:
                 self.firstPageID = result.group('pageid')
-        return(self.firstPageID)
+        return self.firstPageID
 
     def checkIfTruncated(self):
         if self.isTruncated:
@@ -312,7 +312,7 @@ class DumpFile(file):
 
         # Setting up the pipeline depending on the file extension
         if self.fileObj.fileExt == "bz2":
-            if (not exists(self._wiki.config.checkforbz2footer)):
+            if not exists(self._wiki.config.checkforbz2footer):
                 raise BackupError("checkforbz2footer command %s not found" % self._wiki.config.checkforbz2footer)
             checkforbz2footer = self._wiki.config.checkforbz2footer
             pipeline = []
@@ -336,20 +336,20 @@ class DumpFile(file):
         return self.isTruncated
 
     def getSize(self):
-        if (exists(self.filename)):
+        if exists(self.filename):
             return os.path.getsize(self.filename)
         else:
             return None
 
     def rename(self, newname):
         try:
-            os.rename(self.filename, os.path.join(self.dirname,newname))
+            os.rename(self.filename, os.path.join(self.dirname, newname))
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             raise BackupError("failed to rename file %s" % self.filename)
 
-        self.filename = os.path.join(self.dirname,newname)
+        self.filename = os.path.join(self.dirname, newname)
 
 
 class DumpDir(object):
@@ -365,7 +365,7 @@ class DumpDir(object):
         """Given a DumpFilename object, produce the full path to the filename in the date subdir
         of the the private dump dir for the selected database.
         If a different date is specified, use that instead"""
-        if (not dateString):
+        if not dateString:
             dateString = self._wiki.date
         return os.path.join(self._wiki.privateDir(), dateString, dumpFile.filename)
 
@@ -374,7 +374,7 @@ class DumpDir(object):
         of the public dump dir for the selected database.
         If this database is marked as private, use the private dir instead.
         If a different date is specified, use that instead"""
-        if (not dateString):
+        if not dateString:
             dateString = self._wiki.date
         return os.path.join(self._wiki.publicDir(), dateString, dumpFile.filename)
 
@@ -388,7 +388,7 @@ class DumpDir(object):
     def webPath(self, dumpFile, dateString=None):
         """Given a DumpFilename object produce the full url to the filename for the date of
         the dump for the selected database."""
-        if (not dateString):
+        if not dateString:
             dateString = self._wiki.date
         return os.path.join(self._wiki.webDir(), dateString, dumpFile.filename)
 
@@ -396,7 +396,7 @@ class DumpDir(object):
     def webPathRelative(self, dumpFile, dateString=None):
         """Given a DumpFilename object produce the url relative to the docroot for the filename for the date of
         the dump for the selected database."""
-        if (not dateString):
+        if not dateString:
             dateString = self._wiki.date
         return os.path.join(self._wiki.webDirRelative(), dateString, dumpFile.filename)
 
@@ -406,7 +406,7 @@ class DumpDir(object):
         directory = os.path.join(self._wiki.publicDir(), date)
         if exists(directory):
             dirTimeStamp = os.stat(directory).st_mtime
-            if (not date in self._dirCache or dirTimeStamp > self._dirCacheTime[date]):
+            if not date in self._dirCache or dirTimeStamp > self._dirCacheTime[date]:
                 return True
             else:
                 return False
@@ -417,8 +417,8 @@ class DumpDir(object):
     def getFilesInDir(self, date=None):
         if not date:
             date = self._wiki.date
-        if (self.dirCacheOutdated(date)):
-            directory = os.path.join(self._wiki.publicDir(),date)
+        if self.dirCacheOutdated(date):
+            directory = os.path.join(self._wiki.publicDir(), date)
             if exists(directory):
                 dirTimeStamp = os.stat(directory).st_mtime
                 files = os.listdir(directory)
@@ -443,7 +443,7 @@ class DumpDir(object):
                     self._dirCacheTime[date] = 0
             else:
                 self._dirCache[date] = []
-        return(self._dirCache[date])
+        return self._dirCache[date]
 
     # list all files that exist, filtering by the given args.
     # if we get None for an arg then we accept all values for that arg in the filename, including missing
@@ -468,12 +468,12 @@ class DumpDir(object):
                 continue
             if fileExt != None and f.fileExt != fileExt:
                 continue
-            if (chunks == False and f.isChunkFile):
+            if chunks == False and f.isChunkFile:
                 continue
-            if (chunks == True and not f.isChunkFile):
+            if chunks == True and not f.isChunkFile:
                 continue
             # chunks is a list...
-            if (chunks and chunks != True and not f.chunkInt in chunks):
+            if chunks and chunks != True and not f.chunkInt in chunks:
                 continue
             if (temp == False and f.isTempFile) or (temp and not f.isTempFile):
                 continue

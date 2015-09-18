@@ -36,7 +36,7 @@ class Maintenance(object):
 
 
 class Checksummer(object):
-    def __init__(self,wiki,dumpDir, enabled=True, verbose=False):
+    def __init__(self, wiki, dumpDir, enabled=True, verbose=False):
         self.wiki = wiki
         self.dumpDir = dumpDir
         self.verbose = verbose
@@ -47,48 +47,48 @@ class Checksummer(object):
         """Create a temporary md5 checksum file.
         Call this at the start of the dump run, and move the file
         into the final location at the completion of the dump run."""
-        if (self._enabled):
+        if self._enabled:
             checksumFileName = self._getChecksumFileNameTmp()
             output = file(checksumFileName, "w")
 
     def checksum(self, fileObj, runner):
         """Run checksum for an output file, and append to the list."""
-        if (self._enabled):
+        if self._enabled:
             checksumFileName = self._getChecksumFileNameTmp()
             output = file(checksumFileName, "a")
             runner.debug("Checksumming %s" % fileObj.filename)
-            dumpfile = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj),None,self.verbose)
+            dumpfile = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj), None, self.verbose)
             checksum = dumpfile.md5Sum()
             if checksum != None:
                 output.write("%s  %s\n" % (checksum, fileObj.filename))
             output.close()
 
     def moveMd5FileIntoPlace(self):
-        if (self._enabled):
+        if self._enabled:
             tmpFileName = self._getChecksumFileNameTmp()
             realFileName = self._getChecksumFileName()
             os.rename(tmpFileName, realFileName)
 
     def cpMd5TmpFileToPermFile(self):
-        if (self._enabled):
+        if self._enabled:
             tmpFileName = self._getChecksumFileNameTmp()
             realFileName = self._getChecksumFileName()
             text = FileUtils.readFile(tmpFileName)
             FileUtils.writeFile(self.wiki.config.tempDir, realFileName, text, self.wiki.config.fileperms)
 
     def getChecksumFileNameBasename(self):
-        return ("md5sums.txt")
+        return "md5sums.txt"
 
     #
     # functions internal to the class
     #
     def _getChecksumFileName(self):
         fileObj = DumpFilename(self.wiki, None, self.getChecksumFileNameBasename())
-        return (self.dumpDir.filenamePublicPath(fileObj))
+        return self.dumpDir.filenamePublicPath(fileObj)
 
     def _getChecksumFileNameTmp(self):
         fileObj = DumpFilename(self.wiki, None, self.getChecksumFileNameBasename() + "." + self.timestamp + ".tmp")
-        return (self.dumpDir.filenamePublicPath(fileObj))
+        return self.dumpDir.filenamePublicPath(fileObj)
 
     def _getMd5FileDirName(self):
         return os.path.join(self.wiki.publicDir(), self.wiki.date)
@@ -129,7 +129,7 @@ class Status(object):
     # Report on the file size & item status of the current output and output a link if we are done
     def reportFile(self, fileObj, itemStatus):
         filename = self.dumpDir.filenamePublicPath(fileObj)
-        if (exists(filename)):
+        if exists(filename):
             size = os.path.getsize(filename)
         else:
             itemStatus = "missing"
@@ -155,7 +155,7 @@ class Status(object):
             # Short line for report extraction goes here
             self.wiki.writeStatus(self._reportDatabaseStatusSummary(done))
         except:
-            if (self.verbose):
+            if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             message = "Couldn't update status files. Continuing anyways"
@@ -202,16 +202,16 @@ class Status(object):
             dumpsInOrder = self.wiki.latestDump(all=True)
             meIndex = dumpsInOrder.index(self.wiki.date)
             # don't wrap around to the newest dump in the list!
-            if (meIndex > 0):
+            if meIndex > 0:
                 rawDate = dumpsInOrder[meIndex-1]
-            elif (meIndex == 0):
+            elif meIndex == 0:
                 # We are the first item in the list. This is not an error, but there is no
                 # previous dump
                 return "No prior dumps of this database stored."
             else:
-                raise(ValueError)
+                raise ValueError
         except:
-            if (self.verbose):
+            if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             return "No prior dumps of this database stored."
@@ -225,10 +225,10 @@ class Status(object):
         return "%s<a href=\"../%s/\">%s %s</a>" % (prefix, rawDate, message, prettyDate)
 
     def _reportStatusSummaryLine(self, done=False):
-        if (done == "done"):
+        if done == "done":
             classes = "done"
             text = "Dump complete"
-        elif (done == "partialdone"):
+        elif done == "partialdone":
             classes = "partial-dump"
             text = "Partial dump"
         else:
@@ -271,7 +271,7 @@ class NoticeFile(object):
         self.writeNoticeFile()
 
     def writeNoticeFile(self):
-        if (self._enabled):
+        if self._enabled:
             noticeFile = self._getNoticeFilename()
             # delnotice.  toss any existing file
             if self.notice == False:
@@ -316,7 +316,7 @@ class SymLinks(object):
         self.debugfn = debugfn
 
     def makeDir(self, dir):
-        if (self._enabled):
+        if self._enabled:
             if exists(dir):
                 self.debugfn("Checkdir dir %s ..." % dir)
             else:
@@ -324,7 +324,7 @@ class SymLinks(object):
                 os.makedirs(dir)
 
     def saveSymlink(self, dumpFile):
-        if (self._enabled):
+        if self._enabled:
             self.makeDir(self.dumpDir.latestDir())
             realfile = self.dumpDir.filenamePublicPath(dumpFile)
             latestFilename = dumpFile.newFilename(dumpFile.dumpName, dumpFile.fileType, dumpFile.fileExt, 'latest', dumpFile.chunk, dumpFile.checkpoint, dumpFile.temp)
@@ -335,7 +335,7 @@ class SymLinks(object):
                     # format of these links should be...  ../20110228/elwikidb-20110228-templatelinks.sql.gz
                     rellinkpattern = re.compile('^\.\./(20[0-9]+)/')
                     dateinlink = rellinkpattern.search(oldrealfile)
-                    if (dateinlink):
+                    if dateinlink:
                         dateoflinkedfile = dateinlink.group(1)
                         dateinterval = int(self.wiki.date) - int(dateoflinkedfile)
                     else:
@@ -354,14 +354,14 @@ class SymLinks(object):
                 os.symlink(relative, link)
 
     def cleanupSymLinks(self):
-        if (self._enabled):
+        if self._enabled:
             latestDir = self.dumpDir.latestDir()
             files = os.listdir(latestDir)
             for f in files:
-                link = os.path.join(latestDir,f)
+                link = os.path.join(latestDir, f)
                 if os.path.islink(link):
                     realfile = os.readlink(link)
-                    if not exists(os.path.join(latestDir,realfile)):
+                    if not exists(os.path.join(latestDir, realfile)):
                         os.remove(link)
 
     # if the args are False or None, we remove all the old links for all values of the arg.
@@ -373,11 +373,11 @@ class SymLinks(object):
         # old files still exist and the links need to be removed because we have newer files for the
         # same phase of the dump.
 
-        if (self._enabled):
+        if self._enabled:
             latestDir = self.dumpDir.latestDir()
             files = os.listdir(latestDir)
             for f in files:
-                link = os.path.join(latestDir,f)
+                link = os.path.join(latestDir, f)
                 if os.path.islink(link):
                     realfile = os.readlink(link)
                     fileObj = DumpFilename(self.dumpDir._wiki)
@@ -402,7 +402,7 @@ class Feeds(object):
         self._enabled = enabled
 
     def makeDir(self, dirname):
-        if (self._enabled):
+        if self._enabled:
             if exists(dirname):
                 self.debugfn("Checkdir dir %s ..." % dirname)
             else:
@@ -410,7 +410,7 @@ class Feeds(object):
                 os.makedirs(dirname)
 
     def saveFeed(self, fileObj):
-        if (self._enabled):
+        if self._enabled:
             self.makeDir(self.dumpDir.latestDir())
             filenameAndPath = self.dumpDir.webPath(fileObj)
             webPath = os.path.dirname(filenameAndPath)
@@ -431,14 +431,14 @@ class Feeds(object):
         # call this after sym links in this dir have been cleaned up.
         # we should probably fix this so there is no such dependency,
         # but it would mean parsing the contents of the rss file, bleah
-        if (self._enabled):
+        if self._enabled:
             latestDir = self.dumpDir.latestDir()
             files = os.listdir(latestDir)
             for f in files:
                 if f.endswith("-rss.xml"):
                     filename = f[:-8]
-                    link = os.path.join(latestDir,filename)
+                    link = os.path.join(latestDir, filename)
                     if not exists(link):
-                        self.debugfn("Removing old rss feed %s for link %s" % (os.path.join(latestDir,f), link))
-                        os.remove(os.path.join(latestDir,f))
+                        self.debugfn("Removing old rss feed %s for link %s" % (os.path.join(latestDir, f), link))
+                        os.remove(os.path.join(latestDir, f))
 
