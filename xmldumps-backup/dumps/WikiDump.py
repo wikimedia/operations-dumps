@@ -31,11 +31,11 @@ class FileUtils(object):
             except:
                 raise IOError("The given directory '%s' is neither a directory nor can it be created" % dirname)
 
-        (fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
-        os.write(fd,text)
+        (fd, tempFilename ) = tempfile.mkstemp("_txt", "wikidump_", dirname);
+        os.write(fd, text)
         os.close(fd)
-        if (perms):
-            os.chmod(tempFilename,perms)
+        if perms:
+            os.chmod(tempFilename, perms)
         # This may fail across filesystems or on Windows.
         # Of course nothing else will work on Windows. ;)
         shutil.move(tempFilename, filename)
@@ -50,8 +50,8 @@ class FileUtils(object):
         file = open(filename, "wt")
         file.write(text)
         file.close()
-        if (perms):
-            os.chmod(filename,perms)
+        if perms:
+            os.chmod(filename, perms)
 
     def readFile(filename):
         """Read text from a file in one fell swoop."""
@@ -98,7 +98,7 @@ class FileUtils(object):
         """Return a tuple of date/time and size of a file, or None, None"""
         try:
             timestamp = time.gmtime(os.stat(path).st_mtime)
-            timestamp = time.strftime("%Y-%m-%d %H:%M:%S",timestamp)
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
             size = os.path.getsize(path)
             return (timestamp, size)
         except:
@@ -134,7 +134,7 @@ class TimeUtils(object):
 class MiscUtils(object):
     def dbList(filename):
         """Read database list from a file"""
-        if (not filename):
+        if not filename:
             return []
         infile = open(filename)
         dbs = []
@@ -164,10 +164,10 @@ class Config(object):
         self.projectName = False
 
         home = os.path.dirname(sys.argv[0])
-        if (not configFile):
+        if not configFile:
             configFile = "wikidump.conf"
         self.files = [
-            os.path.join(home,configFile),
+            os.path.join(home, configFile),
             "/etc/wikidump.conf",
             os.path.join(os.getenv("HOME"), ".wikidump.conf")]
         defaults = {
@@ -248,9 +248,9 @@ class Config(object):
             print "The mandatory configuration section 'wiki' was not defined."
             raise ConfigParser.NoSectionError('wiki')
 
-        if not self.conf.has_option("wiki","dir"):
+        if not self.conf.has_option("wiki", "dir"):
             print "The mandatory setting 'dir' in the section 'wiki' was not defined."
-            raise ConfigParser.NoOptionError('wiki','dir')
+            raise ConfigParser.NoOptionError('wiki', 'dir')
 
         self.dbUser = None
         self.dbPassword = None
@@ -285,7 +285,7 @@ class Config(object):
             self.dbPassword = defaultDbPassword
             return
 
-        fd = open(os.path.join(self.wikiDir,self.conf.get("wiki","adminsettings")), "r")
+        fd = open(os.path.join(self.wikiDir, self.conf.get("wiki", "adminsettings")), "r")
         lines = fd.readlines()
         fd.close()
 
@@ -333,7 +333,7 @@ class Config(object):
         self.perDumpIndex = self.conf.get("output", "perdumpindex")
         self.logFile = self.conf.get("output", "logfile")
         self.fileperms = self.conf.get("output", "fileperms")
-        self.fileperms = int(self.fileperms,0)
+        self.fileperms = int(self.fileperms, 0)
         if not self.conf.has_section('reporting'):
             self.conf.add_section('reporting')
         self.adminMail = self.conf.get("reporting", "adminmail")
@@ -353,9 +353,9 @@ class Config(object):
         self.tail = self.conf.get("tools", "tail")
         self.cat = self.conf.get("tools", "cat")
         self.grep = self.conf.get("tools", "grep")
-        self.checkforbz2footer = self.conf.get("tools","checkforbz2footer")
-        self.writeuptopageid = self.conf.get("tools","writeuptopageid")
-        self.recompressxml = self.conf.get("tools","recompressxml")
+        self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
+        self.writeuptopageid = self.conf.get("tools", "writeuptopageid")
+        self.recompressxml = self.conf.get("tools", "recompressxml")
 
         if not self.conf.has_section('cleanup'):
             self.conf.add_section('cleanup')
@@ -368,28 +368,28 @@ class Config(object):
         conf = ConfigParser.SafeConfigParser()
         conf.read(self.files)
 
-        if (projectName):
+        if projectName:
             self.projectName = projectName
 
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
 
-        dbUser = self.getOptionForProjectOrDefault(conf, "database", "user",0)
+        dbUser = self.getOptionForProjectOrDefault(conf, "database", "user", 0)
         if dbUser:
             self.dbUser = dbUser
-        dbPassword = self.getOptionForProjectOrDefault(conf, "database", "password",0)
+        dbPassword = self.getOptionForProjectOrDefault(conf, "database", "password", 0)
         if dbPassword:
             self.dbPassword = dbPassword
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')
-        self.chunksEnabled = self.getOptionForProjectOrDefault(conf, "chunks","chunksEnabled",1)
-        self.pagesPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkHistory",0)
-        self.revsPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks","revsPerChunkHistory",0)
-        self.chunksForAbstract = self.getOptionForProjectOrDefault(conf, "chunks","chunksForAbstract",0)
-        self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkAbstract",0)
-        self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks","recombineHistory",1)
-        self.checkpointTime = self.getOptionForProjectOrDefault(conf, "chunks","checkpointTime",1)
+        self.chunksEnabled = self.getOptionForProjectOrDefault(conf, "chunks", "chunksEnabled", 1)
+        self.pagesPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks", "pagesPerChunkHistory", 0)
+        self.revsPerChunkHistory = self.getOptionForProjectOrDefault(conf, "chunks", "revsPerChunkHistory", 0)
+        self.chunksForAbstract = self.getOptionForProjectOrDefault(conf, "chunks", "chunksForAbstract", 0)
+        self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks", "pagesPerChunkAbstract", 0)
+        self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks", "recombineHistory", 1)
+        self.checkpointTime = self.getOptionForProjectOrDefault(conf, "chunks", "checkpointTime", 1)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
@@ -400,16 +400,16 @@ class Config(object):
         self.wikiDir = self.getOptionForProjectOrDefault(conf, "wiki", "dir", 0)
 
     def getOptionForProjectOrDefault(self, conf, sectionName, itemName, isInt):
-        if (conf.has_section(self.projectName)):
-            if (conf.has_option(self.projectName, itemName)):
-                if (isInt):
-                    return(conf.getint(self.projectName,itemName))
+        if conf.has_section(self.projectName):
+            if conf.has_option(self.projectName, itemName):
+                if isInt:
+                    return conf.getint(self.projectName, itemName)
                 else:
-                    return(conf.get(self.projectName,itemName))
-        if (isInt):
-            return(self.conf.getint(sectionName,itemName))
+                    return conf.get(self.projectName, itemName)
+        if isInt:
+            return self.conf.getint(sectionName, itemName)
         else:
-            return(self.conf.get(sectionName,itemName))
+            return self.conf.get(sectionName, itemName)
 
     def dbListByAge(self, use_status_time=False):
         """

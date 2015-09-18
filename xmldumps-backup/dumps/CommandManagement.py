@@ -26,7 +26,7 @@ class CommandPipeline(object):
     the output of the pipeline will be appended to the specified file.
     """
     def __init__(self, commands, quiet=False, shell=False):
-        if (not isinstance(commands,list)):
+        if not isinstance(commands, list):
             self._commands = [commands]
         else:
             self._commands = commands
@@ -51,11 +51,11 @@ class CommandPipeline(object):
         self._append = False
 
         # if this runs in a shell, the shell will manage this stuff
-        if (not self._shell):
+        if not self._shell:
             # if the last command has ">", "filename", then we stick that into save file and toss those two args
             lastCommandInPipe = self._commands[-1]
-            if (len(lastCommandInPipe) > 1):
-                if (lastCommandInPipe[-2] == ">"):
+            if len(lastCommandInPipe) > 1:
+                if lastCommandInPipe[-2] == ">":
                     # get the filename
                     self._saveFileName = lastCommandInPipe.pop()
                     # lose the > symbol
@@ -63,8 +63,8 @@ class CommandPipeline(object):
 
             # if the last command has ">>", "filename", then we append into save file and toss those two args.
             lastCommandInPipe = self._commands[-1]
-            if (len(lastCommandInPipe) > 1):
-                if (lastCommandInPipe[-2] == ">>"):
+            if len(lastCommandInPipe) > 1:
+                if lastCommandInPipe[-2] == ">>":
                     # get the filename
                     self._saveFileName = lastCommandInPipe.pop()
                     self._append = True
@@ -80,11 +80,11 @@ class CommandPipeline(object):
     # note that this (no "b" mode) probably means bad data on windoze...
     # but then this whole module won't run over there :-P
     def openSaveFile(self):
-        if (self._saveFileName):
-            if (self._append):
-                self._saveFile = open(self._saveFileName,"a")
+        if self._saveFileName:
+            if self._append:
+                self._saveFile = open(self._saveFileName, "a")
             else:
-                self._saveFile = open(self._saveFileName,"w")
+                self._saveFile = open(self._saveFileName, "w")
 
     def subprocess_setup(self):
         # Python installs a SIGPIPE handler by default. This is usually not what
@@ -94,14 +94,14 @@ class CommandPipeline(object):
     def startCommands(self, readInputFromCaller=False):
         previousProcess=None
         if self.saveFileName():
-            if (not self.saveFile()):
+            if not self.saveFile():
                 self.openSaveFile()
         for command in self._commands:
             commandString = " ".join(command)
 
             # first process might read from us
-            if (command == self._commands[0]):
-                if (readInputFromCaller):
+            if command == self._commands[0]:
+                if readInputFromCaller:
                     stdinOpt = PIPE
                 else:
                     stdinOpt = None
@@ -120,12 +120,12 @@ class CommandPipeline(object):
             process = Popen(command, stdout=stdoutOpt, stdin=stdinOpt, stderr=stderrOpt,
                      preexec_fn=self.subprocess_setup, shell=self._shell)
 
-            if (command == self._commands[0]):
+            if command == self._commands[0]:
                 self._firstProcessInPipe = process
                 # because otherwise the parent has these intermediate pipes open
                 # and in case of an early close the previous guy in the pipeline
                 # will never get sigpipe. (which it should so it can bail)
-            if (previousProcess):
+            if previousProcess:
                     previousProcess.stdout.close()
 
             if not self._quiet:
@@ -154,7 +154,7 @@ class CommandPipeline(object):
             print "DEBUG: return code %s for %s" % (retcode, p.pid)
         self._exitValues.reverse()
         self._processes.reverse()
-        if (self.saveFile()):
+        if self.saveFile():
             self.saveFile().close()
 
 
@@ -162,10 +162,10 @@ class CommandPipeline(object):
         """Check if process is running."""
         # Note that poll() returns None if the process
         # is not completed, or some value (may be 0) otherwise
-        if (self._lastProcessInPipe.poll() == None):
-            return(True)
+        if self._lastProcessInPipe.poll() == None:
+            return True
         else:
-            return(False)
+            return False
 
     def saveFileName(self):
         return self._saveFileName
@@ -212,19 +212,19 @@ class CommandPipeline(object):
         self._lastPollState = event
 
     def checkPollReadyForRead(self):
-        if (not self._lastPollState):
+        if not self._lastPollState:
             # this means we never had a poll return with activity on the current object... which counts as false
             return False
-        if (self._lastPollState & (select.POLLIN|select.POLLPRI)):
+        if self._lastPollState & (select.POLLIN|select.POLLPRI):
             return True
         else:
             return False
 
     def checkForPollErrors(self):
-        if (not self._lastPollState):
+        if not self._lastPollState:
             # this means we never had a poll return with activity on the current object... which counts as false
             return False
-        if (self._lastPollState & select.POLLHUP or self._lastPollState & select.POLLNVAL or self._lastPollState & select.POLLERR):
+        if self._lastPollState & select.POLLHUP or self._lastPollState & select.POLLNVAL or self._lastPollState & select.POLLERR:
             return True
         else:
             return False
@@ -234,24 +234,24 @@ class CommandPipeline(object):
 
     def getOneLineOfOutputWithTimeout(self, timeout=None):
         # if there is a save file you are not going to see any output.
-        if (self.saveFile()):
-            return(0)
+        if self.saveFile():
+            return 0
 
-        if (not self._poller):
+        if not self._poller:
             self._poller = select.poll()
-            self._poller.register(self._lastProcessInPipe.stdout,select.POLLIN|select.POLLPRI)
+            self._poller.register(self._lastProcessInPipe.stdout, select.POLLIN|select.POLLPRI)
 
         # FIXME we should return something reasonable if we unregistered this the last time
-        if (timeout == None):
+        if timeout == None:
             fdReady = self._poller.poll()
         else:
             # FIXME so poll doesn't take an arg :-P ...?
             fdReady = self._poller.poll(timeout)
 
-        if (fdReady):
-            for (fd,event) in fdReady:
+        if fdReady:
+            for (fd, event) in fdReady:
                 self.setPollState(event)
-                if (self.checkPollReadyForRead()):
+                if self.checkPollReadyForRead():
                     signal.signal(signal.SIGALRM, self.readlineAlarmHandler)
                     # exception after 5 seconds, in case something happened
                     # to the other end of the pipe (like the writing process
@@ -273,7 +273,7 @@ class CommandPipeline(object):
 
 
                     signal.alarm(0)
-                    return(out)
+                    return out
                 elif self.checkForPollErrors():
                     self._poller.unregister(fd)
                     return None
@@ -287,11 +287,11 @@ class CommandPipeline(object):
     def getOneLineOfOutputIfReady(self):
         # FIXME is waiting a millisecond and returning the best way to do this? Why isn't
         # there a genuine nonblicking poll()??
-        return (self.getOneLineOfOutputWithTimeout(timeout=1))
+        return self.getOneLineOfOutputWithTimeout(timeout=1)
 
     # this will block waiting for output.
     def getOneLineOfOutput(self):
-        return (self.getOneLineOfOutputWithTimeout())
+        return self.getOneLineOfOutputWithTimeout()
 
     def output(self):
         return self._output
@@ -328,7 +328,7 @@ class CommandSeries(object):
     def isRunning(self):
         if not self._inProgressPipeline:
             return False
-        return(self._inProgressPipeline.isRunning())
+        return self._inProgressPipeline.isRunning()
 
     def inProgressPipeline(self):
         """Return which pipeline in the series of commands is running now"""
@@ -356,10 +356,10 @@ class CommandSeries(object):
                 command = pipeline.exitedWithErrors()
                 if command != None:
                     commands.append(command)
-        return(commands)
+        return commands
 
     def allOutputReadFromPipelineInProgress(self):
-        if (self._inProgressPipeline.checkForPollErrors() and not self._inProgressPipeline.checkPollReadyForRead()):
+        if self._inProgressPipeline.checkForPollErrors() and not self._inProgressPipeline.checkPollReadyForRead():
             return True
         # there is no output to read, it's all going somewhere to a file.
         elif not self.inProgressPipeline()._lastProcessInPipe.stdout:
@@ -383,12 +383,12 @@ class CommandSeries(object):
     def getOneLineOfOutputIfReady(self):
         """This will retrieve one line of output from the end of the currently
         running pipeline, if there is something available"""
-        return(self._inProgressPipeline.getOneLineOfOutputIfReady())
+        return self._inProgressPipeline.getOneLineOfOutputIfReady()
 
     def getOneLineOfOutput(self):
         """This will retrieve one line of output from the end of the currently
         running pipeline, blocking if necessary"""
-        return(self._inProgressPipeline.getOneLineOfOutput())
+        return self._inProgressPipeline.getOneLineOfOutput()
 
     # FIXME this needs written, but for what use?
     # it also needs tested :-P
@@ -397,7 +397,7 @@ class CommandSeries(object):
         while True:
             self.getOneLineOfOutput()
             self.continueCommands()
-            if (self.allCommandsCompleted() and not len(self._processesToPoll)):
+            if self.allCommandsCompleted() and not len(self._processesToPoll):
                 break
 
 class ProcessMonitor(threading.Thread):
@@ -422,12 +422,12 @@ class ProcessMonitor(threading.Thread):
         while series.processProducingOutput():
             p = series.processProducingOutput()
             poller = select.poll()
-            poller.register(p.stderr,select.POLLIN|select.POLLPRI)
+            poller.register(p.stderr, select.POLLIN|select.POLLPRI)
             fderr = p.stderr.fileno()
             flerr = fcntl.fcntl(fderr, fcntl.F_GETFL)
             fcntl.fcntl(fderr, fcntl.F_SETFL, flerr | os.O_NONBLOCK)
-            if (p.stdout):
-                poller.register(p.stdout,select.POLLIN|select.POLLPRI)
+            if p.stdout:
+                poller.register(p.stdout, select.POLLIN|select.POLLPRI)
                 fdToStream = { p.stdout.fileno(): p.stdout, p.stderr.fileno(): p.stderr }
                 fdout = p.stdout.fileno()
                 flout = fcntl.fcntl(fdout, fcntl.F_GETFL)
@@ -440,16 +440,16 @@ class ProcessMonitor(threading.Thread):
             waited = 0
             while not commandCompleted:
                 waiting = poller.poll(self.timeout)
-                if (waiting):
-                    for (fd,event) in waiting:
+                if waiting:
+                    for (fd, event) in waiting:
                         series.inProgressPipeline().setPollState(event)
                         if series.inProgressPipeline().checkPollReadyForRead():
-                            out = os.read(fd,1024)
+                            out = os.read(fd, 1024)
                             if out:
                                 if fd == p.stderr.fileno():
-                                    self.outputQueue.put(OutputQueueItem(OutputQueueItem.getStderrChannel(),out))
+                                    self.outputQueue.put(OutputQueueItem(OutputQueueItem.getStderrChannel(), out))
                                 elif fd == p.stdout.fileno():
-                                    self.outputQueue.put(OutputQueueItem(OutputQueueItem.getStdoutChannel(),out))
+                                    self.outputQueue.put(OutputQueueItem(OutputQueueItem.getStdoutChannel(), out))
                             else:
                                 # possible eof? what would cause this?
                                 pass
@@ -464,7 +464,7 @@ class ProcessMonitor(threading.Thread):
 
                 waited = waited + self.timeout
                 if waited > self._defaultCallbackInterval and self._callbackTimed:
-                    if (self._callbackTimedArg):
+                    if self._callbackTimedArg:
                         self._callbackTimed(self._callbackTimedArg)
                     else:
                         self._callbackTimed()
@@ -535,7 +535,7 @@ class CommandsInParallel(object):
     def setupOutputMonitoring(self):
         for series in self._commandSerieses:
             self._commandSeriesQueue.put(series)
-            t = ProcessMonitor(500, self._commandSeriesQueue, self._outputQueue, self._defaultCallbackInterval,self._callbackStderr,self._callbackStdout,self._callbackTimed,self._callbackStderrArg,self._callbackStdoutArg,self._callbackTimedArg)
+            t = ProcessMonitor(500, self._commandSeriesQueue, self._outputQueue, self._defaultCallbackInterval, self._callbackStderr, self._callbackStdout, self._callbackTimed, self._callbackStderrArg, self._callbackStdoutArg, self._callbackTimedArg)
             t.start()
 
     def allCommandsCompleted(self):
@@ -557,7 +557,7 @@ class CommandsInParallel(object):
         for series in self._commandSerieses:
             if not series.exitedSuccessfully():
                 commands.extend(series.exitedWithErrors())
-        return(commands)
+        return commands
 
     def watchOutputQueue(self):
         done = False
@@ -573,7 +573,7 @@ class CommandsInParallel(object):
             if output:
                 if output.channel == OutputQueueItem.getStdoutChannel():
                     if self._callbackStdout:
-                        if (self._callbackStdoutArg):
+                        if self._callbackStdoutArg:
                             self._callbackStdout(self._callbackStdoutArg, output.contents)
                         else:
                             self._callbackStdout(output.contents)
@@ -581,7 +581,7 @@ class CommandsInParallel(object):
                         sys.stderr.write(output.contents)
                 else: # output channel is stderr
                     if self._callbackStderr:
-                        if (self._callbackStderrArg):
+                        if self._callbackStderrArg:
                             self._callbackStderr(self._callbackStderrArg, output.contents)
                         else:
                             self._callbackStderr(output.contents)
@@ -596,8 +596,8 @@ class CommandsInParallel(object):
 
 
 def testcallback(output=None):
-    outputFile = open("/home/ariel/src/mediawiki/testing/outputsaved.txt","a")
-    if (output == None):
+    outputFile = open("/home/ariel/src/mediawiki/testing/outputsaved.txt", "a")
+    if output == None:
         outputFile.write("no output for me.\n")
     else:
         outputFile.write(output)
