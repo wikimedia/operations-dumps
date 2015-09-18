@@ -17,7 +17,7 @@ from subprocess import Popen, PIPE
 # FIXME no explicit stderr handling, is this ok?
 
 class CommandPipeline(object):
-    """Run a series of commands in a pipeline, e.g.  ps -ef | grep convert 
+    """Run a series of commands in a pipeline, e.g.  ps -ef | grep convert
     The pipeline can be one command long (in which case nothing special happens)
     It takes as args: list of commands in the pipeline (each command is a list: command name and args)
     If the last command in the pipeline has at the end of the arg list > filename then
@@ -25,7 +25,7 @@ class CommandPipeline(object):
     If the last command in the pipeline has at the end of the arg list >> filename then
     the output of the pipeline will be appended to the specified file.
     """
-    def __init__(self, commands, quiet = False, shell = False):
+    def __init__(self, commands, quiet=False, shell=False):
         if (not isinstance(commands,list)):
             self._commands = [commands]
         else:
@@ -61,7 +61,7 @@ class CommandPipeline(object):
                     # lose the > symbol
                     lastCommandInPipe.pop()
 
-            # if the last command has ">>", "filename", then we append into save file and toss those two args. 
+            # if the last command has ">>", "filename", then we append into save file and toss those two args.
             lastCommandInPipe = self._commands[-1]
             if (len(lastCommandInPipe) > 1):
                 if (lastCommandInPipe[-2] == ">>"):
@@ -70,7 +70,7 @@ class CommandPipeline(object):
                     self._append = True
                     # lose the >> symbol
                     lastCommandInPipe.pop()
-            
+
     def pipelineString(self):
         return self._pipelineString
 
@@ -85,7 +85,7 @@ class CommandPipeline(object):
                 self._saveFile = open(self._saveFileName,"a")
             else:
                 self._saveFile = open(self._saveFileName,"w")
-        
+
     def subprocess_setup(self):
         # Python installs a SIGPIPE handler by default. This is usually not what
         # non-Python subprocesses expect.
@@ -118,8 +118,8 @@ class CommandPipeline(object):
             stderrOpt = PIPE
 
             process = Popen(command, stdout=stdoutOpt, stdin=stdinOpt, stderr=stderrOpt,
-                     preexec_fn=self.subprocess_setup, shell= self._shell)
-            
+                     preexec_fn=self.subprocess_setup, shell=self._shell)
+
             if (command == self._commands[0]):
                 self._firstProcessInPipe = process
                 # because otherwise the parent has these intermediate pipes open
@@ -150,14 +150,14 @@ class CommandPipeline(object):
         for p in self._processes:
             print "DEBUG: trying to get return code for %s" %  p.pid
             self._exitValues.append(p.wait())
-            retcode = p.poll() 
+            retcode = p.poll()
             print "DEBUG: return code %s for %s" % (retcode, p.pid)
         self._exitValues.reverse()
         self._processes.reverse()
         if (self.saveFile()):
             self.saveFile().close()
 
-        
+
     def isRunning(self):
         """Check if process is running."""
         # Note that poll() returns None if the process
@@ -178,7 +178,7 @@ class CommandPipeline(object):
 
     def exitedWithErrors(self):
         if not self.exitedSuccessfully():
-            # we wil return the whole pipeline I guess, they might as well 
+            # we wil return the whole pipeline I guess, they might as well
             # see it in the error report instead of the specific issue in the pipe.
             return self.pipelineString()
         return None
@@ -232,7 +232,7 @@ class CommandPipeline(object):
     def readlineAlarmHandler(self, signum, frame):
         raise IOError("Hung in the middle of reading a line")
 
-    def getOneLineOfOutputWithTimeout(self, timeout = None):
+    def getOneLineOfOutputWithTimeout(self, timeout=None):
         # if there is a save file you are not going to see any output.
         if (self.saveFile()):
             return(0)
@@ -258,11 +258,11 @@ class CommandPipeline(object):
                     # blocked in the middle of the write)
                     signal.alarm(5)
                     # FIXME we might have buffered output which we read
-                    # part of and then the rest of the line is in 
+                    # part of and then the rest of the line is in
                     # the next (not full and so not written to us)
                     # buffer... how can we fix this??
                     # we could do our own readline I guess, accumulate
-                    # til there is no more data, indicate it's a partial 
+                    # til there is no more data, indicate it's a partial
                     # line, let it get written to the caller anyways...
                     # when we poll do we get a byte count of how much is available? no.
                     out = self._lastProcessInPipe.stdout.readline()
@@ -287,7 +287,7 @@ class CommandPipeline(object):
     def getOneLineOfOutputIfReady(self):
         # FIXME is waiting a millisecond and returning the best way to do this? Why isn't
         # there a genuine nonblicking poll()??
-        return (self.getOneLineOfOutputWithTimeout(timeout = 1))
+        return (self.getOneLineOfOutputWithTimeout(timeout=1))
 
     # this will block waiting for output.
     def getOneLineOfOutput(self):
@@ -312,7 +312,7 @@ class CommandPipeline(object):
 class CommandSeries(object):
     """Run a list of command pipelines in serial (e.g. tar cvfp distro/ distro.tar; chmod 644 distro.tar  )
     It takes as args: series of pipelines (each pipeline is a list of commands)"""
-    def __init__(self, commandSeries, quiet = False, shell = False):
+    def __init__(self, commandSeries, quiet=False, shell=False):
         self._commandSeries = commandSeries
         self._commandPipelines = []
         for pipeline in commandSeries:
@@ -366,7 +366,7 @@ class CommandSeries(object):
             return True
         else:
             return False
-    
+
     def continueCommands(self, getOutput=False, readInputFromCaller=False):
         if self._inProgressPipeline:
             # so we got all the output and the job's not running any more... get exit codes and run the next one
@@ -381,18 +381,18 @@ class CommandSeries(object):
                     self._inProgressPipeline = None
 
     def getOneLineOfOutputIfReady(self):
-        """This will retrieve one line of output from the end of the currently 
+        """This will retrieve one line of output from the end of the currently
         running pipeline, if there is something available"""
         return(self._inProgressPipeline.getOneLineOfOutputIfReady())
 
     def getOneLineOfOutput(self):
-        """This will retrieve one line of output from the end of the currently 
+        """This will retrieve one line of output from the end of the currently
         running pipeline, blocking if necessary"""
         return(self._inProgressPipeline.getOneLineOfOutput())
 
     # FIXME this needs written, but for what use?
     # it also needs tested :-P
-    def runCommands(self, readInputFromCaller = False):
+    def runCommands(self, readInputFromCaller=False):
         self.startCommands(readInputFromCaller)
         while True:
             self.getOneLineOfOutput()
@@ -493,17 +493,17 @@ class OutputQueueItem(object):
     getStderrChannel = staticmethod(getStderrChannel)
 
 class CommandsInParallel(object):
-    """Run a pile of commandSeries in parallel (e.g. dump articles 1 to 100K, 
-    dump articles 100K+1 to 200K, ...).  This takes as arguments: a list of series 
-    of pipelines (each pipeline is a list of commands, each series is a list of 
+    """Run a pile of commandSeries in parallel (e.g. dump articles 1 to 100K,
+    dump articles 100K+1 to 200K, ...).  This takes as arguments: a list of series
+    of pipelines (each pipeline is a list of commands, each series is a list of
     pipelines), as well as a possible callback which is used to capture all output
     from the various commmand series.  If the callback takes an argument other than
     the line of output, it should be passed in the arg parameter (and it will be passed
-    to the callback function first before the output line).  If no callback is provided 
-    and the individual pipelines are not provided with a file to save output, 
-    then output is written     to stderr.
+    to the callback function first before the output line).  If no callback is provided
+    and the individual pipelines are not provided with a file to save output,
+    then output is written to stderr.
     Callbackinterval is in milliseconds, defaults is 20 seconds"""
-    def __init__(self, commandSeriesList, callbackStderr = None, callbackStdout = None, callbackTimed = None, callbackStderrArg=None, callbackStdoutArg = None, callbackTimedArg = None, quiet = False, shell = False, callbackInterval = 20000):
+    def __init__(self, commandSeriesList, callbackStderr=None, callbackStdout=None, callbackTimed=None, callbackStderrArg=None, callbackStdoutArg=None, callbackTimedArg=None, quiet=False, shell=False, callbackInterval=20000):
         self._commandSeriesList = commandSeriesList
         self._commandSerieses = []
         for series in self._commandSeriesList:
@@ -523,8 +523,8 @@ class CommandsInParallel(object):
 
         # number millisecs we will wait for select.poll()
         self._defaultPollTime = 500
-        
-        # for programs that don't generate output, wait this many milliseconds between 
+
+        # for programs that don't generate output, wait this many milliseconds between
         # invoking callback if there is one
         self._defaultCallbackInterval = callbackInterval
 
@@ -578,7 +578,7 @@ class CommandsInParallel(object):
                         else:
                             self._callbackStdout(output.contents)
                     else:
-                        sys.stderr.write(output.contents) 
+                        sys.stderr.write(output.contents)
                 else: # output channel is stderr
                     if self._callbackStderr:
                         if (self._callbackStderrArg):
@@ -586,7 +586,7 @@ class CommandsInParallel(object):
                         else:
                             self._callbackStderr(output.contents)
                     else:
-                        sys.stderr.write(output.contents)   
+                        sys.stderr.write(output.contents)
 
     def runCommands(self):
         self.startCommands()
@@ -595,7 +595,7 @@ class CommandsInParallel(object):
 #        self._commandSeriesQueue.join()
 
 
-def testcallback(output = None):
+def testcallback(output=None):
     outputFile = open("/home/ariel/src/mediawiki/testing/outputsaved.txt","a")
     if (output == None):
         outputFile.write("no output for me.\n")

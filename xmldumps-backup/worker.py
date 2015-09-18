@@ -304,7 +304,7 @@ class DumpItemList(object):
                                 item.setSkipped()
                         elif not skipgood or item.status() != "done":
                                 item.setToBeRun(True)
-                          
+
     def findItemByName(self, name):
         for item in self.dumpItems:
             if (item.name() == name):
@@ -337,7 +337,7 @@ class DumpItemList(object):
 
 
 class Runner(object):
-    def __init__(self, wiki, prefetch=True, spawn=True, job=None, skipJobs=None, restart=False, notice="", dryrun = False, loggingEnabled=False, chunkToDo = False, checkpointFile = None, pageIDRange = None, skipdone = False, verbose = False):
+    def __init__(self, wiki, prefetch=True, spawn=True, job=None, skipJobs=None, restart=False, notice="", dryrun=False, loggingEnabled=False, chunkToDo=False, checkpointFile=None, pageIDRange=None, skipdone=False, verbose=False):
         self.wiki = wiki
         self.dbName = wiki.dbName
         self.prefetch = prefetch
@@ -500,7 +500,7 @@ class Runner(object):
     # be a list (the command name and the various args)
     # If the shell option is true, all pipelines will be run under the shell.
     # callbackinterval: how often we will call callbackTimed (in milliseconds), defaults to every 5 secs
-    def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell = False, callbackInterval=5000):
+    def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell=False, callbackInterval=5000):
         """Nonzero return code from the shell from any command in any pipeline will cause this
         function to print an error message and return 1, indicating error.
         Returns 0 on success.
@@ -571,7 +571,7 @@ class Runner(object):
                 sys.stderr.write( "No job marked to run, exiting" )
                 return None
             if (restart):
-                # mark all the following jobs to run as well 
+                # mark all the following jobs to run as well
                 self.dumpItemList.markFollowingJobsToRun(self.skipdone)
         else:
             self.dumpItemList.markAllJobsToRun(self.skipdone);
@@ -608,7 +608,7 @@ class Runner(object):
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     if (self.verbose):
                         sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-                    else:    
+                    else:
                         if exc_type.__name__ == 'BackupPrereqError':
                             self.debug(str(ex))
                         else:
@@ -870,7 +870,7 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
         return None
 
 
-def usage(message = None):
+def usage(message=None):
     if message:
         sys.stderr.write("%s\n" % message)
     sys.stderr.write("Usage: python worker.py [options] [wikidbname]\n")
@@ -1125,7 +1125,7 @@ if __name__ == "__main__":
                 afterCheckpointJobs = ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']
                 if not jobRequested or not jobRequested in ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']:
                     usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(afterCheckpointJobs))
-                    
+
             runner = Runner(wiki, prefetch, spawn, jobRequested, skipJobs, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, skipdone, verbose)
 
             if (restart):

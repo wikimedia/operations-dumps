@@ -38,7 +38,7 @@ class MultiVersion(object):
     MWVersion = staticmethod(MWVersion)
 
 class DbServerInfo(object):
-    def __init__(self, wiki, dbName, errorCallback = None):
+    def __init__(self, wiki, dbName, errorCallback=None):
         self.wiki = wiki
         self.dbName = dbName
         self.errorCallback = errorCallback
@@ -91,7 +91,7 @@ class DbServerInfo(object):
         params += ["%s" % self.passwordOption()] # Password
         return params
 
-    def buildSqlCommand(self, query, pipeto = None):
+    def buildSqlCommand(self, query, pipeto=None):
         """Put together a command to execute an sql query to the server for this DB."""
         if (not exists(self.wiki.config.mysql)):
             raise BackupError("mysql command %s not found" % self.wiki.config.mysql)
@@ -103,7 +103,7 @@ class DbServerInfo(object):
             command.append([pipeto])
         return command
 
-    def buildSqlDumpCommand(self, table, pipeto = None):
+    def buildSqlDumpCommand(self, table, pipeto=None):
         """Put together a command to dump a table from the current DB with mysqldump
         and save to a gzipped sql file."""
         if (not exists(self.wiki.config.mysqldump)):
@@ -136,20 +136,20 @@ class DbServerInfo(object):
             return "-p" + self.wiki.config.dbPassword
 
 class RunSimpleCommand(object):
-    def runAndReturn(command, logCallback = None):
+    def runAndReturn(command, logCallback=None):
         """Run a command and return the output as a string.
         Raises BackupError on non-zero return code."""
         retval = 1
         retries=0
         maxretries=3
-        proc = Popen(command, bufsize=64, shell = True, stdout = PIPE, stderr = PIPE)
+        proc = Popen(command, bufsize=64, shell=True, stdout=PIPE, stderr=PIPE)
         output, error = proc.communicate()
         retval = proc.returncode
         while (retval and retries < maxretries):
             if logCallback:
                 logCallback("Non-zero return code from '%s'" % command)
             time.sleep(5)
-            proc = Popen(command, bufsize=64, shell = True, stdout = PIPE, stderr = PIPE)
+            proc = Popen(command, bufsize=64, shell=True, stdout=PIPE, stderr=PIPE)
             output, error = proc.communicate()
             retval = proc.returncode
             retries = retries + 1
@@ -163,7 +163,7 @@ class RunSimpleCommand(object):
     runAndReturn = staticmethod(runAndReturn)
 
 class PageAndEditStats(object):
-    def __init__(self, wiki, dbName, errorCallback = None):
+    def __init__(self, wiki, dbName, errorCallback=None):
         self.totalPages = None
         self.totalEdits = None
         self.wiki = wiki
@@ -213,7 +213,7 @@ class PageAndEditStats(object):
 
 
 class RunInfoFile(object):
-    def __init__(self, wiki, enabled, verbose = False):
+    def __init__(self, wiki, enabled, verbose=False):
         self.wiki = wiki
         self._enabled = enabled
         self.verbose = verbose
@@ -270,7 +270,7 @@ class RunInfoFile(object):
     #
     # functions internal to the class
     #
-    def _getDumpRunInfoFileName(self, date = None):
+    def _getDumpRunInfoFileName(self, date=None):
         # sometimes need to get this info for an older run to check status of a file for
         # possible prefetch
         if (date):
@@ -322,7 +322,7 @@ class RunInfoFile(object):
             elif (fieldName == "status"):
                 return fieldValue
 
-    def _getStatusForJobFromRunInfoFile(self, filename, jobName = ""):
+    def _getStatusForJobFromRunInfoFile(self, filename, jobName=""):
         # read the dump run info file in, if there is one, and find out whether
         # a particular job (one step only, not a multiple piece job) has been
         # already run and whether it was successful (use to examine status
@@ -371,7 +371,7 @@ class RunInfoFile(object):
 
 
 class RunInfo(object):
-    def __init__(self, name="", status="", updated="", toBeRun = False):
+    def __init__(self, name="", status="", updated="", toBeRun=False):
         self._name = name
         self._status = status
         self._updated = updated
@@ -407,7 +407,7 @@ class RunInfo(object):
 # otherwise we get passed alist that says "here's now many for each chunk and it's this many chunks.
 # extra pages/revs go in the last chunk, stuck on the end. too bad. :-P
 class Chunk(object,):
-    def __init__(self, wiki, dbName, errorCallback = None):
+    def __init__(self, wiki, dbName, errorCallback=None):
 
         self._dbName = dbName
         self.wiki = wiki

@@ -19,7 +19,7 @@ from dumps.fileutils import *
 from dumps.utils import RunInfo, MultiVersion, RunInfoFile, Chunk
 
 class Dump(object):
-    def __init__(self, name, desc, verbose = False):
+    def __init__(self, name, desc, verbose=False):
         self._desc = desc
         self.verbose = verbose
         self.progress = ""
@@ -75,7 +75,7 @@ class Dump(object):
     # sometimes this will be called to fill in data from an old
     # dump run; in those cases we don't want to clobber the timestamp
     # with the current time.
-    def setStatus(self,status,setUpdated = True):
+    def setStatus(self,status,setUpdated=True):
         self.runInfo.setStatus(status)
         if (setUpdated):
             self.runInfo.setUpdated(TimeUtils.prettyTime())
@@ -266,7 +266,7 @@ class Dump(object):
         recombineCommandString = "(" + ";".join(recombines) + ")" + "|" + "%s %s" % (compressionCommand, outputFilename)
         return(recombineCommandString)
 
-    def cleanupOldFiles(self, dumpDir, runner, chunks = False):
+    def cleanupOldFiles(self, dumpDir, runner, chunks=False):
         if (runner._cleanupOldFilesEnabled):
             if (self.checkpointFile):
                 # we only rerun this one, so just remove this one
@@ -291,113 +291,113 @@ class Dump(object):
             return False
 
     # list all regular output files that exist
-    def listRegularFilesExisting(self, dumpDir, dumpNames = None, date = None, chunks = None):
+    def listRegularFilesExisting(self, dumpDir, dumpNames=None, date=None, chunks=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(dumpDir.getRegularFilesExisting(date, d, self.fileType, self.fileExt, chunks, temp = False))
+            files.extend(dumpDir.getRegularFilesExisting(date, d, self.fileType, self.fileExt, chunks, temp=False))
         return files
 
     # list all checkpoint files that exist
-    def listCheckpointFilesExisting(self, dumpDir, dumpNames = None, date = None, chunks = None):
+    def listCheckpointFilesExisting(self, dumpDir, dumpNames=None, date=None, chunks=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(dumpDir.getCheckpointFilesExisting(date, d, self.fileType, self.fileExt, chunks, temp = False))
+            files.extend(dumpDir.getCheckpointFilesExisting(date, d, self.fileType, self.fileExt, chunks, temp=False))
         return files
 
     # unused
     # list all temp output files that exist
-    def listTempFilesExisting(self, dumpDir, dumpNames = None, date = None, chunks = None):
+    def listTempFilesExisting(self, dumpDir, dumpNames=None, date=None, chunks=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks = None, temp = True))
-            files.extend(dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks = None, temp = True))
+            files.extend(dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks=None, temp=True))
+            files.extend(dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks=None, temp=True))
         return files
 
     # list checkpoint files that have been produced for specified chunk(s)
-    def listCheckpointFilesPerChunkExisting(self, dumpDir, chunks, dumpNames = None):
+    def listCheckpointFilesPerChunkExisting(self, dumpDir, chunks, dumpNames=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp = False))
+            files.extend(dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp=False))
         return files
 
     # list noncheckpoint files that have been produced for specified chunk(s)
-    def listRegularFilesPerChunkExisting(self, dumpDir, chunks, dumpNames = None):
+    def listRegularFilesPerChunkExisting(self, dumpDir, chunks, dumpNames=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp = False))
+            files.extend(dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp=False))
         return files
 
     # list temp output files that have been produced for specified chunk(s)
-    def listTempFilesPerChunkExisting(self, dumpDir, chunks, dumpNames = None):
+    def listTempFilesPerChunkExisting(self, dumpDir, chunks, dumpNames=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp = True))
-            files.extend(dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp = True))
+            files.extend(dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp=True))
+            files.extend(dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks, temp=True))
         return files
 
 
     # unused
     # list noncheckpoint chunk files that have been produced
-    def listRegularFilesChunkedExisting(self, dumpDir, runner, dumpNames = None, date = None):
+    def listRegularFilesChunkedExisting(self, dumpDir, runner, dumpNames=None, date=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks= self.getChunkList(), temp = False))
+            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks=self.getChunkList(), temp=False))
         return files
 
     # unused
     # list temp output chunk files that have been produced
-    def listTempFilesChunkedExisting(self, runner, dumpNames = None):
+    def listTempFilesChunkedExisting(self, runner, dumpNames=None):
         files = []
         if not dumpNames:
             dumpNames = [self.dumpName]
         for d in dumpNames:
-            files.extend(runner.dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks = self.getChunkList(), temp = True))
-            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks = self.getChunkList(), temp = True))
+            files.extend(runner.dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks=self.getChunkList(), temp=True))
+            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks=self.getChunkList(), temp=True))
         return files
 
     # unused
     # list checkpoint files that have been produced for chunkless run
-    def listCheckpointFilesChunklessExisting(self, runner, dumpNames = None):
+    def listCheckpointFilesChunklessExisting(self, runner, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(runner.dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks = False, temp = False))
+            files.extend(runner.dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks=False, temp=False))
         return files
 
     # unused
     # list non checkpoint files that have been produced for chunkless run
-    def listRegularFilesChunklessExisting(self, runner, dumpNames = None):
+    def listRegularFilesChunklessExisting(self, runner, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks = False, temp = False))
+            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks=False, temp=False))
         return files
 
     # unused
     # list non checkpoint files that have been produced for chunkless run
-    def listTempFilesChunklessExisting(self, runner, dumpNames = None):
+    def listTempFilesChunklessExisting(self, runner, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(runner.dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks = False, temp = True))
-            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks = False, temp = True))
+            files.extend(runner.dumpDir.getCheckpointFilesExisting(None, d, self.fileType, self.fileExt, chunks=False, temp=True))
+            files.extend(runner.dumpDir.getRegularFilesExisting(None, d, self.fileType, self.fileExt, chunks=False, temp=True))
         return files
 
 
@@ -410,7 +410,7 @@ class Dump(object):
     # if we get False for an arg (chunk, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def _getFilesPossible(self, dumpDir, date = None, dumpName = None, fileType = None, fileExt = None, chunks = None, temp = False):
+    def _getFilesPossible(self, dumpDir, date=None, dumpName=None, fileType=None, fileExt=None, chunks=None, temp=False):
         files = []
         if dumpName == None:
             dumpname = self.dumpName
@@ -425,82 +425,82 @@ class Dump(object):
 
     # unused
     # based on dump name, get all the output files we expect to generate except for temp files
-    def getRegularFilesPossible(self, dumpDir, dumpNames = None):
+    def getRegularFilesPossible(self, dumpDir, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks = None, temp = False))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks=None, temp=False))
         return files
 
     # unused
     # based on dump name, get all the temp output files we expect to generate
-    def getTempFilesPossible(self, dumpDir, dumpNames = None):
+    def getTempFilesPossible(self, dumpDir, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks = None, temp = True))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks=None, temp=True))
         return files
 
     # based on dump name, chunks, etc. get all the output files we expect to generate for these chunks
-    def getRegularFilesPerChunkPossible(self, dumpDir, chunks, dumpNames = None):
+    def getRegularFilesPerChunkPossible(self, dumpDir, chunks, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks, temp = False))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks, temp=False))
         return files
 
     # unused
     # based on dump name, chunks, etc. get all the temp files we expect to generate for these chunks
-    def getTempFilesPerChunkPossible(self, dumpDir, chunks, dumpNames = None):
+    def getTempFilesPerChunkPossible(self, dumpDir, chunks, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks, temp = True))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks, temp=True))
         return files
 
 
     # unused
     # based on dump name, chunks, etc. get all the output files we expect to generate for these chunks
-    def getRegularFilesChunkedPossible(self, dumpDir, dumpNames = None):
+    def getRegularFilesChunkedPossible(self, dumpDir, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks = True, temp = False))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks=True, temp=False))
         return files
 
     # unused
     # based on dump name, chunks, etc. get all the temp files we expect to generate for these chunks
-    def getTempFilesPerChunkedPossible(self, dumpDir, dumpNames = None):
+    def getTempFilesPerChunkedPossible(self, dumpDir, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks = True, temp = True))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks=True, temp=True))
         return files
 
     # unused
     # list noncheckpoint files that should be produced for chunkless run
-    def getRegularFilesChunklessPossible(self, dumpDir, dumpNames = None):
+    def getRegularFilesChunklessPossible(self, dumpDir, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks = False, temp = False))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks=False, temp=False))
         return files
 
     # unused
     # list temp output files that should be produced for chunkless run
-    def getTempFilesChunklessPossible(self, dumpDir, dumpNames = None):
+    def getTempFilesChunklessPossible(self, dumpDir, dumpNames=None):
         if not dumpNames:
             dumpNames = [self.dumpName]
         files = []
         for d in dumpNames:
-            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks = False, temp = True))
+            files.extend(self._getFilesPossible(dumpDir, None, d, self.fileType, self.fileExt, chunks=False, temp=True))
         return files
 
 ################################
@@ -511,7 +511,7 @@ class Dump(object):
     # Used for updating md5 lists, index.html
     # Includes: checkpoints, chunks, chunkless, temp files if they exist. At end of run temp files must be gone.
     # This is *all* output files for the dumpName, regardless of what's being re-run.
-    def listOutputFilesToPublish(self, dumpDir, dumpNames = None):
+    def listOutputFilesToPublish(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -534,7 +534,7 @@ class Dump(object):
     # This is only the files that should be produced from this run. So it is limited to a specific
     # chunk if that's being redone, or to all chunks if the whole job is being redone, or to the chunkless
     # files if there are no chunks enabled.
-    def listOutputFilesToCheckForTruncation(self, dumpDir, dumpNames = None):
+    def listOutputFilesToCheckForTruncation(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -556,7 +556,7 @@ class Dump(object):
     # This is only the files that should be produced from this run. So it is limited to a specific
     # chunk if that's being redone, or to all chunks if the whole job is being redone, or to the chunkless
     # files if there are no chunks enabled.
-    def listOutputFilesForBuildCommand(self, dumpDir, dumpNames = None):
+    def listOutputFilesForBuildCommand(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -578,7 +578,7 @@ class Dump(object):
     # This is only the files that should be produced from this run. So it is limited to a specific
     # chunk if that's being redone, or to all chunks if the whole job is being redone, or to the chunkless
     # files if there are no chunks enabled.
-    def listOutputFilesForCleanup(self, dumpDir, dumpNames = None):
+    def listOutputFilesForCleanup(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -601,7 +601,7 @@ class Dump(object):
     # This is *all* output files for the job, regardless of what's being re-run. The caller can sort out which
     # files go to which chunk, in case input is needed on a per chunk basis. (Is that going to be annoying? Nah,
     # and we only do it once per job so who cares.)
-    def listOutputFilesForInput(self, dumpDir, dumpNames = None):
+    def listOutputFilesForInput(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -692,7 +692,7 @@ class XmlStub(Dump):
     A second pass will import text from prior dumps or the database to make
     full files for the public."""
 
-    def __init__(self, name, desc, chunkToDo, chunks = False, checkpoints = False):
+    def __init__(self, name, desc, chunkToDo, chunks=False, checkpoints=False):
         self._chunkToDo = chunkToDo
         self._chunks = chunks
         if self._chunks:
@@ -746,7 +746,7 @@ class XmlStub(Dump):
         files.extend(Dump.listOutputFilesForCleanup(self, dumpDir, dumpNames))
         return files
 
-    def listOutputFilesForInput(self, dumpDir, dumpNames = None):
+    def listOutputFilesForInput(self, dumpDir, dumpNames=None):
         if dumpNames == None:
             dumpNames =  self.listDumpNames()
         files = []
@@ -854,7 +854,7 @@ class RecombineXmlStub(Dump):
             recombineCommand = [recombineCommandString]
             recombinePipeline = [recombineCommand]
             series = [recombinePipeline]
-            result = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+            result = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell=True)
             if result:
                 error = result
         if (error):
@@ -863,7 +863,7 @@ class RecombineXmlStub(Dump):
 class XmlLogging(Dump):
     """ Create a logging dump of all page activity """
 
-    def __init__(self, desc, chunks = False):
+    def __init__(self, desc, chunks=False):
         Dump.__init__(self, "xmlpagelogsdump", desc)
 
     def detail(self):
@@ -904,7 +904,7 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
-    def __init__(self, subset, name, desc, detail, itemForStubs,  prefetch, spawn, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None, pageIDRange = None, verbose = False):
+    def __init__(self, subset, name, desc, detail, itemForStubs,  prefetch, spawn, wiki, chunkToDo, chunks=False, checkpoints=False, checkpointFile=None, pageIDRange=None, verbose=False):
         self._subset = subset
         self._detail = detail
         self._desc = desc
@@ -1023,7 +1023,7 @@ class XmlDump(Dump):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.runCommand([series], shell = True)
+        error = runner.runCommand([series], shell=True)
         if (error):
             raise BackupError("failed to write partial stub file %s" % outputFile.filename)
 
@@ -1034,10 +1034,10 @@ class XmlDump(Dump):
             outputFile = f
         elif (self._checkpointsEnabled):
             # we write a temp file, it will be checkpointed every so often.
-            outputFile = DumpFilename(self.wiki, f.date, self.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, temp = True)
+            outputFile = DumpFilename(self.wiki, f.date, self.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, temp=True)
         else:
             # we write regular files
-            outputFile = DumpFilename(self.wiki, f.date, self.dumpName, f.fileType, self.fileExt, f.chunk, checkpoint = False, temp = False)
+            outputFile = DumpFilename(self.wiki, f.date, self.dumpName, f.fileType, self.fileExt, f.chunk, checkpoint=False, temp=False)
 
         # Page and revision data pulled from this skeleton dump...
         # FIXME we need the stream wrappers for proper use of writeupto. this is a hack.
@@ -1207,7 +1207,7 @@ class XmlDump(Dump):
 
     # this finds the content file or files from the first previous successful dump
     # to be used as input ("prefetch") for this run.
-    def _findPreviousDump(self, runner, chunk = None):
+    def _findPreviousDump(self, runner, chunk=None):
         """The previously-linked previous successful dump."""
         if (chunk):
             startPageID = sum([self._chunks[i] for i in range(0,int(chunk)-1)]) + 1
@@ -1233,20 +1233,20 @@ class XmlDump(Dump):
                 continue
 
             # first check if there are checkpoint files from this run we can use
-            files = self.listCheckpointFilesExisting(runner.dumpDir, [self.dumpName], date, chunks = None)
+            files = self.listCheckpointFilesExisting(runner.dumpDir, [self.dumpName], date, chunks=None)
             possiblePrefetchList = self.getRelevantPrefetchFiles(files, startPageID, endPageID, date, runner)
             if (len(possiblePrefetchList)):
                 return(possiblePrefetchList)
 
             # ok, let's check for chunk files instead, from any run (may not conform to our numbering
             # for this job)
-            files = self.listRegularFilesExisting(runner.dumpDir,[self.dumpName], date, chunks = True)
+            files = self.listRegularFilesExisting(runner.dumpDir,[self.dumpName], date, chunks=True)
             possiblePrefetchList = self.getRelevantPrefetchFiles(files, startPageID, endPageID, date, runner)
             if (len(possiblePrefetchList)):
                 return(possiblePrefetchList)
 
                     # last shot, get output file that contains all the pages, if there is one
-            files = self.listRegularFilesExisting(runner.dumpDir, [self.dumpName], date, chunks = False)
+            files = self.listRegularFilesExisting(runner.dumpDir, [self.dumpName], date, chunks=False)
             # there is only one, don't bother to check for relevance :-P
             possiblePrefetchList = files
             files = []
@@ -1264,7 +1264,7 @@ class XmlDump(Dump):
         runner.debug("Could not locate a prefetchable dump.")
         return None
 
-    def listOutputFilesForCleanup(self, dumpDir, dumpNames = None):
+    def listOutputFilesForCleanup(self, dumpDir, dumpNames=None):
         files = Dump.listOutputFilesForCleanup(self, dumpDir, dumpNames)
         filesToReturn = []
         if self.pageIDRange:
@@ -1324,7 +1324,7 @@ class RecombineXmlDump(XmlDump):
         recombineCommand = [recombineCommandString]
         recombinePipeline = [recombineCommand]
         series = [recombinePipeline]
-        error = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+        error = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell=True)
 
         if (error):
             raise BackupError("error recombining xml bz2 files")
@@ -1332,7 +1332,7 @@ class RecombineXmlDump(XmlDump):
 class XmlMultiStreamDump(XmlDump):
     """Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
 
-    def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None):
+    def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks=False, checkpoints=False, checkpointFile=None):
         self._subset = subset
         self._detail = detail
         self._chunks = chunks
@@ -1418,7 +1418,7 @@ class XmlMultiStreamDump(XmlDump):
             series = self.buildCommand(runner, outputFiles)
             commands.append(series)
 
-        error = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+        error = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell=True)
         if (error):
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -1445,7 +1445,7 @@ class XmlMultiStreamDump(XmlDump):
 
     # shows all files possible if we don't have checkpoint files. no temp files.
     # only the chunks we are actually supposed to do (if there is a limit)
-    def listOutputFilesForBuildCommand(self, dumpDir, chunk = None):
+    def listOutputFilesForBuildCommand(self, dumpDir, chunk=None):
         files = []
         inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
         for f in inputFiles:
@@ -1461,7 +1461,7 @@ class XmlMultiStreamDump(XmlDump):
 
     # shows all files possible if we don't have checkpoint files. should include temp files
     # does just the chunks we do if there is a limit
-    def listOutputFilesForCleanup(self, dumpDir, dumpNames = None):
+    def listOutputFilesForCleanup(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -1500,7 +1500,7 @@ class BigXmlDump(XmlDump):
 class XmlRecompressDump(Dump):
     """Take a .bz2 and recompress it as 7-Zip."""
 
-    def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks = False, checkpoints = False, checkpointFile = None):
+    def __init__(self, subset, name, desc, detail, itemForRecompression, wiki, chunkToDo, chunks=False, checkpoints=False, checkpointFile=None):
         self._subset = subset
         self._detail = detail
         self._chunks = chunks
@@ -1563,7 +1563,7 @@ class XmlRecompressDump(Dump):
             series = self.buildCommand(runner, outputFiles)
             commands.append(series)
 
-        error = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+        error = runner.runCommand(commands, callbackTimed=self.progressCallback, callbackTimedArg=runner, shell=True)
         if (error):
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -1588,7 +1588,7 @@ class XmlRecompressDump(Dump):
 
     # shows all files possible if we don't have checkpoint files. no temp files.
     # only the chunks we are actually supposed to do (if there is a limit)
-    def listOutputFilesForBuildCommand(self, dumpDir, chunk = None):
+    def listOutputFilesForBuildCommand(self, dumpDir, chunk=None):
         files = []
         inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
         for f in inputFiles:
@@ -1602,7 +1602,7 @@ class XmlRecompressDump(Dump):
 
     # shows all files possible if we don't have checkpoint files. should include temp files
     # does just the chunks we do if there is a limit
-    def listOutputFilesForCleanup(self, dumpDir, dumpNames = None):
+    def listOutputFilesForCleanup(self, dumpDir, dumpNames=None):
         # some stages (eg XLMStubs) call this for several different dumpNames
         if (dumpNames == None):
             dumpNames = [self.dumpName]
@@ -1669,7 +1669,7 @@ class RecombineXmlRecompressDump(Dump):
             recombineCommand = [recombineCommandString]
             recombinePipeline = [recombineCommand]
             series = [recombinePipeline]
-            result = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+            result = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell=True)
             if result:
                 error = result
         if (error):
@@ -1678,7 +1678,7 @@ class RecombineXmlRecompressDump(Dump):
 class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
-    def __init__(self, name, desc, chunkToDo, dbName, chunks = False):
+    def __init__(self, name, desc, chunkToDo, dbName, chunks=False):
         self._chunkToDo = chunkToDo
         self._chunks = chunks
         if self._chunks:
@@ -1843,7 +1843,7 @@ class RecombineAbstractDump(Dump):
             recombineCommand = [recombineCommandString]
             recombinePipeline = [recombineCommand]
             series = [recombinePipeline]
-            result = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell = True)
+            result = runner.runCommand([series], callbackTimed=self.progressCallback, callbackTimedArg=runner, shell=True)
             if result:
                 error = result
         if (error):
@@ -1907,5 +1907,3 @@ class AllTitleDump(TitleDump):
             error = self.saveSql(query, outFilename, runner)
         if (error):
             raise BackupError("error dumping all titles list")
-
-

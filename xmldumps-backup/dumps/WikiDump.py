@@ -20,17 +20,17 @@ class FileUtils(object):
         fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
         return os.fdopen(fd, mode)
 
-    def writeFile(dirname, filename, text, perms = 0):
+    def writeFile(dirname, filename, text, perms=0):
         """Write text to a file, as atomically as possible, via a temporary file in a specified directory.
         Arguments: dirname = where temp file is created, filename = full path to actual file, text = contents
         to write to file, perms = permissions that the file will have after creation"""
-        
+
         if not os.path.isdir(dirname):
             try:
                 os.makedirs(dirname)
             except:
                 raise IOError("The given directory '%s' is neither a directory nor can it be created" % dirname)
-                
+
         (fd, tempFilename ) = tempfile.mkstemp("_txt","wikidump_",dirname);
         os.write(fd,text)
         os.close(fd)
@@ -40,13 +40,13 @@ class FileUtils(object):
         # Of course nothing else will work on Windows. ;)
         shutil.move(tempFilename, filename)
 
-    def writeFileInPlace(filename, text, perms = 0):
+    def writeFileInPlace(filename, text, perms=0):
         """Write text to a file, after opening it for write with truncation.
         This assumes that only one process or thread accesses the given file at a time.
         Arguments: filename = full path to actual file, text = contents
         to write to file, perms = permissions that the file will have after creation,
         if it did not exist already"""
-        
+
         file = open(filename, "wt")
         file.write(text)
         file.close()
@@ -219,20 +219,20 @@ class Config(object):
             #"chunks": {
             # set this to 1 to enable runing the various xml dump stages as chunks in parallel
             "chunksEnabled" : "0",
-            # for page history runs, number of pages for each chunk, specified separately 
+            # for page history runs, number of pages for each chunk, specified separately
             # e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
             # would define 10 chunks with the specified number of pages in each and any extra in
             # a final 11th chunk
             "pagesPerChunkHistory" : False,
             # revs per chunk (roughly, it will be split along page lines) for history and current dumps
-            # values: positive integer, "compute", 
+            # values: positive integer, "compute",
             # this field is overriden by pagesPerChunkHistory
             # CURRENTLY NOT COMPLETE so please don't use this.
             "revsPerChunkHistory" : False,
             # pages per chunk for abstract runs
             "pagesPerChunkAbstract" : False,
-                        # number of chunks for abstract dumps, overrides pagesPerChunkAbstract
-                        "chunksForAbstract" : 0,
+            # number of chunks for abstract dumps, overrides pagesPerChunkAbstract
+            "chunksForAbstract" : 0,
             # whether or not to recombine the history pieces
             "recombineHistory" : "1",
             # do we write out checkpoint files at regular intervals? (article/metacurrent/metahistory
@@ -243,7 +243,7 @@ class Config(object):
             }
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
-        
+
         if not self.conf.has_section("wiki"):
             print "The mandatory configuration section 'wiki' was not defined."
             raise ConfigParser.NoSectionError('wiki')
@@ -340,7 +340,7 @@ class Config(object):
         self.mailFrom = self.conf.get("reporting", "mailfrom")
         self.smtpServer = self.conf.get("reporting", "smtpserver")
         self.staleAge = self.conf.getint("reporting", "staleage")
-        
+
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')
         self.php = self.conf.get("tools", "php")
@@ -361,7 +361,7 @@ class Config(object):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
 
-    def parseConfFilePerProject(self, projectName = False):
+    def parseConfFilePerProject(self, projectName=False):
         # we need to read from the project section without falling back
         # to the defaults, which has_option() normally does, ugh.  so set
         # up a local conf instance without the defaults
@@ -390,7 +390,7 @@ class Config(object):
         self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(conf, "chunks","pagesPerChunkAbstract",0)
         self.recombineHistory = self.getOptionForProjectOrDefault(conf, "chunks","recombineHistory",1)
         self.checkpointTime = self.getOptionForProjectOrDefault(conf, "chunks","checkpointTime",1)
-    
+
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
         self.multistreamEnabled = self.getOptionForProjectOrDefault(conf, 'otherformats', 'multistream', 1)
@@ -410,7 +410,7 @@ class Config(object):
             return(self.conf.getint(sectionName,itemName))
         else:
             return(self.conf.get(sectionName,itemName))
-                
+
     def dbListByAge(self, use_status_time=False):
         """
         Sort wikis in reverse order of last successful dump :
@@ -459,11 +459,11 @@ class Config(object):
             available.append((dumpFailed, date, age, db))
         available.sort()
         return [db for (failed, date, age, db) in available]
-    
+
     def readTemplate(self, name):
         template = os.path.join(self.templateDir, name)
         return FileUtils.readFile(template)
-    
+
     def mail(self, subject, body):
         """Send out a quickie email."""
         message = email.MIMEText.MIMEText(body)
@@ -486,22 +486,22 @@ class Wiki(object):
         self.dbName = dbName
         self.date = None
         self.watchdog = None
-    
+
     def isPrivate(self):
         return self.dbName in self.config.privateList
-    
+
     def hasFlaggedRevs(self):
         return self.dbName in self.config.flaggedRevsList
 
     def hasWikidata(self):
         return self.dbName in self.config.wikidataList
-    
+
     def isWikidataClient(self):
         return self.dbName in self.config.wikidataClientList
 
     def isLocked(self):
         return os.path.exists(self.lockFile())
-    
+
     def isStale(self):
         if not self.isLocked():
             return False
@@ -513,13 +513,13 @@ class Wiki(object):
             return False
 
     # Paths and directories...
-    
+
     def publicDir(self):
         if self.isPrivate():
             return self.privateDir()
         else:
             return os.path.join(self.config.publicDir, self.dbName)
-    
+
     def privateDir(self):
         return os.path.join(self.config.privateDir, self.dbName)
 
@@ -538,9 +538,9 @@ class Wiki(object):
         if i >= 0:
             webRootRelative = webRootRelative[i:]
         return webRootRelative
-    
+
     # Actions!
-    
+
     def lock(self):
         if not os.path.isdir(self.privateDir()):
             try:
@@ -552,20 +552,20 @@ class Wiki(object):
         f = FileUtils.atomicCreate(self.lockFile(), "w")
         f.write("%s %d" % (socket.getfqdn(), os.getpid()))
         f.close()
-        
+
         self.watchdog = LockWatchdog(self.lockFile())
         self.watchdog.start()
         return True
-    
+
     def unlock(self):
         if self.watchdog:
             self.watchdog.stopWatching()
             self.watchdog = None
         os.remove(self.lockFile())
-    
+
     def setDate(self, date):
         self.date = date
-    
+
     def cleanupStaleLock(self):
         date = self.latestDump()
         if date:
@@ -573,21 +573,21 @@ class Wiki(object):
             self.writeStatus(self.reportStatusLine(
                 "<span class=\"failed\">dump aborted</span>"))
         self.unlock()
-    
+
     def writePerDumpIndex(self, html):
         directory = os.path.join(self.publicDir(), self.date)
         index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
         FileUtils.writeFileInPlace(index, html, self.config.fileperms)
-    
+
     def existsPerDumpIndex(self):
         index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
         return os.path.exists(index)
-    
+
     def writeStatus(self, message):
         directory = os.path.join(self.publicDir(), self.date)
         index = os.path.join(self.publicDir(), self.date, "status.html")
         FileUtils.writeFileInPlace(index, message, self.config.fileperms)
-    
+
     def statusLine(self):
         date = self.latestDump()
         if date:
@@ -598,7 +598,7 @@ class Wiki(object):
                 return self.reportStatusLine("missing status record")
         else:
             return self.reportStatusLine("has not yet been dumped")
-    
+
     def reportStatusLine(self, status, error=False):
         if error:
             # No state information, hide the timestamp
@@ -652,37 +652,37 @@ class Wiki(object):
             return []
         dates.sort()
         return dates
-    
+
     # private....
     def lockFile(self):
         return os.path.join(self.privateDir(), "lock")
-    
+
     def lockAge(self):
         return FileUtils.fileAge(self.lockFile())
 
 class LockWatchdog(threading.Thread):
     """Touch the given file every 10 seconds until asked to stop."""
-    
+
     # For emergency aborts
     threads = []
-    
+
     def __init__(self, lockfile):
         threading.Thread.__init__(self)
         self.lockfile = lockfile
         self.trigger = threading.Event()
         self.finished = threading.Event()
-    
+
     def stopWatching(self):
         """Run me outside..."""
         # Ask the thread to stop...
         self.trigger.set()
-        
+
         # Then wait for it, to ensure that the lock file
         # doesn't get touched again after we delete it on
         # the main thread.
         self.finished.wait(10)
         self.finished.clear()
-    
+
     def run(self):
         LockWatchdog.threads.append(self)
         while not self.trigger.isSet():
@@ -691,7 +691,7 @@ class LockWatchdog(threading.Thread):
         self.trigger.clear()
         self.finished.set()
         LockWatchdog.threads.remove(self)
-    
+
     def touchLock(self):
         """Run me inside..."""
         os.utime(self.lockfile, None)
