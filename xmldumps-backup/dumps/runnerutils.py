@@ -60,7 +60,7 @@ class Checksummer(object):
             dumpfile = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj),None,self.verbose)
             checksum = dumpfile.md5Sum()
             if checksum != None:
-                output.write( "%s  %s\n" % (checksum, fileObj.filename))
+                output.write("%s  %s\n" % (checksum, fileObj.filename))
             output.close()
 
     def moveMd5FileIntoPlace(self):
@@ -424,7 +424,7 @@ class Feeds(object):
                 "date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime()) }
             directory = self.dumpDir.latestDir()
             rssPath = os.path.join(self.dumpDir.latestDir(), self.dbName + "-latest-" + fileObj.basename + "-rss.xml")
-            self.debugfn( "adding rss feed file %s " % rssPath )
+            self.debugfn("adding rss feed file %s " % rssPath)
             FileUtils.writeFile(self.wiki.config.tempDir, rssPath, rssText, self.wiki.config.fileperms)
 
     def cleanupFeeds(self):

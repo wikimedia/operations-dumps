@@ -165,27 +165,27 @@ class DumpItemList(object):
 
         if self._hasFlaggedRevs:
             self.dumpItems.append(
-                PublicTable( "flaggedpages", "flaggedpagestable","This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending." ))
+                PublicTable("flaggedpages", "flaggedpagestable","This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending."))
             self.dumpItems.append(
-                PublicTable( "flaggedrevs", "flaggedrevstable","This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under." ))
+                PublicTable("flaggedrevs", "flaggedrevstable","This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under."))
 
         if self._hasWikidata:
             self.dumpItems.append(
-                PublicTable( "wb_items_per_site", "wbitemspersitetable","For each Wikidata item, this contains rows with the corresponding page name on a given wiki project." ))
+                PublicTable("wb_items_per_site", "wbitemspersitetable","For each Wikidata item, this contains rows with the corresponding page name on a given wiki project."))
             self.dumpItems.append(
-                PublicTable( "wb_terms", "wbtermstable","For each Wikidata item, this contains rows with a label, an alias and a description of the item in a given language." ))
+                PublicTable("wb_terms", "wbtermstable","For each Wikidata item, this contains rows with a label, an alias and a description of the item in a given language."))
             self.dumpItems.append(
-                PublicTable( "wb_entity_per_page", "wbentityperpagetable","Contains a mapping of page ids and entity ids, with an additional entity type column." ))
+                PublicTable("wb_entity_per_page", "wbentityperpagetable","Contains a mapping of page ids and entity ids, with an additional entity type column."))
             self.dumpItems.append(
-                PublicTable( "wb_property_info", "wbpropertyinfotable", "Contains a mapping of Wikidata property ids and data types." ))
+                PublicTable("wb_property_info", "wbpropertyinfotable", "Contains a mapping of Wikidata property ids and data types."))
             self.dumpItems.append(
-                PublicTable( "wb_changes_subscription", "wbchangessubscriptiontable","Tracks which Wikibase Client wikis are using which items." ))
+                PublicTable("wb_changes_subscription", "wbchangessubscriptiontable","Tracks which Wikibase Client wikis are using which items."))
             self.dumpItems.append(
-                PublicTable( "sites", "sitestable","This contains the SiteMatrix information from meta.wikimedia.org provided as a table." ))
+                PublicTable("sites", "sitestable","This contains the SiteMatrix information from meta.wikimedia.org provided as a table."))
 
         if self._isWikidataClient:
             self.dumpItems.append(
-                PublicTable( "wbc_entity_usage", "wbcentityusagetable","Tracks which pages use which Wikidata items or properties and what aspect (e.g. item label) is used." ))
+                PublicTable("wbc_entity_usage", "wbcentityusagetable","Tracks which pages use which Wikidata items or properties and what aspect (e.g. item label) is used."))
 
         self.dumpItems.append(
             BigXmlDump("meta-history",
@@ -303,7 +303,7 @@ class DumpItemList(object):
                         if item.name() in self.skipJobs:
                                 item.setSkipped()
                         elif not skipgood or item.status() != "done":
-                                item.setToBeRun( True )
+                                item.setToBeRun(True)
                           
     def findItemByName(self, name):
         for item in self.dumpItems:
@@ -478,13 +478,13 @@ class Runner(object):
     # returns 0 on success, 1 on error
     def saveCommand(self, commands, outfile):
         """For one pipeline of commands, redirect output to a given file."""
-        commands[-1].extend( [ ">" , outfile ] )
-        series = [ commands ]
+        commands[-1].extend([">" , outfile])
+        series = [commands]
         if (self.dryrun):
-            self.prettyPrintCommands([ series ])
+            self.prettyPrintCommands([series])
             return 0
         else:
-            return self.runCommand([ series ], callbackTimed = self.status.updateStatusFiles)
+            return self.runCommand([series], callbackTimed = self.status.updateStatusFiles)
 
     def prettyPrintCommands(self, commandSeriesList):
         for series in commandSeriesList:
@@ -563,8 +563,8 @@ class Runner(object):
                 print "This means that the status information about the old run will be lost, and"
                 print "only the information about the current (and future) runs will be kept."
                 reply = raw_input("Continue anyways? [y/N]: ")
-                if (not reply in [ "y", "Y" ]):
-                    raise RuntimeError( "No run information available for previous dump, exiting" )
+                if (not reply in ["y", "Y"]):
+                    raise RuntimeError("No run information available for previous dump, exiting")
 
             if (not self.dumpItemList.markDumpsToRun(self.jobRequested, self.skipdone)):
                 # probably no such job
@@ -576,7 +576,7 @@ class Runner(object):
         else:
             self.dumpItemList.markAllJobsToRun(self.skipdone);
 
-        Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName )
+        Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName)
 
         self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
         self.makeDir(os.path.join(self.wiki.privateDir(), self.wiki.date))
@@ -597,7 +597,7 @@ class Runner(object):
         self.checksums.prepareChecksums()
 
         for item in self.dumpItemList.dumpItems:
-            Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % ( self.dbName, item.name() ) )
+            Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % (self.dbName, item.name()))
             if (item.toBeRun()):
                 item.start(self)
                 self.status.updateStatusFiles()
@@ -723,7 +723,7 @@ class Runner(object):
             if (item.toBeRun()):
                 dumpNames = item.listDumpNames()
                 if type(dumpNames).__name__!='list':
-                    dumpNames = [ dumpNames ]
+                    dumpNames = [dumpNames]
 
                 if (item._chunksEnabled):
                     # if there is a specific chunk, we want to only clear out
@@ -873,54 +873,54 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
 def usage(message = None):
     if message:
         sys.stderr.write("%s\n" % message)
-    sys.stderr.write( "Usage: python worker.py [options] [wikidbname]\n" )
-    sys.stderr.write( "Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --skipjobs, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff\n" )
-    sys.stderr.write( "--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the\n" )
-    sys.stderr.write( "               rest of the job for the appropriate chunk if chunks are configured\n" )
-    sys.stderr.write( "               or for the all the rest of the revisions if no chunks are configured;\n" )
-    sys.stderr.write( "               only for jobs articlesdump, metacurrentdump, metahistorybz2dump.\n" )
-    sys.stderr.write( "--checkpoint:  Specify the name of the checkpoint file to rerun (requires --job,\n" )
-    sys.stderr.write( "               depending on the file this may imply --chunk)\n" )
-    sys.stderr.write( "--chunk:       Specify the number of the chunk to rerun (use with a specific job\n" )
-    sys.stderr.write( "               to rerun, only if parallel jobs (chunks) are enabled).\n" )
-    sys.stderr.write( "--configfile:  Specify an alternative configuration file to read.\n" )
-    sys.stderr.write( "               Default config file name: wikidump.conf\n" )
-    sys.stderr.write( "--date:        Rerun dump of a given date (probably unwise)\n" )
-    sys.stderr.write( "               If 'last' is given as the value, will rerun dump from last run date if any,\n")
-    sys.stderr.write( "               or today if there has never been a previous run\n")
-    sys.stderr.write( "--addnotice:   Text message that will be inserted in the per-dump-run index.html\n" )
-    sys.stderr.write( "               file; use this when rerunning some job and you want to notify the\n" )
-    sys.stderr.write( "               potential downloaders of problems, for example.  This option\n" )
-    sys.stderr.write( "               remains in effective for the specified wiki and date until\n" )
-    sys.stderr.write( "               the delnotice option is given.\n" )
-    sys.stderr.write( "--delnotice:   Remove any notice that has been specified by addnotice, for\n" )
-    sys.stderr.write( "               the given wiki and date.\n" )
-    sys.stderr.write( "--job:         Run just the specified step or set of steps; for the list,\n" )
-    sys.stderr.write( "               give the option --job help\n" )
-    sys.stderr.write( "               This option requires specifiying a wikidbname on which to run.\n" )
-    sys.stderr.write( "               This option cannot be specified with --force.\n" )
-    sys.stderr.write( "--skipjobs:    Comma separated list of jobs not to run on the wiki(s)\n" )
-    sys.stderr.write( "               give the option --job help\n" )
-    sys.stderr.write( "--dryrun:      Don't really run the job, just print what would be done (must be used\n" )
-    sys.stderr.write( "               with a specified wikidbname on which to run\n" )
-    sys.stderr.write( "--force:       remove a lock file for the specified wiki (dangerous, if there is\n" )
-    sys.stderr.write( "               another process running, useful if you want to start a second later\n" )
-    sys.stderr.write( "               run while the first dump from a previous date is still going)\n" )
-    sys.stderr.write( "               This option cannot be specified with --job.\n" )
-    sys.stderr.write( "--exclusive    Even if rerunning just one job of a wiki, get a lock to make sure no other\n")
-    sys.stderr.write( "               runners try to work on that wiki. Default: for single jobs, don't lock\n")
-    sys.stderr.write( "--noprefetch:  Do not use a previous file's contents for speeding up the dumps\n" )
-    sys.stderr.write( "               (helpful if the previous files may have corrupt contents)\n" )
-    sys.stderr.write( "--nospawn:     Do not spawn a separate process in order to retrieve revision texts\n" )
-    sys.stderr.write( "--restartfrom: Do all jobs after the one specified via --job, including that one\n" )
-    sys.stderr.write( "--skipdone:    Do only jobs that are not already succefully completed\n")
-    sys.stderr.write( "--log:         Log progress messages and other output to logfile in addition to\n" )
-    sys.stderr.write( "               the usual console output\n" )
-    sys.stderr.write( "--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which\n" )
-    sys.stderr.write( "               dumps should be run, if its last dump was older than the cutoff date,\n" )
-    sys.stderr.write( "               and exit, or if there are no such wikis, just exit\n" )
-    sys.stderr.write( "--verbose:     Print lots of stuff (includes printing full backtraces for any exception)\n" )
-    sys.stderr.write( "               This is used primarily for debugging\n" )
+    sys.stderr.write("Usage: python worker.py [options] [wikidbname]\n")
+    sys.stderr.write("Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job, --skipjobs, --addnotice, --delnotice, --force, --noprefetch, --nospawn, --restartfrom, --log, --cutoff\n")
+    sys.stderr.write("--aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the\n")
+    sys.stderr.write("               rest of the job for the appropriate chunk if chunks are configured\n")
+    sys.stderr.write("               or for the all the rest of the revisions if no chunks are configured;\n")
+    sys.stderr.write("               only for jobs articlesdump, metacurrentdump, metahistorybz2dump.\n")
+    sys.stderr.write("--checkpoint:  Specify the name of the checkpoint file to rerun (requires --job,\n")
+    sys.stderr.write("               depending on the file this may imply --chunk)\n")
+    sys.stderr.write("--chunk:       Specify the number of the chunk to rerun (use with a specific job\n")
+    sys.stderr.write("               to rerun, only if parallel jobs (chunks) are enabled).\n")
+    sys.stderr.write("--configfile:  Specify an alternative configuration file to read.\n")
+    sys.stderr.write("               Default config file name: wikidump.conf\n")
+    sys.stderr.write("--date:        Rerun dump of a given date (probably unwise)\n")
+    sys.stderr.write("               If 'last' is given as the value, will rerun dump from last run date if any,\n")
+    sys.stderr.write("               or today if there has never been a previous run\n")
+    sys.stderr.write("--addnotice:   Text message that will be inserted in the per-dump-run index.html\n")
+    sys.stderr.write("               file; use this when rerunning some job and you want to notify the\n")
+    sys.stderr.write("               potential downloaders of problems, for example.  This option\n")
+    sys.stderr.write("               remains in effective for the specified wiki and date until\n")
+    sys.stderr.write("               the delnotice option is given.\n")
+    sys.stderr.write("--delnotice:   Remove any notice that has been specified by addnotice, for\n")
+    sys.stderr.write("               the given wiki and date.\n")
+    sys.stderr.write("--job:         Run just the specified step or set of steps; for the list,\n")
+    sys.stderr.write("               give the option --job help\n")
+    sys.stderr.write("               This option requires specifiying a wikidbname on which to run.\n")
+    sys.stderr.write("               This option cannot be specified with --force.\n")
+    sys.stderr.write("--skipjobs:    Comma separated list of jobs not to run on the wiki(s)\n")
+    sys.stderr.write("               give the option --job help\n")
+    sys.stderr.write("--dryrun:      Don't really run the job, just print what would be done (must be used\n")
+    sys.stderr.write("               with a specified wikidbname on which to run\n")
+    sys.stderr.write("--force:       remove a lock file for the specified wiki (dangerous, if there is\n")
+    sys.stderr.write("               another process running, useful if you want to start a second later\n")
+    sys.stderr.write("               run while the first dump from a previous date is still going)\n")
+    sys.stderr.write("               This option cannot be specified with --job.\n")
+    sys.stderr.write("--exclusive    Even if rerunning just one job of a wiki, get a lock to make sure no other\n")
+    sys.stderr.write("               runners try to work on that wiki. Default: for single jobs, don't lock\n")
+    sys.stderr.write("--noprefetch:  Do not use a previous file's contents for speeding up the dumps\n")
+    sys.stderr.write("               (helpful if the previous files may have corrupt contents)\n")
+    sys.stderr.write("--nospawn:     Do not spawn a separate process in order to retrieve revision texts\n")
+    sys.stderr.write("--restartfrom: Do all jobs after the one specified via --job, including that one\n")
+    sys.stderr.write("--skipdone:    Do only jobs that are not already succefully completed\n")
+    sys.stderr.write("--log:         Log progress messages and other output to logfile in addition to\n")
+    sys.stderr.write("               the usual console output\n")
+    sys.stderr.write("--cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which\n")
+    sys.stderr.write("               dumps should be run, if its last dump was older than the cutoff date,\n")
+    sys.stderr.write("               and exit, or if there are no such wikis, just exit\n")
+    sys.stderr.write("--verbose:     Print lots of stuff (includes printing full backtraces for any exception)\n")
+    sys.stderr.write("               This is used primarily for debugging\n")
 
     sys.exit(1)
 
@@ -950,7 +950,7 @@ if __name__ == "__main__":
 
         try:
             (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone", "exclusive", 'verbose' ])
+                                 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone", "exclusive", 'verbose'])
         except:
             usage("Unknown option specified")
 
@@ -1118,12 +1118,12 @@ if __name__ == "__main__":
                 f.newFromFilename(checkpointFile)
                 if not f.isCheckpointFile:
                     usage("--aftercheckpoint option requires the name of a checkpoint file, bad filename provided")
-                pageIDRange = str( int(f.lastPageID) + 1 )
+                pageIDRange = str(int(f.lastPageID) + 1)
                 chunkToDo = f.chunkInt
                 # now we don't need this.
                 checkpointFile = None
-                afterCheckpointJobs = [ 'articlesdump', 'metacurrentdump', 'metahistorybz2dump' ]
-                if not jobRequested or not jobRequested in [ 'articlesdump', 'metacurrentdump', 'metahistorybz2dump' ]:
+                afterCheckpointJobs = ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']
+                if not jobRequested or not jobRequested in ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']:
                     usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(afterCheckpointJobs))
                     
             runner = Runner(wiki, prefetch, spawn, jobRequested, skipJobs, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, skipdone, verbose)

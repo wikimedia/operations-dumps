@@ -18,9 +18,9 @@ class MultiVersion(object):
     def MWScriptAsArray(config, maintenanceScript):
         MWScriptLocation = os.path.join(config.wikiDir,"multiversion","MWScript.php")
         if exists(MWScriptLocation):
-            return [ MWScriptLocation, maintenanceScript ]
+            return [MWScriptLocation, maintenanceScript]
         else:
-            return [ "%s/maintenance/%s" % (config.wikiDir, maintenanceScript) ]
+            return ["%s/maintenance/%s" % (config.wikiDir, maintenanceScript)]
 
     def MWVersion(config, dbName):
         getVersionLocation = os.path.join(config.wikiDir,"multiversion","getMWVersion")
@@ -48,7 +48,7 @@ class DbServerInfo(object):
     def getDefaultServerAndDBprefix(self):
         """Get the name of a slave server for our cluster; also get
         the prefix for all tables for the specific wiki ($wgDBprefix)"""
-        if (not exists( self.wiki.config.php ) ):
+        if (not exists(self.wiki.config.php)):
             raise BackupError("php command %s not found" % self.wiki.config.php)
         commandList = MultiVersion.MWScriptAsArray(self.wiki.config, "getSlaveServer.php")
         phpCommand = MiscUtils.shellEscape(self.wiki.config.php)
@@ -77,44 +77,44 @@ class DbServerInfo(object):
             # if we didn't see this in the globals list, something is broken.
             raise BackupError("Failed to get database table prefix for %s, bailing." % self.wiki.config.php)
 
-    def mysqlStandardParameters( self ):
+    def mysqlStandardParameters(self):
         host = self.dbServer
         if self.dbPort and self.dbServer.strip() == "localhost":
             # MySQL tools ignore port settings for host "localhost" and instead use IPC sockets,
             # so we rewrite the localhost to it's ip address
-            host = socket.gethostbyname( self.dbServer );
+            host = socket.gethostbyname(self.dbServer);
 
-        params = [ "-h", "%s" % host ] # Host
+        params = ["-h", "%s" % host] # Host
         if self.dbPort:
-            params += [ "--port", "%s" % self.dbPort ] # Port
-        params += [ "-u", "%s" % self.wiki.config.dbUser ] # Username
-        params += [ "%s" % self.passwordOption() ] # Password
+            params += ["--port", "%s" % self.dbPort] # Port
+        params += ["-u", "%s" % self.wiki.config.dbUser] # Username
+        params += ["%s" % self.passwordOption()] # Password
         return params
 
     def buildSqlCommand(self, query, pipeto = None):
         """Put together a command to execute an sql query to the server for this DB."""
-        if (not exists( self.wiki.config.mysql ) ):
+        if (not exists(self.wiki.config.mysql)):
             raise BackupError("mysql command %s not found" % self.wiki.config.mysql)
-        command = [ [ "/bin/echo", "%s" % query ],
-                [ "%s" % self.wiki.config.mysql ] + self.mysqlStandardParameters() + [
+        command = [["/bin/echo", "%s" % query],
+                ["%s" % self.wiki.config.mysql] + self.mysqlStandardParameters() + [
                   "%s" % self.dbName,
-                  "-r" ] ]
+                  "-r"]]
         if (pipeto):
-            command.append([ pipeto ])
+            command.append([pipeto])
         return command
 
     def buildSqlDumpCommand(self, table, pipeto = None):
         """Put together a command to dump a table from the current DB with mysqldump
         and save to a gzipped sql file."""
-        if (not exists( self.wiki.config.mysqldump ) ):
+        if (not exists(self.wiki.config.mysqldump)):
             raise BackupError("mysqldump command %s not found" % self.wiki.config.mysqldump)
-        command = [ [ "%s" % self.wiki.config.mysqldump ] + self.mysqlStandardParameters() + [
+        command = [["%s" % self.wiki.config.mysqldump] + self.mysqlStandardParameters() + [
                    "--opt", "--quick",
                    "--skip-add-locks", "--skip-lock-tables",
                    "%s" % self.dbName,
-                   "%s" % self.dBTablePrefix + table ] ]
+                   "%s" % self.dBTablePrefix + table]]
         if (pipeto):
-            command.append([ pipeto ])
+            command.append([pipeto])
         return command
 
     def runSqlAndGetOutput(self, query):
@@ -406,7 +406,7 @@ class RunInfo(object):
 # use that number for all the chunks, figure out yourself how many.
 # otherwise we get passed alist that says "here's now many for each chunk and it's this many chunks.
 # extra pages/revs go in the last chunk, stuck on the end. too bad. :-P
-class Chunk(object, ):
+class Chunk(object,):
     def __init__(self, wiki, dbName, errorCallback = None):
 
         self._dbName = dbName
@@ -419,7 +419,7 @@ class Chunk(object, ):
             if self.wiki.config.chunksForAbstract:
                 # we add 200 padding to cover new pages that may be added
                 pagesPerChunk = self.Stats.totalPages/int(self.wiki.config.chunksForAbstract) + 200
-                self._pagesPerChunkAbstract = [ pagesPerChunk for i in range(0, int(self.wiki.config.chunksForAbstract)) ]
+                self._pagesPerChunkAbstract = [pagesPerChunk for i in range(0, int(self.wiki.config.chunksForAbstract))]
             else:
                 self._pagesPerChunkAbstract = self.convertCommaSepLineToNumbers(self.wiki.config.pagesPerChunkAbstract)
 
@@ -435,7 +435,7 @@ class Chunk(object, ):
             if (self._revsPerChunkHistory):
                 if (len(self._revsPerChunkHistory) == 1):
                     self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalEdits, self._pagesPerChunkHistory[0])
-                    self._revsPerChunkHistory = [ self._revsPerChunkHistory[0] for i in range(self._numChunksHistory)]
+                    self._revsPerChunkHistory = [self._revsPerChunkHistory[0] for i in range(self._numChunksHistory)]
                 else:
                     self._numChunksHistory = len(self._revsPerChunkHistory)
                 # here we should generate the number of pages per chunk based on number of revs.
@@ -444,7 +444,7 @@ class Chunk(object, ):
             elif (self._pagesPerChunkHistory):
                 if (len(self._pagesPerChunkHistory) == 1):
                     self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalPages, self._pagesPerChunkHistory[0])
-                    self._pagesPerChunkHistory = [ self._pagesPerChunkHistory[0] for i in range(self._numChunksHistory)]
+                    self._pagesPerChunkHistory = [self._pagesPerChunkHistory[0] for i in range(self._numChunksHistory)]
                 else:
                     self._numChunksHistory = len(self._pagesPerChunkHistory)
             else:
@@ -453,7 +453,7 @@ class Chunk(object, ):
             if (self._pagesPerChunkAbstract):
                 if (len(self._pagesPerChunkAbstract) == 1):
                     self._numChunksAbstract = self.getNumberOfChunksForXMLDumps(self.Stats.totalPages, self._pagesPerChunkAbstract[0])
-                    self._pagesPerChunkAbstract = [ self._pagesPerChunkAbstract[0] for i in range(self._numChunksAbstract)]
+                    self._pagesPerChunkAbstract = [self._pagesPerChunkAbstract[0] for i in range(self._numChunksAbstract)]
                 else:
                     self._numChunksAbstract = len(self._pagesPerChunkAbstract)
             else:
