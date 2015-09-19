@@ -401,18 +401,18 @@ class CommandSeries(object):
                 break
 
 class ProcessMonitor(threading.Thread):
-    def __init__(self, timeout, queue, outputQueue, defaultCallbackInterval,
-             callbackStderr, callbackStdout, callbackTimed,
-             callbackStderrArg, callbackStdoutArg, callbackTimedArg):
+    def __init__(self, timeout, queue, outputQueue, default_callback_interval,
+             callback_stderr, callbackStdout, callbackTimed,
+             callback_stderr_arg, callbackStdoutArg, callbackTimedArg):
         threading.Thread.__init__(self)
         self.timeout = timeout
         self.queue = queue
         self.outputQueue = outputQueue
-        self._defaultCallbackInterval = defaultCallbackInterval
-        self._callbackStderr = callbackStderr
+        self._default_callback_interval = default_callback_interval
+        self._callback_stderr = callback_stderr
         self._callbackStdout = callbackStdout
         self._callbackTimed = callbackTimed
-        self._callbackStderrArg = callbackStderrArg
+        self._callback_stderr_arg = callback_stderr_arg
         self._callbackStdoutArg = callbackStdoutArg
         self._callbackTimedArg = callbackTimedArg
 
@@ -463,7 +463,7 @@ class ProcessMonitor(threading.Thread):
                             commandCompleted = True
 
                 waited = waited + self.timeout
-                if waited > self._defaultCallbackInterval and self._callbackTimed:
+                if waited > self._default_callback_interval and self._callbackTimed:
                     if self._callbackTimedArg:
                         self._callbackTimed(self._callbackTimedArg)
                     else:
@@ -503,18 +503,18 @@ class CommandsInParallel(object):
     and the individual pipelines are not provided with a file to save output,
     then output is written to stderr.
     Callbackinterval is in milliseconds, defaults is 20 seconds"""
-    def __init__(self, commandSeriesList, callbackStderr=None, callbackStdout=None, callbackTimed=None, callbackStderrArg=None, callbackStdoutArg=None, callbackTimedArg=None, quiet=False, shell=False, callbackInterval=20000):
-        self._commandSeriesList = commandSeriesList
+    def __init__(self, command_series_list, callback_stderr=None, callbackStdout=None, callbackTimed=None, callback_stderr_arg=None, callbackStdoutArg=None, callbackTimedArg=None, quiet=False, shell=False, callback_interval=20000):
+        self._command_series_list = command_series_list
         self._commandSerieses = []
-        for series in self._commandSeriesList:
+        for series in self._command_series_list:
             self._commandSerieses.append(CommandSeries(series, quiet, shell))
         # for each command series running in parallel,
         # in cases where a command pipeline in the series generates output, the callback
         # will be called with a line of output from the pipeline as it becomes available
-        self._callbackStderr = callbackStderr
+        self._callback_stderr = callback_stderr
         self._callbackStdout = callbackStdout
         self._callbackTimed = callbackTimed
-        self._callbackStderrArg = callbackStderrArg
+        self._callback_stderr_arg = callback_stderr_arg
         self._callbackStdoutArg = callbackStdoutArg
         self._callbackTimedArg = callbackTimedArg
         self._commandSeriesQueue = Queue.Queue()
@@ -526,7 +526,7 @@ class CommandsInParallel(object):
 
         # for programs that don't generate output, wait this many milliseconds between
         # invoking callback if there is one
-        self._defaultCallbackInterval = callbackInterval
+        self._default_callback_interval = callback_interval
 
     def startCommands(self):
         for series in self._commandSerieses:
@@ -535,7 +535,7 @@ class CommandsInParallel(object):
     def setupOutputMonitoring(self):
         for series in self._commandSerieses:
             self._commandSeriesQueue.put(series)
-            t = ProcessMonitor(500, self._commandSeriesQueue, self._outputQueue, self._defaultCallbackInterval, self._callbackStderr, self._callbackStdout, self._callbackTimed, self._callbackStderrArg, self._callbackStdoutArg, self._callbackTimedArg)
+            t = ProcessMonitor(500, self._commandSeriesQueue, self._outputQueue, self._default_callback_interval, self._callback_stderr, self._callbackStdout, self._callbackTimed, self._callback_stderr_arg, self._callbackStdoutArg, self._callbackTimedArg)
             t.start()
 
     def allCommandsCompleted(self):
@@ -580,11 +580,11 @@ class CommandsInParallel(object):
                     else:
                         sys.stderr.write(output.contents)
                 else: # output channel is stderr
-                    if self._callbackStderr:
-                        if self._callbackStderrArg:
-                            self._callbackStderr(self._callbackStderrArg, output.contents)
+                    if self._callback_stderr:
+                        if self._callback_stderr_arg:
+                            self._callback_stderr(self._callback_stderr_arg, output.contents)
                         else:
-                            self._callbackStderr(output.contents)
+                            self._callback_stderr(output.contents)
                     else:
                         sys.stderr.write(output.contents)
 
