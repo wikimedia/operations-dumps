@@ -1,108 +1,106 @@
 # Worker process, does the actual dumping
 
-import getopt, hashlib, os, re, sys, errno, time
-import subprocess, select
-import shutil, stat, signal, glob
-import Queue, thread, traceback, socket
+import getopt, os, sys
+import shutil
+import Queue, thread, traceback
 
 from os.path import exists
-from subprocess import Popen, PIPE
-from dumps.WikiDump import FileUtils, MiscUtils, TimeUtils, Wiki, Config, cleanup
-from dumps.CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
+from dumps.WikiDump import TimeUtils, Wiki, Config, cleanup
+from dumps.CommandManagement import CommandsInParallel
 from dumps.jobs import *
 from dumps.runnerutils import *
 from dumps.utils import DbServerInfo
 
 class Logger(object):
 
-    def __init__(self, logFileName=None):
-        if logFileName:
-            self.logFile = open(logFileName, "a")
+    def __init__(self, log_filename=None):
+        if log_filename:
+            self.log_file = open(log_filename, "a")
         else:
-            self.logFile = None
+            self.log_file = None
         self.queue = Queue.Queue()
-        self.JobsDone = "JOBSDONE"
+        self.jobs_done = "JOBSDONE"
 
-    def logWrite(self, line=None):
-        if self.logFile:
-            self.logFile.write(line)
-            self.logFile.flush()
+    def log_write(self, line=None):
+        if self.log_file:
+            self.log_file.write(line)
+            self.log_file.flush()
 
-    def logClose(self):
-        if self.logFile:
-            self.logFile.close()
+    def log_close(self):
+        if self.log_file:
+            self.log_file.close()
 
     # return 1 if logging terminated, 0 otherwise
-    def doJobOnLogQueue(self):
+    def do_job_on_log_queue(self):
         line = self.queue.get()
-        if line == self.JobsDone:
-            self.logClose()
+        if line == self.jobs_done:
+            self.log_close()
             return 1
         else:
-            self.logWrite(line)
+            self.log_write(line)
             return 0
 
-    def addToLogQueue(self, line=None):
+    def add_to_log_queue(self, line=None):
         if line:
             self.queue.put_nowait(line)
 
     # set in order to have logging thread clean up and exit
-    def indicateJobsDone(self):
-        self.queue.put_nowait(self.JobsDone)
+    def indicate_jobs_done(self):
+        self.queue.put_nowait(self.jobs_done)
 
 class DumpItemList(object):
-    def __init__(self, wiki, prefetch, spawn, chunkToDo, checkpointFile, singleJob, skipJobs, chunkInfo, pageIDRange, runInfoFile, dumpDir):
+    def __init__(self, wiki, prefetch, spawn, chunk_to_do, checkpoint_file, singleJob, skip_jobs, chunkInfo, page_id_range, runinfo_file, dumpDir):
         self.wiki = wiki
-        self._hasFlaggedRevs = self.wiki.hasFlaggedRevs()
-        self._hasWikidata = self.wiki.hasWikidata()
-        self._isWikidataClient = self.wiki.isWikidataClient()
+        self._has_flagged_revs = self.wiki.hasFlaggedRevs()
+        self._has_wikidata = self.wiki.hasWikidata()
+        self._is_wikidata_client = self.wiki.isWikidataClient()
         self._prefetch = prefetch
         self._spawn = spawn
         self.chunkInfo = chunkInfo
-        self.checkpointFile = checkpointFile
-        self._chunkToDo = chunkToDo
-        self._singleJob = singleJob
-        self.skipJobs = skipJobs
-        self._runInfoFile = runInfoFile
+        self.checkpoint_file = checkpoint_file
+        self._chunk_todo = chunk_to_do
+        self._single_job = singleJob
+        self.skip_jobs = skip_jobs
+        self._runinfo_file = runinfo_file
         self.dumpDir = dumpDir
-        self.pageIDRange = pageIDRange
+        self.page_id_range = page_id_range
 
         if self.wiki.config.checkpointTime:
             checkpoints = True
         else:
             checkpoints = False
 
-        if self._singleJob and self._chunkToDo:
-            if (self._singleJob[-5:] == 'table' or
-                self._singleJob[-9:] == 'recombine' or
-                            self._singleJob == 'createdirs' or
-                self._singleJob == 'noop' or
-                self._singleJob == 'latestlinks' or
-                self._singleJob == 'xmlpagelogsdump' or
-                self._singleJob == 'pagetitlesdump' or
-                self._singleJob == 'allpagetitlesdump' or
-                self._singleJob.endswith('recombine')):
-                raise BackupError("You cannot specify a chunk with the job %s, exiting.\n" % self._singleJob)
+        if self._single_job and self._chunk_todo:
+            if (self._single_job[-5:] == 'table' or
+                    self._single_job[-9:] == 'recombine' or
+                    self._single_job == 'createdirs' or
+                    self._single_job == 'noop' or
+                    self._single_job == 'latestlinks' or
+                    self._single_job == 'xmlpagelogsdump' or
+                    self._single_job == 'pagetitlesdump' or
+                    self._single_job == 'allpagetitlesdump' or
+                    self._single_job.endswith('recombine')):
+                raise BackupError("You cannot specify a chunk with the job %s, exiting.\n" % self._single_job)
 
-        if self._singleJob and self.checkpointFile:
-            if (self._singleJob[-5:] == 'table' or
-                self._singleJob[-9:] == 'recombine' or
-                self._singleJob == 'noop' or
-                self._singleJob == 'createdirs' or
-                self._singleJob == 'latestlinks' or
-                self._singleJob == 'xmlpagelogsdump' or
-                self._singleJob == 'pagetitlesdump' or
-                self._singleJob == 'allpagetitlesdump' or
-                self._singleJob == 'abstractsdump' or
-                self._singleJob == 'xmlstubsdump' or
-                self._singleJob.endswith('recombine')):
-                raise BackupError("You cannot specify a checkpoint file with the job %s, exiting.\n" % self._singleJob)
+        if self._single_job and self.checkpoint_file:
+            if (self._single_job[-5:] == 'table' or
+                    self._single_job[-9:] == 'recombine' or
+                    self._single_job == 'noop' or
+                    self._single_job == 'createdirs' or
+                    self._single_job == 'latestlinks' or
+                    self._single_job == 'xmlpagelogsdump' or
+                    self._single_job == 'pagetitlesdump' or
+                    self._single_job == 'allpagetitlesdump' or
+                    self._single_job == 'abstractsdump' or
+                    self._single_job == 'xmlstubsdump' or
+                    self._single_job.endswith('recombine')):
+                raise BackupError("You cannot specify a checkpoint file with the job %s, exiting.\n" % self._single_job)
 
         self.dumpItems = [PrivateTable("user", "usertable", "User account data."),
             PrivateTable("watchlist", "watchlisttable", "Users' watchlist settings."),
             PrivateTable("ipblocks", "ipblockstable", "Data for blocks of IP addresses, ranges, and users."),
             PrivateTable("archive", "archivetable", "Deleted page and revision data."),
-#            PrivateTable("updates", "updatestable", "Update dataset for OAI updater system."),
+            #PrivateTable("updates", "updatestable", "Update dataset for OAI updater system."),
             PrivateTable("logging", "loggingtable", "Data for various events (deletions, uploads, etc)."),
             PrivateTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded images."),
             #PrivateTable("filearchive", "filearchivetable", "Deleted image data"),
@@ -136,40 +134,40 @@ class DumpItemList(object):
             AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo", self._getChunkToDo("abstractsdump"), self.wiki.dbName, self.chunkInfo.getPagesPerChunkAbstract())]
 
         if self.chunkInfo.chunksEnabled():
-            self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.findItemByName('abstractsdump')))
+            self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.find_item_by_name('abstractsdump')))
 
-        self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._getChunkToDo("xmlstubsdump"), self.chunkInfo.getPagesPerChunkHistory()))
+        self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._get_chunk_to_do("xmlstubsdump"), self.chunkInfo.getPagesPerChunkHistory()))
         if self.chunkInfo.chunksEnabled():
-            self.dumpItems.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self.findItemByName('xmlstubsdump')))
+            self.dumpItems.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self.find_item_by_name('xmlstubsdump')))
 
         # NOTE that the chunkInfo thing passed here is irrelevant, these get generated from the stubs which are all done in one pass
         self.dumpItems.append(
             XmlDump("articles",
-                "articlesdump",
-                "<big><b>Articles, templates, media/file descriptions, and primary meta-pages.</b></big>",
-                "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("articlesdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
+                    "articlesdump",
+                    "<big><b>Articles, templates, media/file descriptions, and primary meta-pages.</b></big>",
+                    "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("articlesdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file, self.page_id_range))
         if self.chunkInfo.chunksEnabled():
-            self.dumpItems.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, media/file descriptions, and primary meta-pages.</b></big>", "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.findItemByName('articlesdump')))
+            self.dumpItems.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, media/file descriptions, and primary meta-pages.</b></big>", "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('articlesdump')))
 
         self.dumpItems.append(
             XmlDump("meta-current",
-                "metacurrentdump",
-                "All pages, current versions only.",
-                "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("metacurrentdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
+                    "metacurrentdump",
+                    "All pages, current versions only.",
+                    "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metacurrentdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file, self.page_id_range))
 
         if self.chunkInfo.chunksEnabled():
-            self.dumpItems.append(RecombineXmlDump("metacurrentdumprecombine", "Recombine all pages, current versions only.", "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.findItemByName('metacurrentdump')))
+            self.dumpItems.append(RecombineXmlDump("metacurrentdumprecombine", "Recombine all pages, current versions only.", "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('metacurrentdump')))
 
         self.dumpItems.append(
             XmlLogging("Log events to all pages and users."))
 
-        if self._hasFlaggedRevs:
+        if self._has_flagged_revs:
             self.dumpItems.append(
                 PublicTable("flaggedpages", "flaggedpagestable", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending."))
             self.dumpItems.append(
                 PublicTable("flaggedrevs", "flaggedrevstable", "This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under."))
 
-        if self._hasWikidata:
+        if self._has_wikidata:
             self.dumpItems.append(
                 PublicTable("wb_items_per_site", "wbitemspersitetable", "For each Wikidata item, this contains rows with the corresponding page name on a given wiki project."))
             self.dumpItems.append(
@@ -183,72 +181,72 @@ class DumpItemList(object):
             self.dumpItems.append(
                 PublicTable("sites", "sitestable", "This contains the SiteMatrix information from meta.wikimedia.org provided as a table."))
 
-        if self._isWikidataClient:
+        if self._is_wikidata_client:
             self.dumpItems.append(
                 PublicTable("wbc_entity_usage", "wbcentityusagetable", "Tracks which pages use which Wikidata items or properties and what aspect (e.g. item label) is used."))
 
         self.dumpItems.append(
             BigXmlDump("meta-history",
-                   "metahistorybz2dump",
-                   "All pages with complete page edit history (.bz2)",
-                   "These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-                   "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._getChunkToDo("metahistorybz2dump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile, self.pageIDRange))
+                       "metahistorybz2dump",
+                       "All pages with complete page edit history (.bz2)",
+                       "These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
+                       "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metahistorybz2dump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file, self.page_id_range))
         if self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory():
             self.dumpItems.append(
                 RecombineXmlDump("metahistorybz2dumprecombine",
-                         "Recombine all pages with complete edit history (.bz2)",
-                         "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-                         "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistorybz2dump')))
+                                 "Recombine all pages with complete edit history (.bz2)",
+                                 "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
+                                 "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistorybz2dump')))
         self.dumpItems.append(
             XmlRecompressDump("meta-history",
-                      "metahistory7zdump",
-                      "All pages with complete edit history (.7z)",
-                      "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-                      "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistorybz2dump'), self.wiki, self._getChunkToDo("metahistory7zdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpointFile))
+                              "metahistory7zdump",
+                              "All pages with complete edit history (.7z)",
+                              "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
+                              "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistorybz2dump'), self.wiki, self._get_chunk_to_do("metahistory7zdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file))
         if self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory():
             self.dumpItems.append(
                 RecombineXmlRecompressDump("metahistory7zdumprecombine",
-                               "Recombine all pages with complete edit history (.7z)",
-                               "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-                               "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.findItemByName('metahistory7zdump'), self.wiki))
+                                           "Recombine all pages with complete edit history (.7z)",
+                                           "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
+                                           "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
         if self.wiki.config.multistreamEnabled:
             if self.chunkInfo.chunksEnabled():
-                inputForMultistream = "articlesdumprecombine"
+                input_for_multistream = "articlesdumprecombine"
             else:
-                inputForMultistream = "articlesdump"
+                input_for_multistream = "articlesdump"
             self.dumpItems.append(
                 XmlMultiStreamDump("articles",
-                       "articlesmultistreamdump",
-                       "Articles, templates, media/file descriptions, and primary meta-pages, in multiple bz2 streams, 100 pages per stream",
-                       "This contains current versions of article content, in concatenated bz2 streams, 100 pages per stream, plus a separate" +
-                       "index of page titles/ids and offsets into the file.  Useful for offline readers, or for parallel processing of pages.",
-                       self.findItemByName(inputForMultistream), self.wiki, None))
+                                   "articlesmultistreamdump",
+                                   "Articles, templates, media/file descriptions, and primary meta-pages, in multiple bz2 streams, 100 pages per stream",
+                                   "This contains current versions of article content, in concatenated bz2 streams, 100 pages per stream, plus a separate" +
+                                   "index of page titles/ids and offsets into the file.  Useful for offline readers, or for parallel processing of pages.",
+                                   self.find_item_by_name(input_for_multistream), self.wiki, None))
 
-        results = self._runInfoFile.getOldRunInfoFromFile()
+        results = self._runinfo_file.getOldRunInfoFromFile()
         if results:
-            for runInfoObj in results:
-                self._setDumpItemRunInfo(runInfoObj)
-            self.oldRunInfoRetrieved = True
+            for runinfo_obj in results:
+                self._set_dump_item_runinfo(runinfo_obj)
+            self.old_run_info_retrieved = True
         else:
-            self.oldRunInfoRetrieved = False
+            self.old_run_info_retrieved = False
 
-        def appendJob(self, jobname, job):
-                if jobname not in self.skipJobs:
-                        self.dumpItems.append(job)
+    def append_job(self, jobname, job):
+        if jobname not in self.skip_jobs:
+            self.dumpItems.append(job)
 
-    def reportDumpRunInfo(self, done=False):
+    def report_dump_runinfo(self, done=False):
         """Put together a dump run info listing for this database, with all its component dumps."""
-        runInfoLines = [self._reportDumpRunInfoLine(item) for item in self.dumpItems]
-        runInfoLines.reverse()
-        text = "\n".join(runInfoLines)
+        runinfo_lines = [self._report_dump_runinfo_line(item) for item in self.dumpItems]
+        runinfo_lines.reverse()
+        text = "\n".join(runinfo_lines)
         text = text + "\n"
         return text
 
-    def allPossibleJobsDone(self, skipJobs):
+    def all_possible_jobs_done(self, skip_jobs):
         for item in self.dumpItems:
             if (item.status() != "done" and item.status() != "failed"
-                            and item.status() != "skipped"):
+                    and item.status() != "skipped"):
                 return False
         return True
 
@@ -256,11 +254,11 @@ class DumpItemList(object):
     # the rest of the names expand to single items)
     # and mark the items in the list as such
     # return False if there is no such dump or set of dumps
-    def markDumpsToRun(self, job, skipgood=False):
+    def mark_dumps_to_run(self, job, skipgood=False):
         if job == "tables":
             for item in self.dumpItems:
                 if item.name()[-5:] == "table":
-                    if item.name in self.skipJobs:
+                    if item.name in self.skip_jobs:
                         item.setSkipped()
                     elif not skipgood or item.status() != "done":
                         item.setToBeRun(True)
@@ -268,7 +266,7 @@ class DumpItemList(object):
         else:
             for item in self.dumpItems:
                 if item.name() == job:
-                    if item.name in self.skipJobs:
+                    if item.name in self.skip_jobs:
                         item.setSkipped()
                     elif not skipgood or item.status() != "done":
                         item.setToBeRun(True)
@@ -284,41 +282,41 @@ class DumpItemList(object):
             sys.stderr.write("%s\n" % item.name())
             return False
 
-    def markFollowingJobsToRun(self, skipgood=False):
+    def mark_following_jobs_to_run(self, skipgood=False):
         # find the first one marked to run, mark the following ones
         i = 0;
         for item in self.dumpItems:
             i = i + 1;
             if item.toBeRun():
                 for j in range(i, len(self.dumpItems)):
-                                        if item.name in self.skipJobs:
-                                                item.setSkipped()
-                                        elif not skipgood or item.status() != "done":
-                                                self.dumpItems[j].setToBeRun(True)
+                    if item.name in self.skip_jobs:
+                        item.setSkipped()
+                    elif not skipgood or item.status() != "done":
+                        self.dumpItems[j].setToBeRun(True)
                 break
 
-    def markAllJobsToRun(self, skipgood=False):
+    def mark_all_jobs_to_run(self, skipgood=False):
         """Marks each and every job to be run"""
         for item in self.dumpItems:
-                        if item.name() in self.skipJobs:
-                                item.setSkipped()
-                        elif not skipgood or item.status() != "done":
-                                item.setToBeRun(True)
+            if item.name() in self.skip_jobs:
+                item.setSkipped()
+            elif not skipgood or item.status() != "done":
+                item.setToBeRun(True)
 
-    def findItemByName(self, name):
+    def find_item_by_name(self, name):
         for item in self.dumpItems:
             if item.name() == name:
                 return item
         return None
 
-    def _getChunkToDo(self, jobName):
-        if self._singleJob:
-            if self._singleJob == jobName:
-                return(self._chunkToDo)
+    def _get_chunk_to_do(self, job_name):
+        if self._single_job:
+            if self._single_job == job_name:
+                return(self._chunk_todo)
         return(False)
 
     # read in contents from dump run info file and stuff into dumpItems for later reference
-    def _setDumpItemRunInfo(self, runInfo):
+    def _set_dump_item_runinfo(self, runInfo):
         if not runInfo.name():
             return False
         for item in self.dumpItems:
@@ -331,163 +329,163 @@ class DumpItemList(object):
 
     # write dump run info file
     # (this file is rewritten with updates after each dumpItem completes)
-    def _reportDumpRunInfoLine(self, item):
+    def _report_dump_runinfo_line(self, item):
         # even if the item has never been run we will at least have "waiting" in the status
         return "name:%s; status:%s; updated:%s" % (item.name(), item.status(), item.updated())
 
 
 class Runner(object):
-    def __init__(self, wiki, prefetch=True, spawn=True, job=None, skipJobs=None, restart=False, notice="", dryrun=False, loggingEnabled=False, chunkToDo=False, checkpointFile=None, pageIDRange=None, skipdone=False, verbose=False):
+    def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None, restart=False, notice="", dryrun=False, loggingEnabled=False, chunk_to_do=False, checkpoint_file=None, page_id_range=None, skipdone=False, verbose=False):
         self.wiki = wiki
         self.dbName = wiki.dbName
         self.prefetch = prefetch
         self.spawn = spawn
-        self.chunkInfo = Chunk(wiki, self.dbName, self.logAndPrint)
+        self.chunkInfo = Chunk(wiki, self.dbName, self.log_and_print)
         self.restart = restart
-        self.htmlNoticeFile = None
+        self.html_notice_file = None
         self.log = None
         self.dryrun = dryrun
-        self._chunkToDo = chunkToDo
-        self.checkpointFile = checkpointFile
-        self.pageIDRange = pageIDRange
+        self._chunk_todo = chunk_to_do
+        self.checkpoint_file = checkpoint_file
+        self.page_id_range = page_id_range
         self.skipdone = skipdone
         self.verbose = verbose
 
-        if self.checkpointFile:
-            f = DumpFilename(self.wiki)
-            f.newFromFilename(checkpointFile)
+        if self.checkpoint_file:
+            fname = DumpFilename(self.wiki)
+            fname.newFromFilename(checkpoint_file)
             # we should get chunk if any
-            if not self._chunkToDo and f.chunkInt:
-                self._chunkToDo = f.chunkInt
-            elif self._chunkToDo and f.chunkInt and self._chunkToDo != f.chunkInt:
-                raise BackupError("specifed chunk to do does not match chunk of checkpoint file %s to redo", self.checkpointFile)
-            self.checkpointFile = f
+            if not self._chunk_todo and fname.chunkInt:
+                self._chunk_todo = fname.chunkInt
+            elif self._chunk_todo and fname.chunkInt and self._chunk_todo != fname.chunkInt:
+                raise BackupError("specifed chunk to do does not match chunk of checkpoint file %s to redo", self.checkpoint_file)
+            self.checkpoint_file = fname
 
-        self._loggingEnabled = loggingEnabled
-        self._statusEnabled = True
-        self._checksummerEnabled = True
-        self._runInfoFileEnabled = True
-        self._symLinksEnabled = True
-        self._feedsEnabled = True
-        self._noticeFileEnabled = True
-        self._makeDirEnabled = True
-        self._cleanOldDumpsEnabled = True
-        self._cleanupOldFilesEnabled = True
-        self._checkForTruncatedFilesEnabled = True
+        self._logging_enabled = loggingEnabled
+        self._status_enabled = True
+        self._checksummer_enabled = True
+        self._runinfo_file_enabled = True
+        self._symlinks_enabled = True
+        self._feeds_enabled = True
+        self._notice_file_enabled = True
+        self._makedir_enabled = True
+        self._clean_old_dumps_enabled = True
+        self._cleanup_old_files_enabled = True
+        self._check_for_trunc_files_enabled = True
 
-        if self.dryrun or self._chunkToDo:
-            self._statusEnabled = False
-            self._checksummerEnabled = False
-            self._runInfoFileEnabled = False
-            self._symLinksEnabled = False
-            self._feedsEnabled = False
-            self._noticeFileEnabled = False
-            self._makeDirEnabled = False
-            self._cleanOldDumpsEnabled = False
+        if self.dryrun or self._chunk_todo:
+            self._status_enabled = False
+            self._checksummer_enabled = False
+            self._runinfo_file_enabled = False
+            self._symlinks_enabled = False
+            self._feeds_enabled = False
+            self._notice_file_enabled = False
+            self._makedir_enabled = False
+            self._clean_old_dumps_enabled = False
 
         if self.dryrun:
-            self._loggingEnabled = False
-            self._checkForTruncatedFilesEnabled = False
-            self._cleanupOldFilesEnabled = False
+            self._logging_enabled = False
+            self._check_for_trunc_files_enabled = False
+            self._cleanup_old_files_enabled = False
 
-        if self.checkpointFile:
-            self._statusEnabled = False
-            self._checksummerEnabled = False
-            self._runInfoFileEnabled = False
-            self._symLinksEnabled = False
-            self._feedsEnabled = False
-            self._noticeFileEnabled = False
-            self._makeDirEnabled = False
-            self._cleanOldDumpsEnabled = False
+        if self.checkpoint_file:
+            self._status_enabled = False
+            self._checksummer_enabled = False
+            self._runinfo_file_enabled = False
+            self._symlinks_enabled = False
+            self._feeds_enabled = False
+            self._notice_file_enabled = False
+            self._makedir_enabled = False
+            self._clean_old_dumps_enabled = False
 
-        if self.pageIDRange:
-            self._statusEnabled = False
-            self._checksummerEnabled = False
-            self._runInfoFileEnabled = False
-            self._symLinksEnabled = False
-            self._feedsEnabled = False
-            self._noticeFileEnabled = False
-            self._makeDirEnabled = False
-            self._cleanupOldFilesEnabled = True
+        if self.page_id_range:
+            self._status_enabled = False
+            self._checksummer_enabled = False
+            self._runinfo_file_enabled = False
+            self._symlinks_enabled = False
+            self._feeds_enabled = False
+            self._notice_file_enabled = False
+            self._makedir_enabled = False
+            self._cleanup_old_files_enabled = True
 
-        self.jobRequested = job
+        self.job_requested = job
 
-        self.skipJobs = skipJobs
-        if skipJobs is None:
-            self.skipJobs = []
+        self.skip_jobs = skip_jobs
+        if skip_jobs is None:
+            self.skip_jobs = []
 
-        if self.jobRequested == "latestlinks":
-            self._statusEnabled = False
-            self._runInfoFileEnabled = False
+        if self.job_requested == "latestlinks":
+            self._status_enabled = False
+            self._runinfo_file_enabled = False
 
-        if self.jobRequested == "createdirs":
-            self._symLinksEnabled = False
-            self._feedsEnabled = False
+        if self.job_requested == "createdirs":
+            self._symlinks_enabled = False
+            self._feeds_enabled = False
 
-        if self.jobRequested == "latestlinks" or self.jobRequested == "createdirs":
-            self._checksummerEnabled = False
-            self._noticeFileEnabled = False
-            self._makeDirEnabled = False
-            self._cleanOldDumpsEnabled = False
-            self._cleanupOldFilesEnabled = False
-            self._checkForTruncatedFilesEnabled = False
+        if self.job_requested == "latestlinks" or self.job_requested == "createdirs":
+            self._checksummer_enabled = False
+            self._notice_file_enabled = False
+            self._makedir_enabled = False
+            self._clean_old_dumps_enabled = False
+            self._cleanup_old_files_enabled = False
+            self._check_for_trunc_files_enabled = False
 
-        if self.jobRequested == "noop":
-            self._cleanOldDumpsEnabled = False
-            self._cleanupOldFilesEnabled = False
-            self._checkForTruncatedFilesEnabled = False
+        if self.job_requested == "noop":
+            self._clean_old_dumps_enabled = False
+            self._cleanup_old_files_enabled = False
+            self._check_for_trunc_files_enabled = False
 
-        self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.logAndPrint)
+        self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.log_and_print)
         self.dumpDir = DumpDir(self.wiki, self.dbName)
 
         # these must come after the dumpdir setup so we know which directory we are in
-        if self._loggingEnabled and self._makeDirEnabled:
-            fileObj = DumpFilename(self.wiki)
-            fileObj.newFromFilename(self.wiki.config.logFile)
-            self.logFileName = self.dumpDir.filenamePrivatePath(fileObj)
-            self.makeDir(os.path.join(self.wiki.privateDir(), self.wiki.date))
-            self.log = Logger(self.logFileName)
-            thread.start_new_thread(self.logQueueReader, (self.log,))
-        self.runInfoFile = RunInfoFile(wiki, self._runInfoFileEnabled, self.verbose)
-        self.symLinks = SymLinks(self.wiki, self.dumpDir, self.logAndPrint, self.debug, self._symLinksEnabled)
-        self.feeds = Feeds(self.wiki, self.dumpDir, self.dbName, self.debug, self._feedsEnabled)
-        self.htmlNoticeFile = NoticeFile(self.wiki, notice, self._noticeFileEnabled)
-        self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummerEnabled, self.verbose)
+        if self._logging_enabled and self._makedir_enabled:
+            file_obj = DumpFilename(self.wiki)
+            file_obj.newFromFilename(self.wiki.config.log_file)
+            self.log_filename = self.dumpDir.filenamePrivatePath(file_obj)
+            self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
+            self.log = Logger(self.log_filename)
+            thread.start_new_thread(self.log_queue_reader, (self.log,))
+        self.runInfoFile = RunInfoFile(wiki, self._runinfo_file_enabled, self.verbose)
+        self.sym_links = SymLinks(self.wiki, self.dumpDir, self.log_and_print, self.debug, self._symlinks_enabled)
+        self.feeds = Feeds(self.wiki, self.dumpDir, self.dbName, self.debug, self._feeds_enabled)
+        self.html_notice_file = NoticeFile(self.wiki, notice, self._notice_file_enabled)
+        self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummer_enabled, self.verbose)
 
         # some or all of these dumpItems will be marked to run
-        self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunkToDo, self.checkpointFile, self.jobRequested, self.skipJobs, self.chunkInfo, self.pageIDRange, self.runInfoFile, self.dumpDir)
+        self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunk_todo, self.checkpoint_file, self.job_requested, self.skip_jobs, self.chunkInfo, self.page_id_range, self.runInfoFile, self.dumpDir)
         # only send email failure notices for full runs
-        if self.jobRequested:
+        if self.job_requested:
             email = False
         else:
             email = True
-        self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._statusEnabled, email, self.htmlNoticeFile, self.logAndPrint, self.verbose)
+        self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._status_enabled, email, self.html_notice_file, self.log_and_print, self.verbose)
 
-    def logQueueReader(self, log):
+    def log_queue_reader(self, log):
         if not log:
             return
         done = False
         while not done:
-            done = log.doJobOnLogQueue()
+            done = log.do_job_on_log_queue()
 
-    def logAndPrint(self, message):
-        if hasattr(self, 'log') and self.log and self._loggingEnabled:
-            self.log.addToLogQueue("%s\n" % message)
+    def log_and_print(self, message):
+        if hasattr(self, 'log') and self.log and self._logging_enabled:
+            self.log.add_to_log_queue("%s\n" % message)
         sys.stderr.write("%s\n" % message)
 
     # returns 0 on success, 1 on error
-    def saveCommand(self, commands, outfile):
+    def save_command(self, commands, outfile):
         """For one pipeline of commands, redirect output to a given file."""
         commands[-1].extend([">", outfile])
         series = [commands]
         if self.dryrun:
-            self.prettyPrintCommands([series])
+            self.pretty_print_commands([series])
             return 0
         else:
             return self.runCommand([series], callbackTimed = self.status.updateStatusFiles)
 
-    def prettyPrintCommands(self, commandSeriesList):
-        for series in commandSeriesList:
+    def pretty_print_commands(self, command_series_list):
+        for series in command_series_list:
             for pipeline in series:
                 commandStrings = []
                 for command in pipeline:
@@ -500,7 +498,7 @@ class Runner(object):
     # be a list (the command name and the various args)
     # If the shell option is true, all pipelines will be run under the shell.
     # callbackinterval: how often we will call callbackTimed (in milliseconds), defaults to every 5 secs
-    def runCommand(self, commandSeriesList, callbackStderr=None, callbackStderrArg=None, callbackTimed=None, callbackTimedArg=None, shell=False, callbackInterval=5000):
+    def runCommand(self, command_series_list, callback_stderr=None, callback_stderr_arg=None, callbackTimed=None, callbackTimedArg=None, shell=False, callback_interval=5000):
         """Nonzero return code from the shell from any command in any pipeline will cause this
         function to print an error message and return 1, indicating error.
         Returns 0 on success.
@@ -513,47 +511,47 @@ class Runner(object):
 
         """
         if self.dryrun:
-            self.prettyPrintCommands(commandSeriesList)
+            self.pretty_print_commands(command_series_list)
             return 0
 
         else:
-            commands = CommandsInParallel(commandSeriesList, callbackStderr=callbackStderr, callbackStderrArg=callbackStderrArg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callbackInterval=callbackInterval)
+            commands = CommandsInParallel(command_series_list, callback_stderr=callback_stderr, callback_stderr_arg=callback_stderr_arg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callback_interval=callback_interval)
             commands.runCommands()
             if commands.exitedSuccessfully():
                 return 0
             else:
-                problemCommands = commands.commandsWithErrors()
-                errorString = "Error from command(s): "
-                for cmd in problemCommands:
-                    errorString = errorString + "%s " % cmd
-                self.logAndPrint(errorString)
+                problem_commands = commands.commandsWithErrors()
+                error_string = "Error from command(s): "
+                for cmd in problem_commands:
+                    error_string = error_string + "%s " % cmd
+                self.log_and_print(error_string)
                 return 1
 
     def debug(self, stuff):
-        self.logAndPrint("%s: %s %s" % (TimeUtils.prettyTime(), self.dbName, stuff))
+        self.log_and_print("%s: %s %s" % (TimeUtils.prettyTime(), self.dbName, stuff))
 
-    def runHandleFailure(self):
+    def run_handle_failure(self):
         if self.status.failCount < 1:
             # Email the site administrator just once per database
             self.status.reportFailure()
         self.status.failCount += 1
 
-    def runUpdateItemFileInfo(self, item):
+    def run_update_item_fileinfo(self, item):
         # this will include checkpoint files if they are enabled.
-        for fileObj in item.listOutputFilesToPublish(self.dumpDir):
-            if exists(self.dumpDir.filenamePublicPath(fileObj)):
+        for file_obj in item.listOutputFilesToPublish(self.dumpDir):
+            if exists(self.dumpDir.filenamePublicPath(file_obj)):
                 # why would the file not exist? because we changed chunk numbers in the
                 # middle of a run, and now we list more files for the next stage than there
                 # were for earlier ones
-                self.symLinks.saveSymlink(fileObj)
-                self.feeds.saveFeed(fileObj)
-                self.checksums.checksum(fileObj, self)
-                self.symLinks.cleanupSymLinks()
+                self.sym_links.saveSymlink(file_obj)
+                self.feeds.saveFeed(file_obj)
+                self.checksums.checksum(file_obj, self)
+                self.sym_links.cleanupSymLinks()
                 self.feeds.cleanupFeeds()
 
     def run(self):
-        if self.jobRequested:
-            if not self.dumpItemList.oldRunInfoRetrieved and self.wiki.existsPerDumpIndex():
+        if self.job_requested:
+            if not self.dumpItemList.old_run_info_retrieved and self.wiki.existsPerDumpIndex():
 
                 # There was a previous run of all or part of this date, but...
                 # There was no old RunInfo to be had (or an error was encountered getting it)
@@ -566,33 +564,33 @@ class Runner(object):
                 if not reply in ["y", "Y"]:
                     raise RuntimeError("No run information available for previous dump, exiting")
 
-            if not self.dumpItemList.markDumpsToRun(self.jobRequested, self.skipdone):
+            if not self.dumpItemList.mark_dumps_to_run(self.job_requested, self.skipdone):
                 # probably no such job
-                sys.stderr.write( "No job marked to run, exiting" )
+                sys.stderr.write("No job marked to run, exiting")
                 return None
-            if restart:
+            if self.restart:
                 # mark all the following jobs to run as well
-                self.dumpItemList.markFollowingJobsToRun(self.skipdone)
+                self.dumpItemList.mark_following_jobs_to_run(self.skipdone)
         else:
-            self.dumpItemList.markAllJobsToRun(self.skipdone);
+            self.dumpItemList.mark_all_jobs_to_run(self.skipdone);
 
         Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName)
 
-        self.makeDir(os.path.join(self.wiki.publicDir(), self.wiki.date))
-        self.makeDir(os.path.join(self.wiki.privateDir(), self.wiki.date))
+        self.make_dir(os.path.join(self.wiki.publicDir(), self.wiki.date))
+        self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
-        self.showRunnerState("Cleaning up old dumps for %s" % self.dbName)
-        self.cleanOldDumps()
-        self.cleanOldDumps(private=True)
+        self.show_runner_state("Cleaning up old dumps for %s" % self.dbName)
+        self.clean_old_dumps()
+        self.clean_old_dumps(private=True)
 
         # Informing what kind backup work we are about to do
-        if self.jobRequested:
+        if self.job_requested:
             if self.restart:
-                self.logAndPrint("Preparing for restart from job %s of %s" % (self.jobRequested, self.dbName))
+                self.log_and_print("Preparing for restart from job %s of %s" % (self.job_requested, self.dbName))
             else:
-                self.logAndPrint("Preparing for job %s of %s" % (self.jobRequested, self.dbName))
+                self.log_and_print("Preparing for job %s of %s" % (self.job_requested, self.dbName))
         else:
-            self.showRunnerState("Starting backup of %s" % self.dbName)
+            self.show_runner_state("Starting backup of %s" % self.dbName)
 
         self.checksums.prepareChecksums()
 
@@ -601,7 +599,7 @@ class Runner(object):
             if item.toBeRun():
                 item.start(self)
                 self.status.updateStatusFiles()
-                self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+                self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.report_dump_runinfo())
                 try:
                     item.dump(self)
                 except Exception, ex:
@@ -618,7 +616,7 @@ class Runner(object):
 
             if item.status() == "done":
                 self.checksums.cpMd5TmpFileToPermFile()
-                self.runUpdateItemFileInfo(item)
+                self.run_update_item_fileinfo(item)
             elif item.status() == "waiting" or item.status() == "skipped":
                 # don't update the md5 file for this item.
                 continue
@@ -626,16 +624,16 @@ class Runner(object):
                 # Here for example status is "failed". But maybe also
                 # "in-progress", if an item chooses to override dump(...) and
                 # forgets to set the status. This is a failure as well.
-                self.runHandleFailure()
+                self.run_handle_failure()
 
                 # special case
-                if self.jobRequested == "createdirs":
-                        if not os.path.exists(os.path.join(self.wiki.publicDir(), self.wiki.date)):
-                                os.makedirs(os.path.join(self.wiki.publicDir(), self.wiki.date))
-                        if not os.path.exists(os.path.join(self.wiki.privateDir(), self.wiki.date)):
-                                os.makedirs(os.path.join(self.wiki.privateDir(), self.wiki.date))
+                if self.job_requested == "createdirs":
+                    if not os.path.exists(os.path.join(self.wiki.publicDir(), self.wiki.date)):
+                        os.makedirs(os.path.join(self.wiki.publicDir(), self.wiki.date))
+                    if not os.path.exists(os.path.join(self.wiki.privateDir(), self.wiki.date)):
+                        os.makedirs(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
-        if self.dumpItemList.allPossibleJobsDone(self.skipJobs):
+        if self.dumpItemList.all_possible_jobs_done(self.skip_jobs):
             # All jobs are either in status "done", "waiting", "failed", "skipped"
             self.status.updateStatusFiles("done")
         else:
@@ -645,27 +643,27 @@ class Runner(object):
             # previously in "waiting" are still in status "waiting"
             self.status.updateStatusFiles("partialdone")
 
-        self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.reportDumpRunInfo())
+        self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.report_dump_runinfo())
 
         # if any job succeeds we might as well make the sym link
         if self.status.failCount < 1:
-            self.completeDump()
+            self.complete_dump()
 
-        if self.jobRequested:
+        if self.job_requested:
             # special case...
-            if self.jobRequested == "latestlinks":
-                if self.dumpItemList.allPossibleJobsDone(self.skipJobs):
-                    self.symLinks.removeSymLinksFromOldRuns(self.wiki.date)
+            if self.job_requested == "latestlinks":
+                if self.dumpItemList.all_possible_jobs_done(self.skip_jobs):
+                    self.sym_links.removeSymLinksFromOldRuns(self.wiki.date)
                     self.feeds.cleanupFeeds()
 
         # Informing about completion
-        if self.jobRequested:
+        if self.job_requested:
             if self.restart:
-                self.showRunnerState("Completed run restarting from job %s for %s" % (self.jobRequested, self.dbName))
+                self.show_runner_state("Completed run restarting from job %s for %s" % (self.job_requested, self.dbName))
             else:
-                self.showRunnerState("Completed job %s for %s" % (self.jobRequested, self.dbName))
+                self.show_runner_state("Completed job %s for %s" % (self.job_requested, self.dbName))
         else:
-            self.showRunnerStateComplete()
+            self.show_runner_state_complete()
 
         # let caller know if this was a successful run
         if self.status.failCount > 0:
@@ -673,11 +671,11 @@ class Runner(object):
         else:
             return True
 
-    def cleanOldDumps(self, private=False):
+    def clean_old_dumps(self, private=False):
         """Removes all but the wiki.config.keep last dumps of this wiki.
         If there is already a directory for todays dump, this is omitted in counting and
         not removed."""
-        if self._cleanOldDumpsEnabled:
+        if self._clean_old_dumps_enabled:
             if private:
                 old = self.wiki.dumpDirs(private=True)
                 dumptype='private'
@@ -694,141 +692,141 @@ class Runner(object):
                     old = old[:-(self.wiki.config.keep)]
             if old:
                 for dump in old:
-                    self.showRunnerState("Purging old %s dump %s for %s" % (dumptype, dump, self.dbName))
+                    self.show_runner_state("Purging old %s dump %s for %s" % (dumptype, dump, self.dbName))
                     if private:
                         base = os.path.join(self.wiki.privateDir(), dump)
                     else:
                         base = os.path.join(self.wiki.publicDir(), dump)
                     shutil.rmtree("%s" % base)
             else:
-                self.showRunnerState("No old %s dumps to purge." % dumptype)
+                self.show_runner_state("No old %s dumps to purge." % dumptype)
 
-    def showRunnerState(self, message):
+    def show_runner_state(self, message):
         self.debug(message)
 
-    def showRunnerStateComplete(self):
+    def show_runner_state_complete(self):
         self.debug("SUCCESS: done.")
 
-    def completeDump(self):
+    def complete_dump(self):
         # note that it's possible for links in "latest" to point to
         # files from different runs, in which case the md5sums file
         # will have accurate checksums for the run for which it was
         # produced, but not the other files. FIXME
         self.checksums.moveMd5FileIntoPlace()
         dumpFile = DumpFilename(self.wiki, None, self.checksums.getChecksumFileNameBasename())
-        self.symLinks.saveSymlink(dumpFile)
-        self.symLinks.cleanupSymLinks()
+        self.sym_links.saveSymlink(dumpFile)
+        self.sym_links.cleanupSymLinks()
 
         for item in self.dumpItemList.dumpItems:
             if item.toBeRun():
-                dumpNames = item.listDumpNames()
-                if type(dumpNames).__name__!='list':
-                    dumpNames = [dumpNames]
+                dump_names = item.listDumpNames()
+                if type(dump_names).__name__!='list':
+                    dump_names = [dump_names]
 
-                if item._chunksEnabled:
+                if item._chunks_enabled:
                     # if there is a specific chunk, we want to only clear out
                     # old files for that piece, because new files for the other
                     # pieces may not have been generated yet.
-                    chunk = item._chunkToDo
+                    chunk = item._chunk_todo
                 else:
                     chunk = None
 
                 checkpoint = None
-                if item._checkpointsEnabled:
-                    if item.checkpointFile:
+                if item._checkpoints_enabled:
+                    if item.checkpoint_file:
                         # if there's a specific checkpoint file we are
                         # rerunning, we would only clear out old copies
                         # of that very file. meh. how likely is it that we
                         # have one? these files are time based and the start/end pageids
                         # are going to fluctuate. whatever
-                        checkpoint = item.checkpointFile.checkpoint
+                        checkpoint = item.checkpoint_file.checkpoint
 
-                for d in dumpNames:
-                    self.symLinks.removeSymLinksFromOldRuns(self.wiki.date, d, chunk, checkpoint, onlychunks=item.onlychunks)
+                for dump in dump_names:
+                    self.sym_links.removeSymLinksFromOldRuns(self.wiki.date, dump, chunk, checkpoint, onlychunks=item.onlychunks)
 
                 self.feeds.cleanupFeeds()
 
-    def makeDir(self, dir):
-        if self._makeDirEnabled:
+    def make_dir(self, dir):
+        if self._makedir_enabled:
             if exists(dir):
                 self.debug("Checkdir dir %s ..." % dir)
             else:
                 self.debug("Creating %s ..." % dir)
                 os.makedirs(dir)
 
-def checkJobs(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile, prereqs=False):
-        '''
-        if prereqs is False:
-        see if dump run on specific date completed specific job(s)
-        or if no job was specified, ran to completion
+def checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint_file, prereqs=False, restart=False):
+    '''
+    if prereqs is False:
+    see if dump run on specific date completed specific job(s)
+    or if no job was specified, ran to completion
 
-        if prereqs is True:
-        see if dump run on specific date completed prereqs for specific job(s)
-        or if no job was specified, return True
+    if prereqs is True:
+    see if dump run on specific date completed prereqs for specific job(s)
+    or if no job was specified, return True
 
-        '''
-        if not date:
-                return False
+    '''
+    if not date:
+        return False
 
-        if date == 'last':
-                dumps = sorted(wiki.dumpDirs())
-                if dumps:
-                        date = dumps[-1]
-                else:
-                        # never dumped so that's the same as 'job didn't run'
-                        return False
-
-        if not job and prereqs:
-                return True
-
-        wiki.setDate(date)
-
-        runInfoFile = RunInfoFile(wiki, False)
-        chunkInfo = Chunk(wiki, wiki.dbName)
-        dumpDir = DumpDir(wiki, wiki.dbName)
-        dumpItemList = DumpItemList(wiki, False, False, chunkToDo, checkpointFile, job, skipjobs, chunkInfo, pageIDRange, runInfoFile, dumpDir)
-        if not dumpItemList.oldRunInfoRetrieved:
-                # failed to get the run's info so let's call it 'didn't run'
-                return False
-
-        results = dumpItemList._runInfoFile.getOldRunInfoFromFile()
-        if results:
-                for runInfoObj in results:
-                        dumpItemList._setDumpItemRunInfo(runInfoObj)
-
-        # mark the jobs we would run
-        if job:
-                dumpItemList.markDumpsToRun(job, True)
-                if restart:
-                        dumpItemList.markFollowingJobsToRun(True)
+    if date == 'last':
+        dumps = sorted(wiki.dumpDirs())
+        if dumps:
+            date = dumps[-1]
         else:
-                dumpItemList.markAllJobsToRun(True)
+            # never dumped so that's the same as 'job didn't run'
+            return False
 
-        if not prereqs:
-                # see if there are any to run. no? then return True (all job(s) done)
-                # otherwise return False (still some to do)
-                for item in dumpItemList.dumpItems:
-                        if item.toBeRun():
-                                return False
-                return True
-        else:
-                # get the list of prereqs, see if they are all status done, if so
-                # return True, otherwise False (still some to do)
-                prereqItems = []
-                for item in dumpItemList.dumpItems:
-                        if item.name() == job:
-                                prereqItems = item._prerequisiteItems
-                        break
+    if not job and prereqs:
+        return True
 
-                for item in prereqItems:
-                        if item.status() != "done":
-                                return False
-                return True
+    wiki.setDate(date)
+
+    runinfo_file = RunInfoFile(wiki, False)
+    chunkInfo = Chunk(wiki, wiki.dbName)
+    dumpDir = DumpDir(wiki, wiki.dbName)
+    dumpItemList = DumpItemList(wiki, False, False, chunk_to_do, checkpoint_file, job, skipjobs, chunkInfo, page_id_range, runinfo_file, dumpDir)
+    if not dumpItemList.old_run_info_retrieved:
+        # failed to get the run's info so let's call it 'didn't run'
+        return False
+
+    results = dumpItemList._runinfo_file.getOldRunInfoFromFile()
+    if results:
+        for runinfo_obj in results:
+            dumpItemList._set_dump_item_runinfo(runinfo_obj)
+
+    # mark the jobs we would run
+    if job:
+        dumpItemList.mark_dumps_to_run(job, True)
+        if restart:
+            dumpItemList.mark_following_jobs_to_run(True)
+    else:
+        dumpItemList.mark_all_jobs_to_run(True)
+
+    if not prereqs:
+        # see if there are any to run. no? then return True (all job(s) done)
+        # otherwise return False (still some to do)
+        for item in dumpItemList.dumpItems:
+            if item.toBeRun():
+                return False
+        return True
+    else:
+        # get the list of prereqs, see if they are all status done, if so
+        # return True, otherwise False (still some to do)
+        prereq_items = []
+        for item in dumpItemList.dumpItems:
+            if item.name() == job:
+                prereq_items = item._prerequisiteItems
+                break
+
+        for item in prereq_items:
+            if item.status() != "done":
+                return False
+        return True
 
 
-def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_job_status=False,
-                        check_prereq_status=False, date=None, job=None, skipjobs=None, pageIDRange=None,
-                        chunkToDo=None, checkpointFile=None):
+def find_lock_next_wiki(config, locks_enabled, cutoff, bystatustime=False, check_job_status=False,
+                        check_prereq_status=False, date=None, job=None, skipjobs=None, page_id_range=None,
+                        chunk_to_do=None, checkpoint_file=None, restart=False):
     if config.halt:
         sys.stderr.write("Dump process halted by config.\n")
         return None
@@ -841,30 +839,30 @@ def findAndLockNextWiki(config, locksEnabled, cutoff, bystatustime=False, check_
 
         # if we skip locked wikis which are missing the prereqs for this job,
         # there are still wikis where this job needs to run
-        missingPrereqs = False
-    for db in next:
-        wiki = Wiki(config, db)
+        missing_prereqs = False
+    for dbname in next:
+        wiki = Wiki(config, dbname)
         if cutoff:
-            lastUpdated = wiki.dateTouchedLatestDump()
-            if lastUpdated >= cutoff:
+            last_updated = wiki.dateTouchedLatestDump()
+            if last_updated >= cutoff:
                 continue
         if check_job_status:
-            if checkJobs(wiki, date, job, skipjobs, pageIDRange, chunkToDo, checkpointFile):
+            if checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint_file, restart):
                 continue
         try:
-            if locksEnabled:
+            if locks_enabled:
                 wiki.lock()
             return wiki
         except:
             if check_prereq_status:
                 # if we skip locked wikis which are missing the prereqs for this job,
                 # there are still wikis where this job needs to run
-                if not checkJobs(wiki, date, job, skipjobs, pageIDRange, chunkToDo,
-                                 checkpointFile, prereqs=True):
-                    missingPrereqs = True
-            sys.stderr.write("Couldn't lock %s, someone else must have got it...\n" % db)
+                if not checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
+                                 checkpoint_file, prereqs=True, restart=restart):
+                    missing_prereqs = True
+            sys.stderr.write("Couldn't lock %s, someone else must have got it...\n" % dbname)
             continue
-    if missingPrereqs:
+    if missing_prereqs:
         return False
     else:
         return None
@@ -924,33 +922,38 @@ def usage(message=None):
 
     sys.exit(1)
 
-if __name__ == "__main__":
+def main():
     try:
         date = None
-        configFile = False
-        forceLock = False
+        config_file = False
+        force_lock = False
         prefetch = True
         spawn = True
         restart = False
-        jobRequested = None
-        skipJobs = None
-        enableLogging = False
+        job_requested = None
+        skip_jobs = None
+        enable_logging = False
         log = None
-        htmlNotice = ""
+        html_notice = ""
         dryrun = False
-        chunkToDo = False
-        afterCheckpoint = False
-        checkpointFile = None
-        pageIDRange = None
+        chunk_to_do = False
+        after_checkpoint = False
+        checkpoint_file = None
+        page_id_range = None
         cutoff = None
         exitcode = 1
         skipdone = False
-        doLocking = False
+        do_locking = False
         verbose = False
 
         try:
-            (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=', 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=', 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone", "exclusive", 'verbose'])
+            (options, remainder) = getopt.gnu_getopt(
+                sys.argv[1:], "",
+                ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=',
+                 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn',
+                 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=',
+                 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
+                 "exclusive", 'verbose'])
         except:
             usage("Unknown option specified")
 
@@ -958,16 +961,16 @@ if __name__ == "__main__":
             if opt == "--date":
                 date = val
             elif opt == "--configfile":
-                configFile = val
+                config_file = val
             elif opt == '--checkpoint':
-                checkpointFile = val
+                checkpoint_file = val
             elif opt == '--chunk':
-                chunkToDo = int(val)
+                chunk_to_do = int(val)
             elif opt == "--force":
-                forceLock = True
+                force_lock = True
             elif opt == '--aftercheckpoint':
-                afterCheckpoint = True
-                checkpointFile = val
+                after_checkpoint = True
+                checkpoint_file = val
             elif opt == "--noprefetch":
                 prefetch = False
             elif opt == "--nospawn":
@@ -975,19 +978,19 @@ if __name__ == "__main__":
             elif opt == "--dryrun":
                 dryrun = True
             elif opt == "--job":
-                jobRequested = val
+                job_requested = val
             elif opt == "--skipjobs":
-                skipJobs = val
+                skip_jobs = val
             elif opt == "--restartfrom":
                 restart = True
             elif opt == "--log":
-                enableLogging = True
+                enable_logging = True
             elif opt == "--addnotice":
-                htmlNotice = val
+                html_notice = val
             elif opt == "--delnotice":
-                htmlNotice = False
+                html_notice = False
             elif opt == "--pageidrange":
-                pageIDRange = val
+                page_id_range = val
             elif opt == "--cutoff":
                 cutoff = val
                 if not cutoff.isdigit() or not len(cutoff) == 8:
@@ -995,37 +998,37 @@ if __name__ == "__main__":
             elif opt == "--skipdone":
                 skipdone = True
             elif opt == "--exclusive":
-                doLocking = True
+                do_locking = True
             elif opt == "--verbose":
                 verbose = True
 
         if dryrun and (len(remainder) == 0):
             usage("--dryrun requires the name of a wikidb to be specified")
-        if jobRequested and forceLock:
+        if job_requested and force_lock:
             usage("--force cannot be used with --job option")
-        if restart and not jobRequested:
+        if restart and not job_requested:
             usage("--restartfrom requires --job and the job from which to restart")
-        if chunkToDo and not jobRequested:
+        if chunk_to_do and not job_requested:
             usage("--chunk option requires a specific job for which to rerun that chunk")
-        if chunkToDo and restart:
+        if chunk_to_do and restart:
             usage("--chunk option can be specified only for one specific job")
-        if checkpointFile and (len(remainder) == 0):
+        if checkpoint_file and (len(remainder) == 0):
             usage("--checkpoint option requires the name of a wikidb to be specified")
-        if checkpointFile and not jobRequested:
+        if checkpoint_file and not job_requested:
             usage("--checkpoint option requires --job and the job from which to restart")
-        if pageIDRange and not jobRequested:
+        if page_id_range and not job_requested:
             usage("--pageidrange option requires --job and the job from which to restart")
-        if pageIDRange and checkpointFile:
+        if page_id_range and checkpoint_file:
             usage("--pageidrange option cannot be used with --checkpoint option")
 
-        if skipJobs is None:
-            skipJobs = []
+        if skip_jobs is None:
+            skip_jobs = []
         else:
-            skipJobs = skipJobs.split(",")
+            skip_jobs = skip_jobs.split(",")
 
         # allow alternate config file
-        if configFile:
-            config = Config(configFile)
+        if config_file:
+            config = Config(config_file)
         else:
             config = Config()
         externals = [
@@ -1054,10 +1057,10 @@ if __name__ == "__main__":
             sys.stderr.write("Exiting.\n")
             sys.exit(1)
 
-        if dryrun or chunkToDo or (jobRequested and not restart  and not doLocking):
-            locksEnabled = False
+        if dryrun or chunk_to_do or (job_requested and not restart  and not do_locking):
+            locks_enabled = False
         else:
-            locksEnabled = True
+            locks_enabled = True
 
         if dryrun:
             print "***"
@@ -1069,20 +1072,20 @@ if __name__ == "__main__":
             if cutoff:
                 # fixme if we asked for a specific job then check that job only
                 # not the dir
-                lastRan = wiki.latestDump()
-                if lastRan >= cutoff:
+                last_ran = wiki.latestDump()
+                if last_ran >= cutoff:
                     wiki = None
-            if wiki is not None and locksEnabled:
-                if forceLock and wiki.isLocked():
+            if wiki is not None and locks_enabled:
+                if force_lock and wiki.isLocked():
                     wiki.unlock()
-                if locksEnabled:
+                if locks_enabled:
                     wiki.lock()
 
         else:
             # if the run is across all wikis and we are just doing one job,
             # we want the age of the wikis by the latest status update
             # and not the date the run started
-            if jobRequested:
+            if job_requested:
                 check_status_time = True
             else:
                 check_status_time = False
@@ -1090,13 +1093,14 @@ if __name__ == "__main__":
                 check_job_status = True
             else:
                 check_job_status = False
-            if jobRequested and skipdone:
+            if job_requested and skipdone:
                 check_prereq_status = True
             else:
                 check_prereq_status = False
-            wiki = findAndLockNextWiki(config, locksEnabled, cutoff, check_status_time,
-                                                   check_job_status, check_prereq_status,
-                                                   date, jobRequested, skipJobs, pageIDRange, chunkToDo, checkpointFile)
+            wiki = find_lock_next_wiki(config, locks_enabled, cutoff, check_status_time,
+                                       check_job_status, check_prereq_status,
+                                       date, job_requested, skip_jobs, page_id_range, chunk_to_do,
+                                       checkpoint_file, restart)
 
         if wiki is not None and wiki:
             # process any per-project configuration options
@@ -1113,32 +1117,32 @@ if __name__ == "__main__":
                 date = TimeUtils.today()
             wiki.setDate(date)
 
-            if afterCheckpoint:
-                f = DumpFilename(wiki)
-                f.newFromFilename(checkpointFile)
-                if not f.isCheckpointFile:
+            if after_checkpoint:
+                fname = DumpFilename(wiki)
+                fname.newFromFilename(checkpoint_file)
+                if not fname.isCheckpointFile:
                     usage("--aftercheckpoint option requires the name of a checkpoint file, bad filename provided")
-                pageIDRange = str(int(f.lastPageID) + 1)
-                chunkToDo = f.chunkInt
+                page_id_range = str(int(fname.lastPageID) + 1)
+                chunk_to_do = fname.chunkInt
                 # now we don't need this.
-                checkpointFile = None
-                afterCheckpointJobs = ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']
-                if not jobRequested or not jobRequested in ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']:
-                    usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(afterCheckpointJobs))
+                checkpoint_file = None
+                after_checkpoint_jobs = ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']
+                if not job_requested or not job_requested in ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']:
+                    usage("--aftercheckpoint option requires --job option with one of %s" % ", ".join(after_checkpoint_jobs))
 
-            runner = Runner(wiki, prefetch, spawn, jobRequested, skipJobs, restart, htmlNotice, dryrun, enableLogging, chunkToDo, checkpointFile, pageIDRange, skipdone, verbose)
+            runner = Runner(wiki, prefetch, spawn, job_requested, skip_jobs, restart, html_notice, dryrun, enable_logging, chunk_to_do, checkpoint_file, page_id_range, skipdone, verbose)
 
             if restart:
-                sys.stderr.write("Running %s, restarting from job %s...\n" % (wiki.dbName, jobRequested))
-            elif jobRequested:
-                sys.stderr.write("Running %s, job %s...\n" % (wiki.dbName, jobRequested))
+                sys.stderr.write("Running %s, restarting from job %s...\n" % (wiki.dbName, job_requested))
+            elif job_requested:
+                sys.stderr.write("Running %s, job %s...\n" % (wiki.dbName, job_requested))
             else:
                 sys.stderr.write("Running %s...\n" % wiki.dbName)
             result = runner.run()
             if result is not None and result:
                 exitcode = 0
             # if we are doing one piece only of the dump, we don't unlock either
-            if locksEnabled:
+            if locks_enabled:
                 wiki.unlock()
         elif wiki is not None:
             sys.stderr.write("Wikis available to run but prereqs not complete.\n")
@@ -1149,3 +1153,6 @@ if __name__ == "__main__":
     finally:
         cleanup()
     sys.exit(exitcode)
+
+if __name__ == "__main__":
+    main()

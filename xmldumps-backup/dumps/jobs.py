@@ -33,14 +33,14 @@ class Dump(object):
         # be set up before we use them to set class attributes.)
         if not hasattr(self, 'onlychunks'):
             self.onlychunks = False
-        if not hasattr(self, '_chunksEnabled'):
-            self._chunksEnabled = False
-        if not hasattr(self, '_checkpointsEnabled'):
-            self._checkpointsEnabled = False
+        if not hasattr(self, '_chunks_enabled'):
+            self._chunks_enabled = False
+        if not hasattr(self, '_checkpoints_enabled'):
+            self._checkpoints_enabled = False
         if not hasattr(self, 'checkpointFile'):
             self.checkpointFile = False
-        if not hasattr(self, '_chunkToDo'):
-            self._chunkToDo = False
+        if not hasattr(self, '_chunk_todo'):
+            self._chunk_todo = False
         if not hasattr(self, '_prerequisiteItems'):
             self._prerequisiteItems = []
         if not hasattr(self, '_checkTruncation'):
@@ -152,7 +152,7 @@ class Dump(object):
         """Returns the number of files that have been detected to be truncated. This function expects that all files to check for truncation live in the public dir"""
         ret = 0
 
-        if not runner._checkForTruncatedFilesEnabled or not self._checkTruncation:
+        if not runner._check_for_trunc_files_enabled or not self._checkTruncation:
             return ret
 
         # dfn is the DumpFilename
@@ -185,11 +185,11 @@ class Dump(object):
         # pass through...
         if line:
             if runner.log:
-                runner.log.addToLogQueue(line)
+                runner.log.add_to_log_queue(line)
             sys.stderr.write(line)
         self.progress = line.strip()
         runner.status.updateStatusFiles()
-        runner.runInfoFile.saveDumpRunInfoFile(runner.dumpItemList.reportDumpRunInfo())
+        runner.runInfoFile.saveDumpRunInfoFile(runner.dumpItemList.report_dump_runinfo())
 
     def timeToWait(self):
         # we use wait this many secs for a command to complete that
@@ -267,7 +267,7 @@ class Dump(object):
         return recombineCommandString
 
     def cleanupOldFiles(self, dumpDir, runner, chunks=False):
-        if runner._cleanupOldFilesEnabled:
+        if runner._cleanup_old_files_enabled:
             if self.checkpointFile:
                 # we only rerun this one, so just remove this one
                 if exists(dumpDir.filenamePublicPath(self.checkpointFile)):
@@ -282,9 +282,9 @@ class Dump(object):
                     os.remove(dumpDir.filenamePrivatePath(f))
 
     def getChunkList(self):
-        if self._chunksEnabled:
-            if self._chunkToDo:
-                return [self._chunkToDo]
+        if self._chunks_enabled:
+            if self._chunk_todo:
+                return [self._chunk_todo]
             else:
                 return range(1, len(self._chunks)+1)
         else:
@@ -520,7 +520,7 @@ class Dump(object):
             files.append(self.checkpointFile)
             return files
 
-        if self._checkpointsEnabled:
+        if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
             files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
             files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
@@ -543,7 +543,7 @@ class Dump(object):
             files.append(self.checkpointFile)
             return files
 
-        if self._checkpointsEnabled:
+        if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
             files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
         else:
@@ -565,7 +565,7 @@ class Dump(object):
             files.append(self.checkpointFile)
             return files
 
-        if self._checkpointsEnabled:
+        if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
             files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
         else:
@@ -587,7 +587,7 @@ class Dump(object):
             files.append(self.checkpointFile)
             return files
 
-        if self._checkpointsEnabled:
+        if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
             files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
             files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
@@ -606,7 +606,7 @@ class Dump(object):
         if dumpNames == None:
             dumpNames = [self.dumpName]
         files = []
-        if self._checkpointsEnabled:
+        if self._checkpoints_enabled:
             files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
         else:
             files.extend(self.listRegularFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
@@ -617,7 +617,7 @@ class PublicTable(Dump):
 
     def __init__(self, table, name, desc):
         self._table = table
-        self._chunksEnabled = False
+        self._chunks_enabled = False
         Dump.__init__(self, name, desc)
 
     def getDumpName(self):
@@ -651,7 +651,7 @@ class PublicTable(Dump):
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
         commands = runner.dbServerInfo.buildSqlDumpCommand(table, runner.wiki.config.gzip)
-        return runner.saveCommand(commands, outfile)
+        return runner.save_command(commands, outfile)
 
 class PrivateTable(PublicTable):
     """Hidden table dumps for private data."""
@@ -693,16 +693,16 @@ class XmlStub(Dump):
     full files for the public."""
 
     def __init__(self, name, desc, chunkToDo, chunks=False, checkpoints=False):
-        self._chunkToDo = chunkToDo
+        self._chunk_todo = chunkToDo
         self._chunks = chunks
         if self._chunks:
-            self._chunksEnabled = True
+            self._chunks_enabled = True
             self.onlychunks = True
         self.historyDumpName = "stub-meta-history"
         self.currentDumpName = "stub-meta-current"
         self.articlesDumpName = "stub-articles"
         if checkpoints:
-            self._checkpointsEnabled = True
+            self._checkpoints_enabled = True
         self._checkTruncation = True
         Dump.__init__(self, name, desc)
 
@@ -794,7 +794,7 @@ class XmlStub(Dump):
             if f.dumpName == self.articlesDumpName:
                 series = self.buildCommand(runner, f)
                 commands.append(series)
-        error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+        error = runner.runCommand(commands, callback_stderr=self.progressCallback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing stub files")
 
@@ -804,7 +804,7 @@ class RecombineXmlStub(Dump):
         self._prerequisiteItems = [self.itemForXmlStubs]
         Dump.__init__(self, name, desc)
         # the input may have checkpoints but the output will not.
-        self._checkpointsEnabled = False
+        self._checkpoints_enabled = False
 
     def detail(self):
         return "These files contain no page text, only revision metadata."
@@ -898,7 +898,7 @@ class XmlLogging(Dump):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.runCommand([series], callbackStderr=self.progressCallback, callbackStderrArg=runner)
+        error = runner.runCommand([series], callback_stderr=self.progressCallback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error dumping log files")
 
@@ -912,19 +912,19 @@ class XmlDump(Dump):
         self._spawn = spawn
         self._chunks = chunks
         if self._chunks:
-            self._chunksEnabled = True
+            self._chunks_enabled = True
             self.onlychunks = True
         self._pageID = {}
-        self._chunkToDo = chunkToDo
+        self._chunk_todo = chunkToDo
 
         self.wiki = wiki
         self.itemForStubs = itemForStubs
         if checkpoints:
-            self._checkpointsEnabled = True
+            self._checkpoints_enabled = True
         self.checkpointFile = checkpointFile
         if self.checkpointFile:
             # we don't checkpoint the checkpoint file.
-            self._checkpointsEnabled = False
+            self._checkpoints_enabled = False
         self.pageIDRange = pageIDRange
         self._prerequisiteItems = [self.itemForStubs]
         self._checkTruncation = True
@@ -955,10 +955,10 @@ class XmlDump(Dump):
             if s.endswith(dumpName):
                 stubDumpName = s
         inputFiles = self.itemForStubs.listOutputFilesForInput(runner.dumpDir, [stubDumpName])
-        if self._chunksEnabled and self._chunkToDo:
+        if self._chunks_enabled and self._chunk_todo:
             # reset inputfiles to just have the one we want.
             for f in inputFiles:
-                if f.chunkInt == self._chunkToDo:
+                if f.chunkInt == self._chunk_todo:
                     inputFiles = [f]
                     break
             if len(inputFiles) > 1:
@@ -975,7 +975,7 @@ class XmlDump(Dump):
                 series = self.buildCommand(runner, f)
                 commands.append(series)
 
-        error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+        error = runner.runCommand(commands, callback_stderr=self.progressCallback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing xml file(s) %s" % self.dumpName)
 
@@ -1032,7 +1032,7 @@ class XmlDump(Dump):
 
         if self.checkpointFile:
             outputFile = f
-        elif self._checkpointsEnabled:
+        elif self._checkpoints_enabled:
             # we write a temp file, it will be checkpointed every so often.
             outputFile = DumpFilename(self.wiki, f.date, self.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, temp=True)
         else:
@@ -1062,7 +1062,7 @@ class XmlDump(Dump):
             stubOption = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir, stubOutputFile.filename)
         elif self.pageIDRange:
             # two cases. redoing a specific chunk, OR no chunks, redoing the whole output file. ouch, hope it isn't huge.
-            if self._chunkToDo or not self._chunksEnabled:
+            if self._chunk_todo or not self._chunks_enabled:
                 stubInputFile = f
 
             stubOutputFilename = stubInputFile.newFilename(stubDumpName, self.itemForStubs.getFileType(), self.itemForStubs.getFileExt(), stubInputFile.date, stubInputFile.chunk, stubInputFile.checkpoint)
@@ -1097,10 +1097,10 @@ class XmlDump(Dump):
             chunkinfo =""
         if len(sources) > 0:
             source = "bzip2:%s" % (";".join(sources))
-            runner.showRunnerState("... building %s %s XML dump, with text prefetch from %s..." % (self._subset, chunkinfo, source))
+            runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." % (self._subset, chunkinfo, source))
             prefetch = "--prefetch=%s" % (source)
         else:
-            runner.showRunnerState("... building %s %s XML dump, no text prefetch..." % (self._subset, chunkinfo))
+            runner.show_runner_state("... building %s %s XML dump, no text prefetch..." % (self._subset, chunkinfo))
             prefetch = ""
 
         if self._spawn:
@@ -1111,7 +1111,7 @@ class XmlDump(Dump):
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
 
-        if self._checkpointsEnabled:
+        if self._checkpoints_enabled:
             checkpointTime = "--maxtime=%s" % (self.wiki.config.checkpointTime)
             checkpointFile = "--checkpointfile=%s" % outputFile.newFilename(outputFile.dumpName, outputFile.fileType, outputFile.fileExt, outputFile.date, outputFile.chunk, "p%sp%s", None)
         else:
@@ -1294,7 +1294,7 @@ class RecombineXmlDump(XmlDump):
         self._prerequisiteItems = [self.itemForXmlDumps]
         Dump.__init__(self, name, desc)
         # the input may have checkpoints but the output will not.
-        self._checkpointsEnabled = False
+        self._checkpoints_enabled = False
 
     def listDumpNames(self):
         return self.itemForXmlDumps.listDumpNames()
@@ -1337,12 +1337,12 @@ class XmlMultiStreamDump(XmlDump):
         self._detail = detail
         self._chunks = chunks
         if self._chunks:
-            self._chunksEnabled = True
-        self._chunkToDo = chunkToDo
+            self._chunks_enabled = True
+        self._chunk_todo = chunkToDo
         self.wiki = wiki
         self.itemForRecompression = itemForRecompression
         if checkpoints:
-            self._checkpointsEnabled = True
+            self._checkpoints_enabled = True
         self.checkpointFile = checkpointFile
         self._prerequisiteItems = [self.itemForRecompression]
         Dump.__init__(self, name, desc)
@@ -1406,7 +1406,7 @@ class XmlMultiStreamDump(XmlDump):
             outputFile = DumpFilename(self.wiki, None, self.checkpointFile.dumpName, self.checkpointFile.fileType, self.fileExt, self.checkpointFile.chunk, self.checkpointFile.checkpoint)
             series = self.buildCommand(runner, [outputFile])
             commands.append(series)
-        elif self._chunksEnabled and not self._chunkToDo:
+        elif self._chunks_enabled and not self._chunk_todo:
             # must set up each parallel job separately, they may have checkpoint files that
             # need to be processed in series, it's a special case
             for i in range(1, len(self._chunks)+1):
@@ -1437,7 +1437,7 @@ class XmlMultiStreamDump(XmlDump):
         files = []
         inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
         for f in inputFiles:
-            if self._chunkToDo and f.chunkInt != self._chunkToDo:
+            if self._chunk_todo and f.chunkInt != self._chunk_todo:
                 continue
             files.append(self.getFileMultistreamName(f))
             files.append(self.getFileMultistreamIndexName(f))
@@ -1452,7 +1452,7 @@ class XmlMultiStreamDump(XmlDump):
             # if this param is set it takes priority
             if chunk and f.chunkInt != chunk:
                 continue
-            elif self._chunkToDo and f.chunkInt != self._chunkToDo:
+            elif self._chunk_todo and f.chunkInt != self._chunk_todo:
                 continue
             # we don't convert these names to the final output form, we'll do that in the build command
             # (i.e. add "multistream" and "index" to them)
@@ -1470,7 +1470,7 @@ class XmlMultiStreamDump(XmlDump):
             multistreamNames.extend([self.getDumpNameMultistream(d), self.getDumpNameMultistreamIndex(d)])
 
         files = []
-        if self.itemForRecompression._checkpointsEnabled:
+        if self.itemForRecompression._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
             files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), multistreamNames))
             files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), multistreamNames))
@@ -1505,12 +1505,12 @@ class XmlRecompressDump(Dump):
         self._detail = detail
         self._chunks = chunks
         if self._chunks:
-            self._chunksEnabled = True
-        self._chunkToDo = chunkToDo
+            self._chunks_enabled = True
+        self._chunk_todo = chunkToDo
         self.wiki = wiki
         self.itemForRecompression = itemForRecompression
         if checkpoints:
-            self._checkpointsEnabled = True
+            self._checkpoints_enabled = True
         self.checkpointFile = checkpointFile
         self._prerequisiteItems = [self.itemForRecompression]
         Dump.__init__(self, name, desc)
@@ -1551,7 +1551,7 @@ class XmlRecompressDump(Dump):
             outputFile = DumpFilename(self.wiki, None, self.checkpointFile.dumpName, self.checkpointFile.fileType, self.fileExt, self.checkpointFile.chunk, self.checkpointFile.checkpoint)
             series = self.buildCommand(runner, [outputFile])
             commands.append(series)
-        elif self._chunksEnabled and not self._chunkToDo:
+        elif self._chunks_enabled and not self._chunk_todo:
             # must set up each parallel job separately, they may have checkpoint files that
             # need to be processed in series, it's a special case
             for i in range(1, len(self._chunks)+1):
@@ -1581,7 +1581,7 @@ class XmlRecompressDump(Dump):
         files = []
         inputFiles = self.itemForRecompression.listOutputFilesForInput(dumpDir)
         for f in inputFiles:
-            if self._chunkToDo and f.chunkInt != self._chunkToDo:
+            if self._chunk_todo and f.chunkInt != self._chunk_todo:
                 continue
             files.append(DumpFilename(self.wiki, f.date, f.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, f.temp))
         return files
@@ -1595,7 +1595,7 @@ class XmlRecompressDump(Dump):
             # if this param is set it takes priority
             if chunk and f.chunkInt != chunk:
                 continue
-            elif self._chunkToDo and f.chunkInt != self._chunkToDo:
+            elif self._chunk_todo and f.chunkInt != self._chunk_todo:
                 continue
             files.append(DumpFilename(self.wiki, f.date, f.dumpName, f.fileType, self.fileExt, f.chunk, f.checkpoint, f.temp))
         return files
@@ -1607,7 +1607,7 @@ class XmlRecompressDump(Dump):
         if dumpNames == None:
             dumpNames = [self.dumpName]
         files = []
-        if self.itemForRecompression._checkpointsEnabled:
+        if self.itemForRecompression._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
             files.extend(self.listCheckpointFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
             files.extend(self.listTempFilesPerChunkExisting(dumpDir, self.getChunkList(), dumpNames))
@@ -1635,8 +1635,8 @@ class RecombineXmlRecompressDump(Dump):
         self._prerequisiteItems = [self.itemForRecombine]
         Dump.__init__(self, name, desc)
         # the input may have checkpoints but the output will not.
-        self._checkpointsEnabled = False
-        self._chunksEnabled = False
+        self._checkpoints_enabled = False
+        self._chunks_enabled = False
 
         def getFileType(self):
             return self.itemForRecombine.getFileType()
@@ -1679,10 +1679,10 @@ class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
     def __init__(self, name, desc, chunkToDo, dbName, chunks=False):
-        self._chunkToDo = chunkToDo
+        self._chunk_todo = chunkToDo
         self._chunks = chunks
         if self._chunks:
-            self._chunksEnabled = True
+            self._chunks_enabled = True
             self.onlychunks = True
         self.dbName = dbName
         Dump.__init__(self, name, desc)
@@ -1739,7 +1739,7 @@ class AbstractDump(Dump):
             if f.dumpName == dumpName0:
                 series = self.buildCommand(runner, f)
                 commands.append(series)
-        error = runner.runCommand(commands, callbackStderr=self.progressCallback, callbackStderrArg=runner)
+        error = runner.runCommand(commands, callback_stderr=self.progressCallback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing abstract dump")
 
@@ -1812,7 +1812,7 @@ class RecombineAbstractDump(Dump):
         self._prerequisiteItems = [self.itemForRecombine]
         Dump.__init__(self, name, desc)
         # the input may have checkpoints but the output will not.
-        self._checkpointsEnabled = False
+        self._checkpoints_enabled = False
 
     def getFileType(self):
         return self.itemForRecombine.getFileType()
@@ -1884,7 +1884,7 @@ class TitleDump(Dump):
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
         command = runner.dbServerInfo.buildSqlCommand(query, runner.wiki.config.gzip)
-        return runner.saveCommand(command, outfile)
+        return runner.save_command(command, outfile)
 
 class AllTitleDump(TitleDump):
 

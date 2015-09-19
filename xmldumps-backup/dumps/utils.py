@@ -411,8 +411,8 @@ class Chunk(object,):
 
         self._dbName = dbName
         self.wiki = wiki
-        self._chunksEnabled = self.wiki.config.chunksEnabled
-        if self._chunksEnabled:
+        self._chunks_enabled = self.wiki.config.chunksEnabled
+        if self._chunks_enabled:
             self.Stats = PageAndEditStats(self.wiki, dbName, errorCallback)
             if not self.Stats.totalEdits or not self.Stats.totalPages:
                 raise BackupError("Failed to get DB stats, exiting")
@@ -431,7 +431,7 @@ class Chunk(object,):
             self._revsPerChunkHistory = False
             self._pagesPerChunkAbstract = False
             self._recombineHistory = False
-        if self._chunksEnabled:
+        if self._chunks_enabled:
             if self._revsPerChunkHistory:
                 if len(self._revsPerChunkHistory) == 1:
                     self._numChunksHistory = self.getNumberOfChunksForXMLDumps(self.Stats.totalEdits, self._pagesPerChunkHistory[0])
@@ -482,7 +482,7 @@ class Chunk(object,):
         return self._numChunksHistory
 
     def chunksEnabled(self):
-        return self._chunksEnabled
+        return self._chunks_enabled
 
     def recombineHistory(self):
         return self._recombineHistory
