@@ -378,7 +378,7 @@ class DumpDir(object):
             date_string = self._wiki.date
         return os.path.join(self._wiki.publicDir(), date_string, dump_file.filename)
 
-    def latestDir(self):
+    def latest_dir(self):
         """Return 'latest' directory for the current project being dumped, e.g.
         if the current project is enwiki, this would return something like
         /mnt/data/xmldatadumps/public/enwiki/latest (if the directory /mnt/data/xmldatadumps/public

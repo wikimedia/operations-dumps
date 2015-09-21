@@ -482,7 +482,7 @@ class Runner(object):
             self.pretty_print_commands([series])
             return 0
         else:
-            return self.runCommand([series], callbackTimed = self.status.updateStatusFiles)
+            return self.runCommand([series], callbackTimed = self.status.update_status_files)
 
     def pretty_print_commands(self, command_series_list):
         for series in command_series_list:
@@ -531,10 +531,10 @@ class Runner(object):
         self.log_and_print("%s: %s %s" % (TimeUtils.prettyTime(), self.dbName, stuff))
 
     def run_handle_failure(self):
-        if self.status.failCount < 1:
+        if self.status.fail_count < 1:
             # Email the site administrator just once per database
-            self.status.reportFailure()
-        self.status.failCount += 1
+            self.status.report_failure()
+        self.status.fail_count += 1
 
     def run_update_item_fileinfo(self, item):
         # this will include checkpoint files if they are enabled.
@@ -543,11 +543,11 @@ class Runner(object):
                 # why would the file not exist? because we changed chunk numbers in the
                 # middle of a run, and now we list more files for the next stage than there
                 # were for earlier ones
-                self.sym_links.saveSymlink(file_obj)
-                self.feeds.saveFeed(file_obj)
+                self.sym_links.save_symlink(file_obj)
+                self.feeds.save_feed(file_obj)
                 self.checksums.checksum(file_obj, self)
-                self.sym_links.cleanupSymLinks()
-                self.feeds.cleanupFeeds()
+                self.sym_links.cleanup_symlinks()
+                self.feeds.cleanup_feeds()
 
     def run(self):
         if self.job_requested:
@@ -574,7 +574,7 @@ class Runner(object):
         else:
             self.dumpItemList.mark_all_jobs_to_run(self.skipdone);
 
-        Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s" % self.dbName)
+        Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s" % self.dbName)
 
         self.make_dir(os.path.join(self.wiki.publicDir(), self.wiki.date))
         self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
@@ -592,13 +592,13 @@ class Runner(object):
         else:
             self.show_runner_state("Starting backup of %s" % self.dbName)
 
-        self.checksums.prepareChecksums()
+        self.checksums.prepare_checksums()
 
         for item in self.dumpItemList.dumpItems:
-            Maintenance.exitIfInMaintenanceMode("In maintenance mode, exiting dump of %s at step %s" % (self.dbName, item.name()))
+            Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s at step %s" % (self.dbName, item.name()))
             if item.toBeRun():
                 item.start(self)
-                self.status.updateStatusFiles()
+                self.status.update_status_files()
                 self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.report_dump_runinfo())
                 try:
                     item.dump(self)
@@ -615,7 +615,7 @@ class Runner(object):
                             item.setStatus("failed")
 
             if item.status() == "done":
-                self.checksums.cpMd5TmpFileToPermFile()
+                self.checksums.cp_md5_tmpfile_to_permfile()
                 self.run_update_item_fileinfo(item)
             elif item.status() == "waiting" or item.status() == "skipped":
                 # don't update the md5 file for this item.
@@ -635,26 +635,26 @@ class Runner(object):
 
         if self.dumpItemList.all_possible_jobs_done(self.skip_jobs):
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            self.status.updateStatusFiles("done")
+            self.status.update_status_files("done")
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            self.status.updateStatusFiles("partialdone")
+            self.status.update_status_files("partialdone")
 
         self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.report_dump_runinfo())
 
         # if any job succeeds we might as well make the sym link
-        if self.status.failCount < 1:
+        if self.status.fail_count < 1:
             self.complete_dump()
 
         if self.job_requested:
             # special case...
             if self.job_requested == "latestlinks":
                 if self.dumpItemList.all_possible_jobs_done(self.skip_jobs):
-                    self.sym_links.removeSymLinksFromOldRuns(self.wiki.date)
-                    self.feeds.cleanupFeeds()
+                    self.sym_links.remove_symlinks_from_old_runs(self.wiki.date)
+                    self.feeds.cleanup_feeds()
 
         # Informing about completion
         if self.job_requested:
@@ -666,7 +666,7 @@ class Runner(object):
             self.show_runner_state_complete()
 
         # let caller know if this was a successful run
-        if self.status.failCount > 0:
+        if self.status.fail_count > 0:
             return False
         else:
             return True
@@ -712,10 +712,10 @@ class Runner(object):
         # files from different runs, in which case the md5sums file
         # will have accurate checksums for the run for which it was
         # produced, but not the other files. FIXME
-        self.checksums.moveMd5FileIntoPlace()
-        dumpFile = DumpFilename(self.wiki, None, self.checksums.getChecksumFileNameBasename())
-        self.sym_links.saveSymlink(dumpFile)
-        self.sym_links.cleanupSymLinks()
+        self.checksums.move_md5file_into_place()
+        dumpFile = DumpFilename(self.wiki, None, self.checksums.get_checksum_filename_basename())
+        self.sym_links.save_symlink(dumpFile)
+        self.sym_links.cleanup_symlinks()
 
         for item in self.dumpItemList.dumpItems:
             if item.toBeRun():
@@ -742,9 +742,9 @@ class Runner(object):
                         checkpoint = item.checkpoint_file.checkpoint
 
                 for dump in dump_names:
-                    self.sym_links.removeSymLinksFromOldRuns(self.wiki.date, dump, chunk, checkpoint, onlychunks=item.onlychunks)
+                    self.sym_links.remove_symlinks_from_old_runs(self.wiki.date, dump, chunk, checkpoint, onlychunks=item.onlychunks)
 
-                self.feeds.cleanupFeeds()
+                self.feeds.cleanup_feeds()
 
     def make_dir(self, dir):
         if self._makedir_enabled:
