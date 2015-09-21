@@ -188,7 +188,7 @@ class Dump(object):
                 runner.log.add_to_log_queue(line)
             sys.stderr.write(line)
         self.progress = line.strip()
-        runner.status.updateStatusFiles()
+        runner.status.update_status_files()
         runner.runInfoFile.saveDumpRunInfoFile(runner.dumpItemList.report_dump_runinfo())
 
     def timeToWait(self):
