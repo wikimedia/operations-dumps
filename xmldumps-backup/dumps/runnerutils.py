@@ -58,7 +58,7 @@ class Checksummer(object):
             output = file(checksumFileName, "a")
             runner.debug("Checksumming %s" % fileObj.filename)
             dumpfile = DumpFile(self.wiki, runner.dumpDir.filenamePublicPath(fileObj), None, self.verbose)
-            checksum = dumpfile.md5Sum()
+            checksum = dumpfile.md5sum()
             if checksum != None:
                 output.write("%s  %s\n" % (checksum, fileObj.filename))
             output.close()
@@ -138,7 +138,7 @@ class Status(object):
         if itemStatus == "in-progress":
             return "<li class='file'>%s %s (written) </li>" % (fileObj.filename, size)
         elif itemStatus == "done":
-            webpathRelative = self.dumpDir.webPathRelative(fileObj)
+            webpathRelative = self.dumpDir.web_path_relative(fileObj)
             return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpathRelative, fileObj.filename, size)
         else:
             return "<li class='missing'>%s</li>" % fileObj.filename
@@ -189,7 +189,7 @@ class Status(object):
             "status": self._reportStatusSummaryLine(done),
             "previous": self._reportPreviousDump(done),
             "items": html,
-            "checksum": self.dumpDir.webPathRelative(f),
+            "checksum": self.dumpDir.web_path_relative(f),
             "index": self.wiki.config.index}
 
     def _reportPreviousDump(self, done):
@@ -327,7 +327,7 @@ class SymLinks(object):
         if self._enabled:
             self.makeDir(self.dumpDir.latestDir())
             realfile = self.dumpDir.filenamePublicPath(dumpFile)
-            latestFilename = dumpFile.newFilename(dumpFile.dumpName, dumpFile.fileType, dumpFile.fileExt, 'latest', dumpFile.chunk, dumpFile.checkpoint, dumpFile.temp)
+            latestFilename = dumpFile.newFilename(dumpFile.dumpName, dumpFile.file_type, dumpFile.file_ext, 'latest', dumpFile.chunk, dumpFile.checkpoint, dumpFile.temp)
             link = os.path.join(self.dumpDir.latestDir(), latestFilename)
             if exists(link) or os.path.islink(link):
                 if os.path.islink(link):
