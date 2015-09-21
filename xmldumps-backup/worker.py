@@ -97,41 +97,41 @@ class DumpItemList(object):
                 raise BackupError("You cannot specify a checkpoint file with the job %s, exiting.\n" % self._single_job)
 
         self.dumpItems = [PrivateTable("user", "usertable", "User account data."),
-            PrivateTable("watchlist", "watchlisttable", "Users' watchlist settings."),
-            PrivateTable("ipblocks", "ipblockstable", "Data for blocks of IP addresses, ranges, and users."),
-            PrivateTable("archive", "archivetable", "Deleted page and revision data."),
-            #PrivateTable("updates", "updatestable", "Update dataset for OAI updater system."),
-            PrivateTable("logging", "loggingtable", "Data for various events (deletions, uploads, etc)."),
-            PrivateTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded images."),
-            #PrivateTable("filearchive", "filearchivetable", "Deleted image data"),
+                          PrivateTable("watchlist", "watchlisttable", "Users' watchlist settings."),
+                          PrivateTable("ipblocks", "ipblockstable", "Data for blocks of IP addresses, ranges, and users."),
+                          PrivateTable("archive", "archivetable", "Deleted page and revision data."),
+                          #PrivateTable("updates", "updatestable", "Update dataset for OAI updater system."),
+                          PrivateTable("logging", "loggingtable", "Data for various events (deletions, uploads, etc)."),
+                          PrivateTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded images."),
+                          #PrivateTable("filearchive", "filearchivetable", "Deleted image data"),
 
-            PublicTable("site_stats", "sitestatstable", "A few statistics such as the page count."),
-            PublicTable("image", "imagetable", "Metadata on current versions of uploaded media/files."),
-            #PublicTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded media/files."),
-            PublicTable("pagelinks", "pagelinkstable", "Wiki page-to-page link records."),
-            PublicTable("categorylinks", "categorylinkstable", "Wiki category membership link records."),
-            PublicTable("imagelinks", "imagelinkstable", "Wiki media/files usage records."),
-            PublicTable("templatelinks", "templatelinkstable", "Wiki template inclusion link records."),
-            PublicTable("externallinks", "externallinkstable", "Wiki external URL link records."),
-            PublicTable("langlinks", "langlinkstable", "Wiki interlanguage link records."),
-            #PublicTable("interwiki", "interwikitable", "Set of defined interwiki prefixes and links for this wiki."),
-            PublicTable("user_groups", "usergroupstable", "User group assignments."),
-            PublicTable("category", "categorytable", "Category information."),
+                          PublicTable("site_stats", "sitestatstable", "A few statistics such as the page count."),
+                          PublicTable("image", "imagetable", "Metadata on current versions of uploaded media/files."),
+                          #PublicTable("oldimage", "oldimagetable", "Metadata on prior versions of uploaded media/files."),
+                          PublicTable("pagelinks", "pagelinkstable", "Wiki page-to-page link records."),
+                          PublicTable("categorylinks", "categorylinkstable", "Wiki category membership link records."),
+                          PublicTable("imagelinks", "imagelinkstable", "Wiki media/files usage records."),
+                          PublicTable("templatelinks", "templatelinkstable", "Wiki template inclusion link records."),
+                          PublicTable("externallinks", "externallinkstable", "Wiki external URL link records."),
+                          PublicTable("langlinks", "langlinkstable", "Wiki interlanguage link records."),
+                          #PublicTable("interwiki", "interwikitable", "Set of defined interwiki prefixes and links for this wiki."),
+                          PublicTable("user_groups", "usergroupstable", "User group assignments."),
+                          PublicTable("category", "categorytable", "Category information."),
 
-            PublicTable("page", "pagetable", "Base per-page data (id, title, old restrictions, etc)."),
-            PublicTable("page_restrictions", "pagerestrictionstable", "Newer per-page restrictions table."),
-            PublicTable("page_props", "pagepropstable", "Name/value pairs for pages."),
-            PublicTable("protected_titles", "protectedtitlestable", "Nonexistent pages that have been protected."),
-            #PublicTable("revision", #revisiontable", "Base per-revision data (does not include text)."), // safe?
-            #PrivateTable("text", "texttable", "Text blob storage. May be compressed, etc."), // ?
-            PublicTable("redirect", "redirecttable", "Redirect list"),
-            PublicTable("iwlinks", "iwlinkstable", "Interwiki link tracking records"),
-            PublicTable("geo_tags", "geotagstable", "List of pages' geographical coordinates"),
+                          PublicTable("page", "pagetable", "Base per-page data (id, title, old restrictions, etc)."),
+                          PublicTable("page_restrictions", "pagerestrictionstable", "Newer per-page restrictions table."),
+                          PublicTable("page_props", "pagepropstable", "Name/value pairs for pages."),
+                          PublicTable("protected_titles", "protectedtitlestable", "Nonexistent pages that have been protected."),
+                          #PublicTable("revision", #revisiontable", "Base per-revision data (does not include text)."), // safe?
+                          #PrivateTable("text", "texttable", "Text blob storage. May be compressed, etc."), // ?
+                          PublicTable("redirect", "redirecttable", "Redirect list"),
+                          PublicTable("iwlinks", "iwlinkstable", "Interwiki link tracking records"),
+                          PublicTable("geo_tags", "geotagstable", "List of pages' geographical coordinates"),
 
-            TitleDump("pagetitlesdump", "List of page titles in main namespace"),
-            AllTitleDump("allpagetitlesdump", "List of all page titles"),
+                          TitleDump("pagetitlesdump", "List of page titles in main namespace"),
+                          AllTitleDump("allpagetitlesdump", "List of all page titles"),
 
-            AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo", self._getChunkToDo("abstractsdump"), self.wiki.dbName, self.chunkInfo.getPagesPerChunkAbstract())]
+                          AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo", self._get_chunk_to_do("abstractsdump"), self.wiki.dbName, self.chunkInfo.get_pages_per_chunk_abstract())]
 
         if self.chunkInfo.chunksEnabled():
             self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.find_item_by_name('abstractsdump')))
@@ -223,7 +223,7 @@ class DumpItemList(object):
                                    "index of page titles/ids and offsets into the file.  Useful for offline readers, or for parallel processing of pages.",
                                    self.find_item_by_name(input_for_multistream), self.wiki, None))
 
-        results = self._runinfo_file.getOldRunInfoFromFile()
+        results = self._runinfo_file.get_old_runinfo_from_file()
         if results:
             for runinfo_obj in results:
                 self._set_dump_item_runinfo(runinfo_obj)
@@ -261,7 +261,7 @@ class DumpItemList(object):
                     if item.name in self.skip_jobs:
                         item.setSkipped()
                     elif not skipgood or item.status() != "done":
-                        item.setToBeRun(True)
+                        item.set_to_run(True)
             return True
         else:
             for item in self.dumpItems:
@@ -269,7 +269,7 @@ class DumpItemList(object):
                     if item.name in self.skip_jobs:
                         item.setSkipped()
                     elif not skipgood or item.status() != "done":
-                        item.setToBeRun(True)
+                        item.set_to_run(True)
                     return True
         if job == "noop" or job == "latestlinks" or job == "createdirs":
             return True
@@ -287,12 +287,12 @@ class DumpItemList(object):
         i = 0;
         for item in self.dumpItems:
             i = i + 1;
-            if item.toBeRun():
+            if item.to_run():
                 for j in range(i, len(self.dumpItems)):
                     if item.name in self.skip_jobs:
                         item.setSkipped()
                     elif not skipgood or item.status() != "done":
-                        self.dumpItems[j].setToBeRun(True)
+                        self.dumpItems[j].set_to_run(True)
                 break
 
     def mark_all_jobs_to_run(self, skipgood=False):
@@ -301,7 +301,7 @@ class DumpItemList(object):
             if item.name() in self.skip_jobs:
                 item.setSkipped()
             elif not skipgood or item.status() != "done":
-                item.setToBeRun(True)
+                item.set_to_run(True)
 
     def find_item_by_name(self, name):
         for item in self.dumpItems:
@@ -323,7 +323,7 @@ class DumpItemList(object):
             if item.name() == runInfo.name():
                 item.setStatus(runInfo.status(), False)
                 item.setUpdated(runInfo.updated())
-                item.setToBeRun(runInfo.toBeRun())
+                item.set_to_run(runInfo.to_run())
                 return True
         return False
 
@@ -596,10 +596,10 @@ class Runner(object):
 
         for item in self.dumpItemList.dumpItems:
             Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s at step %s" % (self.dbName, item.name()))
-            if item.toBeRun():
+            if item.to_run():
                 item.start(self)
                 self.status.update_status_files()
-                self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.report_dump_runinfo())
+                self.runInfoFile.save_dump_runinfo_file(self.dumpItemList.report_dump_runinfo())
                 try:
                     item.dump(self)
                 except Exception, ex:
@@ -643,7 +643,7 @@ class Runner(object):
             # previously in "waiting" are still in status "waiting"
             self.status.update_status_files("partialdone")
 
-        self.runInfoFile.saveDumpRunInfoFile(self.dumpItemList.report_dump_runinfo())
+        self.runInfoFile.save_dump_runinfo_file(self.dumpItemList.report_dump_runinfo())
 
         # if any job succeeds we might as well make the sym link
         if self.status.fail_count < 1:
@@ -718,7 +718,7 @@ class Runner(object):
         self.sym_links.cleanup_symlinks()
 
         for item in self.dumpItemList.dumpItems:
-            if item.toBeRun():
+            if item.to_run():
                 dump_names = item.listDumpNames()
                 if type(dump_names).__name__!='list':
                     dump_names = [dump_names]
@@ -789,7 +789,7 @@ def checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint_
         # failed to get the run's info so let's call it 'didn't run'
         return False
 
-    results = dumpItemList._runinfo_file.getOldRunInfoFromFile()
+    results = dumpItemList._runinfo_file.get_old_runinfo_from_file()
     if results:
         for runinfo_obj in results:
             dumpItemList._set_dump_item_runinfo(runinfo_obj)
@@ -806,7 +806,7 @@ def checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint_
         # see if there are any to run. no? then return True (all job(s) done)
         # otherwise return False (still some to do)
         for item in dumpItemList.dumpItems:
-            if item.toBeRun():
+            if item.to_run():
                 return False
         return True
     else:

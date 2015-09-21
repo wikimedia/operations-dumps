@@ -150,12 +150,12 @@ def get_max_id(wikiconf, wikidb, id_field, table):
     wiki = WikiDump.Wiki(wikiconf, wikidb)
 
     db_info = worker.DbServerInfo(wiki, wikidb)
-    query = "select MAX(%s) from %s%s;" % (id_field, db_info.dBTablePrefix, table)
+    query = "select MAX(%s) from %s%s;" % (id_field, db_info.db_table_prefix, table)
     results = None
     retries = 0
     maxretries = 5
     end = 0
-    results = db_info.runSqlAndGetOutput(query)
+    results = db_info.run_sql_and_get_output(query)
     if results:
         lines = results.splitlines()
         if lines and lines[1]:
@@ -167,7 +167,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
     while results is None and retries < maxretries:
         retries = retries + 1
         time.sleep(5)
-        results = db_info.runSqlAndGetOutput(query)
+        results = db_info.run_sql_and_get_output(query)
         if not results:
             continue
         lines = results.splitlines()
