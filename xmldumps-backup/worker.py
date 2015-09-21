@@ -1120,7 +1120,7 @@ def main():
             if after_checkpoint:
                 fname = DumpFilename(wiki)
                 fname.newFromFilename(checkpoint_file)
-                if not fname.isCheckpointFile:
+                if not fname.is_checkpoint_file:
                     usage("--aftercheckpoint option requires the name of a checkpoint file, bad filename provided")
                 page_id_range = str(int(fname.lastPageID) + 1)
                 chunk_to_do = fname.chunkInt

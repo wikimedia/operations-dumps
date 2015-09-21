@@ -32,35 +32,35 @@ class DumpFilename(object):
 
     attributes:
 
-    isCheckpointFile  filename of form dbname-date-dumpName-pxxxxpxxxx.xml.bz2
-    isChunkFile       filename of form dbname-date-dumpNamex.xml.gz/bz2/7z
-    isTempFile        filename of form dbname-date-dumpName.xml.gz/bz2/7z-tmp
+    is_checkpoint_file  filename of form dbname-date-dumpName-pxxxxpxxxx.xml.bz2
+    is_chunk_file       filename of form dbname-date-dumpNamex.xml.gz/bz2/7z
+    is_temp_file        filename of form dbname-date-dumpName.xml.gz/bz2/7z-tmp
     firstPageID       for checkpoint files, taken from value in filename
     lastPageID        for checkpoint files, value taken from filename
     filename          full filename
     basename          part of the filename after the project name and date (for
                           "enwiki-20110722-pages-meta-history12.xml.bz2" this would be
                           "pages-meta-history12.xml.bz2")
-    fileExt           extension (everything after the last ".") of the file
+    file_ext           extension (everything after the last ".") of the file
     date              date embedded in filename
     dumpName          dump name embedded in filename (eg "pages-meta-history"), if any
     chunk             chunk number of file as string (for "pages-meta-history5.xml.bz2" this would be "5")
     chinkInt          chunk number as int
     """
 
-    def __init__(self, wiki, date=None, dumpName=None, filetype=None, ext=None, chunk=None, checkpoint=None, temp=False):
+    def __init__(self, wiki, date=None, dump_name=None, filetype=None, ext=None, chunk=None, checkpoint=None, temp=False):
         """Constructor.  Arguments: the dump name as it should appear in the filename,
         the date if different than the date of the dump run, the chunk number
         if there is one, and temp which is true if this is a temp file (ending in "-tmp")
         Alternatively, one can leave off all other other stuff and just pass the entire
         filename minus the dbname and the date. Returns true on success, false otherwise.."""
         self.wiki = wiki
-        # if dumpName is not set, the caller can call newFromFilename to initialize various values instead
-        if dumpName:
-            filename =  self.newFilename(dumpName, filetype, ext, date, chunk, checkpoint, temp)
+        # if dump_name is not set, the caller can call newFromFilename to initialize various values instead
+        if dump_name:
+            filename =  self.newFilename(dump_name, filetype, ext, date, chunk, checkpoint, temp)
             self.newFromFilename(filename)
 
-    def isExt(self, ext):
+    def is_ext(self, ext):
         if ext == "gz" or ext == "bz2" or ext == "7z" or ext == "html" or ext == "txt":
             return True
         else:
@@ -76,22 +76,22 @@ class DumpFilename(object):
         self.dumpName = None
 
         self.basename = None
-        self.fileExt = None
-        self.fileType = None
+        self.file_ext = None
+        self.file_type = None
 
-        self.filePrefix = ""
-        self.filePrefixLength = 0
+        self.file_prefix = ""
+        self.file_prefix_length = 0
 
-        self.isChunkFile = False
+        self.is_chunk_file = False
         self.chunk = None
         self.chunkInt = 0
 
-        self.isCheckpointFile = False
+        self.is_checkpoint_file = False
         self.checkpoint = None
         self.firstPageID = None
         self.lastPageID = None
 
-        self.isTempFile = False
+        self.is_temp_file = False
         self.temp = None
 
         # example filenames:
@@ -102,55 +102,55 @@ class DumpFilename(object):
         # we need to handle cases without the projectname-date stuff in them too, as this gets used
         # for all files now
         if self.filename.endswith("-tmp"):
-            self.isTempFile = True
+            self.is_temp_file = True
             self.temp = "-tmp"
 
         if '.' in self.filename:
-            (fileBase, self.fileExt) = self.filename.rsplit('.', 1)
+            (file_base, self.file_ext) = self.filename.rsplit('.', 1)
             if self.temp:
-                self.fileExt = self.fileExt[:-4];
+                self.file_ext = self.file_ext[:-4];
         else:
             return False
 
-        if not self.isExt(self.fileExt):
-            self.fileType = self.fileExt
-#            self.fileExt = None
-            self.fileExt = ""
+        if not self.is_ext(self.file_ext):
+            self.file_type = self.file_ext
+#            self.file_ext = None
+            self.file_ext = ""
         else:
-            if '.' in fileBase:
-                (fileBase, self.fileType) = fileBase.split('.', 1)
+            if '.' in file_base:
+                (file_base, self.file_type) = file_base.split('.', 1)
 
         # some files are not of this form, we skip them
-        if not '-' in fileBase:
+        if not '-' in file_base:
             return False
 
-        (self.dbName, self.date, self.dumpName) = fileBase.split('-', 2)
+        (self.dbName, self.date, self.dumpName) = file_base.split('-', 2)
         if not self.date or not self.dumpName:
-            self.dumpName = fileBase
+            self.dumpName = file_base
         else:
-            self.filePrefix = "%s-%s-" % (self.dbName, self.date)
-            self.filePrefixLength = len(self.filePrefix)
+            self.file_prefix = "%s-%s-" % (self.dbName, self.date)
+            self.file_prefix_length = len(self.file_prefix)
 
-        if self.filename.startswith(self.filePrefix):
-            self.basename = self.filename[self.filePrefixLength:]
+        if self.filename.startswith(self.file_prefix):
+            self.basename = self.filename[self.file_prefix_length:]
 
-        self.checkpointPattern = "-p(?P<first>[0-9]+)p(?P<last>[0-9]+)\." + self.fileExt + "$"
-        self.compiledCheckpointPattern = re.compile(self.checkpointPattern)
-        result = self.compiledCheckpointPattern.search(self.filename)
+        self.checkpoint_pattern = "-p(?P<first>[0-9]+)p(?P<last>[0-9]+)\." + self.file_ext + "$"
+        self.compiled_checkpoint_pattern = re.compile(self.checkpoint_pattern)
+        result = self.compiled_checkpoint_pattern.search(self.filename)
 
         if result:
-            self.isCheckpointFile = True
+            self.is_checkpoint_file = True
             self.firstPageID = result.group('first')
             self.lastPageID = result.group('last')
             self.checkpoint = "p" + self.firstPageID + "p" + self.lastPageID
-            if self.fileType and self.fileType.endswith("-" + self.checkpoint):
-                self.fileType = self.fileType[:-1 * (len(self.checkpoint) + 1)]
+            if self.file_type and self.file_type.endswith("-" + self.checkpoint):
+                self.file_type = self.file_type[:-1 * (len(self.checkpoint) + 1)]
 
-        self.chunkPattern = "(?P<chunk>[0-9]+)$"
-        self.compiledChunkPattern = re.compile(self.chunkPattern)
-        result = self.compiledChunkPattern.search(self.dumpName)
+        self.chunk_pattern = "(?P<chunk>[0-9]+)$"
+        self.compiled_chunk_pattern = re.compile(self.chunk_pattern)
+        result = self.compiled_chunk_pattern.search(self.dumpName)
         if result:
-            self.isChunkFile = True
+            self.is_chunk_file = True
             self.chunk = result.group('chunk')
             self.chunkInt = int(self.chunk)
             # the dumpName has the chunk in it so lose it
@@ -158,14 +158,14 @@ class DumpFilename(object):
 
         return True
 
-    def newFilename(self, dumpName, filetype, ext, date=None, chunk=None, checkpoint=None, temp=None):
+    def newFilename(self, dump_name, filetype, ext, date=None, chunk=None, checkpoint=None, temp=None):
         if not chunk:
             chunk = ""
         if not date:
             date = self.wiki.date
         # fixme do the right thing in case no filetype or no ext
         parts = []
-        parts.append(self.wiki.dbName + "-" + date + "-" + dumpName + "%s" % chunk)
+        parts.append(self.wiki.dbName + "-" + date + "-" + dump_name + "%s" % chunk)
         if checkpoint:
             filetype = filetype + "-" + checkpoint
         if filetype:
@@ -185,16 +185,16 @@ class DumpFile(file):
 
     Methods:
 
-    md5Sum(): return md5sum of the file contents.
-    checkIfTruncated(): for compressed files, check if the file is truncated (stops
+    md5sum(): return md5sum of the file contents.
+    check_if_truncated(): for compressed files, check if the file is truncated (stops
        abruptly before the end of the compressed data) or not, and set and return
-         self.isTruncated accordingly.  This is fast for bzip2 files
+         self.is_truncated accordingly.  This is fast for bzip2 files
        and slow for gz and 7z fles, since for the latter two types it must serially
        read through the file to determine if it is truncated or not.
-    getSize(): returns the current size of the file in bytes
+    get_size(): returns the current size of the file in bytes
     rename(newname): rename the file. Arguments: the new name of the file without
        the directory.
-    findFirstPageIDInFile(): set self.firstPageID by examining the file contents,
+    find_first_page_id_in_file(): set self.firstPageID by examining the file contents,
        returning the value, or None if there is no pageID.  We uncompress the file
        if needed and look through the first 500 lines.
 
@@ -210,8 +210,8 @@ class DumpFile(file):
         """takes full filename including path"""
         self._wiki = wiki
         self.filename = filename
-        self.firstLines = None
-        self.isTruncated = None
+        self.first_lines = None
+        self.is_truncated = None
         self.firstPageID = None
         self.dirname = os.path.dirname(filename)
         if fileObj:
@@ -220,7 +220,7 @@ class DumpFile(file):
             self.fileObj = DumpFilename(wiki)
             self.fileObj.newFromFilename(os.path.basename(filename))
 
-    def md5Sum(self):
+    def md5sum(self):
         if not self.filename:
             return None
         summer = hashlib.md5()
@@ -233,49 +233,49 @@ class DumpFile(file):
         infile.close()
         return summer.hexdigest()
 
-    def getFirst500Lines(self):
-        if self.firstLines:
-            return self.firstLines
+    def get_first_500_lines(self):
+        if self.first_lines:
+            return self.first_lines
 
         if not self.filename or not exists(self.filename):
             return None
 
-        pipeline = self.setupUncompressionCommand()
+        pipeline = self.setup_uncompression_command()
 
         if not exists(self._wiki.config.head):
             raise BackupError("head command %s not found" % self._wiki.config.head)
         head = self._wiki.config.head
-        headEsc = MiscUtils.shellEscape(head)
-        pipeline.append([head, "-500"])
+        head_esc = MiscUtils.shellEscape(head)
+        pipeline.append([head_esc, "-500"])
         # without shell
-        p = CommandPipeline(pipeline, quiet=True)
-        p.runPipelineAndGetOutput()
-        if p.exitedSuccessfully() or p.getFailedCommandsWithExitValue() == [[-signal.SIGPIPE, pipeline[0]]] or p.getFailedCommandsWithExitValue() == [[signal.SIGPIPE + 128, pipeline[0]]]:
-            self.firstLines = p.output()
-        return self.firstLines
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.runPipelineAndGetOutput()
+        if proc.exitedSuccessfully() or proc.getFailedCommandsWithExitValue() == [[-signal.SIGPIPE, pipeline[0]]] or proc.getFailedCommandsWithExitValue() == [[signal.SIGPIPE + 128, pipeline[0]]]:
+            self.first_lines = proc.output()
+        return self.first_lines
 
     # unused
     # xml, sql, text
-    def determineFileContentsType(self):
-        output = self.getFirst500Lines()
+    def determine_file_contents_type(self):
+        output = self.get_first_500_lines()
         if output:
-            pageData = output
-            if pageData.startswith('<mediawiki'):
+            page_data = output
+            if page_data.startswith('<mediawiki'):
                 return 'xml'
-            if pageData.startswith('-- MySQL dump'):
+            if page_data.startswith('-- MySQL dump'):
                 return 'sql'
             return 'txt'
         return None
 
-    def setupUncompressionCommand(self):
+    def setup_uncompression_command(self):
         if not self.filename or not exists(self.filename):
             return None
         pipeline = []
-        if self.fileObj.fileExt == 'bz2':
+        if self.fileObj.file_ext == 'bz2':
             command = [self._wiki.config.bzip2, '-dc']
-        elif self.fileObj.fileExt == 'gz':
+        elif self.fileObj.file_ext == 'gz':
             command = [self._wiki.config.gzip, '-dc']
-        elif self.fileObj.fileExt == '7z':
+        elif self.fileObj.file_ext == '7z':
             command = [self._wiki.config.sevenzip, "e", "-so"]
         else:
             command = [self._wiki.config.cat]
@@ -294,48 +294,48 @@ class DumpFile(file):
     # maybe instead of all that we should just open the file ourselves, read a few lines... oh.
     # right. stupid compressed files. um.... do we have stream wrappers? no. this is python
     # what's the easy was to read *some* compressed data into a buffer?
-    def findFirstPageIDInFile(self):
+    def find_first_page_id_in_file(self):
         if self.firstPageID:
             return self.firstPageID
-        output = self.getFirst500Lines()
+        output = self.get_first_500_lines()
         if output:
-            pageData = output
-            titleAndIDPattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '(<ns>[0-9]+</ns>\s*)?' + '<id>(?P<pageid>\d+?)</id>')
-            result = titleAndIDPattern.search(pageData)
+            page_data = output
+            title_and_id_pattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '(<ns>[0-9]+</ns>\s*)?' + '<id>(?P<pageid>\d+?)</id>')
+            result = title_and_id_pattern.search(page_data)
             if result:
                 self.firstPageID = result.group('pageid')
         return self.firstPageID
 
-    def checkIfTruncated(self):
-        if self.isTruncated:
-            return self.isTruncated
+    def check_if_truncated(self):
+        if self.is_truncated:
+            return self.is_truncated
 
         # Setting up the pipeline depending on the file extension
-        if self.fileObj.fileExt == "bz2":
+        if self.fileObj.file_ext == "bz2":
             if not exists(self._wiki.config.checkforbz2footer):
                 raise BackupError("checkforbz2footer command %s not found" % self._wiki.config.checkforbz2footer)
             checkforbz2footer = self._wiki.config.checkforbz2footer
             pipeline = []
             pipeline.append([checkforbz2footer, self.filename])
         else:
-            if self.fileObj.fileExt == 'gz':
+            if self.fileObj.file_ext == 'gz':
                 pipeline = [[self._wiki.config.gzip, "-dc", self.filename, ">", "/dev/null"]]
-            elif self.fileObj.fileExt == '7z':
+            elif self.fileObj.file_ext == '7z':
                 # Note that 7z does return 0, if archive contains
                 # garbage /after/ the archive end
                 pipeline = [[self._wiki.config.sevenzip, "e", "-so", self.filename, ">", "/dev/null"]]
             else:
                 # we do't know how to handle this type of file.
-                return self.isTruncated
+                return self.is_truncated
 
         # Run the perpared pipeline
-        p = CommandPipeline(pipeline, quiet=True)
-        p.runPipelineAndGetOutput()
-        self.isTruncated = not p.exitedSuccessfully()
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.runPipelineAndGetOutput()
+        self.is_truncated = not proc.exitedSuccessfully()
 
-        return self.isTruncated
+        return self.is_truncated
 
-    def getSize(self):
+    def get_size(self):
         if exists(self.filename):
             return os.path.getsize(self.filename)
         else:
@@ -353,30 +353,30 @@ class DumpFile(file):
 
 
 class DumpDir(object):
-    def __init__(self, wiki, dbName):
+    def __init__(self, wiki, db_name):
         self._wiki = wiki
-        self._dbName = dbName
-        self._dirCache = {}
-        self._dirCacheTime = {}
-        self._chunkFileCache = {}
-        self._checkpointFileCache = {}
+        self._db_name = db_name
+        self._dir_cache = {}
+        self._dir_cache_time = {}
+        self._chunk_file_cache = {}
+        self._checkpoint_file_cache = {}
 
-    def filenamePrivatePath(self, dumpFile, dateString=None):
+    def filenamePrivatePath(self, dump_file, date_string=None):
         """Given a DumpFilename object, produce the full path to the filename in the date subdir
         of the the private dump dir for the selected database.
         If a different date is specified, use that instead"""
-        if not dateString:
-            dateString = self._wiki.date
-        return os.path.join(self._wiki.privateDir(), dateString, dumpFile.filename)
+        if not date_string:
+            date_string = self._wiki.date
+        return os.path.join(self._wiki.privateDir(), date_string, dump_file.filename)
 
-    def filenamePublicPath(self, dumpFile, dateString=None):
+    def filenamePublicPath(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the full path to the filename in the date subdir
         of the public dump dir for the selected database.
         If this database is marked as private, use the private dir instead.
         If a different date is specified, use that instead"""
-        if not dateString:
-            dateString = self._wiki.date
-        return os.path.join(self._wiki.publicDir(), dateString, dumpFile.filename)
+        if not date_string:
+            date_string = self._wiki.date
+        return os.path.join(self._wiki.publicDir(), date_string, dump_file.filename)
 
     def latestDir(self):
         """Return 'latest' directory for the current project being dumped, e.g.
@@ -385,28 +385,28 @@ class DumpDir(object):
         is the path to the directory for public dumps)."""
         return os.path.join(self._wiki.publicDir(), "latest")
 
-    def webPath(self, dumpFile, dateString=None):
+    def webPath(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the full url to the filename for the date of
         the dump for the selected database."""
-        if not dateString:
-            dateString = self._wiki.date
-        return os.path.join(self._wiki.webDir(), dateString, dumpFile.filename)
+        if not date_string:
+            date_string = self._wiki.date
+        return os.path.join(self._wiki.webDir(), date_string, dump_file.filename)
 
 
-    def webPathRelative(self, dumpFile, dateString=None):
+    def web_path_relative(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the url relative to the docroot for the filename for the date of
         the dump for the selected database."""
-        if not dateString:
-            dateString = self._wiki.date
-        return os.path.join(self._wiki.webDirRelative(), dateString, dumpFile.filename)
+        if not date_string:
+            date_string = self._wiki.date
+        return os.path.join(self._wiki.webDirRelative(), date_string, dump_file.filename)
 
-    def dirCacheOutdated(self, date):
+    def dir_cache_outdated(self, date):
         if not date:
             date = self._wiki.date
         directory = os.path.join(self._wiki.publicDir(), date)
         if exists(directory):
-            dirTimeStamp = os.stat(directory).st_mtime
-            if not date in self._dirCache or dirTimeStamp > self._dirCacheTime[date]:
+            dir_time_stamp = os.stat(directory).st_mtime
+            if not date in self._dir_cache or dir_time_stamp > self._dir_cache_time[date]:
                 return True
             else:
                 return False
@@ -414,20 +414,20 @@ class DumpDir(object):
             return True
 
     # warning: date can also be "latest"
-    def getFilesInDir(self, date=None):
+    def get_files_in_dir(self, date=None):
         if not date:
             date = self._wiki.date
-        if self.dirCacheOutdated(date):
+        if self.dir_cache_outdated(date):
             directory = os.path.join(self._wiki.publicDir(), date)
             if exists(directory):
-                dirTimeStamp = os.stat(directory).st_mtime
+                dir_time_stamp = os.stat(directory).st_mtime
                 files = os.listdir(directory)
-                fileObjs = []
-                for f in files:
-                    fileObj = DumpFilename(self._wiki)
-                    fileObj.newFromFilename(f)
-                    fileObjs.append(fileObj)
-                self._dirCache[date] = fileObjs
+                file_objs = []
+                for filename in files:
+                    file_obj = DumpFilename(self._wiki)
+                    file_obj.newFromFilename(filename)
+                    file_objs.append(file_obj)
+                self._dir_cache[date] = file_objs
                 # The directory listing should get cached. However, some tyical file
                 # system's (eg. ext2, ext3) mtime's resolution is 1s. If we would
                 # unconditionally cache, it might happen that we cache at x.1 seconds
@@ -435,15 +435,15 @@ class DumpDir(object):
                 # the directory's mtime would still be set to x. Hence we would not
                 # detect that the cache needs to be purged. Therefore, we cache only,
                 # if adding a file now would yield a /different/ mtime.
-                if time.time() >= dirTimeStamp + 1:
-                    self._dirCacheTime[date] = dirTimeStamp
+                if time.time() >= dir_time_stamp + 1:
+                    self._dir_cache_time[date] = dir_time_stamp
                 else:
-                    # By setting _dirCacheTime to 0, we provoke an outdated cache
+                    # By setting _dir_cache_time to 0, we provoke an outdated cache
                     # on the next check. Hence, we effectively do not cache.
-                    self._dirCacheTime[date] = 0
+                    self._dir_cache_time[date] = 0
             else:
-                self._dirCache[date] = []
-        return self._dirCache[date]
+                self._dir_cache[date] = []
+        return self._dir_cache[date]
 
     # list all files that exist, filtering by the given args.
     # if we get None for an arg then we accept all values for that arg in the filename, including missing
@@ -452,58 +452,58 @@ class DumpDir(object):
     # chunks should be a list of value(s) or True / False / None
     #
     # note that we ignore files with ".truncated". these are known to be bad.
-    def _getFilesFiltered(self, date=None, dumpName=None, fileType=None, fileExt=None, chunks=None, temp=None, checkpoint=None):
+    def _get_files_filtered(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=None, temp=None, checkpoint=None):
         if not date:
             date = self._wiki.date
-        fileObjs = self.getFilesInDir(date)
-        filesMatched = []
-        for f in fileObjs:
+        file_objs = self.get_files_in_dir(date)
+        files_matched = []
+        for fobj in file_objs:
             # fixme this is a bit hackish
-            if f.filename.endswith("truncated"):
+            if fobj.filename.endswith("truncated"):
                 continue
 
-            if dumpName and f.dumpName != dumpName:
+            if dump_name and fobj.dumpName != dump_name:
                 continue
-            if fileType != None and f.fileType != fileType:
+            if file_type != None and fobj.file_type != file_type:
                 continue
-            if fileExt != None and f.fileExt != fileExt:
+            if file_ext != None and fobj.file_ext != file_ext:
                 continue
-            if chunks == False and f.isChunkFile:
+            if chunks == False and fobj.is_chunk_file:
                 continue
-            if chunks == True and not f.isChunkFile:
+            if chunks == True and not fobj.is_chunk_file:
                 continue
             # chunks is a list...
-            if chunks and chunks != True and not f.chunkInt in chunks:
+            if chunks and chunks != True and not fobj.chunkInt in chunks:
                 continue
-            if (temp == False and f.isTempFile) or (temp and not f.isTempFile):
+            if (temp == False and fobj.is_temp_file) or (temp and not fobj.is_temp_file):
                 continue
-            if (checkpoint == False and f.isCheckpointFile) or (checkpoint and not f.isCheckpointFile):
+            if (checkpoint == False and fobj.is_checkpoint_file) or (checkpoint and not fobj.is_checkpoint_file):
                 continue
-            filesMatched.append(f)
-            self.sort_fileobjs(filesMatched)
-        return filesMatched
+            files_matched.append(fobj)
+            self.sort_fileobjs(files_matched)
+        return files_matched
 
     # taken from a comment by user "Toothy" on Ned Batchelder's blog (no longer on the net)
-    def sort_fileobjs(self, l):
+    def sort_fileobjs(self, mylist):
         """ Sort the given list in the way that humans expect.
         """
         convert = lambda text: int(text) if text.isdigit() else text
         alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key.filename)]
-        l.sort(key=alphanum_key)
+        mylist.sort(key=alphanum_key)
 
     # list all checkpoint files that exist, filtering by the given args.
     # if we get None for an arg then we accept all values for that arg in the filename
     # if we get False for an arg (chunks, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getCheckpointFilesExisting(self, date=None, dumpName=None, fileType=None, fileExt=None, chunks=False, temp=False):
-        return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint=True)
+    def getCheckpointFilesExisting(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=False, temp=False):
+        return self._get_files_filtered(date, dump_name, file_type, file_ext, chunks, temp, checkpoint=True)
 
     # list all non-checkpoint files that exist, filtering by the given args.
     # if we get None for an arg then we accept all values for that arg in the filename
     # if we get False for an arg (chunk, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getRegularFilesExisting(self, date=None, dumpName=None, fileType=None, fileExt=None, chunks=False, temp=False):
-        return self._getFilesFiltered(date, dumpName, fileType, fileExt, chunks, temp, checkpoint=False)
+    def getRegularFilesExisting(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=False, temp=False):
+        return self._get_files_filtered(date, dump_name, file_type, file_ext, chunks, temp, checkpoint=False)
 
