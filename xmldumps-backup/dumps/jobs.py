@@ -59,18 +59,18 @@ class Dump(object):
     def updated(self):
         return self.runInfo.updated()
 
-    def toBeRun(self):
-        return self.runInfo.toBeRun()
+    def to_run(self):
+        return self.runInfo.to_run()
 
     def setName(self, name):
         self.runInfo.setName(name)
 
-    def setToBeRun(self, toBeRun):
-        self.runInfo.setToBeRun(toBeRun)
+    def set_to_run(self, to_run):
+        self.runInfo.set_to_run(to_run)
 
     def setSkipped(self):
         self.setStatus("skipped")
-        self.setToBeRun(False)
+        self.set_to_run(False)
 
     # sometimes this will be called to fill in data from an old
     # dump run; in those cases we don't want to clobber the timestamp
@@ -189,7 +189,7 @@ class Dump(object):
             sys.stderr.write(line)
         self.progress = line.strip()
         runner.status.update_status_files()
-        runner.runInfoFile.saveDumpRunInfoFile(runner.dumpItemList.report_dump_runinfo())
+        runner.runInfoFile.save_dump_runinfo_file(runner.dumpItemList.report_dump_runinfo())
 
     def timeToWait(self):
         # we use wait this many secs for a command to complete that
@@ -650,7 +650,7 @@ class PublicTable(Dump):
         """Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        commands = runner.dbServerInfo.buildSqlDumpCommand(table, runner.wiki.config.gzip)
+        commands = runner.dbServerInfo.build_sqldump_command(table, runner.wiki.config.gzip)
         return runner.save_command(commands, outfile)
 
 class PrivateTable(PublicTable):
@@ -1228,7 +1228,7 @@ class XmlDump(Dump):
                 continue
 
             # see if this job from that date was successful
-            if not runner.runInfoFile.statusOfOldDumpIsDone(runner, date, self.name(), self._desc):
+            if not runner.runInfoFile.status_of_old_dump_is_done(runner, date, self.name(), self._desc):
                 runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
                 continue
 
