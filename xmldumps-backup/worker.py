@@ -516,11 +516,11 @@ class Runner(object):
 
         else:
             commands = CommandsInParallel(command_series_list, callback_stderr=callback_stderr, callback_stderr_arg=callback_stderr_arg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callback_interval=callback_interval)
-            commands.runCommands()
+            commands.run_commands()
             if commands.exitedSuccessfully():
                 return 0
             else:
-                problem_commands = commands.commandsWithErrors()
+                problem_commands = commands.commands_with_errors()
                 error_string = "Error from command(s): "
                 for cmd in problem_commands:
                     error_string = error_string + "%s " % cmd
