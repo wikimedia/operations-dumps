@@ -249,8 +249,8 @@ class DumpFile(file):
         pipeline.append([head_esc, "-500"])
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
-        proc.runPipelineAndGetOutput()
-        if proc.exitedSuccessfully() or proc.getFailedCommandsWithExitValue() == [[-signal.SIGPIPE, pipeline[0]]] or proc.getFailedCommandsWithExitValue() == [[signal.SIGPIPE + 128, pipeline[0]]]:
+        proc.run_pipeline_get_output()
+        if proc.exited_successfully() or proc.get_failed_commands_with_exit_value() == [[-signal.SIGPIPE, pipeline[0]]] or proc.get_failed_commands_with_exit_value() == [[signal.SIGPIPE + 128, pipeline[0]]]:
             self.first_lines = proc.output()
         return self.first_lines
 
@@ -330,8 +330,8 @@ class DumpFile(file):
 
         # Run the perpared pipeline
         proc = CommandPipeline(pipeline, quiet=True)
-        proc.runPipelineAndGetOutput()
-        self.is_truncated = not proc.exitedSuccessfully()
+        proc.run_pipeline_get_output()
+        self.is_truncated = not proc.exited_successfully()
 
         return self.is_truncated
 

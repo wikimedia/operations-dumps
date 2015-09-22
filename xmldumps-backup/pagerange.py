@@ -41,8 +41,8 @@ class PageRange(object):
         pipeline.append([ "echo", '$dbr = wfGetDB( DB_SLAVE ); $count = $dbr->selectField( "page", "max(page_id)", false ); if ( intval($count) > 0 ) { echo intval($count); }' ])
         pipeline.append([ '%s' % self._config.php, '%s/maintenance/eval.php' % config.wikiDir , '%s' % self._dbname])
         p = CommandPipeline(pipeline, quiet=True)
-        p.runPipelineAndGetOutput()
-        if not p.exitedSuccessfully():
+        p.run_pipeline_get_output()
+        if not p.exited_successfully():
             print "DEBUG: serious error encountered (1)"
             return None
         output = p.output()
@@ -56,7 +56,7 @@ class PageRange(object):
         pipeline.append( query )
         pipeline.append([ '%s' % self._config.php, '%s/maintenance/eval.php' % self._config.wikiDir, '%s' % self._dbname])
         p = CommandPipeline(pipeline, quiet=True)
-        p.runPipelineAndGetOutput()
+        p.run_pipeline_get_output()
         output = p.output().rstrip('\n')
         return(output)
 

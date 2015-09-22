@@ -517,7 +517,7 @@ class Runner(object):
         else:
             commands = CommandsInParallel(command_series_list, callback_stderr=callback_stderr, callback_stderr_arg=callback_stderr_arg, callbackTimed=callbackTimed, callbackTimedArg=callbackTimedArg, shell=shell, callback_interval=callback_interval)
             commands.run_commands()
-            if commands.exitedSuccessfully():
+            if commands.exited_successfully():
                 return 0
             else:
                 problem_commands = commands.commands_with_errors()

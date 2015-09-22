@@ -120,9 +120,9 @@ class DbServerInfo(object):
     def run_sql_and_get_output(self, query):
         command = self.buildSqlCommand(query)
         proc = CommandPipeline(command, quiet=True)
-        proc.runPipelineAndGetOutput()
+        proc.run_pipeline_get_output()
         # fixme best to put the return code someplace along with any errors....
-        if proc.exitedSuccessfully() and (proc.output()):
+        if proc.exited_successfully() and (proc.output()):
             return proc.output()
         else:
             return None
