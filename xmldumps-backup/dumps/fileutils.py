@@ -24,10 +24,10 @@ class DumpFilename(object):
                                       bz2/gz/7z.  Or you can pass in the entire string without project name and date,
                       e.g. pages-meta-history5.xml.bz2
                       If dumpname is not passed, no member variables will be initialized, and
-                      the caller is expected to invoke newFromFilename as an alternate
+                      the caller is expected to invoke new_from_filename as an alternate
                       constructor before doing anything else with the object.
 
-    newFromFilename(filename)  -- pass in full filename. This is called by the regular constructor and is
+    new_from_filename(filename)  -- pass in full filename. This is called by the regular constructor and is
                                       what sets all attributes
 
     attributes:
@@ -55,10 +55,10 @@ class DumpFilename(object):
         Alternatively, one can leave off all other other stuff and just pass the entire
         filename minus the dbname and the date. Returns true on success, false otherwise.."""
         self.wiki = wiki
-        # if dump_name is not set, the caller can call newFromFilename to initialize various values instead
+        # if dump_name is not set, the caller can call new_from_filename to initialize various values instead
         if dump_name:
-            filename =  self.newFilename(dump_name, filetype, ext, date, chunk, checkpoint, temp)
-            self.newFromFilename(filename)
+            filename =  self.new_filename(dump_name, filetype, ext, date, chunk, checkpoint, temp)
+            self.new_from_filename(filename)
 
     def is_ext(self, ext):
         if ext == "gz" or ext == "bz2" or ext == "7z" or ext == "html" or ext == "txt":
@@ -67,11 +67,11 @@ class DumpFilename(object):
             return False
 
     # returns True if successful, False otherwise (filename is not in the canonical form that we manage)
-    def newFromFilename(self, filename):
+    def new_from_filename(self, filename):
         """Constructor.  Arguments: the full file name including the chunk, the extension, etc BUT NOT the dir name. """
         self.filename = filename
 
-        self.dbName = None
+        self.db_name = None
         self.date = None
         self.dumpname = None
 
@@ -84,7 +84,7 @@ class DumpFilename(object):
 
         self.is_chunk_file = False
         self.chunk = None
-        self.chunkInt = 0
+        self.chunk_int = 0
 
         self.is_checkpoint_file = False
         self.checkpoint = None
@@ -124,11 +124,11 @@ class DumpFilename(object):
         if not '-' in file_base:
             return False
 
-        (self.dbName, self.date, self.dumpname) = file_base.split('-', 2)
+        (self.db_name, self.date, self.dumpname) = file_base.split('-', 2)
         if not self.date or not self.dumpname:
             self.dumpname = file_base
         else:
-            self.file_prefix = "%s-%s-" % (self.dbName, self.date)
+            self.file_prefix = "%s-%s-" % (self.db_name, self.date)
             self.file_prefix_length = len(self.file_prefix)
 
         if self.filename.startswith(self.file_prefix):
@@ -152,13 +152,13 @@ class DumpFilename(object):
         if result:
             self.is_chunk_file = True
             self.chunk = result.group('chunk')
-            self.chunkInt = int(self.chunk)
+            self.chunk_int = int(self.chunk)
             # the dumpname has the chunk in it so lose it
             self.dumpname = self.dumpname.rstrip('0123456789')
 
         return True
 
-    def newFilename(self, dump_name, filetype, ext, date=None, chunk=None, checkpoint=None, temp=None):
+    def new_filename(self, dump_name, filetype, ext, date=None, chunk=None, checkpoint=None, temp=None):
         if not chunk:
             chunk = ""
         if not date:
@@ -218,7 +218,7 @@ class DumpFile(file):
             self.file_obj = file_obj
         else:
             self.file_obj = DumpFilename(wiki)
-            self.file_obj.newFromFilename(os.path.basename(filename))
+            self.file_obj.new_from_filename(os.path.basename(filename))
 
     def md5sum(self):
         if not self.filename:
@@ -361,7 +361,7 @@ class DumpDir(object):
         self._chunk_file_cache = {}
         self._checkpoint_file_cache = {}
 
-    def filenamePrivatePath(self, dump_file, date_string=None):
+    def filename_private_path(self, dump_file, date_string=None):
         """Given a DumpFilename object, produce the full path to the filename in the date subdir
         of the the private dump dir for the selected database.
         If a different date is specified, use that instead"""
@@ -369,7 +369,7 @@ class DumpDir(object):
             date_string = self._wiki.date
         return os.path.join(self._wiki.privateDir(), date_string, dump_file.filename)
 
-    def filenamePublicPath(self, dump_file, date_string=None):
+    def filename_public_path(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the full path to the filename in the date subdir
         of the public dump dir for the selected database.
         If this database is marked as private, use the private dir instead.
@@ -385,7 +385,7 @@ class DumpDir(object):
         is the path to the directory for public dumps)."""
         return os.path.join(self._wiki.publicDir(), "latest")
 
-    def webPath(self, dump_file, date_string=None):
+    def web_path(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the full url to the filename for the date of
         the dump for the selected database."""
         if not date_string:
@@ -425,7 +425,7 @@ class DumpDir(object):
                 file_objs = []
                 for filename in files:
                     file_obj = DumpFilename(self._wiki)
-                    file_obj.newFromFilename(filename)
+                    file_obj.new_from_filename(filename)
                     file_objs.append(file_obj)
                 self._dir_cache[date] = file_objs
                 # The directory listing should get cached. However, some tyical file
@@ -473,7 +473,7 @@ class DumpDir(object):
             if chunks == True and not fobj.is_chunk_file:
                 continue
             # chunks is a list...
-            if chunks and chunks != True and not fobj.chunkInt in chunks:
+            if chunks and chunks != True and not fobj.chunk_int in chunks:
                 continue
             if (temp == False and fobj.is_temp_file) or (temp and not fobj.is_temp_file):
                 continue
@@ -496,7 +496,7 @@ class DumpDir(object):
     # if we get False for an arg (chunks, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getCheckpointFilesExisting(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=False, temp=False):
+    def get_checkpt_files_existing(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=False, temp=False):
         return self._get_files_filtered(date, dump_name, file_type, file_ext, chunks, temp, checkpoint=True)
 
     # list all non-checkpoint files that exist, filtering by the given args.
@@ -504,6 +504,6 @@ class DumpDir(object):
     # if we get False for an arg (chunk, temp), we reject any filename which contains a value for that arg
     # if we get True for an arg (chunk, temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def getRegularFilesExisting(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=False, temp=False):
+    def get_reg_files_existing(self, date=None, dump_name=None, file_type=None, file_ext=None, chunks=False, temp=False):
         return self._get_files_filtered(date, dump_name, file_type, file_ext, chunks, temp, checkpoint=False)
 
