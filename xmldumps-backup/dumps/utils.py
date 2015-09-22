@@ -295,11 +295,11 @@ class RunInfoFile(object):
             field = field.strip(" ")
             (fieldname, separator, field_value)  = field.partition(':')
             if fieldname == "name":
-                dump_runinfo.setName(field_value)
+                dump_runinfo.set_name(field_value)
             elif fieldname == "status":
-                dump_runinfo.setStatus(field_value, False)
+                dump_runinfo.set_status(field_value, False)
             elif fieldname == "updated":
-                dump_runinfo.setUpdated(field_value)
+                dump_runinfo.set_updated(field_value)
         return dump_runinfo
 
     def _write_dump_runinfo_file(self, text):
@@ -389,13 +389,13 @@ class RunInfo(object):
     def to_run(self):
         return self._to_run
 
-    def setName(self, name):
+    def set_name(self, name):
         self._name = name
 
-    def setStatus(self, status, set_updated=True):
+    def set_status(self, status, set_updated=True):
         self._status = status
 
-    def setUpdated(self, updated):
+    def set_updated(self, updated):
         self._updated = updated
 
     def set_to_run(self, to_run):
