@@ -353,11 +353,11 @@ class Runner(object):
 
         if self.checkpoint_file:
             fname = DumpFilename(self.wiki)
-            fname.newFromFilename(checkpoint_file)
+            fname.new_from_filename(checkpoint_file)
             # we should get chunk if any
-            if not self._chunk_todo and fname.chunkInt:
-                self._chunk_todo = fname.chunkInt
-            elif self._chunk_todo and fname.chunkInt and self._chunk_todo != fname.chunkInt:
+            if not self._chunk_todo and fname.chunk_int:
+                self._chunk_todo = fname.chunk_int
+            elif self._chunk_todo and fname.chunk_int and self._chunk_todo != fname.chunk_int:
                 raise BackupError("specifed chunk to do does not match chunk of checkpoint file %s to redo", self.checkpoint_file)
             self.checkpoint_file = fname
 
@@ -441,8 +441,8 @@ class Runner(object):
         # these must come after the dumpdir setup so we know which directory we are in
         if self._logging_enabled and self._makedir_enabled:
             file_obj = DumpFilename(self.wiki)
-            file_obj.newFromFilename(self.wiki.config.log_file)
-            self.log_filename = self.dump_dir.filenamePrivatePath(file_obj)
+            file_obj.new_from_filename(self.wiki.config.log_file)
+            self.log_filename = self.dump_dir.filename_private_path(file_obj)
             self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
             self.log = Logger(self.log_filename)
             thread.start_new_thread(self.log_queue_reader, (self.log,))
@@ -539,7 +539,7 @@ class Runner(object):
     def run_update_item_fileinfo(self, item):
         # this will include checkpoint files if they are enabled.
         for file_obj in item.list_outfiles_to_publish(self.dump_dir):
-            if exists(self.dump_dir.filenamePublicPath(file_obj)):
+            if exists(self.dump_dir.filename_public_path(file_obj)):
                 # why would the file not exist? because we changed chunk numbers in the
                 # middle of a run, and now we list more files for the next stage than there
                 # were for earlier ones
@@ -1119,11 +1119,11 @@ def main():
 
             if after_checkpoint:
                 fname = DumpFilename(wiki)
-                fname.newFromFilename(checkpoint_file)
+                fname.new_from_filename(checkpoint_file)
                 if not fname.is_checkpoint_file:
                     usage("--aftercheckpoint option requires the name of a checkpoint file, bad filename provided")
                 page_id_range = str(int(fname.last_page_id) + 1)
-                chunk_to_do = fname.chunkInt
+                chunk_to_do = fname.chunk_int
                 # now we don't need this.
                 checkpoint_file = None
                 after_checkpoint_jobs = ['articlesdump', 'metacurrentdump', 'metahistorybz2dump']
