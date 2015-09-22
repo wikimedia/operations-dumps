@@ -49,7 +49,7 @@ class Logger(object):
         self.queue.put_nowait(self.jobs_done)
 
 class DumpItemList(object):
-    def __init__(self, wiki, prefetch, spawn, chunk_to_do, checkpoint_file, singleJob, skip_jobs, chunkInfo, page_id_range, runinfo_file, dumpDir):
+    def __init__(self, wiki, prefetch, spawn, chunk_to_do, checkpoint_file, singleJob, skip_jobs, chunkInfo, page_id_range, runinfo_file, dump_dir):
         self.wiki = wiki
         self._has_flagged_revs = self.wiki.hasFlaggedRevs()
         self._has_wikidata = self.wiki.hasWikidata()
@@ -62,7 +62,7 @@ class DumpItemList(object):
         self._single_job = singleJob
         self.skip_jobs = skip_jobs
         self._runinfo_file = runinfo_file
-        self.dumpDir = dumpDir
+        self.dump_dir = dump_dir
         self.page_id_range = page_id_range
 
         if self.wiki.config.checkpointTime:
@@ -259,7 +259,7 @@ class DumpItemList(object):
             for item in self.dumpItems:
                 if item.name()[-5:] == "table":
                     if item.name in self.skip_jobs:
-                        item.setSkipped()
+                        item.set_skipped()
                     elif not skipgood or item.status() != "done":
                         item.set_to_run(True)
             return True
@@ -267,7 +267,7 @@ class DumpItemList(object):
             for item in self.dumpItems:
                 if item.name() == job:
                     if item.name in self.skip_jobs:
-                        item.setSkipped()
+                        item.set_skipped()
                     elif not skipgood or item.status() != "done":
                         item.set_to_run(True)
                     return True
@@ -290,7 +290,7 @@ class DumpItemList(object):
             if item.to_run():
                 for j in range(i, len(self.dumpItems)):
                     if item.name in self.skip_jobs:
-                        item.setSkipped()
+                        item.set_skipped()
                     elif not skipgood or item.status() != "done":
                         self.dumpItems[j].set_to_run(True)
                 break
@@ -299,7 +299,7 @@ class DumpItemList(object):
         """Marks each and every job to be run"""
         for item in self.dumpItems:
             if item.name() in self.skip_jobs:
-                item.setSkipped()
+                item.set_skipped()
             elif not skipgood or item.status() != "done":
                 item.set_to_run(True)
 
@@ -321,8 +321,8 @@ class DumpItemList(object):
             return False
         for item in self.dumpItems:
             if item.name() == runInfo.name():
-                item.setStatus(runInfo.status(), False)
-                item.setUpdated(runInfo.updated())
+                item.set_status(runInfo.status(), False)
+                item.set_updated(runInfo.updated())
                 item.set_to_run(runInfo.to_run())
                 return True
         return False
@@ -436,30 +436,30 @@ class Runner(object):
             self._check_for_trunc_files_enabled = False
 
         self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.log_and_print)
-        self.dumpDir = DumpDir(self.wiki, self.dbName)
+        self.dump_dir = DumpDir(self.wiki, self.dbName)
 
         # these must come after the dumpdir setup so we know which directory we are in
         if self._logging_enabled and self._makedir_enabled:
             file_obj = DumpFilename(self.wiki)
             file_obj.newFromFilename(self.wiki.config.log_file)
-            self.log_filename = self.dumpDir.filenamePrivatePath(file_obj)
+            self.log_filename = self.dump_dir.filenamePrivatePath(file_obj)
             self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
             self.log = Logger(self.log_filename)
             thread.start_new_thread(self.log_queue_reader, (self.log,))
         self.runInfoFile = RunInfoFile(wiki, self._runinfo_file_enabled, self.verbose)
-        self.sym_links = SymLinks(self.wiki, self.dumpDir, self.log_and_print, self.debug, self._symlinks_enabled)
-        self.feeds = Feeds(self.wiki, self.dumpDir, self.dbName, self.debug, self._feeds_enabled)
+        self.sym_links = SymLinks(self.wiki, self.dump_dir, self.log_and_print, self.debug, self._symlinks_enabled)
+        self.feeds = Feeds(self.wiki, self.dump_dir, self.dbName, self.debug, self._feeds_enabled)
         self.html_notice_file = NoticeFile(self.wiki, notice, self._notice_file_enabled)
-        self.checksums = Checksummer(self.wiki, self.dumpDir, self._checksummer_enabled, self.verbose)
+        self.checksums = Checksummer(self.wiki, self.dump_dir, self._checksummer_enabled, self.verbose)
 
         # some or all of these dumpItems will be marked to run
-        self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunk_todo, self.checkpoint_file, self.job_requested, self.skip_jobs, self.chunkInfo, self.page_id_range, self.runInfoFile, self.dumpDir)
+        self.dumpItemList = DumpItemList(self.wiki, self.prefetch, self.spawn, self._chunk_todo, self.checkpoint_file, self.job_requested, self.skip_jobs, self.chunkInfo, self.page_id_range, self.runInfoFile, self.dump_dir)
         # only send email failure notices for full runs
         if self.job_requested:
             email = False
         else:
             email = True
-        self.status = Status(self.wiki, self.dumpDir, self.dumpItemList.dumpItems, self.checksums, self._status_enabled, email, self.html_notice_file, self.log_and_print, self.verbose)
+        self.status = Status(self.wiki, self.dump_dir, self.dumpItemList.dumpItems, self.checksums, self._status_enabled, email, self.html_notice_file, self.log_and_print, self.verbose)
 
     def log_queue_reader(self, log):
         if not log:
@@ -538,8 +538,8 @@ class Runner(object):
 
     def run_update_item_fileinfo(self, item):
         # this will include checkpoint files if they are enabled.
-        for file_obj in item.listOutputFilesToPublish(self.dumpDir):
-            if exists(self.dumpDir.filenamePublicPath(file_obj)):
+        for file_obj in item.list_outfiles_to_publish(self.dump_dir):
+            if exists(self.dump_dir.filenamePublicPath(file_obj)):
                 # why would the file not exist? because we changed chunk numbers in the
                 # middle of a run, and now we list more files for the next stage than there
                 # were for earlier ones
@@ -612,7 +612,7 @@ class Runner(object):
                         else:
                             self.debug("*** exception! " + str(ex))
                         if exc_type.__name__ != 'BackupPrereqError':
-                            item.setStatus("failed")
+                            item.set_status("failed")
 
             if item.status() == "done":
                 self.checksums.cp_md5_tmpfile_to_permfile()
@@ -719,7 +719,7 @@ class Runner(object):
 
         for item in self.dumpItemList.dumpItems:
             if item.to_run():
-                dump_names = item.listDumpNames()
+                dump_names = item.list_dumpnames()
                 if type(dump_names).__name__!='list':
                     dump_names = [dump_names]
 
@@ -783,8 +783,8 @@ def checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint_
 
     runinfo_file = RunInfoFile(wiki, False)
     chunkInfo = Chunk(wiki, wiki.dbName)
-    dumpDir = DumpDir(wiki, wiki.dbName)
-    dumpItemList = DumpItemList(wiki, False, False, chunk_to_do, checkpoint_file, job, skipjobs, chunkInfo, page_id_range, runinfo_file, dumpDir)
+    dump_dir = DumpDir(wiki, wiki.dbName)
+    dumpItemList = DumpItemList(wiki, False, False, chunk_to_do, checkpoint_file, job, skipjobs, chunkInfo, page_id_range, runinfo_file, dump_dir)
     if not dumpItemList.old_run_info_retrieved:
         # failed to get the run's info so let's call it 'didn't run'
         return False
@@ -815,7 +815,7 @@ def checkJobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint_
         prereq_items = []
         for item in dumpItemList.dumpItems:
             if item.name() == job:
-                prereq_items = item._prerequisiteItems
+                prereq_items = item._prerequisite_items
                 break
 
         for item in prereq_items:
@@ -1122,7 +1122,7 @@ def main():
                 fname.newFromFilename(checkpoint_file)
                 if not fname.is_checkpoint_file:
                     usage("--aftercheckpoint option requires the name of a checkpoint file, bad filename provided")
-                page_id_range = str(int(fname.lastPageID) + 1)
+                page_id_range = str(int(fname.last_page_id) + 1)
                 chunk_to_do = fname.chunkInt
                 # now we don't need this.
                 checkpoint_file = None

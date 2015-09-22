@@ -15,15 +15,15 @@ class DumpFilename(object):
     """
     filename without directory name, and the methods that go with it,
     primarily for filenames that follow the standard naming convention, i.e.
-    projectname-date-dumpName.sql/xml.gz/bz2/7z (possibly with a chunk
+    projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a chunk
     number, possibly with start/end page id information embedded in the name).
 
     Constructor:
-    DumpFilename(dumpName, date = None, filetype, ext, chunk = None, checkpoint = None, temp = False) -- pass in dumpName and
+    DumpFilename(dumpname, date = None, filetype, ext, chunk = None, checkpoint = None, temp = False) -- pass in dumpname and
                                   filetype/extension at least. filetype is one of xml sql, extension is one of
                                       bz2/gz/7z.  Or you can pass in the entire string without project name and date,
                       e.g. pages-meta-history5.xml.bz2
-                      If dumpName is not passed, no member variables will be initialized, and
+                      If dumpname is not passed, no member variables will be initialized, and
                       the caller is expected to invoke newFromFilename as an alternate
                       constructor before doing anything else with the object.
 
@@ -32,18 +32,18 @@ class DumpFilename(object):
 
     attributes:
 
-    is_checkpoint_file  filename of form dbname-date-dumpName-pxxxxpxxxx.xml.bz2
-    is_chunk_file       filename of form dbname-date-dumpNamex.xml.gz/bz2/7z
-    is_temp_file        filename of form dbname-date-dumpName.xml.gz/bz2/7z-tmp
-    firstPageID       for checkpoint files, taken from value in filename
-    lastPageID        for checkpoint files, value taken from filename
+    is_checkpoint_file  filename of form dbname-date-dumpname-pxxxxpxxxx.xml.bz2
+    is_chunk_file       filename of form dbname-date-dumpnamex.xml.gz/bz2/7z
+    is_temp_file        filename of form dbname-date-dumpname.xml.gz/bz2/7z-tmp
+    first_page_id       for checkpoint files, taken from value in filename
+    last_page_id      for checkpoint files, value taken from filename
     filename          full filename
     basename          part of the filename after the project name and date (for
                           "enwiki-20110722-pages-meta-history12.xml.bz2" this would be
                           "pages-meta-history12.xml.bz2")
     file_ext           extension (everything after the last ".") of the file
     date              date embedded in filename
-    dumpName          dump name embedded in filename (eg "pages-meta-history"), if any
+    dumpname          dump name embedded in filename (eg "pages-meta-history"), if any
     chunk             chunk number of file as string (for "pages-meta-history5.xml.bz2" this would be "5")
     chinkInt          chunk number as int
     """
@@ -73,7 +73,7 @@ class DumpFilename(object):
 
         self.dbName = None
         self.date = None
-        self.dumpName = None
+        self.dumpname = None
 
         self.basename = None
         self.file_ext = None
@@ -88,8 +88,8 @@ class DumpFilename(object):
 
         self.is_checkpoint_file = False
         self.checkpoint = None
-        self.firstPageID = None
-        self.lastPageID = None
+        self.first_page_id = None
+        self.last_page_id = None
 
         self.is_temp_file = False
         self.temp = None
@@ -124,9 +124,9 @@ class DumpFilename(object):
         if not '-' in file_base:
             return False
 
-        (self.dbName, self.date, self.dumpName) = file_base.split('-', 2)
-        if not self.date or not self.dumpName:
-            self.dumpName = file_base
+        (self.dbName, self.date, self.dumpname) = file_base.split('-', 2)
+        if not self.date or not self.dumpname:
+            self.dumpname = file_base
         else:
             self.file_prefix = "%s-%s-" % (self.dbName, self.date)
             self.file_prefix_length = len(self.file_prefix)
@@ -140,21 +140,21 @@ class DumpFilename(object):
 
         if result:
             self.is_checkpoint_file = True
-            self.firstPageID = result.group('first')
-            self.lastPageID = result.group('last')
-            self.checkpoint = "p" + self.firstPageID + "p" + self.lastPageID
+            self.first_page_id = result.group('first')
+            self.last_page_id = result.group('last')
+            self.checkpoint = "p" + self.first_page_id + "p" + self.last_page_id
             if self.file_type and self.file_type.endswith("-" + self.checkpoint):
                 self.file_type = self.file_type[:-1 * (len(self.checkpoint) + 1)]
 
         self.chunk_pattern = "(?P<chunk>[0-9]+)$"
         self.compiled_chunk_pattern = re.compile(self.chunk_pattern)
-        result = self.compiled_chunk_pattern.search(self.dumpName)
+        result = self.compiled_chunk_pattern.search(self.dumpname)
         if result:
             self.is_chunk_file = True
             self.chunk = result.group('chunk')
             self.chunkInt = int(self.chunk)
-            # the dumpName has the chunk in it so lose it
-            self.dumpName = self.dumpName.rstrip('0123456789')
+            # the dumpname has the chunk in it so lose it
+            self.dumpname = self.dumpname.rstrip('0123456789')
 
         return True
 
@@ -180,7 +180,7 @@ class DumpFilename(object):
 class DumpFile(file):
     """File containing output created by any job of a jump run.  This includes
     any file that follows the standard naming convention, i.e.
-    projectname-date-dumpName.sql/xml.gz/bz2/7z (possibly with a chunk
+    projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a chunk
     number, possibly with start/end page id information embedded in the name).
 
     Methods:
@@ -194,7 +194,7 @@ class DumpFile(file):
     get_size(): returns the current size of the file in bytes
     rename(newname): rename the file. Arguments: the new name of the file without
        the directory.
-    find_first_page_id_in_file(): set self.firstPageID by examining the file contents,
+    find_first_page_id_in_file(): set self.first_page_id by examining the file contents,
        returning the value, or None if there is no pageID.  We uncompress the file
        if needed and look through the first 500 lines.
 
@@ -202,23 +202,23 @@ class DumpFile(file):
 
     useful variables:
 
-    firstPageID       Determined by examining the first few hundred lines of the contents,
+    first_page_id       Determined by examining the first few hundred lines of the contents,
                           looking for page and id tags, wihout other tags in between. (hmm)
     filename          full filename with directory
     """
-    def __init__(self, wiki, filename, fileObj=None, verbose=False):
+    def __init__(self, wiki, filename, file_obj=None, verbose=False):
         """takes full filename including path"""
         self._wiki = wiki
         self.filename = filename
         self.first_lines = None
         self.is_truncated = None
-        self.firstPageID = None
+        self.first_page_id = None
         self.dirname = os.path.dirname(filename)
-        if fileObj:
-            self.fileObj = fileObj
+        if file_obj:
+            self.file_obj = file_obj
         else:
-            self.fileObj = DumpFilename(wiki)
-            self.fileObj.newFromFilename(os.path.basename(filename))
+            self.file_obj = DumpFilename(wiki)
+            self.file_obj.newFromFilename(os.path.basename(filename))
 
     def md5sum(self):
         if not self.filename:
@@ -271,11 +271,11 @@ class DumpFile(file):
         if not self.filename or not exists(self.filename):
             return None
         pipeline = []
-        if self.fileObj.file_ext == 'bz2':
+        if self.file_obj.file_ext == 'bz2':
             command = [self._wiki.config.bzip2, '-dc']
-        elif self.fileObj.file_ext == 'gz':
+        elif self.file_obj.file_ext == 'gz':
             command = [self._wiki.config.gzip, '-dc']
-        elif self.fileObj.file_ext == '7z':
+        elif self.file_obj.file_ext == '7z':
             command = [self._wiki.config.sevenzip, "e", "-so"]
         else:
             command = [self._wiki.config.cat]
@@ -295,32 +295,32 @@ class DumpFile(file):
     # right. stupid compressed files. um.... do we have stream wrappers? no. this is python
     # what's the easy was to read *some* compressed data into a buffer?
     def find_first_page_id_in_file(self):
-        if self.firstPageID:
-            return self.firstPageID
+        if self.first_page_id:
+            return self.first_page_id
         output = self.get_first_500_lines()
         if output:
             page_data = output
             title_and_id_pattern = re.compile('<title>(?P<title>.+?)</title>\s*' + '(<ns>[0-9]+</ns>\s*)?' + '<id>(?P<pageid>\d+?)</id>')
             result = title_and_id_pattern.search(page_data)
             if result:
-                self.firstPageID = result.group('pageid')
-        return self.firstPageID
+                self.first_page_id = result.group('pageid')
+        return self.first_page_id
 
     def check_if_truncated(self):
         if self.is_truncated:
             return self.is_truncated
 
         # Setting up the pipeline depending on the file extension
-        if self.fileObj.file_ext == "bz2":
+        if self.file_obj.file_ext == "bz2":
             if not exists(self._wiki.config.checkforbz2footer):
                 raise BackupError("checkforbz2footer command %s not found" % self._wiki.config.checkforbz2footer)
             checkforbz2footer = self._wiki.config.checkforbz2footer
             pipeline = []
             pipeline.append([checkforbz2footer, self.filename])
         else:
-            if self.fileObj.file_ext == 'gz':
+            if self.file_obj.file_ext == 'gz':
                 pipeline = [[self._wiki.config.gzip, "-dc", self.filename, ">", "/dev/null"]]
-            elif self.fileObj.file_ext == '7z':
+            elif self.file_obj.file_ext == '7z':
                 # Note that 7z does return 0, if archive contains
                 # garbage /after/ the archive end
                 pipeline = [[self._wiki.config.sevenzip, "e", "-so", self.filename, ">", "/dev/null"]]
@@ -462,7 +462,7 @@ class DumpDir(object):
             if fobj.filename.endswith("truncated"):
                 continue
 
-            if dump_name and fobj.dumpName != dump_name:
+            if dump_name and fobj.dumpname != dump_name:
                 continue
             if file_type != None and fobj.file_type != file_type:
                 continue
