@@ -170,14 +170,14 @@ class CommandPipeline(object):
     def save_filename(self):
         return self._save_filename
 
-    def exitedSuccessfully(self):
+    def exited_successfully(self):
         for value in self._exit_values:
             if value != 0:
                 return False
         return True
 
     def exited_with_errors(self):
-        if not self.exitedSuccessfully():
+        if not self.exited_successfully():
             # we wil return the whole pipeline I guess, they might as well
             # see it in the error report instead of the specific issue in the pipe.
             return self.pipeline_string()
@@ -190,7 +190,7 @@ class CommandPipeline(object):
     # Otherwise, a list is returned, whose entries are pairs
     # containing the error, and the command (as passed to the
     # constructor)
-    def getFailedCommandsWithExitValue(self):
+    def get_failed_commands_with_exit_value(self):
         """yields failed commands of a pipeline, along with exit values"""
         failed_commands = []
         for index, exit_value in enumerate(self._exit_values):
@@ -301,7 +301,7 @@ class CommandPipeline(object):
         (stdout, stderr) = self.process_to_poll().communicate()
         self._output  = stdout
 
-    def runPipelineAndGetOutput(self):
+    def run_pipeline_get_output(self):
         """Run just the one pipeline, all output is concatenated and can be
         retrieved from self.output.  Redirection to an output file is honored.
         This function will block waiting for output"""
@@ -342,9 +342,9 @@ class CommandSeries(object):
         else:
             return None
 
-    def exitedSuccessfully(self):
+    def exited_successfully(self):
         for pipeline in self._command_pipelines:
-            if not pipeline.exitedSuccessfully():
+            if not pipeline.exited_successfully():
                 return False
         return True
 
@@ -352,7 +352,7 @@ class CommandSeries(object):
         """Return list of commands that exited with errors."""
         commands = []
         for pipeline in self._command_pipelines:
-            if not pipeline.exitedSuccessfully():
+            if not pipeline.exited_successfully():
                 command = pipeline.exited_with_errors()
                 if command != None:
                     commands.append(command)
@@ -546,16 +546,16 @@ class CommandsInParallel(object):
                 return False
         return True
 
-    def exitedSuccessfully(self):
+    def exited_successfully(self):
         for series in self._command_serieses:
-            if not series.exitedSuccessfully():
+            if not series.exited_successfully():
                 return False
         return True
 
     def commands_with_errors(self):
         commands = []
         for series in self._command_serieses:
-            if not series.exitedSuccessfully():
+            if not series.exited_successfully():
                 commands.extend(series.exited_with_errors())
         return commands
 
@@ -626,7 +626,7 @@ def main():
     parallel = [series1, series2, series3, series4, series5]
     commands = CommandsInParallel(parallel, callbackStdout=testcallback)
     commands.run_commands()
-    if commands.exitedSuccessfully():
+    if commands.exited_successfully():
         print "w00t!"
     else:
         print "big bummer!"

@@ -242,8 +242,8 @@ class Dump(object):
             pipeline.append([grep, "-n", end_header_marker])
             # without shell
             proc = CommandPipeline(pipeline, quiet=True)
-            proc.runPipelineAndGetOutput()
-            if (proc.output()) and (proc.exitedSuccessfully() or proc.getFailedCommandsWithExitValue() == [[-signal.SIGPIPE, uncompress_this_file]] or proc.getFailedCommandsWithExitValue() == [[signal.SIGPIPE + 128, uncompress_this_file]]):
+            proc.run_pipeline_get_output()
+            if (proc.output()) and (proc.exited_successfully() or proc.get_failed_commands_with_exit_value() == [[-signal.SIGPIPE, uncompress_this_file]] or proc.get_failed_commands_with_exit_value() == [[signal.SIGPIPE + 128, uncompress_this_file]]):
                 (header_end_num, junk) = proc.output().split(":", 1)
                 # get header_end_num
             else:
