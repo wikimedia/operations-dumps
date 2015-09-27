@@ -23,7 +23,7 @@ class Dump(object):
         self._desc = desc
         self.verbose = verbose
         self.progress = ""
-        self.runInfo = RunInfo(name, "waiting", "")
+        self.runinfo = RunInfo(name, "waiting", "")
         self.dumpname = self.get_dumpname()
         self.file_type = self.get_filetype()
         self.file_ext = self.get_file_ext()
@@ -51,22 +51,22 @@ class Dump(object):
             self._check_truncation = False
 
     def name(self):
-        return self.runInfo.name()
+        return self.runinfo.name()
 
     def status(self):
-        return self.runInfo.status()
+        return self.runinfo.status()
 
     def updated(self):
-        return self.runInfo.updated()
+        return self.runinfo.updated()
 
     def to_run(self):
-        return self.runInfo.to_run()
+        return self.runinfo.to_run()
 
     def set_name(self, name):
-        self.runInfo.set_name(name)
+        self.runinfo.set_name(name)
 
     def set_to_run(self, to_run):
-        self.runInfo.set_to_run(to_run)
+        self.runinfo.set_to_run(to_run)
 
     def set_skipped(self):
         self.set_status("skipped")
@@ -76,12 +76,12 @@ class Dump(object):
     # dump run; in those cases we don't want to clobber the timestamp
     # with the current time.
     def set_status(self, status, set_updated=True):
-        self.runInfo.set_status(status)
+        self.runinfo.set_status(status)
         if set_updated:
-            self.runInfo.set_updated(TimeUtils.prettyTime())
+            self.runinfo.set_updated(TimeUtils.prettyTime())
 
     def set_updated(self, updated):
-        self.runInfo.set_updated(updated)
+        self.runinfo.set_updated(updated)
 
     def description(self):
         return self._desc
@@ -1676,13 +1676,13 @@ class RecombineXmlRecompressDump(Dump):
 class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
-    def __init__(self, name, desc, chunkToDo, dbName, chunks=False):
+    def __init__(self, name, desc, chunkToDo, db_name, chunks=False):
         self._chunk_todo = chunkToDo
         self._chunks = chunks
         if self._chunks:
             self._chunks_enabled = True
             self.onlychunks = True
-        self.dbName = dbName
+        self.db_name = db_name
         Dump.__init__(self, name, desc)
 
     def get_dumpname(self):
@@ -1696,7 +1696,7 @@ class AbstractDump(Dump):
 
     def build_command(self, runner, fname):
         command = ["/usr/bin/python", "xmlabstracts.py", "--config", runner.wiki.config.files[0],
-                    "--wiki", self.dbName, runner.forceNormalOption()]
+                    "--wiki", self.db_name, runner.forceNormalOption()]
 
         outputs = []
         variants = []
@@ -1745,7 +1745,7 @@ class AbstractDump(Dump):
     # return a list including Simplified and Traditional versions, so
     # we can build separate files normalized to each orthography.
     def _variants(self):
-        if self.dbName[0:2] == "zh" and self.dbName[2:3] != "_":
+        if self.db_name[0:2] == "zh" and self.db_name[2:3] != "_":
             variants = ["", "zh-cn", "zh-tw"]
         else:
             variants = [""]
