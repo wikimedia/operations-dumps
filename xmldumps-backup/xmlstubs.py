@@ -17,7 +17,7 @@ from xmlstreams import run_script, catfile, gzippit, get_max_id, do_xml_piece, d
 
 
 def dostubsbackup(wikidb, history_file, current_file, articles_file,
-                  wikiconf, force_normal, start, end, dryrun):
+                  wikiconf, start, end, dryrun):
     '''
     do a stubs xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -45,10 +45,8 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
                     "--filter=latest", "--filter=notalk",
                     "--filter=namespace:!NS_USER"
                     ])
-    if force_normal is not None:
-        command.append("--force-normal")
 
-    do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
                   100000, 500000, '</page>\n')
 
@@ -64,7 +62,7 @@ def usage(message=None):
     usage_message = """
 Usage: xmlstubs.py --wiki wikidbname --articles path --current path
     --history path [--start number] [--end number]
-    [--force-normal bool] [--config path]
+    [--config path]
 
 Options:
 
@@ -76,8 +74,6 @@ Options:
   --start (-s):        starting page to dump (default: 1)
   --end (-e):          ending page to dump, exclusive of this page (default: dump all)
 
-  --force-normal (-f): if set, this argument will be passed through to dumpBackup.php
-                       (default: unset)
   --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
   --dryrun (-d):       display the commands that would be run to produce the output but
                        don't actually run them
@@ -94,7 +90,6 @@ def main():
     history_file = None
     start = None
     end = None
-    force_normal = False
     dryrun = False
     configfile = "wikidump.conf"
 
@@ -102,7 +97,7 @@ def main():
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "w:a:c:h:s:e:C:fhd",
             ["wiki=", "articles=", "current=", "history=",
-             "start=", "end=", "config=", "force-normal",
+             "start=", "end=", "config=",
              "help", "dryrun"])
 
     except getopt.GetoptError as err:
@@ -120,8 +115,6 @@ def main():
             start = val
         elif opt in ["-e", "--end"]:
             end = val
-        elif opt in ["-f", "--force-normal"]:
-            force_normal = True
         elif opt in ["-C", "--config"]:
             configfile = val
         elif opt in ["-d", "--dryrun"]:
@@ -160,7 +153,7 @@ def main():
 
     wikiconf = WikiDump.Config(configfile)
     wikiconf.parseConfFilePerProject(wiki)
-    dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf, force_normal, start, end, dryrun)
+    dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf, start, end, dryrun)
 
 if __name__ == '__main__':
     main()

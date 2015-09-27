@@ -1753,12 +1753,6 @@ class Runner(object):
 			self.log.addToLogQueue("%s\n" % message)
 		sys.stderr.write("%s\n" % message)
 
-	def forceNormalOption(self):
-		if self.wiki.config.forceNormal:
-			return "--force-normal"
-		else:
-			return ""
-
 	# returns 0 on success, 1 on error
 	def saveCommand(self, commands, outfile):
 		"""For one pipeline of commands, redirect output to a given file."""
@@ -2920,7 +2914,7 @@ class XmlStub(Dump):
 		scriptCommand = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
 
                 command = [ "/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.dbName,
-                            runner.forceNormalOption(), "--articles", articlesFile,
+                            "--articles", articlesFile,
                             "--history", historyFile, "--current", currentFile ]
 
 		if (f.chunk):
@@ -3051,7 +3045,7 @@ class XmlLogging(Dump):
                 logging = runner.dumpDir.filenamePublicPath(outputFileObj)
 
                 command = [ "/usr/bin/python", "xmllogs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.dbName,
-                            runner.forceNormalOption(), "--outfile", logging ]
+                            "--outfile", logging ]
 
                 pipeline = [ command ]
                 series = [ pipeline ]
@@ -3280,7 +3274,6 @@ class XmlDump(Dump):
 		dumpCommand.extend(["--wiki=%s" % runner.dbName,
 				    "%s" % stubOption,
 				    "%s" % prefetch,
-				    "%s" % runner.forceNormalOption(),
 				    "%s" % checkpointTime,
 				    "%s" % checkpointFile,
 				    "--report=1000",
@@ -3854,7 +3847,7 @@ class AbstractDump(Dump):
 
         def buildCommand(self, runner, f):
                 command = [ "/usr/bin/python", "xmlabstracts.py", "--config", runner.wiki.config.files[0],
-                            "--wiki", runner.dbName, runner.forceNormalOption() ]
+                            "--wiki", runner.dbName ]
 
                 outputs = []
                 variants = []
