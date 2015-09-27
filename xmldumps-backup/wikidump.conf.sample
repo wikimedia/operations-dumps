@@ -8,7 +8,7 @@ flaggedrevslist=/home/ariel/src/mediawiki/testing/backup/flagged.dblist
 wikidatalist=/home/ariel/src/mediawiki/testing/backup/wikidata.dblist
 biglist=/home/ariel/src/mediawiki/testing/backup/big.dblist
 dir=/home/ariel/src/mediawiki/1.16wmf4/phase3
-forcenormal=1
+forcenormal=0
 
 [output]
 public=/home/ariel/src/mediawiki/testing/dumps/public

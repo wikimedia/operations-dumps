@@ -16,7 +16,7 @@ from xmlstreams import do_xml_stream, catit
 
 
 def do_abstractsbackup(wikidb, output_files, variants,
-                       wikiconf, force_normal, start, end, dryrun):
+                       wikiconf, start, end, dryrun):
     '''
     do an abstracts xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -51,9 +51,6 @@ def do_abstractsbackup(wikidb, output_files, variants,
                     abstract_filter,
                     "--current", "--report=1000"])
 
-    if force_normal is not None:
-        command.append("--force-normal")
-
     for filetype in outfiles:
             command.extend(["--output=file:%s" % outfiles[filetype]['temp'],
                     "--filter=namespace:NS_MAIN",
@@ -61,7 +58,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
                     "--filter=abstract%s" % filetype
                         ])
 
-    do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
                   20000, 30000, '</doc>\n')
 
@@ -80,7 +77,7 @@ def usage(message=None):
     usage_message = """
 Usage: xmlabstracts.py --wiki wikidbname --outfile path
     [--start number] [--end number]
-    [--force-normal bool] [--config path]
+    [--config path]
 
 Options:
 
@@ -94,8 +91,6 @@ Options:
   --start (-s):        starting page id to dump (default: 1)
   --end (-e):          ending page id to dump, exclusive of this page (default: dump all)
 
-  --force-normal (-f): if set, this argument will be passed through to dumpBackup.php
-                       (default: unset)
   --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
   --dryrun (-d):       display the commands that would be run to produce the output but
                        don't actually run them
@@ -111,7 +106,6 @@ def main():
     variants = None
     start = None
     end = None
-    force_normal = False
     configfile = "wikidump.conf"
     dryrun = False
 
@@ -119,7 +113,7 @@ def main():
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "w:o:V:s:e:C:fhv",
             ["wiki=", "outfiles=", "variants=",
-             "start=", "end=", "config=", "force-normal",
+             "start=", "end=", "config=",
              "help", "dryrun"])
 
     except getopt.GetoptError as err:
@@ -135,8 +129,6 @@ def main():
             start = val
         elif opt in ["-e", "--end"]:
             end = val
-        elif opt in ["-f", "--force-normal"]:
-            force_normal = True
         elif opt in ["-C", "--config"]:
             configfile = val
         elif opt in ["-d", "--dryrun"]:
@@ -180,7 +172,7 @@ def main():
     wikiconf = WikiDump.Config(configfile)
     wikiconf.parseConfFilePerProject(wiki)
     do_abstractsbackup(wiki, output_files, variants, wikiconf,
-                       force_normal, start, end, dryrun)
+                       start, end, dryrun)
 
 if __name__ == '__main__':
     main()

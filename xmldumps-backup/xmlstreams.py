@@ -19,7 +19,7 @@ from subprocess import Popen, PIPE
 # fix all the error returns and make subroutines out of stuff
 # current code puts together a command with a bunch of crap in it
 
-def do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
+def do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, id_field, table,
                   small_interval, max_interval, ends_with):
     '''

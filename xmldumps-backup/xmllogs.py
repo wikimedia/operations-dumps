@@ -17,7 +17,7 @@ from xmlstreams import run_script, catfile, gzippit, get_max_id, do_xml_piece, d
 
 
 def dologsbackup(wikidb, outfile,
-                 wikiconf, force_normal, start, end, dryrun):
+                 wikiconf, start, end, dryrun):
     '''
     do a logs xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -38,10 +38,8 @@ def dologsbackup(wikidb, outfile,
                     "--logs", "--report=1000",
                     "--output=file:%s" % outfiles['logs']['temp']
                     ])
-    if force_normal is not None:
-        command.append("--force-normal")
 
-    do_xml_stream(wikidb, outfiles, command, wikiconf, force_normal,
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'log_id', 'logging',
                   50000, 100000, '</logitem>\n')
 
@@ -57,7 +55,7 @@ def usage(message=None):
     usage_message = """
 Usage: xmllogs.py --wiki wikidbname --outfile path
     [--start number] [--end number]
-    [--force-normal bool] [--config path]
+    [--config path]
 
 Options:
 
@@ -67,8 +65,6 @@ Options:
   --start (-s):        starting log id to dump (default: 1)
   --end (-e):          ending log id to dump, exclusive of this entry (default: dump all)
 
-  --force-normal (-f): if set, this argument will be passed through to dumpBackup.php
-                       (default: unset)
   --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
   --dryrun (-d):       display the commands that would be run to produce the output but
                        don't actually run them
@@ -83,7 +79,6 @@ def main():
     output_file = None
     start = None
     end = None
-    force_normal = False
     configfile = "wikidump.conf"
     dryrun = False
 
@@ -91,7 +86,7 @@ def main():
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "w:o:s:e:C:fhv",
             ["wiki=", "outfile=",
-             "start=", "end=", "config=", "force-normal",
+             "start=", "end=", "config=",
              "help", "dryrun"])
 
     except getopt.GetoptError as err:
@@ -105,8 +100,6 @@ def main():
             start = val
         elif opt in ["-e", "--end"]:
             end = val
-        elif opt in ["-f", "--force-normal"]:
-            force_normal = True
         elif opt in ["-C", "--config"]:
             configfile = val
         elif opt in ["-d", "--dryrun"]:
@@ -141,7 +134,7 @@ def main():
 
     wikiconf = WikiDump.Config(configfile)
     wikiconf.parseConfFilePerProject(wiki)
-    dologsbackup(wiki, output_file, wikiconf, force_normal, start, end, dryrun)
+    dologsbackup(wiki, output_file, wikiconf, start, end, dryrun)
 
 if __name__ == '__main__':
     main()

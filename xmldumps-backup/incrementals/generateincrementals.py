@@ -320,7 +320,6 @@ class IncrDump(object):
         command = ["%s" % self._config.php, "-q"]
         command.extend(scriptCommand)
         command.extend(["--wiki=%s" % self.wikiName, "--stub", "--quiet",
-                        "--force-normal",
                         "--output=gzip:%s" % self.stubFile.getPath(),
                         "--revrange", "--revstart=%s" % startRevID,
                         "--revend=%s" % endRevID])
@@ -341,7 +340,7 @@ class IncrDump(object):
         command.extend(scriptCommand)
         command.extend(["--wiki=%s" % self.wikiName,
                         "--stub=gzip:%s" % self.stubFile.getPath(),
-                        "--force-normal", "--quiet",
+                        "--quiet",
                         "--spawn=%s" % self._config.php,
                         "--output=bzip2:%s" % self.revsFile.getPath()])
         if dryrun:
