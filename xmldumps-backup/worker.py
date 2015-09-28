@@ -628,7 +628,7 @@ class DumpItemList(object):
 			PublicTable("templatelinks", "templatelinkstable", "Wiki template inclusion link records."),
 			PublicTable("externallinks", "externallinkstable", "Wiki external URL link records."),
 			PublicTable("langlinks", "langlinkstable", "Wiki interlanguage link records."),
-			PublicTable("interwiki", "interwikitable", "Set of defined interwiki prefixes and links for this wiki."),
+			#PublicTable("interwiki", "interwikitable", "Set of defined interwiki prefixes and links for this wiki."),
 			PublicTable("user_groups", "usergroupstable", "User group assignments."),
 			PublicTable("category", "categorytable", "Category information."),
 
