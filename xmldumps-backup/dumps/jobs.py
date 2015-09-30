@@ -648,7 +648,7 @@ class PublicTable(Dump):
         """Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        commands = runner.dbServerInfo.build_sqldump_command(table, runner.wiki.config.gzip)
+        commands = runner.db_server_info.build_sqldump_command(table, runner.wiki.config.gzip)
         return runner.save_command(commands, outfile)
 
 class PrivateTable(PublicTable):
@@ -1881,7 +1881,7 @@ class TitleDump(Dump):
         """Pass some SQL commands to the server for this DB and save output to a gzipped file."""
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        command = runner.dbServerInfo.buildSqlCommand(query, runner.wiki.config.gzip)
+        command = runner.db_server_info.buildSqlCommand(query, runner.wiki.config.gzip)
         return runner.save_command(command, outfile)
 
 class AllTitleDump(TitleDump):
