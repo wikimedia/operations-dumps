@@ -506,7 +506,7 @@ class Dump(object):
 # these routines are all used for listing output files for various purposes...
 #
 #
-    # Used for updating md5 lists, index.html
+    # Used for updating md5/sha1 lists, index.html
     # Includes: checkpoints, chunks, chunkless, temp files if they exist. At end of run temp files must be gone.
     # This is *all* output files for the dumpname, regardless of what's being re-run.
     def list_outfiles_to_publish(self, dump_dir, dump_names=None):
