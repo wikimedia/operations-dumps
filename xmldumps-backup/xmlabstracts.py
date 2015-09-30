@@ -10,7 +10,8 @@ the run.
 import os
 import sys
 import worker
-import WikiDump
+from dumps.WikiDump import Config
+from dumps.utils import MultiVersion
 import getopt
 from xmlstreams import do_xml_stream, catit
 
@@ -37,10 +38,10 @@ def do_abstractsbackup(wikidb, output_files, variants,
         else:
             outfiles[filetype]['compr'] = catit(outfiles[filetype]['name'])
 
-    script_command = worker.MultiVersion.MWScriptAsArray(wikiconf,
-                                                         "dumpBackup.php")
+    script_command = MultiVersion.mw_script_as_array(wikiconf,
+                                                     "dumpBackup.php")
     command = [wikiconf.php, "-q"] + script_command
-    version = worker.MultiVersion.MWVersion(wikiconf, wikidb)
+    version = MultiVersion.mw_version(wikiconf, wikidb)
     abstract_cmd_dir = wikiconf.wikiDir
     if version:
         abstract_cmd_dir = abstract_cmd_dir + "/" + version
@@ -169,7 +170,7 @@ def main():
             usage("each variant must correspond to outfile, "
                   "different number supplied")
 
-    wikiconf = WikiDump.Config(configfile)
+    wikiconf = Config(configfile)
     wikiconf.parseConfFilePerProject(wiki)
     do_abstractsbackup(wiki, output_files, variants, wikiconf,
                        start, end, dryrun)

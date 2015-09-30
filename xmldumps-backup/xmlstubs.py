@@ -11,7 +11,7 @@ import os
 import sys
 import time
 import worker
-import WikiDump
+from dumps.WikiDump import Config
 import getopt
 from xmlstreams import run_script, catfile, gzippit, get_max_id, do_xml_piece, do_xml_stream
 
@@ -151,7 +151,7 @@ def main():
     if not os.path.exists(configfile):
         usage("no such file found: " + configfile)
 
-    wikiconf = WikiDump.Config(configfile)
+    wikiconf = Config(configfile)
     wikiconf.parseConfFilePerProject(wiki)
     dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf, start, end, dryrun)
 

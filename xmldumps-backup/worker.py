@@ -133,11 +133,11 @@ class DumpItemList(object):
 
                            AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo", self._get_chunk_to_do("abstractsdump"), self.wiki.dbName, self.chunk_info.get_pages_per_chunk_abstract())]
 
-        if self.chunk_info.chunksEnabled():
+        if self.chunk_info.chunks_enabled():
             self.dump_items.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.find_item_by_name('abstractsdump')))
 
         self.dump_items.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._get_chunk_to_do("xmlstubsdump"), self.chunk_info.get_pages_per_chunk_history()))
-        if self.chunk_info.chunksEnabled():
+        if self.chunk_info.chunks_enabled():
             self.dump_items.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self.find_item_by_name('xmlstubsdump')))
 
         # NOTE that the chunk_info thing passed here is irrelevant, these get generated from the stubs which are all done in one pass
@@ -146,7 +146,7 @@ class DumpItemList(object):
                     "articlesdump",
                     "<big><b>Articles, templates, media/file descriptions, and primary meta-pages.</b></big>",
                     "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("articlesdump"), self.chunk_info.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file, self.page_id_range))
-        if self.chunk_info.chunksEnabled():
+        if self.chunk_info.chunks_enabled():
             self.dump_items.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, media/file descriptions, and primary meta-pages.</b></big>", "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('articlesdump')))
 
         self.dump_items.append(
@@ -155,7 +155,7 @@ class DumpItemList(object):
                     "All pages, current versions only.",
                     "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metacurrentdump"), self.chunk_info.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file, self.page_id_range))
 
-        if self.chunk_info.chunksEnabled():
+        if self.chunk_info.chunks_enabled():
             self.dump_items.append(RecombineXmlDump("metacurrentdumprecombine", "Recombine all pages, current versions only.", "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('metacurrentdump')))
 
         self.dump_items.append(
@@ -191,7 +191,7 @@ class DumpItemList(object):
                        "All pages with complete page edit history (.bz2)",
                        "These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
                        "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metahistorybz2dump"), self.chunk_info.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file, self.page_id_range))
-        if self.chunk_info.chunksEnabled() and self.chunk_info.recombine_history():
+        if self.chunk_info.chunks_enabled() and self.chunk_info.recombine_history():
             self.dump_items.append(
                 RecombineXmlDump("metahistorybz2dumprecombine",
                                  "Recombine all pages with complete edit history (.bz2)",
@@ -203,7 +203,7 @@ class DumpItemList(object):
                               "All pages with complete edit history (.7z)",
                               "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
                               "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistorybz2dump'), self.wiki, self._get_chunk_to_do("metahistory7zdump"), self.chunk_info.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file))
-        if self.chunk_info.chunksEnabled() and self.chunk_info.recombine_history():
+        if self.chunk_info.chunks_enabled() and self.chunk_info.recombine_history():
             self.dump_items.append(
                 RecombineXmlRecompressDump("metahistory7zdumprecombine",
                                            "Recombine all pages with complete edit history (.7z)",
@@ -211,7 +211,7 @@ class DumpItemList(object):
                                            "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
         if self.wiki.config.multistreamEnabled:
-            if self.chunk_info.chunksEnabled():
+            if self.chunk_info.chunks_enabled():
                 input_for_multistream = "articlesdumprecombine"
             else:
                 input_for_multistream = "articlesdump"
