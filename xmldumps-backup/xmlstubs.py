@@ -12,6 +12,7 @@ import sys
 import time
 import worker
 from dumps.WikiDump import Config
+from dumps.utils import MultiVersion
 import getopt
 from xmlstreams import run_script, catfile, gzippit, get_max_id, do_xml_piece, do_xml_stream
 
@@ -33,7 +34,7 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
         else:
             outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
 
-    script_command = worker.MultiVersion.MWScriptAsArray(wikiconf, "dumpBackup.php")
+    script_command = MultiVersion.mw_script_as_array(wikiconf, "dumpBackup.php")
     command = [wikiconf.php, "-q"] + script_command
 
     command.extend(["--wiki=%s" % wikidb,

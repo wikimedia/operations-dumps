@@ -11,7 +11,7 @@ import Queue, thread, traceback, socket
 
 from os.path import exists
 from subprocess import Popen, PIPE
-from WikiDump import FileUtils, MiscUtils, TimeUtils
+from dumps.WikiDump import FileUtils, MiscUtils, TimeUtils
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
 
 from dumps.exceptions import *
