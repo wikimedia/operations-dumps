@@ -127,6 +127,7 @@ class DumpItemList(object):
                            PublicTable("redirect", "redirecttable", "Redirect list"),
                            PublicTable("iwlinks", "iwlinkstable", "Interwiki link tracking records"),
                            PublicTable("geo_tags", "geotagstable", "List of pages' geographical coordinates"),
+                           PublicTable("change_tag", "changetagstable", "List of annotations (tags) for revisions and log entries"),
 
                            TitleDump("pagetitlesdump", "List of page titles in main namespace"),
                            AllTitleDump("allpagetitlesdump", "List of all page titles"),
