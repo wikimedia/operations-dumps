@@ -136,7 +136,7 @@ class DumpItemList(object):
         if self.chunkInfo.chunksEnabled():
             self.dumpItems.append(RecombineAbstractDump("abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo", self.find_item_by_name('abstractsdump')))
 
-        self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._get_chunk_to_do("xmlstubsdump"), self.chunkInfo.getPagesPerChunkHistory()))
+        self.dumpItems.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps", self._get_chunk_to_do("xmlstubsdump"), self.chunkInfo.get_pages_per_chunk_history()))
         if self.chunkInfo.chunksEnabled():
             self.dumpItems.append(RecombineXmlStub("xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps", self.find_item_by_name('xmlstubsdump')))
 
@@ -145,7 +145,7 @@ class DumpItemList(object):
             XmlDump("articles",
                     "articlesdump",
                     "<big><b>Articles, templates, media/file descriptions, and primary meta-pages.</b></big>",
-                    "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("articlesdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file, self.page_id_range))
+                    "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("articlesdump"), self.chunkInfo.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file, self.page_id_range))
         if self.chunkInfo.chunksEnabled():
             self.dumpItems.append(RecombineXmlDump("articlesdumprecombine", "<big><b>Recombine articles, templates, media/file descriptions, and primary meta-pages.</b></big>", "This contains current versions of article content, and is the archive most mirror sites will probably want.", self.find_item_by_name('articlesdump')))
 
@@ -153,7 +153,7 @@ class DumpItemList(object):
             XmlDump("meta-current",
                     "metacurrentdump",
                     "All pages, current versions only.",
-                    "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metacurrentdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file, self.page_id_range))
+                    "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metacurrentdump"), self.chunkInfo.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file, self.page_id_range))
 
         if self.chunkInfo.chunksEnabled():
             self.dumpItems.append(RecombineXmlDump("metacurrentdumprecombine", "Recombine all pages, current versions only.", "Discussion and user pages are included in this complete archive. Most mirrors won't want this extra material.", self.find_item_by_name('metacurrentdump')))
@@ -190,8 +190,8 @@ class DumpItemList(object):
                        "metahistorybz2dump",
                        "All pages with complete page edit history (.bz2)",
                        "These dumps can be *very* large, uncompressing up to 20 times the archive download size. " +
-                       "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metahistorybz2dump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file, self.page_id_range))
-        if self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory():
+                       "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn, self.wiki, self._get_chunk_to_do("metahistorybz2dump"), self.chunkInfo.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file, self.page_id_range))
+        if self.chunkInfo.chunksEnabled() and self.chunkInfo.recombine_history():
             self.dumpItems.append(
                 RecombineXmlDump("metahistorybz2dumprecombine",
                                  "Recombine all pages with complete edit history (.bz2)",
@@ -202,8 +202,8 @@ class DumpItemList(object):
                               "metahistory7zdump",
                               "All pages with complete edit history (.7z)",
                               "These dumps can be *very* large, uncompressing up to 100 times the archive download size. " +
-                              "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistorybz2dump'), self.wiki, self._get_chunk_to_do("metahistory7zdump"), self.chunkInfo.getPagesPerChunkHistory(), checkpoints, self.checkpoint_file))
-        if self.chunkInfo.chunksEnabled() and self.chunkInfo.recombineHistory():
+                              "Suitable for archival and statistical use, most mirror sites won't want or need this.", self.find_item_by_name('metahistorybz2dump'), self.wiki, self._get_chunk_to_do("metahistory7zdump"), self.chunkInfo.get_pages_per_chunk_history(), checkpoints, self.checkpoint_file))
+        if self.chunkInfo.chunksEnabled() and self.chunkInfo.recombine_history():
             self.dumpItems.append(
                 RecombineXmlRecompressDump("metahistory7zdumprecombine",
                                            "Recombine all pages with complete edit history (.7z)",

@@ -758,7 +758,7 @@ class XmlStub(Dump):
         articles_file = runner.dump_dir.filename_public_path(outf)
         history_file = runner.dump_dir.filename_public_path(DumpFilename(runner.wiki, outf.date, self.history_dump_name, outf.file_type, outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
         current_file = runner.dump_dir.filename_public_path(DumpFilename(runner.wiki, outf.date, self.current_dump_name, outf.file_type, outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
-        script_command = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
+        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
                     runner.forceNormalOption(), "--articles", articles_file,
@@ -767,7 +767,6 @@ class XmlStub(Dump):
         if outf.chunk:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            # start = runner.pagesPerChunk()*(chunk-1) + 1
             start = sum([self._chunks[i] for i in range(0, outf.chunk_int-1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last chunk, we should get up to the last pageid,
@@ -887,7 +886,7 @@ class XmlLogging(Dump):
         output_file_obj = files[0]
         if not exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
-        script_command = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
+        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         logging = runner.dump_dir.filename_public_path(output_file_obj)
 
@@ -1115,7 +1114,7 @@ class XmlDump(Dump):
         else:
             checkpoint_time = ""
             checkpoint_file = ""
-        script_command = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpTextPass.php")
+        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpTextPass.php")
         dump_command = ["%s" % self.wiki.config.php, "-q"]
         dump_command.extend(script_command)
         dump_command.extend(["--wiki=%s" % runner.db_name,
@@ -1713,14 +1712,12 @@ class AbstractDump(Dump):
         if fname.chunk:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            # start = runner.pagesPerChunk()*(chunk-1) + 1
             start = sum([self._chunks[i] for i in range(0, fname.chunk_int-1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last chunk, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
             if fname.chunk_int < len(self._chunks):
-                # end = start + runner.pagesPerChunk()
                 end = sum([self._chunks[i] for i in range(0, fname.chunk_int)]) +1
                 endopt = "--end=%s" % end
                 command.append(endopt)
