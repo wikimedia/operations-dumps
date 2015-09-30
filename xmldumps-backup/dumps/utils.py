@@ -168,35 +168,35 @@ class PageAndEditStats(object):
         self.total_edits = None
         self.wiki = wiki
         self.dbName = db_name
-        self.dbServerInfo = DbServerInfo(wiki, db_name, error_callback)
+        self.db_server_info = DbServerInfo(wiki, db_name, error_callback)
         self.get_statistics(self.wiki.config, db_name)
 
     def get_statistics(self, db_name, ignore):
         """Get statistics for the wiki"""
 
-        query = "select MAX(page_id) from %spage;" % self.dbServerInfo.db_table_prefix
+        query = "select MAX(page_id) from %spage;" % self.db_server_info.db_table_prefix
         results = None
         retries = 0
         maxretries = 5
-        results = self.dbServerInfo.run_sql_and_get_output(query)
+        results = self.db_server_info.run_sql_and_get_output(query)
         while results == None and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            results = self.dbServerInfo.run_sql_and_get_output(query)
+            results = self.db_server_info.run_sql_and_get_output(query)
         if not results:
             return 1
 
         lines = results.splitlines()
         if lines and lines[1]:
             self.total_pages = int(lines[1])
-        query = "select MAX(rev_id) from %srevision;" % self.dbServerInfo.db_table_prefix
+        query = "select MAX(rev_id) from %srevision;" % self.db_server_info.db_table_prefix
         retries = 0
         results = None
-        results = self.dbServerInfo.run_sql_and_get_output(query)
+        results = self.db_server_info.run_sql_and_get_output(query)
         while results == None and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            results = self.dbServerInfo.run_sql_and_get_output(query)
+            results = self.db_server_info.run_sql_and_get_output(query)
         if not results:
             return 1
 

@@ -337,10 +337,10 @@ class DumpItemList(object):
 class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None, restart=False, notice="", dryrun=False, loggingEnabled=False, chunk_to_do=False, checkpoint_file=None, page_id_range=None, skipdone=False, verbose=False):
         self.wiki = wiki
-        self.dbName = wiki.dbName
+        self.db_name = wiki.dbName
         self.prefetch = prefetch
         self.spawn = spawn
-        self.chunkInfo = Chunk(wiki, self.dbName, self.log_and_print)
+        self.chunkInfo = Chunk(wiki, self.db_name, self.log_and_print)
         self.restart = restart
         self.html_notice_file = None
         self.log = None
@@ -435,8 +435,8 @@ class Runner(object):
             self._cleanup_old_files_enabled = False
             self._check_for_trunc_files_enabled = False
 
-        self.dbServerInfo = DbServerInfo(self.wiki, self.dbName, self.log_and_print)
-        self.dump_dir = DumpDir(self.wiki, self.dbName)
+        self.db_server_info = DbServerInfo(self.wiki, self.db_name, self.log_and_print)
+        self.dump_dir = DumpDir(self.wiki, self.db_name)
 
         # these must come after the dumpdir setup so we know which directory we are in
         if self._logging_enabled and self._makedir_enabled:
@@ -448,7 +448,7 @@ class Runner(object):
             thread.start_new_thread(self.log_queue_reader, (self.log,))
         self.runInfoFile = RunInfoFile(wiki, self._runinfo_file_enabled, self.verbose)
         self.sym_links = SymLinks(self.wiki, self.dump_dir, self.log_and_print, self.debug, self._symlinks_enabled)
-        self.feeds = Feeds(self.wiki, self.dump_dir, self.dbName, self.debug, self._feeds_enabled)
+        self.feeds = Feeds(self.wiki, self.dump_dir, self.db_name, self.debug, self._feeds_enabled)
         self.html_notice_file = NoticeFile(self.wiki, notice, self._notice_file_enabled)
         self.checksums = Checksummer(self.wiki, self.dump_dir, self._checksummer_enabled, self.verbose)
 
@@ -528,7 +528,7 @@ class Runner(object):
                 return 1
 
     def debug(self, stuff):
-        self.log_and_print("%s: %s %s" % (TimeUtils.prettyTime(), self.dbName, stuff))
+        self.log_and_print("%s: %s %s" % (TimeUtils.prettyTime(), self.db_name, stuff))
 
     def run_handle_failure(self):
         if self.status.fail_count < 1:
@@ -574,28 +574,28 @@ class Runner(object):
         else:
             self.dumpItemList.mark_all_jobs_to_run(self.skipdone);
 
-        Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s" % self.dbName)
+        Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s" % self.db_name)
 
         self.make_dir(os.path.join(self.wiki.publicDir(), self.wiki.date))
         self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
 
-        self.show_runner_state("Cleaning up old dumps for %s" % self.dbName)
+        self.show_runner_state("Cleaning up old dumps for %s" % self.db_name)
         self.clean_old_dumps()
         self.clean_old_dumps(private=True)
 
         # Informing what kind backup work we are about to do
         if self.job_requested:
             if self.restart:
-                self.log_and_print("Preparing for restart from job %s of %s" % (self.job_requested, self.dbName))
+                self.log_and_print("Preparing for restart from job %s of %s" % (self.job_requested, self.db_name))
             else:
-                self.log_and_print("Preparing for job %s of %s" % (self.job_requested, self.dbName))
+                self.log_and_print("Preparing for job %s of %s" % (self.job_requested, self.db_name))
         else:
-            self.show_runner_state("Starting backup of %s" % self.dbName)
+            self.show_runner_state("Starting backup of %s" % self.db_name)
 
         self.checksums.prepare_checksums()
 
         for item in self.dumpItemList.dumpItems:
-            Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s at step %s" % (self.dbName, item.name()))
+            Maintenance.exit_if_in_maintenance_mode("In maintenance mode, exiting dump of %s at step %s" % (self.db_name, item.name()))
             if item.to_run():
                 item.start(self)
                 self.status.update_status_files()
@@ -659,9 +659,9 @@ class Runner(object):
         # Informing about completion
         if self.job_requested:
             if self.restart:
-                self.show_runner_state("Completed run restarting from job %s for %s" % (self.job_requested, self.dbName))
+                self.show_runner_state("Completed run restarting from job %s for %s" % (self.job_requested, self.db_name))
             else:
-                self.show_runner_state("Completed job %s for %s" % (self.job_requested, self.dbName))
+                self.show_runner_state("Completed job %s for %s" % (self.job_requested, self.db_name))
         else:
             self.show_runner_state_complete()
 
@@ -692,7 +692,7 @@ class Runner(object):
                     old = old[:-(self.wiki.config.keep)]
             if old:
                 for dump in old:
-                    self.show_runner_state("Purging old %s dump %s for %s" % (dumptype, dump, self.dbName))
+                    self.show_runner_state("Purging old %s dump %s for %s" % (dumptype, dump, self.db_name))
                     if private:
                         base = os.path.join(self.wiki.privateDir(), dump)
                     else:
