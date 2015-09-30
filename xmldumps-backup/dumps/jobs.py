@@ -761,7 +761,7 @@ class XmlStub(Dump):
         script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
-                    runner.forceNormalOption(), "--articles", articles_file,
+                    "--articles", articles_file,
                     "--history", history_file, "--current", current_file]
 
         if outf.chunk:
@@ -891,7 +891,7 @@ class XmlLogging(Dump):
         logging = runner.dump_dir.filename_public_path(output_file_obj)
 
         command = ["/usr/bin/python", "xmllogs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
-                    runner.forceNormalOption(), "--outfile", logging]
+                   "--outfile", logging]
 
         pipeline = [command]
         series = [pipeline]
@@ -1120,7 +1120,6 @@ class XmlDump(Dump):
         dump_command.extend(["--wiki=%s" % runner.db_name,
                     "%s" % stub_option,
                     "%s" % prefetch,
-                    "%s" % runner.forceNormalOption(),
                     "%s" % checkpoint_time,
                     "%s" % checkpoint_file,
                     "--report=1000",
@@ -1695,7 +1694,7 @@ class AbstractDump(Dump):
 
     def build_command(self, runner, fname):
         command = ["/usr/bin/python", "xmlabstracts.py", "--config", runner.wiki.config.files[0],
-                    "--wiki", self.db_name, runner.forceNormalOption()]
+                    "--wiki", self.db_name]
 
         outputs = []
         variants = []
@@ -1878,7 +1877,7 @@ class TitleDump(Dump):
         """Pass some SQL commands to the server for this DB and save output to a gzipped file."""
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        command = runner.db_server_info.buildSqlCommand(query, runner.wiki.config.gzip)
+        command = runner.db_server_info.build_sql_command(query, runner.wiki.config.gzip)
         return runner.save_command(command, outfile)
 
 class AllTitleDump(TitleDump):

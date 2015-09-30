@@ -50,7 +50,7 @@ class DbServerInfo(object):
         the prefix for all tables for the specific wiki ($wgDBprefix)"""
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
-        command_list = MultiVersion.MWScriptAsArray(self.wiki.config, "getSlaveServer.php")
+        command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getSlaveServer.php")
         php_command = MiscUtils.shellEscape(self.wiki.config.php)
         db_name = MiscUtils.shellEscape(self.db_name)
         for i in range(0, len(command_list)):

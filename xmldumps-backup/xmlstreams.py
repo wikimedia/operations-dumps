@@ -11,7 +11,7 @@ import os
 import sys
 import time
 import worker
-import WikiDump
+from dumps.WikiDump import Wiki
 import getopt
 
 from subprocess import Popen, PIPE
@@ -147,7 +147,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
     retrieve the largest id for this wiki from the db for specific table
     pass in name of id field, name of table
     '''
-    wiki = WikiDump.Wiki(wikiconf, wikidb)
+    wiki = Wiki(wikiconf, wikidb)
 
     db_info = worker.DbServerInfo(wiki, wikidb)
     query = "select MAX(%s) from %s%s;" % (id_field, db_info.db_table_prefix, table)
