@@ -42,52 +42,61 @@ class Checksummer(object):
         self.verbose = verbose
         self.timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
         self._enabled = enabled
+        self.hashtypes = ['md5', 'sha1']
 
     def prepare_checksums(self):
         """Create a temporary md5 checksum file.
         Call this at the start of the dump run, and move the file
         into the final location at the completion of the dump run."""
         if self._enabled:
-            checksum_filename = self._get_checksum_filename_tmp()
-            output = file(checksum_filename, "w")
+            for htype in self.hashtypes:
+                checksum_filename = self._get_checksum_filename_tmp(htype)
+                output = file(checksum_filename, "w")
 
-    def checksum(self, file_obj, runner):
+    def checksums(self, file_obj, runner):
         """Run checksum for an output file, and append to the list."""
         if self._enabled:
-            checksum_filename = self._get_checksum_filename_tmp()
-            output = file(checksum_filename, "a")
-            runner.debug("Checksumming %s" % file_obj.filename)
-            dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(file_obj), None, self.verbose)
-            checksum = dumpfile.md5sum()
-            if checksum != None:
-                output.write("%s  %s\n" % (checksum, file_obj.filename))
-            output.close()
+            for htype in self.hashtypes:
+                checksum_filename = self._get_checksum_filename_tmp(htype)
+                output = file(checksum_filename, "a")
+                runner.debug("Checksumming %s via %s" % (file_obj.filename, htype))
+                dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(file_obj), None, self.verbose)
+                checksum = dumpfile.checksum(htype)
+                if checksum != None:
+                    output.write("%s  %s\n" % (checksum, file_obj.filename))
+                output.close()
 
-    def move_md5file_into_place(self):
+    def move_chksumfiles_into_place(self):
         if self._enabled:
-            tmp_filename = self._get_checksum_filename_tmp()
-            real_filename = self._get_checksum_filename()
-            os.rename(tmp_filename, real_filename)
+            for htype in self.hashtypes:
+                tmp_filename = self._get_checksum_filename_tmp(htype)
+                real_filename = self._get_checksum_filename(htype)
+                os.rename(tmp_filename, real_filename)
 
-    def cp_md5_tmpfile_to_permfile(self):
+    def cp_chksum_tmpfiles_to_permfile(self):
         if self._enabled:
-            tmp_filename = self._get_checksum_filename_tmp()
-            real_filename = self._get_checksum_filename()
-            text = FileUtils.readFile(tmp_filename)
-            FileUtils.writeFile(self.wiki.config.tempDir, real_filename, text, self.wiki.config.fileperms)
+            for htype in self.hashtypes:
+                tmp_filename = self._get_checksum_filename_tmp(htype)
+                real_filename = self._get_checksum_filename(htype)
+                text = FileUtils.readFile(tmp_filename)
+                FileUtils.writeFile(self.wiki.config.tempDir, real_filename, text, self.wiki.config.fileperms)
 
-    def get_checksum_filename_basename(self):
-        return "md5sums.txt"
-
+    def get_checksum_filename_basename(self, htype):
+        if htype == "md5":
+            return "md5sums.txt"
+        elif htype == "sha1":
+            return "sha1sums.txt"
+        else:
+            return None
     #
     # functions internal to the class
     #
-    def _get_checksum_filename(self):
-        file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename())
+    def _get_checksum_filename(self, htype):
+        file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename(htype))
         return self.dump_dir.filename_public_path(file_obj)
 
-    def _get_checksum_filename_tmp(self):
-        file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename() + "." + self.timestamp + ".tmp")
+    def _get_checksum_filename_tmp(self, htype):
+        file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename(htype) + "." + self.timestamp + ".tmp")
         return self.dump_dir.filename_public_path(file_obj)
 
     def _getmd5file_dir_name(self):
@@ -175,13 +184,21 @@ class Status(object):
         else:
             return html
 
+    def get_checksum_html(self, htype):
+        basename =  self.checksums.get_checksum_filename_basename(htype)
+        path = DumpFilename(self.wiki, None, basename)
+        web_path = self.dump_dir.web_path_relative(path)
+        return '<a href="%s">(%s)</a>' %(web_path, htype)
+
     def _report_database_status_detailed(self, done=False):
         """Put together a status page for this database, with all its component dumps."""
         self.notice_file.refresh_notice()
         status_items = [self._report_item(item) for item in self.items]
         status_items.reverse()
         html = "\n".join(status_items)
-        fname = DumpFilename(self.wiki, None, self.checksums.get_checksum_filename_basename())
+        checksums = [self.get_checksum_html(htype)
+            for htype in self.checksums.hashtypes]
+        checksums_html = ", ".join(checksums)
         return self.wiki.config.readTemplate("report.html") % {
             "db": self.db_name,
             "date": self.wiki.date,
@@ -189,7 +206,7 @@ class Status(object):
             "status": self._report_status_summary_line(done),
             "previous": self._report_previous_dump(done),
             "items": html,
-            "checksum": self.dump_dir.web_path_relative(fname),
+            "checksum": checksums_html,
             "index": self.wiki.config.index}
 
     def _report_previous_dump(self, done):

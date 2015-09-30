@@ -186,6 +186,8 @@ class DumpFile(file):
     Methods:
 
     md5sum(): return md5sum of the file contents.
+    sha1sum(): return sha1sum of the file contents.
+    checksum(htype): return checksum of the specified type, of the file contents.
     check_if_truncated(): for compressed files, check if the file is truncated (stops
        abruptly before the end of the compressed data) or not, and set and return
          self.is_truncated accordingly.  This is fast for bzip2 files
@@ -220,10 +222,9 @@ class DumpFile(file):
             self.file_obj = DumpFilename(wiki)
             self.file_obj.new_from_filename(os.path.basename(filename))
 
-    def md5sum(self):
+    def _checksum(self, summer):
         if not self.filename:
             return None
-        summer = hashlib.md5()
         infile = file(self.filename, "rb")
         bufsize = 4192 * 32
         buffer = infile.read(bufsize)
@@ -232,6 +233,22 @@ class DumpFile(file):
             buffer = infile.read(bufsize)
         infile.close()
         return summer.hexdigest()
+
+    def md5sum(self):
+        summer = hashlib.md5()
+        return self._checksum(summer)
+
+    def sha1sum(self):
+        summer = hashlib.sha1()
+        return self._checksum(summer)
+
+    def checksum(self, htype):
+        if htype == "md5":
+            return self.md5sum()
+        elif htype == "sha1":
+            return self.sha1sum()
+        else:
+            return None
 
     def get_first_500_lines(self):
         if self.first_lines:

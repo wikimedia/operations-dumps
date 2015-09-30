@@ -275,7 +275,7 @@ class DumpItemList(object):
         if job == "noop" or job == "latestlinks" or job == "createdirs":
             return True
         sys.stderr.write("No job of the name specified exists. Choose one of the following:\n")
-        sys.stderr.write("noop (runs no job but rewrites md5sums file and resets latest links)\n")
+        sys.stderr.write("noop (runs no job but rewrites checksums files and resets latest links)\n")
         sys.stderr.write("latestlinks (runs no job but resets latest links)\n")
         sys.stderr.write("createdirs (runs no job but creates dump dirs for the given date)\n")
         sys.stderr.write("tables (includes all items below that end in 'table')\n")
@@ -546,7 +546,7 @@ class Runner(object):
                 # were for earlier ones
                 self.sym_links.save_symlink(file_obj)
                 self.feeds.save_feed(file_obj)
-                self.checksums.checksum(file_obj, self)
+                self.checksums.checksums(file_obj, self)
                 self.sym_links.cleanup_symlinks()
                 self.feeds.cleanup_feeds()
 
@@ -616,10 +616,10 @@ class Runner(object):
                             item.set_status("failed")
 
             if item.status() == "done":
-                self.checksums.cp_md5_tmpfile_to_permfile()
+                self.checksums.cp_chksum_tmpfiles_to_permfile()
                 self.run_update_item_fileinfo(item)
             elif item.status() == "waiting" or item.status() == "skipped":
-                # don't update the md5 file for this item.
+                # don't update the checksum files for this item.
                 continue
             else:
                 # Here for example status is "failed". But maybe also
@@ -710,12 +710,13 @@ class Runner(object):
 
     def complete_dump(self):
         # note that it's possible for links in "latest" to point to
-        # files from different runs, in which case the md5sums file
+        # files from different runs, in which case the checksum files
         # will have accurate checksums for the run for which it was
         # produced, but not the other files. FIXME
-        self.checksums.move_md5file_into_place()
-        dumpfile = DumpFilename(self.wiki, None, self.checksums.get_checksum_filename_basename())
-        self.sym_links.save_symlink(dumpfile)
+        self.checksums.move_chksumfiles_into_place()
+        for htype in self.checksums.hashtypes:
+            dumpfile = DumpFilename(self.wiki, None, self.checksums.get_checksum_filename_basename(htype))
+            self.sym_links.save_symlink(dumpfile)
         self.sym_links.cleanup_symlinks()
 
         for item in self.dump_item_list.dump_items:
