@@ -71,4 +71,13 @@ if available, in that order.
 See README.config for details about the configuration options supported,
 and wikidump.conf.sample for a sample configuration file.
 
+== Hacking ==
 
+To run linting/tests, use the tox command:
+
+    tox
+
+List environnements with `tox -l`.  Arguments can be passed to the underlying
+command such as:
+
+    tox -e flake8 -- --statistics
