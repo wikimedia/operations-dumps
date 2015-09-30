@@ -760,7 +760,7 @@ class XmlStub(Dump):
         current_file = runner.dump_dir.filename_public_path(DumpFilename(runner.wiki, outf.date, self.current_dump_name, outf.file_type, outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
         script_command = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpBackup.php")
 
-        command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.dbName,
+        command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
                     runner.forceNormalOption(), "--articles", articles_file,
                     "--history", history_file, "--current", current_file]
 
@@ -891,7 +891,7 @@ class XmlLogging(Dump):
 
         logging = runner.dump_dir.filename_public_path(output_file_obj)
 
-        command = ["/usr/bin/python", "xmllogs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.dbName,
+        command = ["/usr/bin/python", "xmllogs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
                     runner.forceNormalOption(), "--outfile", logging]
 
         pipeline = [command]
@@ -1118,7 +1118,7 @@ class XmlDump(Dump):
         script_command = MultiVersion.MWScriptAsArray(runner.wiki.config, "dumpTextPass.php")
         dump_command = ["%s" % self.wiki.config.php, "-q"]
         dump_command.extend(script_command)
-        dump_command.extend(["--wiki=%s" % runner.dbName,
+        dump_command.extend(["--wiki=%s" % runner.db_name,
                     "%s" % stub_option,
                     "%s" % prefetch,
                     "%s" % runner.forceNormalOption(),
