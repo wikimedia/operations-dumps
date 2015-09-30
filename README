@@ -1,0 +1,10 @@
+== Hacking ==
+
+To run linting/tests, use the tox command:
+
+    tox
+
+List environnements with `tox -l`.  Arguments can be passed to the underlying
+command such as:
+
+    tox -e flake8 -- --statistics
