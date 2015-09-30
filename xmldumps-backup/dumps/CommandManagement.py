@@ -402,8 +402,8 @@ class CommandSeries(object):
 
 class ProcessMonitor(threading.Thread):
     def __init__(self, timeout, queue, output_queue, default_callback_interval,
-                 callback_stderr, callbackStdout, callbackTimed,
-                 callback_stderr_arg, callbackStdoutArg, callbackTimedArg):
+                 callback_stderr, callbackStdout, callback_timed,
+                 callback_stderr_arg, callbackStdoutArg, callback_timed_arg):
         threading.Thread.__init__(self)
         self.timeout = timeout
         self.queue = queue
@@ -411,10 +411,10 @@ class ProcessMonitor(threading.Thread):
         self._default_callback_interval = default_callback_interval
         self._callback_stderr = callback_stderr
         self._callback_stdout = callbackStdout
-        self._callback_timed = callbackTimed
+        self._callback_timed = callback_timed
         self._callback_stderr_arg = callback_stderr_arg
         self._callback_stdout_arg = callbackStdoutArg
-        self._callback_timed_arg = callbackTimedArg
+        self._callback_timed_arg = callback_timed_arg
 
     # one of these as a thread to monitor each command series.
     def run(self):
@@ -503,7 +503,7 @@ class CommandsInParallel(object):
     and the individual pipelines are not provided with a file to save output,
     then output is written to stderr.
     Callbackinterval is in milliseconds, defaults is 20 seconds"""
-    def __init__(self, command_series_list, callback_stderr=None, callbackStdout=None, callbackTimed=None, callback_stderr_arg=None, callbackStdoutArg=None, callbackTimedArg=None, quiet=False, shell=False, callback_interval=20000):
+    def __init__(self, command_series_list, callback_stderr=None, callbackStdout=None, callback_timed=None, callback_stderr_arg=None, callbackStdoutArg=None, callback_timed_arg=None, quiet=False, shell=False, callback_interval=20000):
         self._command_series_list = command_series_list
         self._command_serieses = []
         for series in self._command_series_list:
@@ -513,10 +513,10 @@ class CommandsInParallel(object):
         # will be called with a line of output from the pipeline as it becomes available
         self._callback_stderr = callback_stderr
         self._callback_stdout = callbackStdout
-        self._callback_timed = callbackTimed
+        self._callback_timed = callback_timed
         self._callback_stderr_arg = callback_stderr_arg
         self._callback_stdout_arg = callbackStdoutArg
-        self._callback_timed_arg = callbackTimedArg
+        self._callback_timed_arg = callback_timed_arg
         self._command_series_queue = Queue.Queue()
         self._output_queue = Queue.Queue()
         self._normal_thread_count = threading.activeCount()

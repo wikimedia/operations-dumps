@@ -187,7 +187,7 @@ class Dump(object):
             sys.stderr.write(line)
         self.progress = line.strip()
         runner.status.update_status_files()
-        runner.runInfoFile.save_dump_runinfo_file(runner.dumpItemList.report_dump_runinfo())
+        runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
 
     def time_to_wait(self):
         # we use wait this many secs for a command to complete that
@@ -791,7 +791,7 @@ class XmlStub(Dump):
             if fname.dumpname == self.articles_dump_name:
                 series = self.build_command(runner, fname)
                 commands.append(series)
-        error = runner.runCommand(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing stub files")
 
@@ -851,7 +851,7 @@ class RecombineXmlStub(Dump):
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.runCommand([series], callbackTimed=self.progress_callback, callbackTimedArg=runner, shell=True)
+            result = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
@@ -895,7 +895,7 @@ class XmlLogging(Dump):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.runCommand([series], callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command([series], callback_stderr=self.progress_callback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error dumping log files")
 
@@ -972,7 +972,7 @@ class XmlDump(Dump):
                 series = self.build_command(runner, inp_file)
                 commands.append(series)
 
-        error = runner.runCommand(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing xml file(s) %s" % self.dumpname)
 
@@ -1020,7 +1020,7 @@ class XmlDump(Dump):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.runCommand([series], shell=True)
+        error = runner.run_command([series], shell=True)
         if error:
             raise BackupError("failed to write partial stub file %s" % output_file.filename)
 
@@ -1225,7 +1225,7 @@ class XmlDump(Dump):
                 continue
 
             # see if this job from that date was successful
-            if not runner.runInfoFile.status_of_old_dump_is_done(runner, date, self.name(), self._desc):
+            if not runner.runinfo_file.status_of_old_dump_is_done(runner, date, self.name(), self._desc):
                 runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
                 continue
 
@@ -1321,7 +1321,7 @@ class RecombineXmlDump(XmlDump):
         recombine_command = [recombine_command_string]
         recombine_pipeline = [recombine_command]
         series = [recombine_pipeline]
-        error = runner.runCommand([series], callbackTimed=self.progress_callback, callbackTimedArg=runner, shell=True)
+        error = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
 
         if error:
             raise BackupError("error recombining xml bz2 files")
@@ -1415,7 +1415,7 @@ class XmlMultiStreamDump(XmlDump):
             series = self.build_command(runner, output_files)
             commands.append(series)
 
-        error = runner.runCommand(commands, callbackTimed=self.progress_callback, callbackTimedArg=runner, shell=True)
+        error = runner.run_command(commands, callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -1560,7 +1560,7 @@ class XmlRecompressDump(Dump):
             series = self.build_command(runner, output_files)
             commands.append(series)
 
-        error = runner.runCommand(commands, callbackTimed=self.progress_callback, callbackTimedArg=runner, shell=True)
+        error = runner.run_command(commands, callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -1666,7 +1666,7 @@ class RecombineXmlRecompressDump(Dump):
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.runCommand([series], callbackTimed=self.progress_callback, callbackTimedArg=runner, shell=True)
+            result = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
@@ -1734,7 +1734,7 @@ class AbstractDump(Dump):
             if fname.dumpname == dumpname0:
                 series = self.build_command(runner, fname)
                 commands.append(series)
-        error = runner.runCommand(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing abstract dump")
 
@@ -1838,7 +1838,7 @@ class RecombineAbstractDump(Dump):
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.runCommand([series], callbackTimed=self.progress_callback, callbackTimedArg=runner, shell=True)
+            result = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
