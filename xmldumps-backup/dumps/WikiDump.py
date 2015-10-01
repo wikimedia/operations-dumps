@@ -1,5 +1,5 @@
 import ConfigParser
-import email.MIMEText
+from email.mime import text as MIMEText
 import os
 import shutil
 import re
@@ -468,7 +468,7 @@ class Config(object):
 
     def mail(self, subject, body):
         """Send out a quickie email."""
-        message = email.MIMEText.MIMEText(body)
+        message = MIMEText.MIMEText(body)
         message["Subject"] = subject
         message["From"] = self.mailFrom
         message["To"] = self.adminMail

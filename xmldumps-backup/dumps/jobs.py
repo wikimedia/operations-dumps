@@ -38,7 +38,7 @@ class Dump(object):
         if not hasattr(self, '_checkpoints_enabled'):
             self._checkpoints_enabled = False
         if not hasattr(self, 'checkpoint_file'):
-            self.checkpoint_file = False
+            self.checkpoint_file = None
         if not hasattr(self, '_chunk_todo'):
             self._chunk_todo = False
         if not hasattr(self, '_prerequisite_items'):
@@ -49,6 +49,8 @@ class Dump(object):
             # right now. So only set this to True, when all files of
             # the item end in the public dir.
             self._check_truncation = False
+        if not hasattr(self, '_chunks'):
+            self._chunks = False
 
     def name(self):
         return self.runinfo.name()
@@ -266,7 +268,7 @@ class Dump(object):
 
     def cleanup_old_files(self, dump_dir, runner, chunks=False):
         if runner._cleanup_old_files_enabled:
-            if self.checkpoint_file:
+            if self.checkpoint_file is not None:
                 # we only rerun this one, so just remove this one
                 if exists(dump_dir.filename_public_path(self.checkpoint_file)):
                     os.remove(dump_dir.filename_public_path(self.checkpoint_file))
@@ -514,7 +516,7 @@ class Dump(object):
         if dump_names == None:
             dump_names = [self.dumpname]
         files = []
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             files.append(self.checkpoint_file)
             return files
 
@@ -537,7 +539,7 @@ class Dump(object):
         if dump_names == None:
             dump_names = [self.dumpname]
         files = []
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             files.append(self.checkpoint_file)
             return files
 
@@ -559,7 +561,7 @@ class Dump(object):
         if dump_names == None:
             dump_names = [self.dumpname]
         files = []
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             files.append(self.checkpoint_file)
             return files
 
@@ -581,7 +583,7 @@ class Dump(object):
         if dump_names == None:
             dump_names = [self.dumpname]
         files = []
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             files.append(self.checkpoint_file)
             return files
 
@@ -919,7 +921,7 @@ class XmlDump(Dump):
         if checkpoints:
             self._checkpoints_enabled = True
         self.checkpoint_file = checkpoint_file
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             # we don't checkpoint the checkpoint file.
             self._checkpoints_enabled = False
         self.page_id_range = page_id_range
@@ -961,7 +963,7 @@ class XmlDump(Dump):
             if len(input_files) > 1:
                 raise BackupError("Trouble finding stub files for xml dump run")
 
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             # fixme this should be an input file, not the output checkpoint file. move
             # the code out of build_command that does the conversion and put it here.
             series = self.build_command(runner, self.checkpoint_file)
@@ -1027,7 +1029,7 @@ class XmlDump(Dump):
     def build_command(self, runner, outfile):
         """Build the command line for the dump, minus output and filter options"""
 
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             output_file = outfile
         elif self._checkpoints_enabled:
             # we write a temp file, it will be checkpointed every so often.
@@ -1038,7 +1040,7 @@ class XmlDump(Dump):
 
         # Page and revision data pulled from this skeleton dump...
         # FIXME we need the stream wrappers for proper use of writeupto. this is a hack.
-        if self.checkpoint_file or self.page_id_range:
+        if self.checkpoint_file is not None or self.page_id_range:
             # fixme I now have this code in a couple places, make it a function.
             if not self.dumpname.startswith(self.get_dumpname_base()):
                 raise BackupError("dumpname %s of unknown form for this job" % self.dumpname)
@@ -1048,7 +1050,7 @@ class XmlDump(Dump):
                 if sname.endswith(dumpname):
                     stub_dumpname = sname
 
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             stub_input_filename = self.checkpoint_file.new_filename(stub_dumpname, self.item_for_stubs.get_filetype(), self.item_for_stubs.get_file_ext(), self.checkpoint_file.date, self.checkpoint_file.chunk)
             stub_input_file = DumpFilename(self.wiki)
             stub_input_file.new_from_filename(stub_input_filename)
@@ -1398,7 +1400,7 @@ class XmlMultiStreamDump(XmlDump):
     def run(self, runner):
         commands = []
         self.cleanup_old_files(runner.dump_dir, runner)
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             output_file = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname, self.checkpoint_file.file_type, self.file_ext, self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
             series = self.build_command(runner, [output_file])
             commands.append(series)
@@ -1543,7 +1545,7 @@ class XmlRecompressDump(Dump):
         commands = []
         # Remove prior 7zip attempts; 7zip will try to append to an existing archive
         self.cleanup_old_files(runner.dump_dir, runner)
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             output_file = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname, self.checkpoint_file.file_type, self.file_ext, self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
             series = self.build_command(runner, [output_file])
             commands.append(series)
@@ -1634,14 +1636,14 @@ class RecombineXmlRecompressDump(Dump):
         self._checkpoints_enabled = False
         self._chunks_enabled = False
 
-        def get_filetype(self):
-            return self.item_for_recombine.get_filetype()
+    def get_filetype(self):
+        return self.item_for_recombine.get_filetype()
 
-        def get_file_ext(self):
-            return self.item_for_recombine.get_file_ext()
+    def get_file_ext(self):
+        return self.item_for_recombine.get_file_ext()
 
-        def get_dumpname(self):
-            return self.item_for_recombine.get_dumpname()
+    def get_dumpname(self):
+        return self.item_for_recombine.get_dumpname()
 
     def run(self, runner):
         error = 0

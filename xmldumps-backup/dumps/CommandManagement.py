@@ -392,13 +392,13 @@ class CommandSeries(object):
 
     # FIXME this needs written, but for what use?
     # it also needs tested :-P
-    def run_commands(self, read_input_from_caller=False):
-        self.start_commands(read_input_from_caller)
-        while True:
-            self.get_one_line_of_output()
-            self.continue_commands()
-            if self.all_commands_completed() and not len(self._processes_to_poll):
-                break
+    # def run_commands(self, read_input_from_caller=False):
+    #     self.start_commands(read_input_from_caller)
+    #    while True:
+    #        self.get_one_line_of_output()
+    #        self.continue_commands()
+    #        if self.all_commands_completed() and not len(self._processes_to_poll):
+    #            break
 
 class ProcessMonitor(threading.Thread):
     def __init__(self, timeout, queue, output_queue, default_callback_interval,
