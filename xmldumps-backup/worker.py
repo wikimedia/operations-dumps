@@ -83,7 +83,7 @@ class DumpItemList(object):
                     self._single_job.endswith('recombine')):
                 raise BackupError("You cannot specify a chunk with the job %s, exiting.\n" % self._single_job)
 
-        if self._single_job and self.checkpoint_file:
+        if self._single_job and self.checkpoint_file is not None:
             if (self._single_job[-5:] == 'table' or
                     self._single_job[-9:] == 'recombine' or
                     self._single_job == 'noop' or
@@ -356,7 +356,7 @@ class Runner(object):
         self.skipdone = skipdone
         self.verbose = verbose
 
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             fname = DumpFilename(self.wiki)
             fname.new_from_filename(checkpoint_file)
             # we should get chunk if any
@@ -393,7 +393,7 @@ class Runner(object):
             self._check_for_trunc_files_enabled = False
             self._cleanup_old_files_enabled = False
 
-        if self.checkpoint_file:
+        if self.checkpoint_file is not None:
             self._status_enabled = False
             self._checksummer_enabled = False
             self._runinfo_file_enabled = False
@@ -739,7 +739,7 @@ class Runner(object):
 
                 checkpoint = None
                 if item._checkpoints_enabled:
-                    if item.checkpoint_file:
+                    if item.checkpoint_file is not None:
                         # if there's a specific checkpoint file we are
                         # rerunning, we would only clear out old copies
                         # of that very file. meh. how likely is it that we
@@ -832,7 +832,7 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do, checkpoint
 
 def find_lock_next_wiki(config, locks_enabled, cutoff, bystatustime=False, check_job_status=False,
                         check_prereq_status=False, date=None, job=None, skipjobs=None, page_id_range=None,
-                        chunk_to_do=None, checkpoint_file=None, restart=False):
+                        chunk_to_do=None, checkpoint_file=None, restart=False, verbose=False):
     if config.halt:
         sys.stderr.write("Dump process halted by config.\n")
         return None
@@ -1018,13 +1018,13 @@ def main():
             usage("--chunk option requires a specific job for which to rerun that chunk")
         if chunk_to_do and restart:
             usage("--chunk option can be specified only for one specific job")
-        if checkpoint_file and (len(remainder) == 0):
+        if checkpoint_file is not None and (len(remainder) == 0):
             usage("--checkpoint option requires the name of a wikidb to be specified")
-        if checkpoint_file and not job_requested:
+        if checkpoint_file is not None and not job_requested:
             usage("--checkpoint option requires --job and the job from which to restart")
         if page_id_range and not job_requested:
             usage("--pageidrange option requires --job and the job from which to restart")
-        if page_id_range and checkpoint_file:
+        if page_id_range and checkpoint_file is not None:
             usage("--pageidrange option cannot be used with --checkpoint option")
 
         if skip_jobs is None:
@@ -1106,7 +1106,7 @@ def main():
             wiki = find_lock_next_wiki(config, locks_enabled, cutoff, check_status_time,
                                        check_job_status, check_prereq_status,
                                        date, job_requested, skip_jobs, page_id_range, chunk_to_do,
-                                       checkpoint_file, restart)
+                                       checkpoint_file, restart, verbose)
 
         if wiki is not None and wiki:
             # process any per-project configuration options
