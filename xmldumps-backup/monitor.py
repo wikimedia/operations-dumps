@@ -2,9 +2,8 @@
 
 import os
 import sys
-import WikiDump
 from os.path import exists
-from WikiDump import FileUtils
+from dumps.WikiDump import FileUtils, Wiki, Config
 
 def addToFilename(filename, infix):
     main, suffix = filename.split('.',1)
@@ -20,7 +19,7 @@ def generateIndex(otherIndexhtml = None, sortedByDb=False, showlocks=True):
                 dbs = config.dbListByAge()
 
 	for dbName in dbs:
-		wiki = WikiDump.Wiki(config, dbName)
+		wiki = Wiki(config, dbName)
 		if wiki.isStale():
 			print dbName + " is stale"
 			wiki.cleanupStaleLock()
@@ -78,8 +77,8 @@ def updateIndex():
 if __name__ == "__main__":
 	# can specify name of alternate config file
 	if (len(sys.argv) >= 2):
-		config = WikiDump.Config(sys.argv[1])
+		config = Config(sys.argv[1])
 	else:
-		config = WikiDump.Config()
+		config = Config()
 
 	updateIndex()
