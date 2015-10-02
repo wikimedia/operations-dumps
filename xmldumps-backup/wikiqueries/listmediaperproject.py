@@ -25,7 +25,8 @@ class MediaPerProject(object):
         else:
             self.wikisToDo = [w for w in self.conf.allWikisList
                               if w not in self.conf.privateWikisList and
-                              w not in self.conf.closedWikisList]
+                              w not in self.conf.closedWikisList and
+                              w not in self.conf.skipWikisList]
 
     def getFileNameFormat(self, phase):
         return "{w}-{d}-" + phase + "-wikiqueries.gz"
