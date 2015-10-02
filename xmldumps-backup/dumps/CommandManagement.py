@@ -1,17 +1,11 @@
-import getopt
 import os
-import re
 import sys
-import time
-import subprocess
 import select
 import signal
 import Queue
-import thread
 import fcntl
 import threading
 
-from os.path import dirname, exists, getsize, join, realpath
 from subprocess import Popen, PIPE
 
 # FIXME no explicit stderr handling, is this ok?
@@ -19,7 +13,8 @@ from subprocess import Popen, PIPE
 class CommandPipeline(object):
     """Run a series of commands in a pipeline, e.g.  ps -ef | grep convert
     The pipeline can be one command long (in which case nothing special happens)
-    It takes as args: list of commands in the pipeline (each command is a list: command name and args)
+    It takes as args: list of commands in the pipeline (each command is a list:
+    command name and args)
     If the last command in the pipeline has at the end of the arg list > filename then
     the output of the pipeline will be written into the specified file.
     If the last command in the pipeline has at the end of the arg list >> filename then
@@ -52,7 +47,8 @@ class CommandPipeline(object):
 
         # if this runs in a shell, the shell will manage this stuff
         if not self._shell:
-            # if the last command has ">", "filename", then we stick that into save file and toss those two args
+            # if the last command has ">", "filename",
+            # then we stick that into save file and toss those two args
             last_command_in_pipe = self._commands[-1]
             if len(last_command_in_pipe) > 1:
                 if last_command_in_pipe[-2] == ">":
@@ -61,7 +57,8 @@ class CommandPipeline(object):
                     # lose the > symbol
                     last_command_in_pipe.pop()
 
-            # if the last command has ">>", "filename", then we append into save file and toss those two args.
+            # if the last command has ">>", "filename",
+            # then we append into save file and toss those two args.
             last_command_in_pipe = self._commands[-1]
             if len(last_command_in_pipe) > 1:
                 if last_command_in_pipe[-2] == ">>":
@@ -92,7 +89,7 @@ class CommandPipeline(object):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
     def start_commands(self, read_input_from_caller=False):
-        previous_process=None
+        previous_process = None
         if self.save_filename():
             if not self.save_file():
                 self.open_save_file()
@@ -190,12 +187,12 @@ class CommandPipeline(object):
     # Otherwise, a list is returned, whose entries are pairs
     # containing the error, and the command (as passed to the
     # constructor)
-    def get_failed_commands_with_exit_value(self):
+    def get_failed_cmds_with_retcode(self):
         """yields failed commands of a pipeline, along with exit values"""
         failed_commands = []
         for index, exit_value in enumerate(self._exit_values):
             if exit_value != 0:
-                failed_commands.append([exit_value, self._commands[index]]);
+                failed_commands.append([exit_value, self._commands[index]])
 
         if len(failed_commands):
             return failed_commands
@@ -213,7 +210,8 @@ class CommandPipeline(object):
 
     def check_poll_ready_for_read(self):
         if not self._last_poll_state:
-            # this means we never had a poll return with activity on the current object... which counts as false
+            # this means we never had a poll return with
+            # activity on the current object... which counts as false
             return False
         if self._last_poll_state & (select.POLLIN|select.POLLPRI):
             return True
@@ -222,9 +220,12 @@ class CommandPipeline(object):
 
     def check_for_poll_errors(self):
         if not self._last_poll_state:
-            # this means we never had a poll return with activity on the current object... which counts as false
+            # this means we never had a poll return with
+            # activity on the current object... which counts as false
             return False
-        if self._last_poll_state & select.POLLHUP or self._last_poll_state & select.POLLNVAL or self._last_poll_state & select.POLLERR:
+        if (self._last_poll_state & select.POLLHUP or
+                self._last_poll_state & select.POLLNVAL or
+                self._last_poll_state & select.POLLERR):
             return True
         else:
             return False
@@ -241,7 +242,8 @@ class CommandPipeline(object):
             self._poller = select.poll()
             self._poller.register(self._last_process_in_pipe.stdout, select.POLLIN|select.POLLPRI)
 
-        # FIXME we should return something reasonable if we unregistered this the last time
+        # FIXME we should return something reasonable if we
+        # unregistered this the last time
         if timeout == None:
             fd_ready = self._poller.poll()
         else:
@@ -269,7 +271,8 @@ class CommandPipeline(object):
 
                     # DEBUG
 #                    if (out):
-#                        sys.stdout.write("DEBUG: got from %s out %s" % (self._lastCommandString, out))
+#                        sys.stdout.write("DEBUG: got from %s out %s" % (
+#                             self._lastCommandString, out))
 
 
                     signal.alarm(0)
@@ -299,7 +302,7 @@ class CommandPipeline(object):
     def get_all_output(self):
         # gather output (from end of pipeline) and record array of exit values
         (stdout, stderr) = self.process_to_poll().communicate()
-        self._output  = stdout
+        self._output = stdout
 
     def run_pipeline_get_output(self):
         """Run just the one pipeline, all output is concatenated and can be
@@ -310,7 +313,8 @@ class CommandPipeline(object):
         self.set_return_codes()
 
 class CommandSeries(object):
-    """Run a list of command pipelines in serial (e.g. tar cvfp distro/ distro.tar; chmod 644 distro.tar  )
+    """Run a list of command pipelines in serial (e.g.
+    tar cvfp distro/ distro.tar; chmod 644 distro.tar  )
     It takes as args: series of pipelines (each pipeline is a list of commands)"""
     def __init__(self, commandSeries, quiet=False, shell=False):
         self._command_series = commandSeries
@@ -358,8 +362,13 @@ class CommandSeries(object):
                     commands.append(command)
         return commands
 
-    def all_output_read_from_pipeline_in_progress(self):
-        if self._in_progress_pipeline.check_for_poll_errors() and not self._in_progress_pipeline.check_poll_ready_for_read():
+    def all_output_read_from_pipeline(self):
+        '''
+        check that we have all the output from the pipeline currently
+        running; return True if so, False otherwise
+        '''
+        if (self._in_progress_pipeline.check_for_poll_errors() and
+                not self._in_progress_pipeline.check_poll_ready_for_read()):
             return True
         # there is no output to read, it's all going somewhere to a file.
         elif not self.in_progress_pipeline()._last_process_in_pipe.stdout:
@@ -367,10 +376,12 @@ class CommandSeries(object):
         else:
             return False
 
-    def continue_commands(self, get_output=False, read_input_from_caller=False):
+    def continue_commands(self, read_input_from_caller=False):
         if self._in_progress_pipeline:
-            # so we got all the output and the job's not running any more... get exit codes and run the next one
-            if self.all_output_read_from_pipeline_in_progress() and not self._in_progress_pipeline.is_running():
+            # so we got all the output and the job's not running any more...
+            # get exit codes and run the next one
+            if (self.all_output_read_from_pipeline() and
+                    not self._in_progress_pipeline.is_running()):
                 self._in_progress_pipeline.set_return_codes()
                 # oohh ohhh start thenext one, w00t!
                 index = self._command_pipelines.index(self._in_progress_pipeline)
@@ -428,12 +439,9 @@ class ProcessMonitor(threading.Thread):
             fcntl.fcntl(fderr, fcntl.F_SETFL, flerr | os.O_NONBLOCK)
             if proc.stdout:
                 poller.register(proc.stdout, select.POLLIN|select.POLLPRI)
-                fd_to_stream = { proc.stdout.fileno(): proc.stdout, proc.stderr.fileno(): proc.stderr }
                 fdout = proc.stdout.fileno()
                 flout = fcntl.fcntl(fdout, fcntl.F_GETFL)
                 fcntl.fcntl(fdout, fcntl.F_SETFL, flout | os.O_NONBLOCK)
-            else:
-                fd_to_stream = { proc.stderr.fileno(): proc.stderr }
 
             command_completed = False
 
@@ -447,9 +455,13 @@ class ProcessMonitor(threading.Thread):
                             out = os.read(filed, 1024)
                             if out:
                                 if filed == proc.stderr.fileno():
-                                    self.output_queue.put(OutputQueueItem(OutputQueueItem.get_stderr_channel(), out))
+                                    self.output_queue.put(
+                                        OutputQueueItem(
+                                            OutputQueueItem.get_stderr_channel(), out))
                                 elif filed == proc.stdout.fileno():
-                                    self.output_queue.put(OutputQueueItem(OutputQueueItem.get_stdout_channel(), out))
+                                    self.output_queue.put(
+                                        OutputQueueItem(
+                                            OutputQueueItem.get_stdout_channel(), out))
                             else:
                                 # possible eof? what would cause this?
                                 pass
@@ -503,7 +515,9 @@ class CommandsInParallel(object):
     and the individual pipelines are not provided with a file to save output,
     then output is written to stderr.
     Callbackinterval is in milliseconds, defaults is 20 seconds"""
-    def __init__(self, command_series_list, callback_stderr=None, callbackStdout=None, callback_timed=None, callback_stderr_arg=None, callbackStdoutArg=None, callback_timed_arg=None, quiet=False, shell=False, callback_interval=20000):
+    def __init__(self, command_series_list, callback_stderr=None, callbackStdout=None,
+                 callback_timed=None, callback_stderr_arg=None, callbackStdoutArg=None,
+                 callback_timed_arg=None, quiet=False, shell=False, callback_interval=20000):
         self._command_series_list = command_series_list
         self._command_serieses = []
         for series in self._command_series_list:
@@ -535,7 +549,11 @@ class CommandsInParallel(object):
     def setup_output_monitoring(self):
         for series in self._command_serieses:
             self._command_series_queue.put(series)
-            thrd = ProcessMonitor(500, self._command_series_queue, self._output_queue, self._default_callback_interval, self._callback_stderr, self._callback_stdout, self._callback_timed, self._callback_stderr_arg, self._callback_stdout_arg, self._callback_timed_arg)
+            thrd = ProcessMonitor(500, self._command_series_queue,
+                                  self._output_queue, self._default_callback_interval,
+                                  self._callback_stderr, self._callback_stdout,
+                                  self._callback_timed, self._callback_stderr_arg,
+                                  self._callback_stdout_arg, self._callback_timed_arg)
             thrd.start()
 
     def all_commands_completed(self):
@@ -605,7 +623,9 @@ def testcallback(output=None):
 
 def main():
     command1 = ["/usr/bin/vmstat", "1", "10"]
-    command2 = ["/usr/sbin/lnstat", "-i", "7", "-c", "5", "-k", "arp_cache:entries,rt_cache:in_hit,arp_cache:destroys", ">", "/home/ariel/src/mediawiki/testing/savelnstat.txt"]
+    command2 = ["/usr/sbin/lnstat", "-i", "7", "-c", "5", "-k",
+                "arp_cache:entries,rt_cache:in_hit,arp_cache:destroys",
+                ">", "/home/ariel/src/mediawiki/testing/savelnstat.txt"]
     command3 = ["/usr/bin/iostat", "9", "2"]
     command4 = ['/bin/touch', "/home/ariel/src/mediawiki/testing/touchfile"]
     command5 = ["/bin/grep", "write", "/home/ariel/src/mediawiki/testing/mysubsagain.py"]
