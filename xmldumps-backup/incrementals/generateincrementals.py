@@ -87,7 +87,8 @@ class Index(object):
 
     def doOneWiki(self, w, date=None):
         if (w not in self._config.privateWikisList and
-                w not in self._config.closedWikisList):
+                w not in self._config.closedWikisList and
+                w not in self._config.skipWikisList):
             incrDumpsDirs = IncDumpDirs(self._config, w)
             if not exists(self.incrDir.getIncDirNoDate(w)):
                 log(self.verbose, "No dump for wiki %s" % w)
