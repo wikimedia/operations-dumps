@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2ecb373e_a2ce9a84",
+        "filename": "WikiDump.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-02T11:07:34Z",
+      "side": 0,
+      "message": "+1 except for the one semantic change",
+      "revId": "bf268a25cf5556df6cb3dc98db539145cef5677e",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2ecb373e_22c38a62",
+        "filename": "WikiDump.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 191,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-02T11:07:34Z",
+      "side": 0,
+      "message": "this should be a separate changeset",
+      "revId": "bf268a25cf5556df6cb3dc98db539145cef5677e",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2ecb373e_82811eff",
+        "filename": "monitor.py",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-02T11:07:34Z",
+      "side": 0,
+      "message": "+1",
+      "revId": "bf268a25cf5556df6cb3dc98db539145cef5677e",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
