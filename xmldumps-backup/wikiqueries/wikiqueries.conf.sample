@@ -3,6 +3,7 @@ mediawiki=/home/wmf/mediawiki/1.18
 allwikislist=/home/wmf/conf/all.dblist
 privatewikislist=/home/wmf/conf/private.dblist
 closedwikislist=/home/wmf/conf/closed.dblist
+skipwikislist=/home/wmf/conf/skip.dblist
 
 [output]
 wikiqueriesdir=/home/wmf/output/files

@@ -58,6 +58,7 @@ class Config(WikiDump.Config):
             "allwikislist": "",
             "privatewikislist": "",
             "closedwikislist": "",
+            "skipwikislist": "",
             #"output": {
             "wikiqueriesdir": "/wikiqueries",
             "temp": "/wikiqueries/temp",
@@ -98,6 +99,8 @@ class Config(WikiDump.Config):
             "wiki", "privatewikislist"))
         self.closedWikisList = MiscUtils.dbList(self.conf.get(
             "wiki", "closedwikislist"))
+        self.skipWikisList = MiscUtils.dbList(self.conf.get(
+            "wiki", "skipwikislist"))
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
@@ -315,7 +318,8 @@ class WikiQuery(object):
     def doOneWiki(self):
         """returns true on success"""
         if (self.wikiName not in self._config.privateWikisList and
-                self.wikiName not in self._config.closedWikisList):
+                self.wikiName not in self._config.closedWikisList and
+                self.wikiName not in self._config.skipWikisList):
             if not exists(self.queryDir.getQueryDir(self.wikiName, self.date)):
                 os.makedirs(self.queryDir.getQueryDir(self.wikiName,
                                                       self.date))
