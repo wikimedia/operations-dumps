@@ -26,7 +26,7 @@ class MultiVersion(object):
         get_version_location = os.path.join(config.wikiDir, "multiversion", "getMWVersion")
         if exists(get_version_location):
             # run the command for the wiki and get the version
-            command =  get_version_location + " " +  db_name
+            command = get_version_location + " " + db_name
             version = RunSimpleCommand.run_and_return(command)
             if version:
                 version = version.rstrip()
@@ -59,8 +59,10 @@ class DbServerInfo(object):
         command = "%s -q %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
         results = RunSimpleCommand.run_and_return(command, self.error_callback).strip()
         if not results:
-            raise BackupError("Failed to get database connection information for %s, bailing." % self.wiki.config.php)
-        # first line is the server, the second is an array of the globals, we need the db table prefix out of those
+            raise BackupError("Failed to get database connection " +
+                              "information for %s, bailing." % self.wiki.config.php)
+        # first line is the server, the second is an array of the globals, we need
+        # the db table prefix out of those
         lines = results.splitlines()
         self.db_server = lines[0]
         self.db_port = None
@@ -68,21 +70,22 @@ class DbServerInfo(object):
             self.db_server, _, self.db_port = self.db_server.rpartition(':')
 
         #       [wgDBprefix] =>
-        wgdb_prefix_pattern = re.compile("\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
+        wgdb_prefix_pattern = re.compile(r"\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
         for line in lines:
             match = wgdb_prefix_pattern.match(line)
             if match:
                 self.db_table_prefix = match.group('prefix').strip()
         if self.db_table_prefix == None:
             # if we didn't see this in the globals list, something is broken.
-            raise BackupError("Failed to get database table prefix for %s, bailing." % self.wiki.config.php)
+            raise BackupError("Failed to get database table prefix for %s, bailing."
+                              % self.wiki.config.php)
 
     def mysql_standard_parameters(self):
         host = self.db_server
         if self.db_port and self.db_server.strip() == "localhost":
             # MySQL tools ignore port settings for host "localhost" and instead use IPC sockets,
             # so we rewrite the localhost to it's ip address
-            host = socket.gethostbyname(self.db_server);
+            host = socket.gethostbyname(self.db_server)
 
         params = ["-h", "%s" % host] # Host
         if self.db_port:
@@ -140,17 +143,17 @@ class RunSimpleCommand(object):
         """Run a command and return the output as a string.
         Raises BackupError on non-zero return code."""
         retval = 1
-        retries=0
-        maxretries=3
+        retries = 0
+        maxretries = 3
         proc = Popen(command, bufsize=64, shell=True, stdout=PIPE, stderr=PIPE)
-        output, error = proc.communicate()
+        output, error_unused = proc.communicate()
         retval = proc.returncode
         while retval and retries < maxretries:
             if log_callback:
                 log_callback("Non-zero return code from '%s'" % command)
             time.sleep(5)
             proc = Popen(command, bufsize=64, shell=True, stdout=PIPE, stderr=PIPE)
-            output, error = proc.communicate()
+            output, error_unused = proc.communicate()
             retval = proc.returncode
             retries = retries + 1
         if retval:
@@ -169,9 +172,9 @@ class PageAndEditStats(object):
         self.wiki = wiki
         self.db_name = db_name
         self.db_server_info = DbServerInfo(wiki, db_name, error_callback)
-        self.get_statistics(self.wiki.config, db_name)
+        self.get_statistics()
 
-    def get_statistics(self, db_name, ignore):
+    def get_statistics(self):
         """Get statistics for the wiki"""
 
         query = "select MAX(page_id) from %spage;" % self.db_server_info.db_table_prefix
@@ -226,12 +229,13 @@ class RunInfoFile(object):
             except:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
-                    sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                    sys.stderr.write(repr(traceback.format_exception(
+                        exc_type, exc_value, exc_traceback)))
                 sys.stderr.write("Couldn't save dump run info file. Continuing anyways\n")
 
     def status_of_old_dump_is_done(self, runner, date, job_name, job_desc):
-        old_dump_runinfo_filename=self._get_dump_runinfo_filename(date)
-        status = self._get_job_status_from_runinfo(old_dump_runinfo_filename, job_name)
+        old_dump_runinfo_filename = self._get_dump_runinfo_filename(date)
+        status = self._get_status_from_runinfo(old_dump_runinfo_filename, job_name)
         if status == "done":
             return 1
         elif not status == None:
@@ -239,8 +243,9 @@ class RunInfoFile(object):
             return 0
 
         # ok, there was no info there to be had, try the index file. yuck.
-        index_filename = os.path.join(runner.wiki.publicDir(), date, runner.wiki.config.perDumpIndex)
-        status = self._get_job_status_from_html(index_filename, job_desc)
+        index_filename = os.path.join(runner.wiki.publicDir(),
+                                      date, runner.wiki.config.perDumpIndex)
+        status = self._get_status_from_html(index_filename, job_desc)
         if status == "done":
             return 1
         else:
@@ -259,12 +264,13 @@ class RunInfoFile(object):
             infile = open(dump_runinfo_filename, "r")
             for line in infile:
                 results.append(self._get_old_runinfo_from_line(line))
-            infile.close
+            infile.close()
             return results
         except:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                sys.stderr.write(repr(traceback.format_exception(
+                    exc_type, exc_value, exc_traceback)))
             return False
 
     #
@@ -293,36 +299,35 @@ class RunInfoFile(object):
         dump_runinfo = RunInfo()
         for field in fields:
             field = field.strip(" ")
-            (fieldname, separator, field_value)  = field.partition(':')
+            (fieldname, sep_unused, field_value) = field.partition(':')
             if fieldname == "name":
                 dump_runinfo.set_name(field_value)
             elif fieldname == "status":
-                dump_runinfo.set_status(field_value, False)
+                dump_runinfo.set_status(field_value)
             elif fieldname == "updated":
                 dump_runinfo.set_updated(field_value)
         return dump_runinfo
 
     def _write_dump_runinfo_file(self, text):
-        directory = self._get_dump_runinfo_dirname()
         dump_runinfo_filename = self._get_dump_runinfo_filename()
 #        FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
         FileUtils.writeFileInPlace(dump_runinfo_filename, text, self.wiki.config.fileperms)
 
     # format: name:%; updated:%; status:%
-    def _get_job_status_from_runinfo_line(self, line, job_name):
+    def _get_status_from_runinfo_line(self, line, job_name):
         # get rid of leading/trailing/embedded blanks
         line = line.replace(" ", "")
         line = line.replace("\n", "")
         fields = line.split(';', 2)
         for field in fields:
-            (fieldname, separator, field_value)  = field.partition(':')
+            (fieldname, sep_unused, field_value) = field.partition(':')
             if fieldname == "name":
                 if not field_value == job_name:
                     return None
             elif fieldname == "status":
                 return field_value
 
-    def _get_job_status_from_runinfo(self, filename, job_name=""):
+    def _get_status_from_runinfo(self, filename, job_name=""):
         # read the dump run info file in, if there is one, and find out whether
         # a particular job (one step only, not a multiple piece job) has been
         # already run and whether it was successful (use to examine status
@@ -330,19 +335,20 @@ class RunInfoFile(object):
         try:
             infile = open(filename, "r")
             for line in infile:
-                result = self._get_job_status_from_runinfo_line(line, job_name)
+                result = self._get_status_from_runinfo_line(line, job_name)
                 if not result == None:
                     return result
-            infile.close
+            infile.close()
             return None
         except:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                sys.stderr.write(repr(traceback.format_exception(
+                    exc_type, exc_value, exc_traceback)))
             return None
 
     # find desc in there, look for "class='done'"
-    def _get_job_status_from_html_line(self, line, desc):
+    def _get_status_from_html_line(self, line, desc):
         if not ">"+desc+"<" in line:
             return None
         if "<li class='done'>" in line:
@@ -350,7 +356,7 @@ class RunInfoFile(object):
         else:
             return "other"
 
-    def _get_job_status_from_html(self, filename, desc):
+    def _get_status_from_html(self, filename, desc):
         # read the index file in, if there is one, and find out whether
         # a particular job (one step only, not a multiple piece job) has been
         # already run and whether it was successful (use to examine status
@@ -358,15 +364,16 @@ class RunInfoFile(object):
         try:
             infile = open(filename, "r")
             for line in infile:
-                result = self._get_job_status_from_html_line(line, desc)
+                result = self._get_status_from_html_line(line, desc)
                 if not result == None:
                     return result
-            infile.close
+            infile.close()
             return None
         except:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                sys.stderr.write(repr(traceback.format_exception(
+                    exc_type, exc_value, exc_traceback)))
             return None
 
 
@@ -392,7 +399,7 @@ class RunInfo(object):
     def set_name(self, name):
         self._name = name
 
-    def set_status(self, status, set_updated=True):
+    def set_status(self, status):
         self._status = status
 
     def set_updated(self, updated):
@@ -418,13 +425,18 @@ class Chunk(object,):
                 raise BackupError("Failed to get DB stats, exiting")
             if self.wiki.config.chunksForAbstract:
                 # we add 200 padding to cover new pages that may be added
-                pages_per_chunk = self.stats.total_pages/int(self.wiki.config.chunksForAbstract) + 200
-                self._pages_per_chunk_abstract = [pages_per_chunk for i in range(0, int(self.wiki.config.chunksForAbstract))]
+                pages_per_chunk = 200 + self.stats.total_pages/int(
+                    self.wiki.config.chunksForAbstract)
+                self._pages_per_chunk_abstract = [pages_per_chunk for i in range(
+                    0, int(self.wiki.config.chunksForAbstract))]
             else:
-                self._pages_per_chunk_abstract = self.convert_comma_sep(self.wiki.config.pagesPerChunkAbstract)
+                self._pages_per_chunk_abstract = self.convert_comma_sep(
+                    self.wiki.config.pagesPerChunkAbstract)
 
-            self._pages_per_chunk_history = self.convert_comma_sep(self.wiki.config.pagesPerChunkHistory)
-            self._revs_per_chunk_history = self.convert_comma_sep(self.wiki.config.revsPerChunkHistory)
+            self._pages_per_chunk_history = self.convert_comma_sep(
+                self.wiki.config.pagesPerChunkHistory)
+            self._revs_per_chunk_history = self.convert_comma_sep(
+                self.wiki.config.revsPerChunkHistory)
             self._recombine_history = self.wiki.config.recombineHistory
         else:
             self._pages_per_chunk_history = False
@@ -434,8 +446,10 @@ class Chunk(object,):
         if self._chunks_enabled:
             if self._revs_per_chunk_history:
                 if len(self._revs_per_chunk_history) == 1:
-                    self._num_chunks_history = self.get_num_chunks_for_xml_dumps(self.stats.total_edits, self._pages_per_chunk_history[0])
-                    self._revs_per_chunk_history = [self._revs_per_chunk_history[0] for i in range(self._num_chunks_history)]
+                    self._num_chunks_history = self.get_num_chunks_for_xml_dumps(
+                        self.stats.total_edits, self._pages_per_chunk_history[0])
+                    self._revs_per_chunk_history = [self._revs_per_chunk_history[0]
+                                                    for i in range(self._num_chunks_history)]
                 else:
                     self._num_chunks_history = len(self._revs_per_chunk_history)
                 # here we should generate the number of pages per chunk based on number of revs.
@@ -443,8 +457,10 @@ class Chunk(object,):
                 # self._pages_per_chunk_history = ....
             elif self._pages_per_chunk_history:
                 if len(self._pages_per_chunk_history) == 1:
-                    self._num_chunks_history = self.get_num_chunks_for_xml_dumps(self.stats.total_pages, self._pages_per_chunk_history[0])
-                    self._pages_per_chunk_history = [self._pages_per_chunk_history[0] for i in range(self._num_chunks_history)]
+                    self._num_chunks_history = self.get_num_chunks_for_xml_dumps(
+                        self.stats.total_pages, self._pages_per_chunk_history[0])
+                    self._pages_per_chunk_history = [self._pages_per_chunk_history[0]
+                                                     for i in range(self._num_chunks_history)]
                 else:
                     self._num_chunks_history = len(self._pages_per_chunk_history)
             else:
@@ -452,8 +468,10 @@ class Chunk(object,):
 
             if self._pages_per_chunk_abstract:
                 if len(self._pages_per_chunk_abstract) == 1:
-                    self._num_chunks_abstract = self.get_num_chunks_for_xml_dumps(self.stats.total_pages, self._pages_per_chunk_abstract[0])
-                    self._pages_per_chunk_abstract = [self._pages_per_chunk_abstract[0] for i in range(self._num_chunks_abstract)]
+                    self._num_chunks_abstract = self.get_num_chunks_for_xml_dumps(
+                        self.stats.total_pages, self._pages_per_chunk_abstract[0])
+                    self._pages_per_chunk_abstract = [self._pages_per_chunk_abstract[0]
+                                                      for i in range(self._num_chunks_abstract)]
                 else:
                     self._num_chunks_abstract = len(self._pages_per_chunk_abstract)
             else:

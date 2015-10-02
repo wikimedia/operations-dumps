@@ -4,19 +4,17 @@ from xml page dumps to dumps of private mysql tables
 to recombining multiple stub dumps into one file
 '''
 
-import getopt, hashlib, os, re, sys, errno, time
-import subprocess, select
-import shutil, stat, signal, glob
-import Queue, thread, traceback, socket
+import os, re, sys, time
+import signal
+import traceback
 
 from os.path import exists
-from subprocess import Popen, PIPE
-from dumps.WikiDump import FileUtils, MiscUtils, TimeUtils
-from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
+from dumps.WikiDump import MiscUtils, TimeUtils
+from dumps.CommandManagement import CommandPipeline
 
 from dumps.exceptions import *
 from dumps.fileutils import *
-from dumps.utils import RunInfo, MultiVersion, RunInfoFile, Chunk
+from dumps.utils import MultiVersion, RunInfo
 
 class Dump(object):
     def __init__(self, name, desc, verbose=False):
@@ -112,7 +110,7 @@ class Dump(object):
         e.g. sql xml etc"""
         return ""
 
-    def start(self, runner):
+    def start(self):
         """Set the 'in progress' flag so we can output status."""
         self.set_status("in-progress")
 
@@ -121,16 +119,20 @@ class Dump(object):
         try:
             for prerequisite_item in self._prerequisite_items:
                 if prerequisite_item.status() == "failed":
-                    raise BackupError("Required job %s failed, not starting job %s" % (prerequisite_item.name(), self.name()))
+                    raise BackupError("Required job %s failed, not starting job %s" %
+                                      (prerequisite_item.name(), self.name()))
                 elif prerequisite_item.status() != "done":
-                    raise BackupPrereqError("Required job %s not marked as done, not starting job %s" % (prerequisite_item.name(), self.name()))
+                    raise BackupPrereqError("Required job "
+                                            "%s not marked as done, not starting job %s" %
+                                            (prerequisite_item.name(), self.name()))
 
             self.run(runner)
             self.post_run(runner)
         except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             if self.verbose:
-                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                sys.stderr.write(repr(traceback.format_exception(
+                    exc_type, exc_value, exc_traceback)))
             if exc_type.__name__ == 'BackupPrereqError':
                 self.set_status("waiting")
             else:
@@ -148,19 +150,23 @@ class Dump(object):
         # Checking for truncated files
         truncated_files_count = self.check_for_truncated_files(runner)
         if truncated_files_count:
-            raise BackupError("Encountered %d truncated files for %s" % (truncated_files_count, self.dumpname))
+            raise BackupError("Encountered %d truncated files for %s" %
+                              (truncated_files_count, self.dumpname))
 
     def check_for_truncated_files(self, runner):
-        """Returns the number of files that have been detected to be truncated. This function expects that all files to check for truncation live in the public dir"""
+        """Returns the number of files that have been detected to be truncated.
+        This function expects that all files to check for truncation live in the public dir"""
         ret = 0
 
         if not runner._check_for_trunc_files_enabled or not self._check_truncation:
             return ret
 
-        for dump_fname in self.list_outfiles_to_check_for_truncation(runner.dump_dir):
-            dfile = DumpFile(runner.wiki, runner.dump_dir.filename_public_path(dump_fname), dump_fname);
+        for dump_fname in self.list_outfiles_to_check_for_truncation(
+                runner.dump_dir):
+            dfile = DumpFile(runner.wiki, runner.dump_dir.filename_public_path(
+                dump_fname), dump_fname)
 
-            file_truncated=True;
+            file_truncated = True
             if exists(dfile.filename):
                 if dfile.check_if_truncated():
                     # The file exists and is truncated, we move it out of the way
@@ -173,10 +179,10 @@ class Dump(object):
                     # see, which chunks (instead of the whole job) need a rerun.
                 else:
                     # The file exists and is not truncated. Heck, it's a good file!
-                    file_truncated=False
+                    file_truncated = False
 
             if file_truncated:
-                ret+=1
+                ret += 1
 
         return ret
 
@@ -199,7 +205,8 @@ class Dump(object):
     def wait_alarm_handler(self, signum, frame):
         pass
 
-    def build_recombine_command_string(self, runner, files, output_file, compression_command, uncompression_command, end_header_marker="</siteinfo>"):
+    def build_recombine_command_string(self, runner, files, output_file, compression_command,
+                                       uncompression_command, end_header_marker="</siteinfo>"):
         output_filename = runner.dump_dir.filename_public_path(output_file)
         chunknum = 0
         recombines = []
@@ -239,14 +246,20 @@ class Dump(object):
             uncompress_this_file = uncompression_command[:]
             uncompress_this_file.append(fpath)
             pipeline.append(uncompress_this_file)
-            # warning: we figure any header (<siteinfo>...</siteinfo>) is going to be less than 2000 lines!
+            # warning: we figure any header (<siteinfo>...</siteinfo>)
+            # is going to be less than 2000 lines!
             pipeline.append([head, "-2000"])
             pipeline.append([grep, "-n", end_header_marker])
             # without shell
             proc = CommandPipeline(pipeline, quiet=True)
             proc.run_pipeline_get_output()
-            if (proc.output()) and (proc.exited_successfully() or proc.get_failed_commands_with_exit_value() == [[-signal.SIGPIPE, uncompress_this_file]] or proc.get_failed_commands_with_exit_value() == [[signal.SIGPIPE + 128, uncompress_this_file]]):
-                (header_end_num, junk) = proc.output().split(":", 1)
+            if ((proc.output()) and
+                    (proc.exited_successfully() or
+                     proc.get_failed_cmds_with_retcode() ==
+                     [[-signal.SIGPIPE, uncompress_this_file]] or
+                     proc.get_failed_cmds_with_retcode() ==
+                     [[signal.SIGPIPE + 128, uncompress_this_file]])):
+                (header_end_num, junk_unused) = proc.output().split(":", 1)
                 # get header_end_num
             else:
                 raise BackupError("Could not find 'end of header' marker for %s" % fpath)
@@ -254,16 +267,17 @@ class Dump(object):
             header_end_num = int(header_end_num) + 1
             if chunknum == 1:
                 # first file, put header and contents
-                recombine = recombine + " | %s -n -1 " % head_esc
+                recombine = recombine + " | %s -n -1 " % head
             elif chunknum == len(files):
                 # last file, put footer
-                recombine = recombine + (" | %s -n +%s" % (tail_esc, header_end_num))
+                recombine = recombine + (" | %s -n +%s" % (tail, header_end_num))
             else:
                 # put contents only
-                recombine = recombine + (" | %s -n +%s" % (tail_esc, header_end_num))
+                recombine = recombine + (" | %s -n +%s" % (tail, header_end_num))
                 recombine = recombine + " | %s -n -1 " % head
             recombines.append(recombine)
-        recombine_command_string = "(" + ";".join(recombines) + ")" + "|" + "%s %s" % (compression_command, output_filename)
+        recombine_command_string = ("(" + ";".join(recombines) + ")" + "|" +
+                                    "%s %s" % (compression_command, output_filename))
         return recombine_command_string
 
     def cleanup_old_files(self, dump_dir, runner, chunks=False):
@@ -296,7 +310,8 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_reg_files_existing(date, dname, self.file_type, self.file_ext, chunks, temp=False))
+            files.extend(dump_dir.get_reg_files_existing(
+                date, dname, self.file_type, self.file_ext, chunks, temp=False))
         return files
 
     # list all checkpoint files that exist
@@ -305,7 +320,8 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files_existing(date, dname, self.file_type, self.file_ext, chunks, temp=False))
+            files.extend(dump_dir.get_checkpt_files_existing(
+                date, dname, self.file_type, self.file_ext, chunks, temp=False))
         return files
 
     # unused
@@ -315,8 +331,10 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files_existing(None, dname, self.file_type, self.file_ext, chunks=None, temp=True))
-            files.extend(dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks=None, temp=True))
+            files.extend(dump_dir.get_checkpt_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks=None, temp=True))
+            files.extend(dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks=None, temp=True))
         return files
 
     # list checkpoint files that have been produced for specified chunk(s)
@@ -325,7 +343,8 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files_existing(None, dname, self.file_type, self.file_ext, chunks, temp=False))
+            files.extend(dump_dir.get_checkpt_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks, temp=False))
         return files
 
     # list noncheckpoint files that have been produced for specified chunk(s)
@@ -334,7 +353,8 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks, temp=False))
+            files.extend(dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks, temp=False))
         return files
 
     # list temp output files that have been produced for specified chunk(s)
@@ -343,8 +363,10 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files_existing(None, dname, self.file_type, self.file_ext, chunks, temp=True))
-            files.extend(dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks, temp=True))
+            files.extend(dump_dir.get_checkpt_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks, temp=True))
+            files.extend(dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks, temp=True))
         return files
 
 
@@ -355,7 +377,9 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(runner.dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks=self.get_chunk_list(), temp=False))
+            files.extend(runner.dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext,
+                chunks=self.get_chunk_list(), temp=False))
         return files
 
     # unused
@@ -365,8 +389,12 @@ class Dump(object):
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(runner.dump_dir.get_checkpt_files_existing(None, dname, self.file_type, self.file_ext, chunks=self.get_chunk_list(), temp=True))
-            files.extend(runner.dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks=self.get_chunk_list(), temp=True))
+            files.extend(runner.dump_dir.get_checkpt_files_existing(
+                None, dname, self.file_type, self.file_ext,
+                chunks=self.get_chunk_list(), temp=True))
+            files.extend(runner.dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext,
+                chunks=self.get_chunk_list(), temp=True))
         return files
 
     # unused
@@ -376,7 +404,8 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(runner.dump_dir.get_checkpt_files_existing(None, dname, self.file_type, self.file_ext, chunks=False, temp=False))
+            files.extend(runner.dump_dir.get_checkpt_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks=False, temp=False))
         return files
 
     # unused
@@ -386,7 +415,8 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(runner.dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks=False, temp=False))
+            files.extend(runner.dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks=False, temp=False))
         return files
 
     # unused
@@ -396,8 +426,10 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(runner.dump_dir.get_checkpt_files_existing(None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
-            files.extend(runner.dump_dir.get_reg_files_existing(None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
+            files.extend(runner.dump_dir.get_checkpt_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
+            files.extend(runner.dump_dir.get_reg_files_existing(
+                None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
         return files
 
 
@@ -407,20 +439,24 @@ class Dump(object):
     # know where a checkpoint might be taken (which pageId start/end).
     #
     # if we get None for an arg then we accept all values for that arg in the filename
-    # if we get False for an arg (chunk, temp), we reject any filename which contains a value for that arg
+    # if we get False for an arg (chunk, temp), we reject any filename
+    # which contains a value for that arg
     # if we get True for an arg (temp), we accept only filenames which contain a value for the arg
     # chunks should be a list of value(s), or True / False / None
-    def _get_files_possible(self, dump_dir, date=None, dumpname=None, file_type=None, file_ext=None, chunks=None, temp=False):
+    def _get_files_possible(self, dump_dir, date=None, dumpname=None,
+                            file_type=None, file_ext=None, chunks=None, temp=False):
         files = []
         if dumpname == None:
             dumpname = self.dumpname
         if chunks == None or chunks == False:
-            files.append(DumpFilename(dump_dir._wiki, date, dumpname, file_type, file_ext, None, None, temp))
+            files.append(DumpFilename(dump_dir._wiki, date, dumpname,
+                                      file_type, file_ext, None, None, temp))
         if chunks == True or chunks == None:
             chunks = self.get_chunk_list()
         if chunks:
             for chunk in chunks:
-                files.append(DumpFilename(dump_dir._wiki, date, dumpname, file_type, file_ext, chunk, None, temp))
+                files.append(DumpFilename(dump_dir._wiki, date, dumpname,
+                                          file_type, file_ext, chunk, None, temp))
         return files
 
     # unused
@@ -430,7 +466,8 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks=None, temp=False))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks=None, temp=False))
         return files
 
     # unused
@@ -440,47 +477,56 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks=None, temp=True))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks=None, temp=True))
         return files
 
-    # based on dump name, chunks, etc. get all the output files we expect to generate for these chunks
+    # based on dump name, chunks, etc. get all the
+    # output files we expect to generate for these chunks
     def get_reg_files_per_chunk_possible(self, dump_dir, chunks, dump_names=None):
         if not dump_names:
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks, temp=False))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks, temp=False))
         return files
 
     # unused
-    # based on dump name, chunks, etc. get all the temp files we expect to generate for these chunks
+    # based on dump name, chunks, etc. get all the
+    # temp files we expect to generate for these chunks
     def get_temp_files_per_chunk_possible(self, dump_dir, chunks, dump_names=None):
         if not dump_names:
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks, temp=True))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks, temp=True))
         return files
 
 
     # unused
-    # based on dump name, chunks, etc. get all the output files we expect to generate for these chunks
+    # based on dump name, chunks, etc. get all the
+    # output files we expect to generate for these chunks
     def get_reg_files_chunked_possible(self, dump_dir, dump_names=None):
         if not dump_names:
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks=True, temp=False))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks=True, temp=False))
         return files
 
     # unused
-    # based on dump name, chunks, etc. get all the temp files we expect to generate for these chunks
+    # based on dump name, chunks, etc. get all the
+    # temp files we expect to generate for these chunks
     def get_temp_files_per_chunked_possible(self, dump_dir, dump_names=None):
         if not dump_names:
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks=True, temp=True))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks=True, temp=True))
         return files
 
     # unused
@@ -490,7 +536,8 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks=False, temp=False))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks=False, temp=False))
         return files
 
     # unused
@@ -500,7 +547,8 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(dump_dir, None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
+            files.extend(self._get_files_possible(
+                dump_dir, None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
         return files
 
 ################################
@@ -509,8 +557,10 @@ class Dump(object):
 #
 #
     # Used for updating md5/sha1 lists, index.html
-    # Includes: checkpoints, chunks, chunkless, temp files if they exist. At end of run temp files must be gone.
-    # This is *all* output files for the dumpname, regardless of what's being re-run.
+    # Includes: checkpoints, chunks, chunkless, temp files if they
+    # exist. At end of run temp files must be gone.
+    # This is *all* output files for the dumpname, regardless of
+    # what's being re-run.
     def list_outfiles_to_publish(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
         if dump_names == None:
@@ -522,18 +572,21 @@ class Dump(object):
 
         if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_checkpt_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
-            files.extend(self.list_temp_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_checkpt_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_temp_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         else:
                 # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.get_reg_files_per_chunk_possible(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.get_reg_files_per_chunk_possible(
+                dump_dir, self.get_chunk_list(), dump_names))
         return files
 
     # called at end of job run to see if results are intact or are garbage and must be tossed/rerun.
     # Includes: checkpoints, chunks, chunkless.  Not included: temp files.
     # This is only the files that should be produced from this run. So it is limited to a specific
-    # chunk if that's being redone, or to all chunks if the whole job is being redone, or to the chunkless
-    # files if there are no chunks enabled.
+    # chunk if that's being redone, or to all chunks if the whole job is being redone,
+    # or to the chunkless files if there are no chunks enabled.
     def list_outfiles_to_check_for_truncation(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
         if dump_names == None:
@@ -545,17 +598,19 @@ class Dump(object):
 
         if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_checkpt_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_checkpt_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         else:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.get_reg_files_per_chunk_possible(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.get_reg_files_per_chunk_possible(
+                dump_dir, self.get_chunk_list(), dump_names))
         return files
 
     # called when putting together commands to produce output for the job.
     # Includes: chunks, chunkless, temp files.   Not included: checkpoint files.
     # This is only the files that should be produced from this run. So it is limited to a specific
-    # chunk if that's being redone, or to all chunks if the whole job is being redone, or to the chunkless
-    # files if there are no chunks enabled.
+    # chunk if that's being redone, or to all chunks if the whole job
+    # is being redone, or to the chunkless files if there are no chunks enabled.
     def list_outfiles_for_build_command(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
         if dump_names == None:
@@ -567,17 +622,19 @@ class Dump(object):
 
         if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_temp_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_temp_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         else:
                 # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.get_reg_files_per_chunk_possible(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.get_reg_files_per_chunk_possible(
+                dump_dir, self.get_chunk_list(), dump_names))
         return files
 
     # called before job run to cleanup old files left around from any previous run(s)
     # Includes: checkpoints, chunks, chunkless, temp files if they exist.
     # This is only the files that should be produced from this run. So it is limited to a specific
-    # chunk if that's being redone, or to all chunks if the whole job is being redone, or to the chunkless
-    # files if there are no chunks enabled.
+    # chunk if that's being redone, or to all chunks if the whole job is being redone,
+    # or to the chunkless files if there are no chunks enabled.
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
         if dump_names == None:
@@ -589,17 +646,22 @@ class Dump(object):
 
         if self._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_checkpt_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
-            files.extend(self.list_temp_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_checkpt_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_temp_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         else:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_reg_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_reg_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         return files
 
     # used to generate list of input files for other phase (e.g. recombine, recompress)
-    # Includes: checkpoints, chunks/chunkless files depending on whether chunks are enabled. Not included: temp files.
-    # This is *all* output files for the job, regardless of what's being re-run. The caller can sort out which
-    # files go to which chunk, in case input is needed on a per chunk basis. (Is that going to be annoying? Nah,
+    # Includes: checkpoints, chunks/chunkless files depending on whether
+    # chunks are enabled. Not included: temp files.
+    # This is *all* output files for the job, regardless of what's being re-run.
+    # The caller can sort out which files go to which chunk, in case input is
+    # needed on a per chunk basis. (Is that going to be annoying? Nah,
     # and we only do it once per job so who cares.)
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
@@ -607,9 +669,11 @@ class Dump(object):
             dump_names = [self.dumpname]
         files = []
         if self._checkpoints_enabled:
-            files.extend(self.list_checkpt_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_checkpt_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         else:
-            files.extend(self.list_reg_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_reg_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         return files
 
 class PublicTable(Dump):
@@ -637,11 +701,13 @@ class PublicTable(Dump):
         if len(files) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
         output_file = files[0]
-        error = self.save_table(self._table, runner.dump_dir.filename_public_path(output_file), runner)
+        error = self.save_table(
+            self._table, runner.dump_dir.filename_public_path(output_file), runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error = self.save_table(self._table, runner.dump_dir.filename_public_path(output_file), runner)
+            error = self.save_table(
+                self._table, runner.dump_dir.filename_public_path(output_file), runner)
         if error:
             raise BackupError("error dumping table %s" % self._table)
 
@@ -675,11 +741,13 @@ class PrivateTable(PublicTable):
         if len(files) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
         output_file = files[0]
-        error = self.save_table(self._table, runner.dump_dir.filename_private_path(output_file), runner)
+        error = self.save_table(
+            self._table, runner.dump_dir.filename_private_path(output_file), runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error = self.save_table(self._table, runner.dump_dir.filename_private_path(output_file), runner)
+            error = self.save_table(
+                self._table, runner.dump_dir.filename_private_path(output_file), runner)
         if error:
             raise BackupError("error dumping table %s" % self._table)
 
@@ -719,36 +787,36 @@ class XmlStub(Dump):
         return 'stub'
 
     def list_dumpnames(self):
-        dump_names =  [self.history_dump_name, self.current_dump_name, self.articles_dump_name]
+        dump_names = [self.history_dump_name, self.current_dump_name, self.articles_dump_name]
         return dump_names
 
     def list_outfiles_to_publish(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_for_build_command(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_for_cleanup(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
         if dump_names == None:
-            dump_names =  self.list_dumpnames()
+            dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
         return files
@@ -758,13 +826,17 @@ class XmlStub(Dump):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
         articles_file = runner.dump_dir.filename_public_path(outf)
-        history_file = runner.dump_dir.filename_public_path(DumpFilename(runner.wiki, outf.date, self.history_dump_name, outf.file_type, outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
-        current_file = runner.dump_dir.filename_public_path(DumpFilename(runner.wiki, outf.date, self.current_dump_name, outf.file_type, outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
-        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
+        history_file = runner.dump_dir.filename_public_path(DumpFilename(
+            runner.wiki, outf.date, self.history_dump_name, outf.file_type,
+            outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
+        current_file = runner.dump_dir.filename_public_path(DumpFilename(
+            runner.wiki, outf.date, self.current_dump_name, outf.file_type,
+            outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
+#        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
-        command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
-                    "--articles", articles_file,
-                    "--history", history_file, "--current", current_file]
+        command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0],
+                   "--wiki", runner.db_name, "--articles", articles_file,
+                   "--history", history_file, "--current", current_file]
 
         if outf.chunk:
             # set up start end end pageids for this piece
@@ -793,7 +865,8 @@ class XmlStub(Dump):
             if fname.dumpname == self.articles_dump_name:
                 series = self.build_command(runner, fname)
                 commands.append(series)
-        error = runner.run_command(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                   callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing stub files")
 
@@ -812,13 +885,13 @@ class RecombineXmlStub(Dump):
         return self.item_for_xml_stubs.list_dumpnames()
 
     def list_outfiles_to_publish(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
         return files
@@ -833,9 +906,10 @@ class RecombineXmlStub(Dump):
         return self.item_for_xml_stubs.get_dumpname()
 
     def run(self, runner):
-        error=0
+        error = 0
         files = self.item_for_xml_stubs.list_outfiles_for_input(runner.dump_dir)
-        output_file_list = self.list_outfiles_for_build_command(runner.dump_dir, self.list_dumpnames())
+        output_file_list = self.list_outfiles_for_build_command(
+            runner.dump_dir, self.list_dumpnames())
         for output_file_obj in output_file_list:
             input_files = []
             for in_file in files:
@@ -849,11 +923,13 @@ class RecombineXmlStub(Dump):
             compression_command = runner.wiki.config.gzip
             compression_command = "%s > " % runner.wiki.config.gzip
             uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
-            recombine_command_string = self.build_recombine_command_string(runner, input_files, output_file_obj, compression_command, uncompression_command)
+            recombine_command_string = self.build_recombine_command_string(
+                runner, input_files, output_file_obj, compression_command, uncompression_command)
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
+            result = runner.run_command([series], callback_timed=self.progress_callback,
+                                        callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
@@ -888,22 +964,26 @@ class XmlLogging(Dump):
         output_file_obj = files[0]
         if not exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
-        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
+#        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         logging = runner.dump_dir.filename_public_path(output_file_obj)
 
-        command = ["/usr/bin/python", "xmllogs.py", "--config", runner.wiki.config.files[0], "--wiki", runner.db_name,
+        command = ["/usr/bin/python", "xmllogs.py", "--config",
+                   runner.wiki.config.files[0], "--wiki", runner.db_name,
                    "--outfile", logging]
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.run_command([series], callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command([series], callback_stderr=self.progress_callback,
+                                   callback_stderr_arg=runner)
         if error:
             raise BackupError("error dumping log files")
 
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
-    def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch, spawn, wiki, chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None, page_id_range=None, verbose=False):
+    def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch, spawn,
+                 wiki, chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None,
+                 page_id_range=None, verbose=False):
         self._subset = subset
         self._detail = detail
         self._desc = desc
@@ -944,7 +1024,8 @@ class XmlDump(Dump):
     def run(self, runner):
         commands = []
         self.cleanup_old_files(runner.dump_dir, runner)
-        # just get the files pertaining to our dumpname, which is *one* of articles, pages-current, pages-history.
+        # just get the files pertaining to our dumpname, which is *one* of
+        # articles, pages-current, pages-history.
         # stubs include all of them together.
         if not self.dumpname.startswith(self.get_dumpname_base()):
             raise BackupError("dumpname %s of unknown form for this job" % self.dumpname)
@@ -970,11 +1051,13 @@ class XmlDump(Dump):
             commands.append(series)
         else:
             for inp_file in input_files:
-                output_file = DumpFilename(self.wiki, inp_file.date, inp_file.dumpname, inp_file.file_type, self.file_ext)
+#                output_file = DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+#                                           inp_file.file_type, self.file_ext)
                 series = self.build_command(runner, inp_file)
                 commands.append(series)
 
-        error = runner.run_command(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                   callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing xml file(s) %s" % self.dumpname)
 
@@ -998,27 +1081,29 @@ class XmlDump(Dump):
 
     def write_partial_stub(self, input_file, output_file, start_page_id, end_page_id, runner):
         if not exists(self.wiki.config.writeuptopageid):
-            raise BackupError("writeuptopageid command %s not found" % self.wiki.config.writeuptopageid)
-        writeuptopageid = self.wiki.config.writeuptopageid
+            raise BackupError("writeuptopageid command %s not found" %
+                              self.wiki.config.writeuptopageid)
 
         inputfile_path = runner.dump_dir.filename_public_path(input_file)
         output_file_path = os.path.join(self.wiki.config.tempDir, output_file.filename)
         if input_file.file_ext == "gz":
-            command1 =  "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
+            command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
             command2 = "%s > %s" % (self.wiki.config.gzip, output_file_path)
         elif input_file.file_ext == '7z':
-            command1 =  "%s e -si %s" % (self.wiki.config.sevenzip, inputfile_path)
-            command2 =  "%s e -so %s" % (self.wiki.config.sevenzip, output_file_path)
+            command1 = "%s e -si %s" % (self.wiki.config.sevenzip, inputfile_path)
+            command2 = "%s e -so %s" % (self.wiki.config.sevenzip, output_file_path)
         elif input_file.file_ext == 'bz':
-            command1 =  "%s -dc %s" % (self.wiki.config.bzip2, inputfile_path)
-            command2 =  "%s > %s" % (self.wiki.config.bzip2, output_file_path)
+            command1 = "%s -dc %s" % (self.wiki.config.bzip2, inputfile_path)
+            command2 = "%s > %s" % (self.wiki.config.bzip2, output_file_path)
         else:
             raise BackupError("unknown stub file extension %s" % input_file.file_ext)
         if end_page_id:
-            command = [command1 + ("| %s %s %s |" % (self.wiki.config.writeuptopageid, start_page_id, end_page_id)) + command2]
+            command = [command1 + ("| %s %s %s |" % (self.wiki.config.writeuptopageid,
+                                                     start_page_id, end_page_id)) + command2]
         else:
             # no lastpageid? read up to eof of the specific stub file that's used for input
-            command = [command1 + ("| %s %s |" % (self.wiki.config.writeuptopageid, start_page_id)) + command2]
+            command = [command1 + ("| %s %s |" % (self.wiki.config.writeuptopageid,
+                                                  start_page_id)) + command2]
 
         pipeline = [command]
         series = [pipeline]
@@ -1033,10 +1118,14 @@ class XmlDump(Dump):
             output_file = outfile
         elif self._checkpoints_enabled:
             # we write a temp file, it will be checkpointed every so often.
-            output_file = DumpFilename(self.wiki, outfile.date, self.dumpname, outfile.file_type, self.file_ext, outfile.chunk, outfile.checkpoint, temp=True)
+            output_file = DumpFilename(self.wiki, outfile.date, self.dumpname,
+                                       outfile.file_type, self.file_ext, outfile.chunk,
+                                       outfile.checkpoint, temp=True)
         else:
             # we write regular files
-            output_file = DumpFilename(self.wiki, outfile.date, self.dumpname, outfile.file_type, self.file_ext, outfile.chunk, checkpoint=False, temp=False)
+            output_file = DumpFilename(self.wiki, outfile.date, self.dumpname,
+                                       outfile.file_type, self.file_ext, outfile.chunk,
+                                       checkpoint=False, temp=False)
 
         # Page and revision data pulled from this skeleton dump...
         # FIXME we need the stream wrappers for proper use of writeupto. this is a hack.
@@ -1051,20 +1140,33 @@ class XmlDump(Dump):
                     stub_dumpname = sname
 
         if self.checkpoint_file is not None:
-            stub_input_filename = self.checkpoint_file.new_filename(stub_dumpname, self.item_for_stubs.get_filetype(), self.item_for_stubs.get_file_ext(), self.checkpoint_file.date, self.checkpoint_file.chunk)
+            stub_input_filename = self.checkpoint_file.new_filename(
+                stub_dumpname, self.item_for_stubs.get_filetype(),
+                self.item_for_stubs.get_file_ext(), self.checkpoint_file.date,
+                self.checkpoint_file.chunk)
             stub_input_file = DumpFilename(self.wiki)
             stub_input_file.new_from_filename(stub_input_filename)
-            stub_output_filename = self.checkpoint_file.new_filename(stub_dumpname, self.item_for_stubs.get_filetype(), self.item_for_stubs.get_file_ext(), self.checkpoint_file.date, self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
+            stub_output_filename = self.checkpoint_file.new_filename(
+                stub_dumpname, self.item_for_stubs.get_filetype(),
+                self.item_for_stubs.get_file_ext(), self.checkpoint_file.date,
+                self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
             stub_output_file = DumpFilename(self.wiki)
             stub_output_file.new_from_filename(stub_output_filename)
-            self.write_partial_stub(stub_input_file, stub_output_file, self.checkpoint_file.first_page_id, str(int(self.checkpoint_file.last_page_id) + 1), runner)
-            stub_option = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir, stub_output_file.filename)
+            self.write_partial_stub(stub_input_file, stub_output_file,
+                                    self.checkpoint_file.first_page_id,
+                                    str(int(self.checkpoint_file.last_page_id) + 1), runner)
+            stub_option = ("--stub=gzip:%s" % os.path.join(
+                self.wiki.config.tempDir, stub_output_file.filename))
         elif self.page_id_range:
-            # two cases. redoing a specific chunk, OR no chunks, redoing the whole output file. ouch, hope it isn't huge.
+            # two cases. redoing a specific chunk, OR no chunks,
+            # redoing the whole output file. ouch, hope it isn't huge.
             if self._chunk_todo or not self._chunks_enabled:
                 stub_input_file = outfile
 
-            stub_output_filename = stub_input_file.new_filename(stub_dumpname, self.item_for_stubs.get_filetype(), self.item_for_stubs.get_file_ext(), stub_input_file.date, stub_input_file.chunk, stub_input_file.checkpoint)
+            stub_output_filename = stub_input_file.new_filename(
+                stub_dumpname, self.item_for_stubs.get_filetype(),
+                self.item_for_stubs.get_file_ext(), stub_input_file.date,
+                stub_input_file.chunk, stub_input_file.checkpoint)
             stub_output_file = DumpFilename(self.wiki)
             stub_output_file.new_from_filename(stub_output_filename)
             if ',' in self.page_id_range:
@@ -1072,9 +1174,11 @@ class XmlDump(Dump):
             else:
                 first_page_id = self.page_id_range
                 last_page_id = None
-            self.write_partial_stub(stub_input_file, stub_output_file, first_page_id, last_page_id, runner)
+            self.write_partial_stub(stub_input_file, stub_output_file,
+                                    first_page_id, last_page_id, runner)
 
-            stub_option = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir, stub_output_file.filename)
+            stub_option = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir,
+                                                          stub_output_file.filename)
         else:
             stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(outfile)
 
@@ -1084,7 +1188,8 @@ class XmlDump(Dump):
         possible_sources = None
         if self._prefetch:
             possible_sources = self._find_previous_dump(runner, outfile.chunk)
-            # if we have a list of more than one then we need to check existence for each and put them together in a string
+            # if we have a list of more than one then
+            # we need to check existence for each and put them together in a string
             if possible_sources:
                 for sourcefile in possible_sources:
                     sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
@@ -1093,13 +1198,15 @@ class XmlDump(Dump):
         if outfile.chunk:
             chunkinfo = "%s" % outfile.chunk
         else:
-            chunkinfo =""
+            chunkinfo = ""
         if len(sources) > 0:
             source = "bzip2:%s" % (";".join(sources))
-            runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." % (self._subset, chunkinfo, source))
+            runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." %
+                                     (self._subset, chunkinfo, source))
             prefetch = "--prefetch=%s" % (source)
         else:
-            runner.show_runner_state("... building %s %s XML dump, no text prefetch..." % (self._subset, chunkinfo))
+            runner.show_runner_state("... building %s %s XML dump, no text prefetch..." %
+                                     (self._subset, chunkinfo))
             prefetch = ""
 
         if self._spawn:
@@ -1112,7 +1219,9 @@ class XmlDump(Dump):
 
         if self._checkpoints_enabled:
             checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpoint_time)
-            checkpoint_file = "--checkpointfile=%s" % output_file.new_filename(output_file.dumpname, output_file.file_type, output_file.file_ext, output_file.date, output_file.chunk, "p%sp%s", None)
+            checkpoint_file = "--checkpointfile=%s" % output_file.new_filename(
+                output_file.dumpname, output_file.file_type, output_file.file_ext,
+                output_file.date, output_file.chunk, "p%sp%s", None)
         else:
             checkpoint_time = ""
             checkpoint_file = ""
@@ -1120,13 +1229,12 @@ class XmlDump(Dump):
         dump_command = ["%s" % self.wiki.config.php, "-q"]
         dump_command.extend(script_command)
         dump_command.extend(["--wiki=%s" % runner.db_name,
-                    "%s" % stub_option,
-                    "%s" % prefetch,
-                    "%s" % checkpoint_time,
-                    "%s" % checkpoint_file,
-                    "--report=1000",
-                    "%s" % spawn
-                   ])
+                             "%s" % stub_option,
+                             "%s" % prefetch,
+                             "%s" % checkpoint_time,
+                             "%s" % checkpoint_file,
+                             "--report=1000",
+                             "%s" % spawn])
 
         dump_command = filter(None, dump_command)
         command = dump_command
@@ -1154,7 +1262,9 @@ class XmlDump(Dump):
                 if file_obj.is_chunk_file and file_obj.chunk_int > maxchunks:
                     maxchunks = file_obj.chunk_int
                 if not file_obj.first_page_id:
-                    fname = DumpFile(self.wiki, runner.dump_dir.filename_public_path(file_obj, date), file_obj, self.verbose)
+                    fname = DumpFile(
+                        self.wiki, runner.dump_dir.filename_public_path(file_obj, date),
+                        file_obj, self.verbose)
                     file_obj.first_page_id = fname.find_first_page_id_in_file()
 
                         # get the files that cover our range
@@ -1179,7 +1289,8 @@ class XmlDump(Dump):
                             # it's not a checkpoint fle or we'd have the pageid in the filename
                             # so... temporary hack which will give expensive results
                             # if chunk file, and it's the last chunk, put none
-                            # if it's not the last chunk, get the first pageid in the next chunk and subtract 1
+                            # if it's not the last chunk, get the first pageid in the next
+                            #  chunk and subtract 1
                             # if not chunk, put none.
                             if file_obj.is_chunk_file and file_obj.chunk_int < maxchunks:
                                 for fname in file_list:
@@ -1192,15 +1303,23 @@ class XmlDump(Dump):
                         else:
                             last_page_id_in_file = None
 
-                            # FIXME there is no point in including files that have just a few rev ids in them
-                            # that we need, and having to read through the whole file... could take
-                            # hours or days (later it won't matter, right? but until a rewrite, this is important)
-                            # also be sure that if a critical page is deleted by the time we try to figure out ranges,
-                            # that we don't get hosed
-                        if (first_page_id_in_file <= int(start_page_id) and (last_page_id_in_file == None or last_page_id_in_file >= int(start_page_id))) or (first_page_id_in_file >= int(start_page_id) and (end_page_id == None or first_page_id_in_file <= int(end_page_id))):
+                            # FIXME there is no point in including files that have just a
+                            # few rev ids in them that we need, and having to read through
+                            # the whole file... could take hours or days (later it won't matter,
+                            # right? but until a rewrite, this is important)
+                            # also be sure that if a critical page is deleted by the time we
+                            # try to figure out ranges, that we don't get hosed
+                        if ((first_page_id_in_file <= int(start_page_id) and
+                                 (last_page_id_in_file == None or
+                                  last_page_id_in_file >= int(start_page_id))) or
+                                (first_page_id_in_file >= int(start_page_id) and
+                                 (end_page_id == None or
+                                  first_page_id_in_file <= int(end_page_id)))):
                             possibles.append(file_obj)
                     except:
-                        runner.debug("Could not make sense of %s for prefetch. Format update? Corrupt file?" % file_obj.filename)
+                        runner.debug(
+                            "Couldn't process %s for prefetch. Format update? Corrupt file?"
+                            % file_obj.filename)
         return possibles
 
     # this finds the content file or files from the first previous successful dump
@@ -1222,29 +1341,36 @@ class XmlDump(Dump):
         dumps.reverse()
         for date in dumps:
             if date == self.wiki.date:
-                runner.debug("skipping current dump for prefetch of job %s, date %s" % (self.name(), self.wiki.date))
+                runner.debug("skipping current dump for prefetch of job %s, date %s" %
+                             (self.name(), self.wiki.date))
                 continue
 
             # see if this job from that date was successful
-            if not runner.runinfo_file.status_of_old_dump_is_done(runner, date, self.name(), self._desc):
+            if not runner.runinfo_file.status_of_old_dump_is_done(
+                    runner, date, self.name(), self._desc):
                 runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
                 continue
 
             # first check if there are checkpoint files from this run we can use
-            files = self.list_checkpt_files_existing(runner.dump_dir, [self.dumpname], date, chunks=None)
-            possible_prefetch_list = self.get_relevant_prefetch_files(files, start_page_id, end_page_id, date, runner)
+            files = self.list_checkpt_files_existing(
+                runner.dump_dir, [self.dumpname], date, chunks=None)
+            possible_prefetch_list = self.get_relevant_prefetch_files(
+                files, start_page_id, end_page_id, date, runner)
             if len(possible_prefetch_list):
                 return possible_prefetch_list
 
-            # ok, let's check for chunk files instead, from any run (may not conform to our numbering
-            # for this job)
-            files = self.list_reg_files_existing(runner.dump_dir, [self.dumpname], date, chunks=True)
-            possible_prefetch_list = self.get_relevant_prefetch_files(files, start_page_id, end_page_id, date, runner)
+            # ok, let's check for chunk files instead, from any run
+            # (may not conform to our numbering for this job)
+            files = self.list_reg_files_existing(
+                runner.dump_dir, [self.dumpname], date, chunks=True)
+            possible_prefetch_list = self.get_relevant_prefetch_files(
+                files, start_page_id, end_page_id, date, runner)
             if len(possible_prefetch_list):
                 return possible_prefetch_list
 
                     # last shot, get output file that contains all the pages, if there is one
-            files = self.list_reg_files_existing(runner.dump_dir, [self.dumpname], date, chunks=False)
+            files = self.list_reg_files_existing(runner.dump_dir, [self.dumpname],
+                                                 date, chunks=False)
             # there is only one, don't bother to check for relevance :-P
             possible_prefetch_list = files
             files = []
@@ -1277,8 +1403,12 @@ class XmlDump(Dump):
             # page range outside of the page range this job will cover
             for fname in files:
                 if fname.is_checkpoint_file:
-                    if not first_page_id or (fname.first_page_id and (int(fname.first_page_id) >= first_page_id)):
-                        if not last_page_id or (fname.last_page_id and (int(fname.last_page_id) <= last_page_id)):
+                    if (not first_page_id or
+                            (fname.first_page_id and
+                             (int(fname.first_page_id) >= first_page_id))):
+                        if (not last_page_id or
+                                (fname.last_page_id and
+                                 (int(fname.last_page_id) <= last_page_id))):
                             files_to_return.append(fname)
                 else:
                     files_to_return.append(fname)
@@ -1310,19 +1440,24 @@ class RecombineXmlDump(XmlDump):
         files = self.item_for_xml_dumps.list_outfiles_for_input(runner.dump_dir)
         output_files = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(output_files) > 1:
-            raise BackupError("recombine XML Dump trying to produce more than one output file")
+            raise BackupError("recombine XML Dump trying to "
+                              "produce more than one output file")
 
-        error=0
+        error = 0
         if not exists(runner.wiki.config.bzip2):
-            raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2)
+            raise BackupError("bzip2 command %s not found" %
+                              runner.wiki.config.bzip2)
         compression_command = runner.wiki.config.bzip2
         compression_command = "%s > " % runner.wiki.config.bzip2
         uncompression_command = ["%s" % runner.wiki.config.bzip2, "-dc"]
-        recombine_command_string = self.build_recombine_command_string(runner, files, output_files[0], compression_command, uncompression_command)
+        recombine_command_string = self.build_recombine_command_string(
+            runner, files, output_files[0], compression_command, uncompression_command)
         recombine_command = [recombine_command_string]
         recombine_pipeline = [recombine_command]
         series = [recombine_pipeline]
-        error = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
+        error = runner.run_command(
+            [series], callback_timed=self.progress_callback,
+            callback_timed_arg=runner, shell=True)
 
         if error:
             raise BackupError("error recombining xml bz2 files")
@@ -1330,7 +1465,8 @@ class RecombineXmlDump(XmlDump):
 class XmlMultiStreamDump(XmlDump):
     """Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
 
-    def __init__(self, subset, name, desc, detail, item_for_recompression, wiki, chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None):
+    def __init__(self, subset, name, desc, detail, item_for_recompression,
+                 wiki, chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None):
         self._subset = subset
         self._detail = detail
         self._chunks = chunks
@@ -1349,8 +1485,9 @@ class XmlMultiStreamDump(XmlDump):
         return "pages-" + self._subset
 
     def list_dumpnames(self):
-        dname = self.get_dumpname();
-        return [self.get_dumpname_multistream(dname), self.get_dumpname_multistream_index(dname)];
+        dname = self.get_dumpname()
+        return [self.get_dumpname_multistream(dname),
+                self.get_dumpname_multistream_index(dname)]
 
     def get_filetype(self):
         return "xml"
@@ -1370,12 +1507,18 @@ class XmlMultiStreamDump(XmlDump):
     def get_multistream_fname(self, fname):
         """assuming that fname is the name of an input file,
         return the name of the associated multistream output file"""
-        return DumpFilename(self.wiki, fname.date, self.get_dumpname_multistream(fname.dumpname), fname.file_type, self.file_ext, fname.chunk, fname.checkpoint, fname.temp)
+        return DumpFilename(self.wiki, fname.date,
+                            self.get_dumpname_multistream(fname.dumpname),
+                            fname.file_type, self.file_ext, fname.chunk,
+                            fname.checkpoint, fname.temp)
 
     def get_multistream_index_fname(self, fname):
         """assuming that fname is the name of a multistream output file,
         return the name of the associated index file"""
-        return DumpFilename(self.wiki, fname.date, self.get_dumpname_multistream_index(fname.dumpname), self.get_index_filetype(), self.file_ext, fname.chunk, fname.checkpoint, fname.temp)
+        return DumpFilename(self.wiki, fname.date,
+                            self.get_dumpname_multistream_index(fname.dumpname),
+                            self.get_index_filetype(), self.file_ext, fname.chunk,
+                            fname.checkpoint, fname.temp)
 
     # output files is a list of checkpoint files, otherwise it is a list of one file.
     # checkpoint files get done one at a time. we can't really do parallel recompression jobs of
@@ -1385,15 +1528,22 @@ class XmlMultiStreamDump(XmlDump):
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
         if not exists(self.wiki.config.recompressxml):
-            raise BackupError("recompressxml command %s not found" % self.wiki.config.recompressxml)
+            raise BackupError("recompressxml command %s not found" %
+                              self.wiki.config.recompressxml)
 
         command_series = []
         for fname in output_files:
-            input_file = DumpFilename(self.wiki, None, fname.dumpname, fname.file_type, self.item_for_recompression.file_ext, fname.chunk, fname.checkpoint)
+            input_file = DumpFilename(self.wiki, None, fname.dumpname,
+                                      fname.file_type,
+                                      self.item_for_recompression.file_ext,
+                                      fname.chunk, fname.checkpoint)
             outfile = runner.dump_dir.filename_public_path(self.get_multistream_fname(fname))
-            outfile_index = runner.dump_dir.filename_public_path(self.get_multistream_index_fname(fname))
+            outfile_index = runner.dump_dir.filename_public_path(
+                self.get_multistream_index_fname(fname))
             infile = runner.dump_dir.filename_public_path(input_file)
-            command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s"  % (self.wiki.config.bzip2, infile, self.wiki.config.recompressxml, outfile_index, outfile)]]
+            command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s"  %
+                             (self.wiki.config.bzip2, infile, self.wiki.config.recompressxml,
+                              outfile_index, outfile)]]
             command_series.append(command_pipe)
         return command_series
 
@@ -1401,7 +1551,9 @@ class XmlMultiStreamDump(XmlDump):
         commands = []
         self.cleanup_old_files(runner.dump_dir, runner)
         if self.checkpoint_file is not None:
-            output_file = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname, self.checkpoint_file.file_type, self.file_ext, self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
+            output_file = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname,
+                                       self.checkpoint_file.file_type, self.file_ext,
+                                       self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
             series = self.build_command(runner, [output_file])
             commands.append(series)
         elif self._chunks_enabled and not self._chunk_todo:
@@ -1416,7 +1568,8 @@ class XmlMultiStreamDump(XmlDump):
             series = self.build_command(runner, output_files)
             commands.append(series)
 
-        error = runner.run_command(commands, callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
+        error = runner.run_command(commands, callback_timed=self.progress_callback,
+                                   callback_timed_arg=runner, shell=True)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -1452,9 +1605,12 @@ class XmlMultiStreamDump(XmlDump):
                 continue
             elif self._chunk_todo and inp_file.chunk_int != self._chunk_todo:
                 continue
-            # we don't convert these names to the final output form, we'll do that in the build command
+            # we don't convert these names to the final output form,
+            # we'll do that in the build command
             # (i.e. add "multistream" and "index" to them)
-            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname, inp_file.file_type, self.file_ext, inp_file.chunk, inp_file.checkpoint, inp_file.temp))
+            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+                                      inp_file.file_type, self.file_ext,
+                                      inp_file.chunk, inp_file.checkpoint, inp_file.temp))
         return files
 
     # shows all files possible if we don't have checkpoint files. should include temp files
@@ -1465,16 +1621,20 @@ class XmlMultiStreamDump(XmlDump):
             dump_names = [self.dumpname]
         multistream_names = []
         for dname in dump_names:
-            multistream_names.extend([self.get_dumpname_multistream(dname), self.get_dumpname_multistream_index(dname)])
+            multistream_names.extend([self.get_dumpname_multistream(dname),
+                                      self.get_dumpname_multistream_index(dname)])
 
         files = []
         if self.item_for_recompression._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_checkpt_files_per_chunk_existing(dump_dir, self.get_chunk_list(), multistream_names))
-            files.extend(self.list_temp_files_per_chunk_existing(dump_dir, self.get_chunk_list(), multistream_names))
+            files.extend(self.list_checkpt_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), multistream_names))
+            files.extend(self.list_temp_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), multistream_names))
         else:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_reg_files_per_chunk_existing(dump_dir, self.get_chunk_list(), multistream_names))
+            files.extend(self.list_reg_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), multistream_names))
         return files
 
     # must return all output files that could be produced by a full run of this stage,
@@ -1498,7 +1658,8 @@ class BigXmlDump(XmlDump):
 class XmlRecompressDump(Dump):
     """Take a .bz2 and recompress it as 7-Zip."""
 
-    def __init__(self, subset, name, desc, detail, item_for_recompression, wiki, chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None):
+    def __init__(self, subset, name, desc, detail, item_for_recompression, wiki,
+                 chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None):
         self._subset = subset
         self._detail = detail
         self._chunks = chunks
@@ -1534,10 +1695,14 @@ class XmlRecompressDump(Dump):
 
         command_series = []
         for outfile in output_files:
-            input_file = DumpFilename(self.wiki, None, outfile.dumpname, outfile.file_type, self.item_for_recompression.file_ext, outfile.chunk, outfile.checkpoint)
+            input_file = DumpFilename(self.wiki, None, outfile.dumpname, outfile.file_type,
+                                      self.item_for_recompression.file_ext, outfile.chunk,
+                                      outfile.checkpoint)
             outfilepath = runner.dump_dir.filename_public_path(outfile)
             infilepath = runner.dump_dir.filename_public_path(input_file)
-            command_pipe = [["%s -dc %s | %s a -mx=4 -si %s"  % (self.wiki.config.bzip2, infilepath, self.wiki.config.sevenzip, outfilepath)]]
+            command_pipe = [["%s -dc %s | %s a -mx=4 -si %s"  %
+                             (self.wiki.config.bzip2, infilepath,
+                              self.wiki.config.sevenzip, outfilepath)]]
             command_series.append(command_pipe)
         return command_series
 
@@ -1546,7 +1711,9 @@ class XmlRecompressDump(Dump):
         # Remove prior 7zip attempts; 7zip will try to append to an existing archive
         self.cleanup_old_files(runner.dump_dir, runner)
         if self.checkpoint_file is not None:
-            output_file = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname, self.checkpoint_file.file_type, self.file_ext, self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
+            output_file = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname,
+                                       self.checkpoint_file.file_type, self.file_ext,
+                                       self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
             series = self.build_command(runner, [output_file])
             commands.append(series)
         elif self._chunks_enabled and not self._chunk_todo:
@@ -1561,7 +1728,8 @@ class XmlRecompressDump(Dump):
             series = self.build_command(runner, output_files)
             commands.append(series)
 
-        error = runner.run_command(commands, callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
+        error = runner.run_command(commands, callback_timed=self.progress_callback,
+                                   callback_timed_arg=runner, shell=True)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -1570,7 +1738,9 @@ class XmlRecompressDump(Dump):
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
-            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname, inp_file.file_type, self.file_ext, inp_file.chunk, inp_file.checkpoint, inp_file.temp))
+            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+                                      inp_file.file_type, self.file_ext, inp_file.chunk,
+                                      inp_file.checkpoint, inp_file.temp))
         return files
 
     # shows all files possible if we don't have checkpoint files. without temp files of course
@@ -1581,7 +1751,9 @@ class XmlRecompressDump(Dump):
         for inp_file in input_files:
             if self._chunk_todo and inp_file.chunk_int != self._chunk_todo:
                 continue
-            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname, inp_file.file_type, self.file_ext, inp_file.chunk, inp_file.checkpoint, inp_file.temp))
+            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+                                      inp_file.file_type, self.file_ext, inp_file.chunk,
+                                      inp_file.checkpoint, inp_file.temp))
         return files
 
     # shows all files possible if we don't have checkpoint files. no temp files.
@@ -1595,7 +1767,9 @@ class XmlRecompressDump(Dump):
                 continue
             elif self._chunk_todo and inp_file.chunk_int != self._chunk_todo:
                 continue
-            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname, inp_file.file_type, self.file_ext, inp_file.chunk, inp_file.checkpoint, inp_file.temp))
+            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+                                      inp_file.file_type, self.file_ext, inp_file.chunk,
+                                      inp_file.checkpoint, inp_file.temp))
         return files
 
     # shows all files possible if we don't have checkpoint files. should include temp files
@@ -1607,11 +1781,14 @@ class XmlRecompressDump(Dump):
         files = []
         if self.item_for_recompression._checkpoints_enabled:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_checkpt_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
-            files.extend(self.list_temp_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_checkpt_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_temp_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         else:
             # we will pass list of chunks or chunkToDo, or False, depending on the job setup.
-            files.extend(self.list_reg_files_per_chunk_existing(dump_dir, self.get_chunk_list(), dump_names))
+            files.extend(self.list_reg_files_per_chunk_existing(
+                dump_dir, self.get_chunk_list(), dump_names))
         return files
 
     # must return all output files that could be produced by a full run of this stage,
@@ -1620,7 +1797,9 @@ class XmlRecompressDump(Dump):
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
-            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname, inp_file.file_type, self.file_ext, inp_file.chunk, inp_file.checkpoint, inp_file.temp))
+            files.append(DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+                                      inp_file.file_type, self.file_ext, inp_file.chunk,
+                                      inp_file.checkpoint, inp_file.temp))
         return files
 
 
@@ -1663,11 +1842,14 @@ class RecombineXmlRecompressDump(Dump):
             compression_command = "%s a -mx=4 -si" % self.wiki.config.sevenzip
             uncompression_command = ["%s" % self.wiki.config.sevenzip, "e", "-so"]
 
-            recombine_command_string = self.build_recombine_command_string(runner, files, output_file, compression_command, uncompression_command)
+            recombine_command_string = self.build_recombine_command_string(
+                runner, files, output_file, compression_command, uncompression_command)
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
+            result = runner.run_command(
+                [series], callback_timed=self.progress_callback,
+                callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
@@ -1695,20 +1877,22 @@ class AbstractDump(Dump):
         return ""
 
     def build_command(self, runner, fname):
-        command = ["/usr/bin/python", "xmlabstracts.py", "--config", runner.wiki.config.files[0],
-                    "--wiki", self.db_name]
+        command = ["/usr/bin/python", "xmlabstracts.py", "--config",
+                   runner.wiki.config.files[0], "--wiki", self.db_name]
 
         outputs = []
         variants = []
         for variant in self._variants():
             variant_option = self._variant_option(variant)
             dumpname = self.dumpname_from_variant(variant)
-            file_obj = DumpFilename(runner.wiki, fname.date, dumpname, fname.file_type, fname.file_ext, fname.chunk, fname.checkpoint)
+            file_obj = DumpFilename(runner.wiki, fname.date, dumpname,
+                                    fname.file_type, fname.file_ext,
+                                    fname.chunk, fname.checkpoint)
             outputs.append(runner.dump_dir.filename_public_path(file_obj))
             variants.append(variant_option)
 
             command.extend(["--outfiles=%s" % ",".join(outputs),
-                              "--variants=%s" %  ",".join(variants)])
+                            "--variants=%s" %  ",".join(variants)])
 
         if fname.chunk:
             # set up start end end pageids for this piece
@@ -1735,7 +1919,8 @@ class AbstractDump(Dump):
             if fname.dumpname == dumpname0:
                 series = self.build_command(runner, fname)
                 commands.append(series)
-        error = runner.run_command(commands, callback_stderr=self.progress_callback, callback_stderr_arg=runner)
+        error = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                   callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing abstract dump")
 
@@ -1771,31 +1956,31 @@ class AbstractDump(Dump):
         return dump_names
 
     def list_outfiles_to_publish(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_for_build_command(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_for_cleanup(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names))
         return files
 
     def list_outfiles_for_input(self, dump_dir):
-        dump_names =  self.list_dumpnames()
+        dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
         return files
@@ -1835,11 +2020,14 @@ class RecombineAbstractDump(Dump):
                 raise BackupError("cat command %s not found" % runner.wiki.config.cat)
             compression_command = "%s > " % runner.wiki.config.cat
             uncompression_command = ["%s" % runner.wiki.config.cat]
-            recombine_command_string = self.build_recombine_command_string(runner, input_files, output_file, compression_command, uncompression_command, "<feed>")
+            recombine_command_string = self.build_recombine_command_string(
+                runner, input_files, output_file, compression_command,
+                uncompression_command, "<feed>")
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.run_command([series], callback_timed=self.progress_callback, callback_timed_arg=runner, shell=True)
+            result = runner.run_command([series], callback_timed=self.progress_callback,
+                                        callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
@@ -1861,7 +2049,7 @@ class TitleDump(Dump):
         retries = 0
         # try this initially and see how it goes
         maxretries = 3
-        query="select page_title from page where page_namespace=0;"
+        query = "select page_title from page where page_namespace=0;"
         files = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(files) > 1:
             raise BackupError("page title dump trying to produce more than one output file")
@@ -1890,7 +2078,7 @@ class AllTitleDump(TitleDump):
     def run(self, runner):
         retries = 0
         maxretries = 3
-        query="select page_title from page;"
+        query = "select page_title from page;"
         files = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(files) > 1:
             raise BackupError("all titles dump trying to produce more than one output file")

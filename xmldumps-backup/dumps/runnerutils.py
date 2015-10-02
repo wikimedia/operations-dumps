@@ -1,18 +1,14 @@
 # Worker process, does the actual dumping
-
-import getopt, hashlib, os, re, sys, errno, time
-import subprocess, select
-import shutil, stat, signal, glob
-import Queue, thread, traceback, socket
+import os, re, sys, time
+import traceback
 
 from os.path import exists
-from subprocess import Popen, PIPE
-from dumps.WikiDump import FileUtils, MiscUtils, TimeUtils
-from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
-from dumps.jobs import *
+from dumps.WikiDump import FileUtils, TimeUtils
+from dumps.exceptions import BackupError
+from dumps.fileutils import DumpFile, DumpFilename
 
 def xml_escape(text):
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 class Maintenance(object):
 
@@ -51,7 +47,8 @@ class Checksummer(object):
         if self._enabled:
             for htype in self.hashtypes:
                 checksum_filename = self._get_checksum_filename_tmp(htype)
-                output = file(checksum_filename, "w")
+                output = open(checksum_filename, "w")
+                output.close()
 
     def checksums(self, file_obj, runner):
         """Run checksum for an output file, and append to the list."""
@@ -60,7 +57,8 @@ class Checksummer(object):
                 checksum_filename = self._get_checksum_filename_tmp(htype)
                 output = file(checksum_filename, "a")
                 runner.debug("Checksumming %s via %s" % (file_obj.filename, htype))
-                dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(file_obj), None, self.verbose)
+                dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(file_obj),
+                                    None, self.verbose)
                 checksum = dumpfile.checksum(htype)
                 if checksum != None:
                     output.write("%s  %s\n" % (checksum, file_obj.filename))
@@ -79,7 +77,8 @@ class Checksummer(object):
                 tmp_filename = self._get_checksum_filename_tmp(htype)
                 real_filename = self._get_checksum_filename(htype)
                 text = FileUtils.readFile(tmp_filename)
-                FileUtils.writeFile(self.wiki.config.tempDir, real_filename, text, self.wiki.config.fileperms)
+                FileUtils.writeFile(self.wiki.config.tempDir, real_filename, text,
+                                    self.wiki.config.fileperms)
 
     def get_checksum_filename_basename(self, htype):
         if htype == "md5":
@@ -96,7 +95,8 @@ class Checksummer(object):
         return self.dump_dir.filename_public_path(file_obj)
 
     def _get_checksum_filename_tmp(self, htype):
-        file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename(htype) + "." + self.timestamp + ".tmp")
+        file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename(htype) +
+                                "." + self.timestamp + ".tmp")
         return self.dump_dir.filename_public_path(file_obj)
 
     def _getmd5file_dir_name(self):
@@ -106,7 +106,8 @@ class Checksummer(object):
 # everything that has to do with reporting the status of a piece
 # of a dump is collected here
 class Status(object):
-    def __init__(self, wiki, dump_dir, items, checksums, enabled, email=True, notice_file=None, error_callback=None, verbose=False):
+    def __init__(self, wiki, dump_dir, items, checksums, enabled, email=True,
+                 notice_file=None, error_callback=None, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.dbName
         self.dump_dir = dump_dir
@@ -148,7 +149,8 @@ class Status(object):
             return "<li class='file'>%s %s (written) </li>" % (file_obj.filename, size)
         elif item_status == "done":
             webpath_relative = self.dump_dir.web_path_relative(file_obj)
-            return "<li class='file'><a href=\"%s\">%s</a> %s</li>" % (webpath_relative, file_obj.filename, size)
+            return ("<li class='file'><a href=\"%s\">%s</a> %s</li>"
+                    % (webpath_relative, file_obj.filename, size))
         else:
             return "<li class='missing'>%s</li>" % file_obj.filename
 
@@ -160,13 +162,14 @@ class Status(object):
         and links to completed files, as well as a summary status in a separate file."""
         try:
             # Comprehensive report goes here
-            self.wiki.writePerDumpIndex(self._report_database_status_detailed(done))
+            self.wiki.writePerDumpIndex(self._report_dbstatus_detailed(done))
             # Short line for report extraction goes here
             self.wiki.writeStatus(self._report_database_status_summary(done))
         except:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value,
+                                                                 exc_traceback)))
             message = "Couldn't update status files. Continuing anyways"
             if self.error_callback:
                 self.error_callback(message)
@@ -185,19 +188,19 @@ class Status(object):
             return html
 
     def get_checksum_html(self, htype):
-        basename =  self.checksums.get_checksum_filename_basename(htype)
+        basename = self.checksums.get_checksum_filename_basename(htype)
         path = DumpFilename(self.wiki, None, basename)
         web_path = self.dump_dir.web_path_relative(path)
         return '<a href="%s">(%s)</a>' %(web_path, htype)
 
-    def _report_database_status_detailed(self, done=False):
+    def _report_dbstatus_detailed(self, done=False):
         """Put together a status page for this database, with all its component dumps."""
         self.notice_file.refresh_notice()
         status_items = [self._report_item(item) for item in self.items]
         status_items.reverse()
         html = "\n".join(status_items)
         checksums = [self.get_checksum_html(htype)
-            for htype in self.checksums.hashtypes]
+                     for htype in self.checksums.hashtypes]
         checksums_html = ", ".join(checksums)
         return self.wiki.config.readTemplate("report.html") % {
             "db": self.db_name,
@@ -211,7 +214,8 @@ class Status(object):
 
     def _report_previous_dump(self, done):
         """Produce a link to the previous dump, if any"""
-        # get the list of dumps for this wiki in order, find me in the list, find the one prev to me.
+        # get the list of dumps for this wiki in order, find me in the list,
+        # find the one prev to me.
         # why? we might be rerunning a job from an older dumps. we might have two
         # runs going at once (think en pedia, one finishing up the history, another
         # starting at the beginning to get the new abstracts and stubs).
@@ -230,7 +234,8 @@ class Status(object):
         except:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                sys.stderr.write(repr(
+                    traceback.format_exception(exc_type, exc_value, exc_traceback)))
             return "No prior dumps of this database stored."
         pretty_date = TimeUtils.prettyDate(raw_date)
         if done:
@@ -265,7 +270,9 @@ class Status(object):
         item.status()
         item.updated()
         item.description()
-        html = "<li class='%s'><span class='updates'>%s</span> <span class='status'>%s</span> <span class='title'>%s</span>" % (item.status(), item.updated(), item.status(), item.description())
+        html = ("<li class='%s'><span class='updates'>%s</span> "
+                "<span class='status'>%s</span> <span class='title'>%s</span>" % (
+                    item.status(), item.updated(), item.status(), item.description()))
         if item.progress:
             html += "<div class='progress'>%s</div>\n" % item.progress
         file_objs = item.list_outfiles_to_publish(self.dump_dir)
@@ -297,8 +304,9 @@ class NoticeFile(object):
                 self.notice = ""
             # addnotice, stuff notice in a file for other jobs etc
             elif self.notice != "":
-                notice_dir = self._get_notice_dir()
-                FileUtils.writeFile(self.wiki.config.tempDir, notice_file, self.notice, self.wiki.config.fileperms)
+#                notice_dir = self._get_notice_dir()
+                FileUtils.writeFile(self.wiki.config.tempDir, notice_file, self.notice,
+                                    self.wiki.config.fileperms)
             # default case. if there is a file get the contents, otherwise
             # we have empty contents, all good
             else:
@@ -320,8 +328,8 @@ class NoticeFile(object):
     def _get_notice_filename(self):
         return os.path.join(self.wiki.publicDir(), self.wiki.date, "notice.txt")
 
-    def _get_notice_dir(self):
-        return os.path.join(self.wiki.publicDir(), self.wiki.date)
+#    def _get_notice_dir(self):
+#        return os.path.join(self.wiki.publicDir(), self.wiki.date)
 
 
 class SymLinks(object):
@@ -332,25 +340,29 @@ class SymLinks(object):
         self.logfn = logfn
         self.debugfn = debugfn
 
-    def make_dir(self, dir):
+    def make_dir(self, dirname):
         if self._enabled:
-            if exists(dir):
-                self.debugfn("Checkdir dir %s ..." % dir)
+            if exists(dirname):
+                self.debugfn("Checkdir dir %s ..." % dirname)
             else:
-                self.debugfn("Creating %s ..." % dir)
-                os.makedirs(dir)
+                self.debugfn("Creating %s ..." % dirname)
+                os.makedirs(dirname)
 
     def save_symlink(self, dumpfile):
         if self._enabled:
             self.make_dir(self.dump_dir.latest_dir())
             realfile = self.dump_dir.filename_public_path(dumpfile)
-            latest_filename = dumpfile.new_filename(dumpfile.dumpname, dumpfile.file_type, dumpfile.file_ext, 'latest', dumpfile.chunk, dumpfile.checkpoint, dumpfile.temp)
+            latest_filename = dumpfile.new_filename(dumpfile.dumpname, dumpfile.file_type,
+                                                    dumpfile.file_ext, 'latest',
+                                                    dumpfile.chunk, dumpfile.checkpoint,
+                                                    dumpfile.temp)
             link = os.path.join(self.dump_dir.latest_dir(), latest_filename)
             if exists(link) or os.path.islink(link):
                 if os.path.islink(link):
                     oldrealfile = os.readlink(link)
-                    # format of these links should be...  ../20110228/elwikidb-20110228-templatelinks.sql.gz
-                    rellinkpattern = re.compile('^\.\./(20[0-9]+)/')
+                    # format of these links should be...
+                    # ../20110228/elwikidb-20110228-templatelinks.sql.gz
+                    rellinkpattern = re.compile(r'^\.\./(20[0-9]+)/')
                     dateinlink = rellinkpattern.search(oldrealfile)
                     if dateinlink:
                         dateoflinkedfile = dateinlink.group(1)
@@ -384,8 +396,10 @@ class SymLinks(object):
     # if the args are False or None, we remove all the old links for all values of the arg.
     # example: if chunk is False or None then we remove all old values for all chunks
     # "old" means "older than the specified datestring".
-    def remove_symlinks_from_old_runs(self, date_string, dump_name=None, chunk=None, checkpoint=None, onlychunks=False):
-        # fixme this needs to do more work if there are chunks or checkpoint files linked in here from
+    def remove_symlinks_from_old_runs(self, date_string, dump_name=None, chunk=None,
+                                      checkpoint=None, onlychunks=False):
+        # fixme
+        # this needs to do more work if there are chunks or checkpoint files linked in here from
         # earlier dates. checkpoint ranges change, and configuration of chunks changes too, so maybe
         # old files still exist and the links need to be removed because we have newer files for the
         # same phase of the dump.
@@ -437,12 +451,16 @@ class Feeds(object):
                 "chandesc": "Wikimedia dump updates for %s" % self.db_name,
                 "title": web_path,
                 "link": web_path,
-                "description": xml_escape("<a href=\"%s\">%s</a>" % (filename_and_path, file_obj.filename)),
-                "date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime()) }
-            directory = self.dump_dir.latest_dir()
-            rss_path = os.path.join(self.dump_dir.latest_dir(), self.db_name + "-latest-" + file_obj.basename + "-rss.xml")
+                "description": xml_escape("<a href=\"%s\">%s</a>" % (
+                    filename_and_path, file_obj.filename)),
+                "date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
+            }
+            rss_path = os.path.join(self.dump_dir.latest_dir(),
+                                    self.db_name + "-latest-" + file_obj.basename +
+                                    "-rss.xml")
             self.debugfn("adding rss feed file %s " % rss_path)
-            FileUtils.writeFile(self.wiki.config.tempDir, rss_path, rss_text, self.wiki.config.fileperms)
+            FileUtils.writeFile(self.wiki.config.tempDir, rss_path,
+                                rss_text, self.wiki.config.fileperms)
 
     def cleanup_feeds(self):
         # call this after sym links in this dir have been cleaned up.
@@ -456,6 +474,6 @@ class Feeds(object):
                     filename = fname[:-8]
                     link = os.path.join(latest_dir, filename)
                     if not exists(link):
-                        self.debugfn("Removing old rss feed %s for link %s" % (os.path.join(latest_dir, fname), link))
+                        self.debugfn("Removing old rss feed %s for link %s" % (
+                            os.path.join(latest_dir, fname), link))
                         os.remove(os.path.join(latest_dir, fname))
-
