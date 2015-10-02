@@ -167,6 +167,7 @@ class Config(WikiDump.Config):
             "allwikislist": "",
             "privatewikislist": "",
             "closedwikislist": "",
+            "skipwikislist": "",
             #"output": {
             "incrementalsdir": "/dumps/public/incr",
             "templatedir": home,
@@ -209,6 +210,7 @@ class Config(WikiDump.Config):
         self.allWikisList = MiscUtils.dbList(self.conf.get("wiki", "allwikislist"))
         self.privateWikisList = MiscUtils.dbList(self.conf.get("wiki", "privatewikislist"))
         self.closedWikisList = MiscUtils.dbList(self.conf.get("wiki", "closedwikislist"))
+        self.skipWikisList = MiscUtils.dbList(self.conf.get("wiki", "skipwikislist"))
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')

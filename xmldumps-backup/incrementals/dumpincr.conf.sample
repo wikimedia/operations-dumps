@@ -5,6 +5,7 @@ mediawiki=/src/mediawiki/118wmf1/1.18wmf1
 allwikislist=/home/backups/incrementals/all.dblist
 privatewikislist=/home/backups/incrementals/private.dblist
 closedwikislist=/home/backups/incrementals/closed.dblist
+skipwikislist=/home/backups/incrementals/skip.dblist
 
 [output]
 incrementalsdir=/dumps/public/incr
