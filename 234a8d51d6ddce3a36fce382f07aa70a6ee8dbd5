@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2ecb373e_18f9164a",
+        "filename": "xmlfileutils/mwxmlelts.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 1023,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-03T03:57:44Z",
+      "side": 1,
+      "message": "I\u0027ve split this off to a new changeset: I2331ab9c243f0be31dc443557683320f3ddfb329",
+      "revId": "234a8d51d6ddce3a36fce382f07aa70a6ee8dbd5",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
