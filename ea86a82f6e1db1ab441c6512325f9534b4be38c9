@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2ecb373e_1853566f",
+        "filename": "xmlfileutils/mwxmlelts.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1071,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-03T03:11:13Z",
+      "side": 1,
+      "message": "so , as shown in https://gerrit.wikimedia.org/r/#/c/113124/1/xmlfileutils/mwxmlelts.c,cm , this should be 22 instead of 23.",
+      "revId": "ea86a82f6e1db1ab441c6512325f9534b4be38c9",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2ecb373e_384e52c5",
+        "filename": "xmlfileutils/mwxmlelts.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1100,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-03T03:11:13Z",
+      "side": 1,
+      "message": "p.model ?  that should be p.links_updated?",
+      "revId": "ea86a82f6e1db1ab441c6512325f9534b4be38c9",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
