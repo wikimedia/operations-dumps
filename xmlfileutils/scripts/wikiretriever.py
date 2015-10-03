@@ -520,8 +520,8 @@ class Entries(object):
         The caller should therefore deal with potential dup titless from this method.
         At least the defaut batchsize of 500 is large enough that we should never wind
         up in a loop getting the same batch every time.
-        See bugs https://bugzilla.wikimedia.org/show_bug.cgi?id=35786 and
-        https://bugzilla.wikimedia.org/show_bug.cgi?id=24782 for more info.
+        See bugs https://phabricator.wikimedia.org/T37786 and
+        https://phabricator.wikimedia.org/T26782 for more info.
         """
 
         entries = []

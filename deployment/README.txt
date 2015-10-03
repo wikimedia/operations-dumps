@@ -27,7 +27,7 @@ Setup:
 * Check that the prep/staginarea has a subdir with the files you want.
 * Run the script for the 'deploy' stage on a sample host.
 * Check that the remote dir on the remote host has sane contents.
-* Enjoy, bug reports to bugzilla.wikimedia.org
+* Enjoy, bug reports to https://phabricator.wikimedia.org/
 
 This is a very minimal deployment script.  Things it won't do and
 aren't planned:

@@ -26,7 +26,7 @@ void usage(char *message) {
 "  -v, --version    Display the version of this program and exit\n\n"
 "Arguments:\n\n"
 "  <infile>         Name of the file to check\n\n"
-"Report bugs in checkforbz2footer to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in checkforbz2footer to <https://phabricator.wikimedia.org/>.\n\n"
 "See also:\n\n"
 "  dumpbz2filefromoffset(1), dumplastbz2block(1), findpageidinbz2xml(1)\n"
 "  recompressxml(1), writeuptopageid(1)\n\n";

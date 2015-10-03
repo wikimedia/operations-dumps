@@ -47,10 +47,10 @@ void usage(char *message) {
 "                         per stream.  Each line contains: offset-to-stream:pageid:pagetitle\n"
 "                         If filename ends in '.bz2' the file will be written in bz2 format.\n"
 "  -v, --verbose:         Write lots of debugging output to stderr.  This option can be used\n"
-"                         multiple times to increase verbosity.\n";
+"                         multiple times to increase verbosity.\n"
 "  -h, --help             Show this help message\n"
 "  -V, --version          Display the version of this program and exit\n\n"
-"Report bugs in checkforbz2footer to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in recompressxml to <https://phabricator.wikimedia.org/>.\n\n"
 "See also checkforbz2footer(1), dumpbz2filefromoffset(1), dumplastbz2block(1),\n"
 "findpageidinbz2xml(1), writeuptopageid(1)\n\n";
   if (message) {

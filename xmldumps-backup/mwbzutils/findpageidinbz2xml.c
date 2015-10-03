@@ -41,7 +41,7 @@ void usage(char *message) {
 "  -V, --verbose    show search process; specify multiple times for more output\n"
 "  -h, --help       Show this help message\n"
 "  -V, --version    Display the version of this program and exit\n\n"
-"Report bugs in checkforbz2footer to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in findpageidinbz2xml to <https://phabricator.wikimedia.org/>.\n\n"
 "See also dumpbz2filefromoffset(1), dumplastbz2block(1), findpageidinbz2xml(1),\n"
     "recompressxml(1), writeuptopageid(1)\n\n";
   if (message) {

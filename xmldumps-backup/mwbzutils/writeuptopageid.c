@@ -29,7 +29,7 @@ void usage(char *message) {
 "  <startpageid>   id of the first page to write\n"
 "  <endpageid>     id of the page at which to stop writing; if omitted, all pages through eof\n"
 "                   will be written\n\n"
-"Report bugs in writeuptopageid to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in writeuptopageid to <https://phabricator.wikimedia.org/>.\n\n"
 "See also checkforbz2footer(1), dumpbz2filefromoffset(1), dumplastbz2block(1),\n"
     "findpageidinbz2xml(1), recompressxml(1)\n\n";
  if (message) {

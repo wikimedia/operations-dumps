@@ -761,7 +761,7 @@ void usage(char *whoami, char *message) {
 "        Write progress information to stderr.\n"
 "  -w, --version\n"
 "        Write version information to stderr.\n\n"
-"Report bugs in sqlfilter to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in sqlfilter to <https://phabricator.wikimedia.org/>.\n\n"
 "See also mwxml2sql(1), sql2txt(1).\n\n";
   if (message) {
     fprintf(stderr,"%s\n\n",message);

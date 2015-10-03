@@ -30,7 +30,7 @@ void usage(char *message) {
 "Arguments:\n\n"
 "  <infile>         Name of the file to check\n"
 "  <offset>         byte in the file from which to start processing\n\n"
-"Report bugs in dumpbz2filefromoffset to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in dumpbz2filefromoffset to <https://phabricator.wikimedia.org/>.\n\n"
 "See also checkforbz2footer(1), dumplastbz2block(1), findpageidinbz2xml(1),\n"
     "recompressxml(1), writeuptopageid(1)\n\n";
   if (message) {

@@ -203,7 +203,7 @@ void usage(char *whoami, char *message) {
 "        multiple times to increase verbosity.\n"
 "  -V, --version\n"
 "        Write version information to stderr; and exit.\n\n"
-"Report bugs in mwxml2sql to <https://bugzilla.wikimedia.org/>.\n\n"
+"Report bugs in mwxml2sql to <https://phabricator.wikimedia.org/>.\n\n"
 "See also sql2txt(1), sqlfilter(1).\n\n";
   if (message) {
     fprintf(stderr,"%s\n\n",message);
