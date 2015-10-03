@@ -1,8 +1,12 @@
 # Worker process, does the actual dumping
 
-import getopt, os, sys
+import getopt
+import os
+import sys
 import shutil
-import Queue, thread, traceback
+import Queue
+import thread
+import traceback
 
 from os.path import exists
 from dumps.WikiDump import TimeUtils, Wiki, Config, cleanup
@@ -17,6 +21,7 @@ from dumps.runnerutils import SymLinks, Feeds, NoticeFile
 from dumps.runnerutils import Checksummer, Status, Maintenance
 
 from dumps.utils import DbServerInfo, RunInfoFile, Chunk
+
 
 class Logger(object):
 
@@ -54,6 +59,7 @@ class Logger(object):
     # set in order to have logging thread clean up and exit
     def indicate_jobs_done(self):
         self.queue.put_nowait(self.jobs_done)
+
 
 class DumpItemList(object):
     def __init__(self, wiki, prefetch, spawn, chunk_to_do, checkpoint_file,
@@ -114,20 +120,20 @@ class DumpItemList(object):
                                         "Data for blocks of IP addresses, ranges, and users."),
                            PrivateTable("archive", "archivetable",
                                         "Deleted page and revision data."),
-                           #PrivateTable("updates", "updatestable",
+                           # PrivateTable("updates", "updatestable",
                            #              "Update dataset for OAI updater system."),
                            PrivateTable("logging", "loggingtable",
                                         "Data for various events (deletions, uploads, etc)."),
                            PrivateTable("oldimage", "oldimagetable",
                                         "Metadata on prior versions of uploaded images."),
-                           #PrivateTable("filearchive", "filearchivetable",
+                           # PrivateTable("filearchive", "filearchivetable",
                            #             "Deleted image data"),
 
                            PublicTable("site_stats", "sitestatstable",
                                        "A few statistics such as the page count."),
                            PublicTable("image", "imagetable",
                                        "Metadata on current versions of uploaded media/files."),
-                           #PublicTable("oldimage", "oldimagetable",
+                           # PublicTable("oldimage", "oldimagetable",
                            #            "Metadata on prior versions of uploaded media/files."),
                            PublicTable("pagelinks", "pagelinkstable",
                                        "Wiki page-to-page link records."),
@@ -141,7 +147,7 @@ class DumpItemList(object):
                                        "Wiki external URL link records."),
                            PublicTable("langlinks", "langlinkstable",
                                        "Wiki interlanguage link records."),
-                           #PublicTable("interwiki", "interwikitable",
+                           # PublicTable("interwiki", "interwikitable",
                            #            "Set of defined interwiki prefixes " +
                            #            "and links for this wiki."),
                            PublicTable("user_groups", "usergroupstable", "User group assignments."),
@@ -155,9 +161,9 @@ class DumpItemList(object):
                                        "Name/value pairs for pages."),
                            PublicTable("protected_titles", "protectedtitlestable",
                                        "Nonexistent pages that have been protected."),
-                           #PublicTable("revision", revisiontable",
+                           # PublicTable("revision", revisiontable",
                            #            "Base per-revision data (does not include text)."), // safe?
-                           #PrivateTable("text", "texttable",
+                           # PrivateTable("text", "texttable",
                            #            "Text blob storage. May be compressed, etc."), // ?
                            PublicTable("redirect", "redirecttable", "Redirect list"),
                            PublicTable("iwlinks", "iwlinkstable",
@@ -456,6 +462,7 @@ class DumpItemList(object):
         # even if the item has never been run we will at least have "waiting" in the status
         return "name:%s; status:%s; updated:%s" % (item.name(), item.status(), item.updated())
 
+
 class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, loggingEnabled=False,
@@ -707,7 +714,7 @@ class Runner(object):
                 print "This means that the status information about the old run will be lost, and"
                 print "only the information about the current (and future) runs will be kept."
                 reply = raw_input("Continue anyways? [y/N]: ")
-                if not reply in ["y", "Y"]:
+                if reply not in ["y", "Y"]:
                     raise RuntimeError("No run information available for previous dump, exiting")
 
             if not self.dump_item_list.mark_dumps_to_run(self.job_requested, self.skipdone):
@@ -913,6 +920,7 @@ class Runner(object):
                 self.debug("Creating %s ..." % dirname)
                 os.makedirs(dirname)
 
+
 def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
                checkpoint_file, prereqs=False, restart=False):
     '''
@@ -1090,6 +1098,7 @@ Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job,
     sys.stderr.write(usage_text)
     sys.exit(1)
 
+
 def main():
     try:
         date = None
@@ -1198,10 +1207,9 @@ def main():
             config = Config(config_file)
         else:
             config = Config()
-        externals = [
-            'php', 'mysql', 'mysqldump', 'head', 'tail',
-            'checkforbz2footer', 'grep', 'gzip', 'bzip2',
-            'writeuptopageid', 'recompressxml', 'sevenzip', 'cat',]
+        externals = ['php', 'mysql', 'mysqldump', 'head', 'tail',
+                     'checkforbz2footer', 'grep', 'gzip', 'bzip2',
+                     'writeuptopageid', 'recompressxml', 'sevenzip', 'cat']
 
         failed = False
         unknowns = []
@@ -1224,7 +1232,7 @@ def main():
             sys.stderr.write("Exiting.\n")
             sys.exit(1)
 
-        if dryrun or chunk_to_do or (job_requested and not restart  and not do_locking):
+        if dryrun or chunk_to_do or (job_requested and not restart and not do_locking):
             locks_enabled = False
         else:
             locks_enabled = True
@@ -1296,7 +1304,7 @@ def main():
                 checkpoint_file = None
                 after_checkpoint_jobs = ['articlesdump', 'metacurrentdump',
                                          'metahistorybz2dump']
-                if not job_requested or not job_requested in [
+                if not job_requested or job_requested not in [
                         'articlesdump', 'metacurrentdump', 'metahistorybz2dump']:
                     usage("--aftercheckpoint option requires --job option with one of %s"
                           % ", ".join(after_checkpoint_jobs))

@@ -1,6 +1,9 @@
 # Worker process, does the actual dumping
 
-import hashlib, os, re, sys
+import hashlib
+import os
+import re
+import sys
 import time
 import signal
 import traceback
@@ -130,7 +133,7 @@ class DumpFilename(object):
                 (file_base, self.file_type) = file_base.split('.', 1)
 
         # some files are not of this form, we skip them
-        if not '-' in file_base:
+        if '-' not in file_base:
             return False
 
         (self.db_name, self.date, self.dumpname) = file_base.split('-', 2)
@@ -187,7 +190,7 @@ class DumpFilename(object):
             filename = filename + "-tmp"
         return filename
 
-#class DumpFile(file):
+
 class DumpFile(object):
     """File containing output created by any job of a jump run.  This includes
     any file that follows the standard naming convention, i.e.
@@ -433,7 +436,6 @@ class DumpDir(object):
             date_string = self._wiki.date
         return os.path.join(self._wiki.webDir(), date_string, dump_file.filename)
 
-
     def web_path_relative(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the url relative
         to the docroot for the filename for the date of
@@ -448,7 +450,7 @@ class DumpDir(object):
         directory = os.path.join(self._wiki.publicDir(), date)
         if exists(directory):
             dir_time_stamp = os.stat(directory).st_mtime
-            if not date in self._dir_cache or dir_time_stamp > self._dir_cache_time[date]:
+            if date not in self._dir_cache or dir_time_stamp > self._dir_cache_time[date]:
                 return True
             else:
                 return False
@@ -512,20 +514,20 @@ class DumpDir(object):
 
             if dump_name and fobj.dumpname != dump_name:
                 continue
-            if file_type != None and fobj.file_type != file_type:
+            if file_type is not None and fobj.file_type != file_type:
                 continue
-            if file_ext != None and fobj.file_ext != file_ext:
+            if file_ext is not None and fobj.file_ext != file_ext:
                 continue
-            if chunks == False and fobj.is_chunk_file:
+            if chunks is False and fobj.is_chunk_file:
                 continue
-            if chunks == True and not fobj.is_chunk_file:
+            if chunks is True and not fobj.is_chunk_file:
                 continue
             # chunks is a list...
-            if chunks and chunks != True and not fobj.chunk_int in chunks:
+            if chunks and chunks is not True and fobj.chunk_int not in chunks:
                 continue
-            if (temp == False and fobj.is_temp_file) or (temp and not fobj.is_temp_file):
+            if (temp is False and fobj.is_temp_file) or (temp and not fobj.is_temp_file):
                 continue
-            if ((checkpoint == False and fobj.is_checkpoint_file) or
+            if ((checkpoint is False and fobj.is_checkpoint_file) or
                     (checkpoint and not fobj.is_checkpoint_file)):
                 continue
             files_matched.append(fobj)
@@ -567,4 +569,3 @@ class DumpDir(object):
         '''
         return self._get_files_filtered(date, dump_name, file_type,
                                         file_ext, chunks, temp, checkpoint=False)
-

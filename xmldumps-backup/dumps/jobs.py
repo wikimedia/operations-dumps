@@ -4,7 +4,10 @@ from xml page dumps to dumps of private mysql tables
 to recombining multiple stub dumps into one file
 '''
 
-import os, re, sys, time
+import os
+import re
+import sys
+import time
 import signal
 import traceback
 
@@ -15,6 +18,7 @@ from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import *
 from dumps.fileutils import *
 from dumps.utils import MultiVersion, RunInfo
+
 
 class Dump(object):
     def __init__(self, name, desc, verbose=False):
@@ -239,7 +243,7 @@ class Dump(object):
 
         for file_obj in files:
             # uh oh FIXME
-#            f = MiscUtils.shellEscape(file_obj.filename)
+            # f = MiscUtils.shellEscape(file_obj.filename)
             fpath = runner.dump_dir.filename_public_path(file_obj)
             chunknum = chunknum + 1
             pipeline = []
@@ -369,7 +373,6 @@ class Dump(object):
                 None, dname, self.file_type, self.file_ext, chunks, temp=True))
         return files
 
-
     # unused
     # list noncheckpoint chunk files that have been produced
     def list_reg_files_chunked_existing(self, dump_dir, runner, dump_names=None, date=None):
@@ -432,7 +435,6 @@ class Dump(object):
                 None, dname, self.file_type, self.file_ext, chunks=False, temp=True))
         return files
 
-
     # internal function which all the public get*Possible functions call
     # list all files that could be created for the given dumpname, filtering by the given args.
     # by definition, checkpoint files are never returned in such a list, as we don't
@@ -446,12 +448,12 @@ class Dump(object):
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
                             file_type=None, file_ext=None, chunks=None, temp=False):
         files = []
-        if dumpname == None:
+        if dumpname is None:
             dumpname = self.dumpname
-        if chunks == None or chunks == False:
+        if chunks is None or chunks is False:
             files.append(DumpFilename(dump_dir._wiki, date, dumpname,
                                       file_type, file_ext, None, None, temp))
-        if chunks == True or chunks == None:
+        if chunks is True or chunks is None:
             chunks = self.get_chunk_list()
         if chunks:
             for chunk in chunks:
@@ -503,7 +505,6 @@ class Dump(object):
             files.extend(self._get_files_possible(
                 dump_dir, None, dname, self.file_type, self.file_ext, chunks, temp=True))
         return files
-
 
     # unused
     # based on dump name, chunks, etc. get all the
@@ -563,7 +564,7 @@ class Dump(object):
     # what's being re-run.
     def list_outfiles_to_publish(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self.checkpoint_file is not None:
@@ -589,7 +590,7 @@ class Dump(object):
     # or to the chunkless files if there are no chunks enabled.
     def list_outfiles_to_check_for_truncation(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self.checkpoint_file is not None:
@@ -613,7 +614,7 @@ class Dump(object):
     # is being redone, or to the chunkless files if there are no chunks enabled.
     def list_outfiles_for_build_command(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self.checkpoint_file is not None:
@@ -637,7 +638,7 @@ class Dump(object):
     # or to the chunkless files if there are no chunks enabled.
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self.checkpoint_file is not None:
@@ -665,7 +666,7 @@ class Dump(object):
     # and we only do it once per job so who cares.)
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self._checkpoints_enabled:
@@ -675,6 +676,7 @@ class Dump(object):
             files.extend(self.list_reg_files_per_chunk_existing(
                 dump_dir, self.get_chunk_list(), dump_names))
         return files
+
 
 class PublicTable(Dump):
     """Dump of a table using MySQL's mysqldump utility."""
@@ -719,6 +721,7 @@ class PublicTable(Dump):
         commands = runner.db_server_info.build_sqldump_command(table, runner.wiki.config.gzip)
         return runner.save_command(commands, outfile)
 
+
 class PrivateTable(PublicTable):
     """Hidden table dumps for private data."""
 
@@ -754,6 +757,7 @@ class PrivateTable(PublicTable):
     def list_outfiles_to_publish(self, dump_dir):
         """Private table won't have public files to list."""
         return []
+
 
 class XmlStub(Dump):
     """Create lightweight skeleton dumps, minus bulk text.
@@ -815,7 +819,7 @@ class XmlStub(Dump):
         return files
 
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
-        if dump_names == None:
+        if dump_names is None:
             dump_names = self.list_dumpnames()
         files = []
         files.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
@@ -847,7 +851,7 @@ class XmlStub(Dump):
             # whatever that is.
             command.append(startopt)
             if outf.chunk_int < len(self._chunks):
-                end = sum([self._chunks[i] for i in range(0, outf.chunk_int)]) +1
+                end = sum([self._chunks[i] for i in range(0, outf.chunk_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -869,6 +873,7 @@ class XmlStub(Dump):
                                    callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing stub files")
+
 
 class RecombineXmlStub(Dump):
     def __init__(self, name, desc, item_for_xml_stubs):
@@ -935,6 +940,7 @@ class RecombineXmlStub(Dump):
         if error:
             raise BackupError("error recombining stub files")
 
+
 class XmlLogging(Dump):
     """ Create a logging dump of all page activity """
 
@@ -978,6 +984,7 @@ class XmlLogging(Dump):
                                    callback_stderr_arg=runner)
         if error:
             raise BackupError("error dumping log files")
+
 
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
@@ -1051,8 +1058,8 @@ class XmlDump(Dump):
             commands.append(series)
         else:
             for inp_file in input_files:
-#                output_file = DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
-#                                           inp_file.file_type, self.file_ext)
+                # output_file = DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
+                #                            inp_file.file_type, self.file_ext)
                 series = self.build_command(runner, inp_file)
                 commands.append(series)
 
@@ -1183,7 +1190,7 @@ class XmlDump(Dump):
             stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(outfile)
 
         # Try to pull text from the previous run; most stuff hasn't changed
-        #Source=$OutputDir/pages_$section.xml.bz2
+        # Source=$OutputDir/pages_$section.xml.bz2
         sources = []
         possible_sources = None
         if self._prefetch:
@@ -1267,18 +1274,18 @@ class XmlDump(Dump):
                         file_obj, self.verbose)
                     file_obj.first_page_id = fname.find_first_page_id_in_file()
 
-                        # get the files that cover our range
+                # get the files that cover our range
                 for file_obj in file_list:
-                # If some of the file_objs in file_list could not be properly be parsed, some of
-                # the (int) conversions below will fail. However, it is of little use to us,
-                # which conversion failed. /If any/ conversion fails, it means, that that we do
-                # not understand how to make sense of the current file_obj. Hence we cannot use
-                # it as prefetch object and we have to drop it, to avoid passing a useless file
-                # to the text pass. (This could days as of a comment below, but by not passing
-                # a likely useless file, we have to fetch more texts from the database)
-                #
-                # Therefore try...except-ing the whole block is sufficient: If whatever error
-                # occurs, we do not abort, but skip the file for prefetch.
+                    # If some of the file_objs in file_list could not be properly be parsed, some of
+                    # the (int) conversions below will fail. However, it is of little use to us,
+                    # which conversion failed. /If any/ conversion fails, it means, that that we do
+                    # not understand how to make sense of the current file_obj. Hence we cannot use
+                    # it as prefetch object and we have to drop it, to avoid passing a useless file
+                    # to the text pass. (This could days as of a comment below, but by not passing
+                    # a likely useless file, we have to fetch more texts from the database)
+                    #
+                    # Therefore try...except-ing the whole block is sufficient: If whatever error
+                    # occurs, we do not abort, but skip the file for prefetch.
                     try:
                         # If we could properly parse
                         first_page_id_in_file = int(file_obj.first_page_id)
@@ -1310,10 +1317,10 @@ class XmlDump(Dump):
                             # also be sure that if a critical page is deleted by the time we
                             # try to figure out ranges, that we don't get hosed
                         if ((first_page_id_in_file <= int(start_page_id) and
-                                 (last_page_id_in_file == None or
-                                  last_page_id_in_file >= int(start_page_id))) or
+                                (last_page_id_in_file is None or
+                                 last_page_id_in_file >= int(start_page_id))) or
                                 (first_page_id_in_file >= int(start_page_id) and
-                                 (end_page_id == None or
+                                 (end_page_id is None or
                                   first_page_id_in_file <= int(end_page_id)))):
                             possibles.append(file_obj)
                     except:
@@ -1368,7 +1375,7 @@ class XmlDump(Dump):
             if len(possible_prefetch_list):
                 return possible_prefetch_list
 
-                    # last shot, get output file that contains all the pages, if there is one
+            # last shot, get output file that contains all the pages, if there is one
             files = self.list_reg_files_existing(runner.dump_dir, [self.dumpname],
                                                  date, chunks=False)
             # there is only one, don't bother to check for relevance :-P
@@ -1413,6 +1420,7 @@ class XmlDump(Dump):
                 else:
                     files_to_return.append(fname)
         return files_to_return
+
 
 class RecombineXmlDump(XmlDump):
     def __init__(self, name, desc, detail, item_for_xml_dumps):
@@ -1461,6 +1469,7 @@ class RecombineXmlDump(XmlDump):
 
         if error:
             raise BackupError("error recombining xml bz2 files")
+
 
 class XmlMultiStreamDump(XmlDump):
     """Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
@@ -1541,7 +1550,7 @@ class XmlMultiStreamDump(XmlDump):
             outfile_index = runner.dump_dir.filename_public_path(
                 self.get_multistream_index_fname(fname))
             infile = runner.dump_dir.filename_public_path(input_file)
-            command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s"  %
+            command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s" %
                              (self.wiki.config.bzip2, infile, self.wiki.config.recompressxml,
                               outfile_index, outfile)]]
             command_series.append(command_pipe)
@@ -1617,7 +1626,7 @@ class XmlMultiStreamDump(XmlDump):
     # does just the chunks we do if there is a limit
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         multistream_names = []
         for dname in dump_names:
@@ -1647,6 +1656,7 @@ class XmlMultiStreamDump(XmlDump):
             files.append(self.get_multistream_index_fname(inp_file))
         return files
 
+
 class BigXmlDump(XmlDump):
     """XML page dump for something larger, where a 7-Zip compressed copy
     could save 75% of download time for some users."""
@@ -1654,6 +1664,7 @@ class BigXmlDump(XmlDump):
     def build_eta(self, runner):
         """Tell the dumper script whether to make ETA estimate on page or revision count."""
         return "--full"
+
 
 class XmlRecompressDump(Dump):
     """Take a .bz2 and recompress it as 7-Zip."""
@@ -1700,7 +1711,7 @@ class XmlRecompressDump(Dump):
                                       outfile.checkpoint)
             outfilepath = runner.dump_dir.filename_public_path(outfile)
             infilepath = runner.dump_dir.filename_public_path(input_file)
-            command_pipe = [["%s -dc %s | %s a -mx=4 -si %s"  %
+            command_pipe = [["%s -dc %s | %s a -mx=4 -si %s" %
                              (self.wiki.config.bzip2, infilepath,
                               self.wiki.config.sevenzip, outfilepath)]]
             command_series.append(command_pipe)
@@ -1776,7 +1787,7 @@ class XmlRecompressDump(Dump):
     # does just the chunks we do if there is a limit
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         # some stages (eg XLMStubs) call this for several different dump_names
-        if dump_names == None:
+        if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self.item_for_recompression._checkpoints_enabled:
@@ -1855,6 +1866,7 @@ class RecombineXmlRecompressDump(Dump):
         if error:
             raise BackupError("error recombining xml bz2 file(s)")
 
+
 class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
@@ -1892,7 +1904,7 @@ class AbstractDump(Dump):
             variants.append(variant_option)
 
             command.extend(["--outfiles=%s" % ",".join(outputs),
-                            "--variants=%s" %  ",".join(variants)])
+                            "--variants=%s" % ",".join(variants)])
 
         if fname.chunk:
             # set up start end end pageids for this piece
@@ -1903,7 +1915,7 @@ class AbstractDump(Dump):
             # whatever that is.
             command.append(startopt)
             if fname.chunk_int < len(self._chunks):
-                end = sum([self._chunks[i] for i in range(0, fname.chunk_int)]) +1
+                end = sum([self._chunks[i] for i in range(0, fname.chunk_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
         pipeline = [command]
@@ -2033,6 +2045,7 @@ class RecombineAbstractDump(Dump):
         if error:
             raise BackupError("error recombining abstract dump files")
 
+
 class TitleDump(Dump):
     """This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""
 
@@ -2069,6 +2082,7 @@ class TitleDump(Dump):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
         command = runner.db_server_info.build_sql_command(query, runner.wiki.config.gzip)
         return runner.save_command(command, outfile)
+
 
 class AllTitleDump(TitleDump):
 

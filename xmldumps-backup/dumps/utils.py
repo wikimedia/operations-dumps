@@ -2,14 +2,19 @@
 misc utils for dumps
 '''
 
-import os, re, sys, time
-import traceback, socket
+import os
+import re
+import sys
+import time
+import traceback
+import socket
 
 from os.path import exists
 from subprocess import Popen, PIPE
 from dumps.WikiDump import FileUtils, MiscUtils
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
+
 
 class MultiVersion(object):
     def mw_script_as_string(config, maintenance_script):
@@ -36,6 +41,7 @@ class MultiVersion(object):
     mw_script_as_string = staticmethod(mw_script_as_string)
     mw_script_as_array = staticmethod(mw_script_as_array)
     mw_version = staticmethod(mw_version)
+
 
 class DbServerInfo(object):
     def __init__(self, wiki, db_name, error_callback=None):
@@ -75,7 +81,7 @@ class DbServerInfo(object):
             match = wgdb_prefix_pattern.match(line)
             if match:
                 self.db_table_prefix = match.group('prefix').strip()
-        if self.db_table_prefix == None:
+        if self.db_table_prefix is None:
             # if we didn't see this in the globals list, something is broken.
             raise BackupError("Failed to get database table prefix for %s, bailing."
                               % self.wiki.config.php)
@@ -87,11 +93,11 @@ class DbServerInfo(object):
             # so we rewrite the localhost to it's ip address
             host = socket.gethostbyname(self.db_server)
 
-        params = ["-h", "%s" % host] # Host
+        params = ["-h", "%s" % host]  # Host
         if self.db_port:
-            params += ["--port", "%s" % self.db_port] # Port
-        params += ["-u", "%s" % self.wiki.config.dbUser] # Username
-        params += ["%s" % self.password_option()] # Password
+            params += ["--port", "%s" % self.db_port]  # Port
+        params += ["-u", "%s" % self.wiki.config.dbUser]  # Username
+        params += ["%s" % self.password_option()]  # Password
         return params
 
     def build_sql_command(self, query, pipeto=None):
@@ -138,6 +144,7 @@ class DbServerInfo(object):
         else:
             return "-p" + self.wiki.config.dbPassword
 
+
 class RunSimpleCommand(object):
     def run_and_return(command, log_callback=None):
         """Run a command and return the output as a string.
@@ -165,6 +172,7 @@ class RunSimpleCommand(object):
 
     run_and_return = staticmethod(run_and_return)
 
+
 class PageAndEditStats(object):
     def __init__(self, wiki, db_name, error_callback=None):
         self.total_pages = None
@@ -182,7 +190,7 @@ class PageAndEditStats(object):
         retries = 0
         maxretries = 5
         results = self.db_server_info.run_sql_and_get_output(query)
-        while results == None and retries < maxretries:
+        while results is None and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
             results = self.db_server_info.run_sql_and_get_output(query)
@@ -196,7 +204,7 @@ class PageAndEditStats(object):
         retries = 0
         results = None
         results = self.db_server_info.run_sql_and_get_output(query)
-        while results == None and retries < maxretries:
+        while results is None and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
             results = self.db_server_info.run_sql_and_get_output(query)
@@ -238,7 +246,7 @@ class RunInfoFile(object):
         status = self._get_status_from_runinfo(old_dump_runinfo_filename, job_name)
         if status == "done":
             return 1
-        elif not status == None:
+        elif status is not None:
             # failure, in progress, some other useless thing
             return 0
 
@@ -336,7 +344,7 @@ class RunInfoFile(object):
             infile = open(filename, "r")
             for line in infile:
                 result = self._get_status_from_runinfo_line(line, job_name)
-                if not result == None:
+                if result is not None:
                     return result
             infile.close()
             return None
@@ -349,7 +357,7 @@ class RunInfoFile(object):
 
     # find desc in there, look for "class='done'"
     def _get_status_from_html_line(self, line, desc):
-        if not ">"+desc+"<" in line:
+        if ">"+desc+"<" not in line:
             return None
         if "<li class='done'>" in line:
             return "done"
@@ -365,7 +373,7 @@ class RunInfoFile(object):
             infile = open(filename, "r")
             for line in infile:
                 result = self._get_status_from_html_line(line, desc)
-                if not result == None:
+                if result is not None:
                     return result
             infile.close()
             return None

@@ -5,9 +5,11 @@ import sys
 from os.path import exists
 from dumps.WikiDump import FileUtils, Wiki, Config
 
+
 def add_to_filename(filename, infix):
     base, suffix = filename.split('.', 1)
     return base + "-" + infix + ("." + suffix if suffix else "")
+
 
 def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=True):
     running = False
@@ -58,6 +60,7 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=T
         "status": status,
         "items": "\n".join(states)}
 
+
 def update_index(config):
     output_fname = os.path.join(config.publicDir, config.index)
     output_fname_sorted_by_db = add_to_filename(os.path.join(
@@ -75,6 +78,7 @@ def update_index(config):
                                  sorted_by_db=True, showlocks=False))
     filehdl.close()
     os.rename(temp_fname, output_fname_sorted_by_db)
+
 
 def main():
     # can specify name of alternate config file

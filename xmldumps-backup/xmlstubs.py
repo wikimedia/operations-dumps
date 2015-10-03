@@ -9,12 +9,10 @@ the run.
 
 import os
 import sys
-import time
-import worker
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
 import getopt
-from xmlstreams import run_script, catfile, gzippit, get_max_id, do_xml_piece, do_xml_stream
+from xmlstreams import gzippit, do_xml_stream
 
 
 def dostubsbackup(wikidb, history_file, current_file, articles_file,
@@ -28,7 +26,8 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
                 'current': {'name': current_file},
                 'articles': {'name': articles_file}}
     for filetype in outfiles:
-        outfiles[filetype]['temp'] = os.path.join(wikiconf.tempDir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
+        outfiles[filetype]['temp'] = os.path.join(
+            wikiconf.tempDir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:

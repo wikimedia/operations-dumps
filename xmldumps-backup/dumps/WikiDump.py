@@ -10,6 +10,7 @@ import threading
 import time
 import tempfile
 
+
 class FileUtils(object):
 
     def fileAge(filename):
@@ -118,6 +119,7 @@ class FileUtils(object):
     _prettySize = staticmethod(_prettySize)
     fileInfo = staticmethod(fileInfo)
 
+
 class TimeUtils(object):
 
     def today():
@@ -133,6 +135,7 @@ class TimeUtils(object):
     today = staticmethod(today)
     prettyTime = staticmethod(prettyTime)
     prettyDate = staticmethod(prettyDate)
+
 
 class MiscUtils(object):
     def dbList(filename):
@@ -162,6 +165,7 @@ class MiscUtils(object):
     dbList = staticmethod(dbList)
     shellEscape = staticmethod(shellEscape)
 
+
 class Config(object):
     def __init__(self, config_file=False):
         self.projectName = False
@@ -174,37 +178,37 @@ class Config(object):
             "/etc/wikidump.conf",
             os.path.join(os.getenv("HOME"), ".wikidump.conf")]
         defaults = {
-            #"wiki": {
+            # "wiki": {
             "dblist": "",
             "privatelist": "",
             "flaggedrevslist": "",
             "wikidatalist": "",
             "globalusagelist": "",
             "wikidataclientlist": "",
-            #"dir": "",
+            # "dir": "",
             "forcenormal": "0",
             "halt": "0",
-            "skipdblist" : "",
-            #"output": {
+            "skipdblist": "",
+            # "output": {
             "public": "/dumps/public",
             "private": "/dumps/private",
-            "temp":"/dumps/temp",
+            "temp": "/dumps/temp",
             "webroot": "http://localhost/dumps",
             "index": "index.html",
             "templatedir": home,
             "perdumpindex": "index.html",
             "logfile": "dumplog.txt",
             "fileperms": "0640",
-            #"reporting": {
+            # "reporting": {
             "adminmail": "root@localhost",
             "mailfrom": "root@localhost",
             "smtpserver": "localhost",
             "staleage": "3600",
-            #"database": {
+            # "database": {
             # these are now set in getDbUserAndPassword() if needed
             "user": "",
             "password": "",
-            #"tools": {
+            # "tools": {
             "php": "/bin/php",
             "gzip": "/usr/bin/gzip",
             "bzip2": "/usr/bin/bzip2",
@@ -218,33 +222,33 @@ class Config(object):
             "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
             "writeuptopageid": "/usr/local/bin/writeuptopageid",
             "recompressxml": "/usr/local/bin/recompressxml",
-            #"cleanup": {
+            # "cleanup": {
             "keep": "3",
-            #"chunks": {
+            # "chunks": {
             # set this to 1 to enable runing the various xml dump stages as chunks in parallel
-            "chunksEnabled" : "0",
+            "chunksEnabled": "0",
             # for page history runs, number of pages for each chunk, specified separately
             # e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
             # would define 10 chunks with the specified number of pages in each and any extra in
             # a final 11th chunk
-            "pagesPerChunkHistory" : False,
+            "pagesPerChunkHistory": False,
             # revs per chunk (roughly, it will be split along page lines)
             # for history and current dumps
             # values: positive integer, "compute",
             # this field is overriden by pagesPerChunkHistory
             # CURRENTLY NOT COMPLETE so please don't use this.
-            "revsPerChunkHistory" : False,
+            "revsPerChunkHistory": False,
             # pages per chunk for abstract runs
-            "pagesPerChunkAbstract" : False,
+            "pagesPerChunkAbstract": False,
             # number of chunks for abstract dumps, overrides pagesPerChunkAbstract
-            "chunksForAbstract" : 0,
+            "chunksForAbstract": 0,
             # whether or not to recombine the history pieces
-            "recombineHistory" : "1",
+            "recombineHistory": "1",
             # do we write out checkpoint files at regular intervals?
             # (article/metacurrent/metahistory dumps only.)
-            "checkpointTime" : "0",
-            #"otherformats": {
-            "multistream" : "0",
+            "checkpointTime": "0",
+            # "otherformats": {
+            "multistream": "0",
             }
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -261,7 +265,7 @@ class Config(object):
         self.dbPassword = None
         self.parseConfFileGlobally()
         self.parseConfFilePerProject()
-        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
+        self.getDbUserAndPassword()  # get from MW adminsettings file if not set in conf file
 
     def parsePHPAssignment(self, line):
         # not so much parse as grab a string to the right of the equals sign,
@@ -279,7 +283,7 @@ class Config(object):
         # them in the conf file; failing that we fall back on defaults specified
         # here
 
-        if self.dbUser: # already set via conf file, don't override
+        if self.dbUser:  # already set via conf file, don't override
             return
 
         default_dbuser = "root"
@@ -472,7 +476,7 @@ class Config(object):
             dump_failed = (status == '') or ('dump aborted' in status)
             available.append((dump_failed, date, age, db))
         available.sort()
-        return [db for (failed, date, age, db) in available]
+        return [db for (_failed, _date, _age, db) in available]
 
     def readTemplate(self, name):
         template = os.path.join(self.templateDir, name)
@@ -592,7 +596,6 @@ class Wiki(object):
         self.unlock()
 
     def writePerDumpIndex(self, html):
-        directory = os.path.join(self.publicDir(), self.date)
         index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
         FileUtils.writeFileInPlace(index, html, self.config.fileperms)
 
@@ -601,7 +604,6 @@ class Wiki(object):
         return os.path.exists(index)
 
     def writeStatus(self, message):
-        directory = os.path.join(self.publicDir(), self.date)
         index = os.path.join(self.publicDir(), self.date, "status.html")
         FileUtils.writeFileInPlace(index, message, self.config.fileperms)
 
@@ -677,6 +679,7 @@ class Wiki(object):
     def lockAge(self):
         return FileUtils.fileAge(self.lockFile())
 
+
 class LockWatchdog(threading.Thread):
     """Touch the given file every 10 seconds until asked to stop."""
 
@@ -712,6 +715,7 @@ class LockWatchdog(threading.Thread):
     def touchLock(self):
         """Run me inside..."""
         os.utime(self.lockfile, None)
+
 
 def cleanup():
     """Call cleanup handlers for any background threads..."""
