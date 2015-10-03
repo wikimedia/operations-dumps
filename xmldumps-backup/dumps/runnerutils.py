@@ -1,5 +1,8 @@
 # Worker process, does the actual dumping
-import os, re, sys, time
+import os
+import re
+import sys
+import time
 import traceback
 
 from os.path import exists
@@ -7,8 +10,10 @@ from dumps.WikiDump import FileUtils, TimeUtils
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFile, DumpFilename
 
+
 def xml_escape(text):
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 
 class Maintenance(object):
 
@@ -60,7 +65,7 @@ class Checksummer(object):
                 dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(file_obj),
                                     None, self.verbose)
                 checksum = dumpfile.checksum(htype)
-                if checksum != None:
+                if checksum is not None:
                     output.write("%s  %s\n" % (checksum, file_obj.filename))
                 output.close()
 
@@ -90,6 +95,7 @@ class Checksummer(object):
     #
     # functions internal to the class
     #
+
     def _get_checksum_filename(self, htype):
         file_obj = DumpFilename(self.wiki, None, self.get_checksum_filename_basename(htype))
         return self.dump_dir.filename_public_path(file_obj)
@@ -191,7 +197,7 @@ class Status(object):
         basename = self.checksums.get_checksum_filename_basename(htype)
         path = DumpFilename(self.wiki, None, basename)
         web_path = self.dump_dir.web_path_relative(path)
-        return '<a href="%s">(%s)</a>' %(web_path, htype)
+        return '<a href="%s">(%s)</a>' % (web_path, htype)
 
     def _report_dbstatus_detailed(self, done=False):
         """Put together a status page for this database, with all its component dumps."""
@@ -287,6 +293,7 @@ class Status(object):
         html += "</li>"
         return html
 
+
 class NoticeFile(object):
     def __init__(self, wiki, notice, enabled):
         self.wiki = wiki
@@ -298,13 +305,13 @@ class NoticeFile(object):
         if self._enabled:
             notice_file = self._get_notice_filename()
             # delnotice.  toss any existing file
-            if self.notice == False:
+            if self.notice is False:
                 if exists(notice_file):
                     os.remove(notice_file)
                 self.notice = ""
             # addnotice, stuff notice in a file for other jobs etc
             elif self.notice != "":
-#                notice_dir = self._get_notice_dir()
+                # notice_dir = self._get_notice_dir()
                 FileUtils.writeFile(self.wiki.config.tempDir, notice_file, self.notice,
                                     self.wiki.config.fileperms)
             # default case. if there is a file get the contents, otherwise
@@ -320,7 +327,6 @@ class NoticeFile(object):
             self.notice = FileUtils.readFile(notice_file)
         else:
             self.notice = ""
-
 
     #
     # functions internal to class
@@ -423,6 +429,7 @@ class SymLinks(object):
                             continue
                         self.debugfn("Removing old symlink %s -> %s" % (link, realfile))
                         os.remove(link)
+
 
 class Feeds(object):
     def __init__(self, wiki, dump_dir, dbname, debugfn, enabled):

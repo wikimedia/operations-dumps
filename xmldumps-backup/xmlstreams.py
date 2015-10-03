@@ -12,12 +12,12 @@ import sys
 import time
 import worker
 from dumps.WikiDump import Wiki
-import getopt
 
 from subprocess import Popen, PIPE
 
 # fix all the error returns and make subroutines out of stuff
 # current code puts together a command with a bunch of crap in it
+
 
 def do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, id_field, table,
@@ -160,7 +160,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
         lines = results.splitlines()
         if lines and lines[1]:
             if not lines[1].isdigit():
-                return 0  #probably NULL or missing table
+                return 0   # probably NULL or missing table
             end = int(lines[1])
             return end
 

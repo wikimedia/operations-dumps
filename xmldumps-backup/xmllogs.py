@@ -9,12 +9,10 @@ the run.
 
 import os
 import sys
-import time
-import worker
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
 import getopt
-from xmlstreams import run_script, catfile, gzippit, get_max_id, do_xml_piece, do_xml_stream
+from xmlstreams import gzippit, do_xml_stream
 
 
 def dologsbackup(wikidb, outfile,

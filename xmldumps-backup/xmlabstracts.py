@@ -9,7 +9,6 @@ the run.
 
 import os
 import sys
-import worker
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
 import getopt
@@ -54,10 +53,9 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     for filetype in outfiles:
             command.extend(["--output=file:%s" % outfiles[filetype]['temp'],
-                    "--filter=namespace:NS_MAIN",
-                    "----filter=noredirect",
-                    "--filter=abstract%s" % filetype
-                        ])
+                            "--filter=namespace:NS_MAIN",
+                            "----filter=noredirect",
+                            "--filter=abstract%s" % filetype])
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',

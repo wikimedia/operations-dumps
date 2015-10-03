@@ -10,6 +10,7 @@ from subprocess import Popen, PIPE
 
 # FIXME no explicit stderr handling, is this ok?
 
+
 class CommandPipeline(object):
     """Run a series of commands in a pipeline, e.g.  ps -ef | grep convert
     The pipeline can be one command long (in which case nothing special happens)
@@ -145,7 +146,7 @@ class CommandPipeline(object):
         # will hang forever in the wait() on them.
         self._processes.reverse()
         for proc in self._processes:
-            print "DEBUG: trying to get return code for %s" %  proc.pid
+            print "DEBUG: trying to get return code for %s" % proc.pid
             self._exit_values.append(proc.wait())
             retcode = proc.poll()
             print "DEBUG: return code %s for %s" % (retcode, proc.pid)
@@ -154,12 +155,11 @@ class CommandPipeline(object):
         if self.save_file():
             self.save_file().close()
 
-
     def is_running(self):
         """Check if process is running."""
         # Note that poll() returns None if the process
         # is not completed, or some value (may be 0) otherwise
-        if self._last_process_in_pipe.poll() == None:
+        if self._last_process_in_pipe.poll() is None:
             return True
         else:
             return False
@@ -213,7 +213,7 @@ class CommandPipeline(object):
             # this means we never had a poll return with
             # activity on the current object... which counts as false
             return False
-        if self._last_poll_state & (select.POLLIN|select.POLLPRI):
+        if self._last_poll_state & (select.POLLIN | select.POLLPRI):
             return True
         else:
             return False
@@ -240,11 +240,11 @@ class CommandPipeline(object):
 
         if not self._poller:
             self._poller = select.poll()
-            self._poller.register(self._last_process_in_pipe.stdout, select.POLLIN|select.POLLPRI)
+            self._poller.register(self._last_process_in_pipe.stdout, select.POLLIN | select.POLLPRI)
 
         # FIXME we should return something reasonable if we
         # unregistered this the last time
-        if timeout == None:
+        if timeout is None:
             fd_ready = self._poller.poll()
         else:
             # FIXME so poll doesn't take an arg :-P ...?
@@ -273,7 +273,6 @@ class CommandPipeline(object):
 #                    if (out):
 #                        sys.stdout.write("DEBUG: got from %s out %s" % (
 #                             self._lastCommandString, out))
-
 
                     signal.alarm(0)
                     return out
@@ -311,6 +310,7 @@ class CommandPipeline(object):
         self.start_commands()
         self.get_all_output()
         self.set_return_codes()
+
 
 class CommandSeries(object):
     """Run a list of command pipelines in serial (e.g.
@@ -358,7 +358,7 @@ class CommandSeries(object):
         for pipeline in self._command_pipelines:
             if not pipeline.exited_successfully():
                 command = pipeline.exited_with_errors()
-                if command != None:
+                if command is not None:
                     commands.append(command)
         return commands
 
@@ -411,6 +411,7 @@ class CommandSeries(object):
     #        if self.all_commands_completed() and not len(self._processes_to_poll):
     #            break
 
+
 class ProcessMonitor(threading.Thread):
     def __init__(self, timeout, queue, output_queue, default_callback_interval,
                  callback_stderr, callbackStdout, callback_timed,
@@ -433,12 +434,12 @@ class ProcessMonitor(threading.Thread):
         while series.process_producing_output():
             proc = series.process_producing_output()
             poller = select.poll()
-            poller.register(proc.stderr, select.POLLIN|select.POLLPRI)
+            poller.register(proc.stderr, select.POLLIN | select.POLLPRI)
             fderr = proc.stderr.fileno()
             flerr = fcntl.fcntl(fderr, fcntl.F_GETFL)
             fcntl.fcntl(fderr, fcntl.F_SETFL, flerr | os.O_NONBLOCK)
             if proc.stdout:
-                poller.register(proc.stdout, select.POLLIN|select.POLLPRI)
+                poller.register(proc.stdout, select.POLLIN | select.POLLPRI)
                 fdout = proc.stdout.fileno()
                 flout = fcntl.fcntl(fdout, fcntl.F_GETFL)
                 fcntl.fcntl(fdout, fcntl.F_SETFL, flout | os.O_NONBLOCK)
@@ -488,6 +489,7 @@ class ProcessMonitor(threading.Thread):
         # completed the whole series. time to go home.
         self.queue.task_done()
 
+
 class OutputQueueItem(object):
     def __init__(self, channel, contents):
         self.channel = channel
@@ -503,6 +505,7 @@ class OutputQueueItem(object):
 
     get_stdout_channel = staticmethod(get_stdout_channel)
     get_stderr_channel = staticmethod(get_stderr_channel)
+
 
 class CommandsInParallel(object):
     """Run a pile of commandSeries in parallel (e.g. dump articles 1 to 100K,
@@ -597,7 +600,7 @@ class CommandsInParallel(object):
                             self._callback_stdout(output.contents)
                     else:
                         sys.stderr.write(output.contents)
-                else: # output channel is stderr
+                else:  # output channel is stderr
                     if self._callback_stderr:
                         if self._callback_stderr_arg:
                             self._callback_stderr(self._callback_stderr_arg, output.contents)
@@ -615,11 +618,12 @@ class CommandsInParallel(object):
 
 def testcallback(output=None):
     output_file = open("/home/ariel/src/mediawiki/testing/outputsaved.txt", "a")
-    if output == None:
+    if output is None:
         output_file.write("no output for me.\n")
     else:
         output_file.write(output)
     output_file.close()
+
 
 def main():
     command1 = ["/usr/bin/vmstat", "1", "10"]
