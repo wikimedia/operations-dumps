@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2ecb373e_f868ca1a",
+        "filename": "xmlfileutils/mwxml2sql.h",
+        "patchSetId": 7
+      },
+      "lineNbr": 30,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-03T02:28:50Z",
+      "side": 0,
+      "message": "this comment seems to relate to TEXT_BUF_LEN 4096, which is not operative.\n\nYou\u0027ve doubled TEXT_BUF_LEN , but TEXT_BUF_LEN_PADDED is now much larger.\n\nSo this comment needs to be updated, and the commented out #defines removed.",
+      "revId": "77e9adb74e13d76ff2c2482f68a532cbf3fe0415",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2ecb373e_d865ce42",
+        "filename": "xmlfileutils/sqlfilter.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 500,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-03T02:28:50Z",
+      "side": 0,
+      "message": "why move it?",
+      "revId": "77e9adb74e13d76ff2c2482f68a532cbf3fe0415",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}

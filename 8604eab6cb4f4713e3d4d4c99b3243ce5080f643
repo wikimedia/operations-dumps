@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2ecb373e_387732ff",
+        "filename": "xmlfileutils/sql2txt.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 310,
+      "author": {
+        "id": 1718
+      },
+      "writtenOn": "2015-10-03T02:28:50Z",
+      "side": 1,
+      "message": "this type of change should be done separately from functional changes.\nSee Ie43e2e4937989e35",
+      "revId": "8604eab6cb4f4713e3d4d4c99b3243ce5080f643",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
