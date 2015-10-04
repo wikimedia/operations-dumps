@@ -281,7 +281,7 @@ class DumpFile(object):
             raise BackupError("head command %s not found" % self._wiki.config.head)
         head = self._wiki.config.head
         head_esc = MiscUtils.shellEscape(head)
-        pipeline.append([head_esc, "-500"])
+        pipeline.append([head, "-500"])
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
