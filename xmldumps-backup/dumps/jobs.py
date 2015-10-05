@@ -1225,7 +1225,7 @@ class XmlDump(Dump):
             raise BackupError("php command %s not found" % self.wiki.config.php)
 
         if self._checkpoints_enabled:
-            checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpoint_time)
+            checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpointTime)
             checkpoint_file = "--checkpointfile=%s" % output_file.new_filename(
                 output_file.dumpname, output_file.file_type, output_file.file_ext,
                 output_file.date, output_file.chunk, "p%sp%s", None)
