@@ -1274,59 +1274,59 @@ class XmlDump(Dump):
                         file_obj, self.verbose)
                     file_obj.first_page_id = fname.find_first_page_id_in_file()
 
-                # get the files that cover our range
-                for file_obj in file_list:
-                    # If some of the file_objs in file_list could not be properly be parsed, some of
-                    # the (int) conversions below will fail. However, it is of little use to us,
-                    # which conversion failed. /If any/ conversion fails, it means, that that we do
-                    # not understand how to make sense of the current file_obj. Hence we cannot use
-                    # it as prefetch object and we have to drop it, to avoid passing a useless file
-                    # to the text pass. (This could days as of a comment below, but by not passing
-                    # a likely useless file, we have to fetch more texts from the database)
-                    #
-                    # Therefore try...except-ing the whole block is sufficient: If whatever error
-                    # occurs, we do not abort, but skip the file for prefetch.
-                    try:
-                        # If we could properly parse
-                        first_page_id_in_file = int(file_obj.first_page_id)
+            # get the files that cover our range
+            for file_obj in file_list:
+                # If some of the file_objs in file_list could not be properly be parsed, some of
+                # the (int) conversions below will fail. However, it is of little use to us,
+                # which conversion failed. /If any/ conversion fails, it means, that that we do
+                # not understand how to make sense of the current file_obj. Hence we cannot use
+                # it as prefetch object and we have to drop it, to avoid passing a useless file
+                # to the text pass. (This could days as of a comment below, but by not passing
+                # a likely useless file, we have to fetch more texts from the database)
+                #
+                # Therefore try...except-ing the whole block is sufficient: If whatever error
+                # occurs, we do not abort, but skip the file for prefetch.
+                try:
+                    # If we could properly parse
+                    first_page_id_in_file = int(file_obj.first_page_id)
 
-                        # fixme what do we do here? this could be very expensive. is that worth it??
-                        if not file_obj.last_page_id:
-                            # (b) nasty hack, see (a)
-                            # it's not a checkpoint fle or we'd have the pageid in the filename
-                            # so... temporary hack which will give expensive results
-                            # if chunk file, and it's the last chunk, put none
-                            # if it's not the last chunk, get the first pageid in the next
-                            #  chunk and subtract 1
-                            # if not chunk, put none.
-                            if file_obj.is_chunk_file and file_obj.chunk_int < maxchunks:
-                                for fname in file_list:
-                                    if fname.chunk_int == file_obj.chunk_int + 1:
-                                        # not true!  this could be a few past where it really is
-                                        # (because of deleted pages that aren't included at all)
-                                        file_obj.last_page_id = str(int(fname.first_page_id) - 1)
-                        if file_obj.last_page_id:
-                            last_page_id_in_file = int(file_obj.last_page_id)
-                        else:
-                            last_page_id_in_file = None
+                    # fixme what do we do here? this could be very expensive. is that worth it??
+                    if not file_obj.last_page_id:
+                        # (b) nasty hack, see (a)
+                        # it's not a checkpoint fle or we'd have the pageid in the filename
+                        # so... temporary hack which will give expensive results
+                        # if chunk file, and it's the last chunk, put none
+                        # if it's not the last chunk, get the first pageid in the next
+                        #  chunk and subtract 1
+                        # if not chunk, put none.
+                        if file_obj.is_chunk_file and file_obj.chunk_int < maxchunks:
+                            for fname in file_list:
+                                if fname.chunk_int == file_obj.chunk_int + 1:
+                                    # not true!  this could be a few past where it really is
+                                    # (because of deleted pages that aren't included at all)
+                                    file_obj.last_page_id = str(int(fname.first_page_id) - 1)
+                    if file_obj.last_page_id:
+                        last_page_id_in_file = int(file_obj.last_page_id)
+                    else:
+                        last_page_id_in_file = None
 
-                            # FIXME there is no point in including files that have just a
-                            # few rev ids in them that we need, and having to read through
-                            # the whole file... could take hours or days (later it won't matter,
-                            # right? but until a rewrite, this is important)
-                            # also be sure that if a critical page is deleted by the time we
-                            # try to figure out ranges, that we don't get hosed
-                        if ((first_page_id_in_file <= int(start_page_id) and
-                                (last_page_id_in_file is None or
-                                 last_page_id_in_file >= int(start_page_id))) or
-                                (first_page_id_in_file >= int(start_page_id) and
-                                 (end_page_id is None or
-                                  first_page_id_in_file <= int(end_page_id)))):
-                            possibles.append(file_obj)
-                    except:
-                        runner.debug(
-                            "Couldn't process %s for prefetch. Format update? Corrupt file?"
-                            % file_obj.filename)
+                    # FIXME there is no point in including files that have just a
+                    # few rev ids in them that we need, and having to read through
+                    # the whole file... could take hours or days (later it won't matter,
+                    # right? but until a rewrite, this is important)
+                    # also be sure that if a critical page is deleted by the time we
+                    # try to figure out ranges, that we don't get hosed
+                    if ((first_page_id_in_file <= int(start_page_id) and
+                            (last_page_id_in_file is None or
+                             last_page_id_in_file >= int(start_page_id))) or
+                            (first_page_id_in_file >= int(start_page_id) and
+                             (end_page_id is None or
+                              first_page_id_in_file <= int(end_page_id)))):
+                        possibles.append(file_obj)
+                except:
+                    runner.debug(
+                        "Couldn't process %s for prefetch. Format update? Corrupt file?"
+                        % file_obj.filename)
         return possibles
 
     # this finds the content file or files from the first previous successful dump
