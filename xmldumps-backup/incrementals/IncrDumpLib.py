@@ -3,8 +3,8 @@ import os
 import sys
 import re
 import ConfigParser
-import WikiDump
-from WikiDump import FileUtils, TimeUtils, MiscUtils
+import dumps.WikiDump
+from dumps.WikiDump import FileUtils, TimeUtils, MiscUtils
 from os.path import exists
 import socket
 import subprocess
@@ -27,7 +27,7 @@ class ContentFile(object):
         return os.path.join(self.incrDir.getIncDir(self.wikiName),self.getFileName())
 
     def getFileInfo(self):
-        return FileUtils.fileInfo(self.getPath())
+        return FileUtils.file_info(self.getPath())
     
 class MaxRevIDFile(ContentFile):
     def getFileName(self):
@@ -88,11 +88,11 @@ class StatusInfo(object):
     def getStatus(self, date = None):
         status = ""
         if exists(self.statusFile.getPath(date)):
-            status = FileUtils.readFile(self.statusFile.getPath(date)).rstrip()
+            status = FileUtils.read_file(self.statusFile.getPath(date)).rstrip()
         return(status)
 
     def setStatus(self, status):
-        FileUtils.writeFileInPlace(self.statusFile.getPath(),status, self._config.fileperms)
+        FileUtils.write_file_in_place(self.statusFile.getPath(),status, self._config.fileperms)
 
 class Lock(object):
     def __init__(self, config, date, wikiName):
@@ -108,7 +108,7 @@ class Lock(object):
         try:
             if not exists(self._config.incrementalsDir):
                 os.makedirs(self._config.incrementalsDir)
-            f = FileUtils.atomicCreate(self.lockFile.getPath(), "w")
+            f = FileUtils.atomic_create(self.lockFile.getPath(), "w")
             f.write("%s %d" % (socket.getfqdn(), os.getpid()))
             f.close()
             return True
@@ -151,7 +151,7 @@ class MaxRevIDLock(Lock):
         self.wikiName = wikiName
         self.lockFile = MaxRevIDLockFile(self._config, self.date, self.wikiName)
 
-class Config(WikiDump.Config):
+class Config(dumps.WikiDump.Config):
     def __init__(self, configFile=False):
         self.projectName = False
 
@@ -177,7 +177,7 @@ class Config(WikiDump.Config):
             "delay": "43200",
             "maxrevidstaleinterval": "3600",
             #"database": {
-            # moved defaults to getDbUserAndPassword
+            # moved defaults to get_db_user_and_password
             #"tools": {
             "mediawiki" : "",
             "php": "/bin/php",
@@ -202,15 +202,18 @@ class Config(WikiDump.Config):
             print "The mandatory setting 'mediawiki' in the section 'wiki' was not defined."
             raise ConfigParser.NoOptionError('wiki','mediawiki')
 
+        self.db_user = None
+        self.db_password = None
+
         self.parseConfFile()
-        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
 
     def parseConfFile(self):
         self.mediawiki = self.conf.get("wiki", "mediawiki")
-        self.allWikisList = MiscUtils.dbList(self.conf.get("wiki", "allwikislist"))
-        self.privateWikisList = MiscUtils.dbList(self.conf.get("wiki", "privatewikislist"))
-        self.closedWikisList = MiscUtils.dbList(self.conf.get("wiki", "closedwikislist"))
-        self.skipWikisList = MiscUtils.dbList(self.conf.get("wiki", "skipwikislist"))
+        self.wiki_dir = self.mediawiki
+        self.allWikisList = MiscUtils.db_list(self.conf.get("wiki", "allwikislist"))
+        self.privateWikisList = MiscUtils.db_list(self.conf.get("wiki", "privatewikislist"))
+        self.closedWikisList = MiscUtils.db_list(self.conf.get("wiki", "closedwikislist"))
+        self.skipWikisList = MiscUtils.db_list(self.conf.get("wiki", "skipwikislist"))
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
@@ -240,19 +243,19 @@ class Config(WikiDump.Config):
         self.keep = self.conf.getint("cleanup", "keep")
 
         self.wikiDir = self.mediawiki # the parent class methods want this
-        self.dbUser = None
-        self.dbPassword = None
+        self.db_user = None
+        self.db_password = None
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
         if self.conf.has_option('database', 'user'):
-            self.dbUser = self.conf.get("database", "user")
+            self.db_user = self.conf.get("database", "user")
         if self.conf.has_option('database', 'password'):
-            self.dbPassword = self.conf.get("database", "password")
-        self.getDbUserAndPassword() # get from MW adminsettings file if not set in conf file
+            self.db_password = self.conf.get("database", "password")
+        self.get_db_user_and_password() # get from MW adminsettings file if not set in conf file
 
     def readTemplate(self, name):
         template = os.path.join(self.templateDir, name)
-        return FileUtils.readFile(template)
+        return FileUtils.read_file(template)
 
 class RunSimpleCommand(object):
     def runWithOutput(command, maxtries = 3, shell=False):
@@ -331,9 +334,9 @@ class DBServer(object):
         """Put together a command to execute an sql query to the server for this DB."""
         if (not exists( self.config.mysql ) ):
             raise BackupError("mysql command %s not found" % self.config.mysql)
-        command =  "/bin/echo '%s' | %s -h %s -u %s " % ( query, self.config.mysql, self.dbServer, self.config.dbUser ) 
-        if self.config.dbPassword != "":
-            command = command + "-p" + self.config.dbPassword
+        command =  "/bin/echo '%s' | %s -h %s -u %s " % ( query, self.config.mysql, self.dbServer, self.config.db_user ) 
+        if self.config.db_password != "":
+            command = command + "-p" + self.config.db_password
         command = command + " -r --silent " + self.wikiName
         return command
 
@@ -409,7 +412,7 @@ class IncDumpDirs(object):
                     elif revidok:
                         maxRevIDFile = MaxRevIDFile(self._config, dump, self.wikiName)
                         if exists(maxRevIDFile.getPath()):
-                            revid = FileUtils.readFile(maxRevIDFile.getPath().rstrip())
+                            revid = FileUtils.read_file(maxRevIDFile.getPath().rstrip())
                             if int(revid) > 0:
                                 previous = dump
                     else:
