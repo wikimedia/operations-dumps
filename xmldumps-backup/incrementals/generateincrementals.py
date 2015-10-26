@@ -12,7 +12,7 @@ from IncrDumpLib import DBServer, IncrementDir, IncrementDumpsError
 from IncrDumpLib import MaxRevIDFile, StatusFile, IndexFile
 from IncrDumpLib import StubFile, RevsFile, MD5File, IncDumpDirs
 from IncrDumpLib import IncrDumpLock, StatusInfo
-from WikiDump import FileUtils, TimeUtils
+from dumps.WikiDump import FileUtils, TimeUtils
 from os.path import exists
 import hashlib
 import traceback
@@ -38,15 +38,15 @@ class MaxRevID(object):
         self.getMaxRevID(wikiName)
         if not self.dryrun:
             fileObj = MaxRevIDFile(self._config, self.date, wikiName)
-            FileUtils.writeFileInPlace(fileObj.getPath(), self.maxID,
-                                       self._config.fileperms)
+            FileUtils.write_file_in_place(fileObj.getPath(), self.maxID,
+                                          self._config.fileperms)
 
     def readMaxRevIDFromFile(self, wikiName, date=None):
         if date is None:
             date = self.date
         try:
             fileObj = MaxRevIDFile(self._config, date, wikiName)
-            return FileUtils.readFile(fileObj.getPath().rstrip())
+            return FileUtils.read_file(fileObj.getPath().rstrip())
         except:
             return None
 
@@ -82,8 +82,8 @@ class Index(object):
                 text = text + "<li>" + result + "</li>\n"
         indexText = (self._config.readTemplate("incrs-index.html")
                      % {"items": text})
-        FileUtils.writeFileInPlace(self.indexFile.getPath(),
-                                   indexText, self._config.fileperms)
+        FileUtils.write_file_in_place(self.indexFile.getPath(),
+                                      indexText, self._config.fileperms)
 
     def doOneWiki(self, w, date=None):
         if (w not in self._config.privateWikisList and
@@ -129,7 +129,7 @@ class Index(object):
 
                 revs = RevsFile(self._config, incrDate, w)
                 (revsDate, revsSize) = revs.getFileInfo()
-                log(verbose, "revs for %s %s %s"
+                log(self.verbose, "revs for %s %s %s"
                     % (w, safe(revsDate), safe(revsSize)))
                 if revsDate:
                     revsText = ("revs: %s (size %s)"
@@ -140,7 +140,7 @@ class Index(object):
                     revsText = None
 
                 stat = StatusFile(self._config, incrDate, w)
-                statContents = FileUtils.readFile(stat.getPath())
+                statContents = FileUtils.read_file(stat.getPath())
                 log(self.verbose, "status for %s %s" % (w, safe(statContents)))
                 if statContents:
                     statText = "(%s)" % (statContents)
@@ -211,12 +211,12 @@ class IncrDump(object):
                 os.makedirs(self.incrDir.getIncDir(self.wikiName))
 
             status = self.statusInfo.getStatus()
-            if status == "done" and not forcerun:
+            if status == "done" and not self.forcerun:
                 log(self.verbose, "wiki %s skipped, adds/changes dump already"
                     " complete" % self.wikiName)
                 return retCodes.OK
 
-            if not dryrun:
+            if not self.dryrun:
                 lock = IncrDumpLock(self._config, self.date, self.wikiName)
                 if not lock.getLock():
                     log(self.verbose, "wiki %s skipped, wiki is locked,"
@@ -237,27 +237,27 @@ class IncrDump(object):
                 if not prevRevID:
                     return retCodes.FAILED
 
-                if doStubs:
+                if self.doStubs:
                     if not self.dumpStub(prevRevID, maxRevID):
                         return retCodes.FAILED
 
-                if doRevs:
+                if self.doRevs:
                     if not self.dumpRevs():
                         return retCodes.FAILED
 
-                if not dryrun:
+                if not self.dryrun:
                     if not self.md5sums():
                         return retCodes.FAILED
                     self.statusInfo.setStatus("done")
                     lock.unlock()
 
-                if doIndexUpdate:
-                    index = Index(config, date, verbose)
+                if self.doIndexUpdate:
+                    index = Index(self._config, self.date, self.verbose)
                     index.doAllWikis()
             except:
                 if (self.verbose):
                     traceback.print_exc(file=sys.stdout)
-                if not dryrun:
+                if not self.dryrun:
                     lock.unlock()
                 return retCodes.FAILED
         log(self.verbose, "Success!  Wiki %s incremental dump complete."
@@ -297,7 +297,7 @@ class IncrDump(object):
                 log(self.verbose, "Wiki %s retrieving prevRevId from db."
                     % self.wikiName)
                 prevRevIDObj = MaxRevID(self._config, prevDate,
-                                        cutoffFromDate(prevDate),
+                                        cutoffFromDate(prevDate, self._config),
                                         self.dryrun)
                 prevRevIDObj.recordMaxRevID(self.wikiName)
                 prevRevID = prevRevIDObj.maxID
@@ -324,7 +324,7 @@ class IncrDump(object):
                         "--output=gzip:%s" % self.stubFile.getPath(),
                         "--revrange", "--revstart=%s" % startRevID,
                         "--revend=%s" % endRevID])
-        if dryrun:
+        if self.dryrun:
             print "would run command for stubs dump:", command
         else:
             error = RunSimpleCommand.runWithNoOutput(command, shell=False)
@@ -344,7 +344,7 @@ class IncrDump(object):
                         "--quiet",
                         "--spawn=%s" % self._config.php,
                         "--output=bzip2:%s" % self.revsFile.getPath()])
-        if dryrun:
+        if self.dryrun:
             print "would run command for revs dump:", command
         else:
             error = RunSimpleCommand.runWithNoOutput(command, shell=False)
@@ -376,8 +376,8 @@ class IncrDump(object):
                 files.append(self.revsFile.getPath())
             for f in files:
                 text = text + "%s\n" % self.md5sumOneFile(f)
-                FileUtils.writeFileInPlace(md5File.getPath(),
-                                           text, self._config.fileperms)
+                FileUtils.write_file_in_place(md5File.getPath(),
+                                              text, self._config.fileperms)
             return True
         except:
             return False
@@ -436,7 +436,7 @@ class IncrDumpLoop(object):
             time.sleep(300)
 
 
-def cutoffFromDate(date):
+def cutoffFromDate(date, config):
     return time.strftime("%Y%m%d%H%M%S",
                          time.gmtime(calendar.timegm(time.strptime(
                              date + "235900UTC", "%Y%m%d%H%M%S%Z"))
@@ -466,7 +466,7 @@ Options: --configfile, --date, --dryrun, --revsonly, --stubsonly, --verbose"
     sys.stderr.write(usage_message)
     sys.exit(1)
 
-if __name__ == "__main__":
+def main():
     configFile = False
     result = False
     date = None
@@ -520,7 +520,7 @@ if __name__ == "__main__":
         cutoff = time.strftime("%Y%m%d%H%M%S",
                                time.gmtime(time.time() - config.delay))
     else:
-        cutoff = cutoffFromDate(date)
+        cutoff = cutoffFromDate(date, config)
 
     if len(remainder) > 0:
         dump = IncrDump(config, date, cutoff, remainder[0], doStubs,
@@ -530,3 +530,8 @@ if __name__ == "__main__":
         dump = IncrDumpLoop(config, date, cutoff, doStubs, doRevs,
                             doIndexUpdate, dryrun, verbose, forcerun)
         dump.doAllWikisTilDone(3)
+
+
+if __name__ == "__main__":
+    main()
+        
