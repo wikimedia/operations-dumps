@@ -16,31 +16,31 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=T
     states = []
 
     if sorted_by_db:
-        dbs = sorted(config.dbList)
+        dbs = sorted(config.db_list)
     else:
-        dbs = config.dbListByAge()
+        dbs = config.db_list_by_age()
 
     for db_name in dbs:
         wiki = Wiki(config, db_name)
-        if wiki.isStale():
+        if wiki.is_stale():
             print db_name + " is stale"
-            wiki.cleanupStaleLock()
+            wiki.cleanup_stale_lock()
         if showlocks:
-            if wiki.isLocked():
+            if wiki.is_locked():
                 try:
-                    filehdl = open(wiki.lockFile(), 'r')
+                    filehdl = open(wiki.lock_file(), 'r')
                     (host, pid) = filehdl.readline().split(" ")
                     filehdl.close()
                     print db_name, "is locked by pid", pid, "on", host
                 except:
                     print db_name, "is locked"
-        running = running or wiki.isLocked()
-        states.append(wiki.statusLine())
+        running = running or wiki.is_locked()
+        states.append(wiki.status_line())
 
     if running:
         status = "Dumps are in progress..."
     elif exists("maintenance.txt"):
-        status = FileUtils.readFile("maintenance.txt")
+        status = FileUtils.read_file("maintenance.txt")
     else:
         status = "Dump process is idle."
 
@@ -55,16 +55,16 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=T
         other_index_link = ('Also view sorted by <a href="%s">%s</a>'
                             % (os.path.basename(other_indexhtml), other_sortedby))
 
-    return config.readTemplate("download-index.html") % {
+    return config.read_template("download-index.html") % {
         "otherIndexLink": other_index_link,
         "status": status,
         "items": "\n".join(states)}
 
 
 def update_index(config):
-    output_fname = os.path.join(config.publicDir, config.index)
+    output_fname = os.path.join(config.public_dir, config.index)
     output_fname_sorted_by_db = add_to_filename(os.path.join(
-        config.publicDir, config.index), "bydb")
+        config.public_dir, config.index), "bydb")
 
     temp_fname = output_fname + ".tmp"
     filehdl = open(temp_fname, "wt")

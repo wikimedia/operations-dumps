@@ -65,10 +65,10 @@ class DumpItemList(object):
     def __init__(self, wiki, prefetch, spawn, chunk_to_do, checkpoint_file,
                  singleJob, skip_jobs, chunk_info, page_id_range, runinfo_file, dump_dir):
         self.wiki = wiki
-        self._has_flagged_revs = self.wiki.hasFlaggedRevs()
-        self._has_wikidata = self.wiki.hasWikidata()
+        self._has_flagged_revs = self.wiki.has_flagged_revs()
+        self._has_wikidata = self.wiki.has_wikidata()
         self._has_global_usage = self.wiki.has_global_usage()
-        self._is_wikidata_client = self.wiki.isWikidataClient()
+        self._is_wikidata_client = self.wiki.is_wikidata_client()
         self._prefetch = prefetch
         self._spawn = spawn
         self.chunk_info = chunk_info
@@ -80,7 +80,7 @@ class DumpItemList(object):
         self.dump_dir = dump_dir
         self.page_id_range = page_id_range
 
-        if self.wiki.config.checkpointTime:
+        if self.wiki.config.checkpoint_time:
             checkpoints = True
         else:
             checkpoints = False
@@ -177,7 +177,7 @@ class DumpItemList(object):
                            AllTitleDump("allpagetitlesdump", "List of all page titles"),
 
                            AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo",
-                                        self._get_chunk_to_do("abstractsdump"), self.wiki.dbName,
+                                        self._get_chunk_to_do("abstractsdump"), self.wiki.db_name,
                                         self.chunk_info.get_pages_per_chunk_abstract())]
 
         if self.chunk_info.chunks_enabled():
@@ -334,7 +334,7 @@ class DumpItemList(object):
                     "most mirror sites won't want or need this.",
                     self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
-        if self.wiki.config.multistreamEnabled:
+        if self.wiki.config.multistream_enabled:
             if self.chunk_info.chunks_enabled():
                 input_for_multistream = "articlesdumprecombine"
             else:
@@ -465,11 +465,11 @@ class DumpItemList(object):
 
 class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None,
-                 restart=False, notice="", dryrun=False, loggingEnabled=False,
+                 restart=False, notice="", dryrun=False, logging_enabled=False,
                  chunk_to_do=False, checkpoint_file=None, page_id_range=None,
                  skipdone=False, verbose=False):
         self.wiki = wiki
-        self.db_name = wiki.dbName
+        self.db_name = wiki.db_name
         self.prefetch = prefetch
         self.spawn = spawn
         self.chunk_info = Chunk(wiki, self.db_name, self.log_and_print)
@@ -494,7 +494,7 @@ class Runner(object):
                                   "of checkpoint file %s to redo", self.checkpoint_file)
             self.checkpoint_file = fname
 
-        self._logging_enabled = loggingEnabled
+        self._logging_enabled = logging_enabled
         self._status_enabled = True
         self._checksummer_enabled = True
         self._runinfo_file_enabled = True
@@ -576,7 +576,7 @@ class Runner(object):
             file_obj = DumpFilename(self.wiki)
             file_obj.new_from_filename(self.wiki.config.log_file)
             self.log_filename = self.dump_dir.filename_private_path(file_obj)
-            self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
+            self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
             self.log = Logger(self.log_filename)
             thread.start_new_thread(self.log_queue_reader, (self.log,))
         self.runinfo_file = RunInfoFile(wiki, self._runinfo_file_enabled,
@@ -680,7 +680,7 @@ class Runner(object):
                 return 1
 
     def debug(self, stuff):
-        self.log_and_print("%s: %s %s" % (TimeUtils.prettyTime(), self.db_name, stuff))
+        self.log_and_print("%s: %s %s" % (TimeUtils.pretty_time(), self.db_name, stuff))
 
     def run_handle_failure(self):
         if self.status.fail_count < 1:
@@ -703,7 +703,7 @@ class Runner(object):
 
     def run(self):
         if self.job_requested:
-            if not self.dump_item_list.old_runinfo_retrieved and self.wiki.existsPerDumpIndex():
+            if not self.dump_item_list.old_runinfo_retrieved and self.wiki.exists_perdump_index():
 
                 # There was a previous run of all or part of this date, but...
                 # There was no old RunInfo to be had (or an error was encountered getting it)
@@ -730,8 +730,8 @@ class Runner(object):
         Maintenance.exit_if_in_maintenance_mode(
             "In maintenance mode, exiting dump of %s" % self.db_name)
 
-        self.make_dir(os.path.join(self.wiki.publicDir(), self.wiki.date))
-        self.make_dir(os.path.join(self.wiki.privateDir(), self.wiki.date))
+        self.make_dir(os.path.join(self.wiki.public_dir(), self.wiki.date))
+        self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
 
         self.show_runner_state("Cleaning up old dumps for %s" % self.db_name)
         self.clean_old_dumps()
@@ -788,10 +788,10 @@ class Runner(object):
 
         # special case
         if self.job_requested == "createdirs":
-            if not os.path.exists(os.path.join(self.wiki.publicDir(), self.wiki.date)):
-                os.makedirs(os.path.join(self.wiki.publicDir(), self.wiki.date))
-            if not os.path.exists(os.path.join(self.wiki.privateDir(), self.wiki.date)):
-                os.makedirs(os.path.join(self.wiki.privateDir(), self.wiki.date))
+            if not os.path.exists(os.path.join(self.wiki.public_dir(), self.wiki.date)):
+                os.makedirs(os.path.join(self.wiki.public_dir(), self.wiki.date))
+            if not os.path.exists(os.path.join(self.wiki.private_dir(), self.wiki.date)):
+                os.makedirs(os.path.join(self.wiki.private_dir(), self.wiki.date))
 
         if self.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
@@ -839,10 +839,10 @@ class Runner(object):
         and not removed."""
         if self._clean_old_dumps_enabled:
             if private:
-                old = self.wiki.dumpDirs(private=True)
+                old = self.wiki.dump_dirs(private=True)
                 dumptype = 'private'
             else:
-                old = self.wiki.dumpDirs()
+                old = self.wiki.dump_dirs()
                 dumptype = 'public'
             if old:
                 if old[-1] == self.wiki.date:
@@ -857,9 +857,9 @@ class Runner(object):
                     self.show_runner_state("Purging old %s dump %s for %s" %
                                            (dumptype, dump, self.db_name))
                     if private:
-                        base = os.path.join(self.wiki.privateDir(), dump)
+                        base = os.path.join(self.wiki.private_dir(), dump)
                     else:
-                        base = os.path.join(self.wiki.publicDir(), dump)
+                        base = os.path.join(self.wiki.public_dir(), dump)
                     shutil.rmtree("%s" % base)
             else:
                 self.show_runner_state("No old %s dumps to purge." % dumptype)
@@ -937,7 +937,7 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
         return False
 
     if date == 'last':
-        dumps = sorted(wiki.dumpDirs())
+        dumps = sorted(wiki.dump_dirs())
         if dumps:
             date = dumps[-1]
         else:
@@ -947,11 +947,11 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
     if not job and prereqs:
         return True
 
-    wiki.setDate(date)
+    wiki.set_date(date)
 
     runinfo_file = RunInfoFile(wiki, False)
-    chunk_info = Chunk(wiki, wiki.dbName)
-    dump_dir = DumpDir(wiki, wiki.dbName)
+    chunk_info = Chunk(wiki, wiki.db_name)
+    dump_dir = DumpDir(wiki, wiki.db_name)
     dump_item_list = DumpItemList(wiki, False, False, chunk_to_do, checkpoint_file,
                                   job, skipjobs, chunk_info, page_id_range, runinfo_file, dump_dir)
     if not dump_item_list.old_runinfo_retrieved:
@@ -1002,7 +1002,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, bystatustime=False,
         sys.stderr.write("Dump process halted by config.\n")
         return None
 
-    nextdbs = config.dbListByAge(bystatustime)
+    nextdbs = config.db_list_by_age(bystatustime)
     nextdbs.reverse()
 
     if verbose and not cutoff:
@@ -1015,7 +1015,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, bystatustime=False,
     for dbname in nextdbs:
         wiki = Wiki(config, dbname)
         if cutoff:
-            last_updated = wiki.dateTouchedLatestDump()
+            last_updated = wiki.date_touched_latest_dump()
             if last_updated >= cutoff:
                 continue
         if check_job_status:
@@ -1247,11 +1247,11 @@ def main():
             if cutoff:
                 # fixme if we asked for a specific job then check that job only
                 # not the dir
-                last_ran = wiki.latestDump()
+                last_ran = wiki.latest_dump()
                 if last_ran >= cutoff:
                     wiki = None
             if wiki is not None and locks_enabled:
-                if force_lock and wiki.isLocked():
+                if force_lock and wiki.is_locked():
                     wiki.unlock()
                 if locks_enabled:
                     wiki.lock()
@@ -1279,10 +1279,10 @@ def main():
 
         if wiki is not None and wiki:
             # process any per-project configuration options
-            config.parseConfFilePerProject(wiki.dbName)
+            config.parse_conffile_per_project(wiki.db_name)
 
             if date == 'last':
-                dumps = sorted(wiki.dumpDirs())
+                dumps = sorted(wiki.dump_dirs())
                 if dumps:
                     date = dumps[-1]
                 else:
@@ -1290,7 +1290,7 @@ def main():
 
             if date is None or not date:
                 date = TimeUtils.today()
-            wiki.setDate(date)
+            wiki.set_date(date)
 
             if after_checkpoint:
                 fname = DumpFilename(wiki)
@@ -1315,11 +1315,11 @@ def main():
 
             if restart:
                 sys.stderr.write("Running %s, restarting from job %s...\n" %
-                                 (wiki.dbName, job_requested))
+                                 (wiki.db_name, job_requested))
             elif job_requested:
-                sys.stderr.write("Running %s, job %s...\n" % (wiki.dbName, job_requested))
+                sys.stderr.write("Running %s, job %s...\n" % (wiki.db_name, job_requested))
             else:
-                sys.stderr.write("Running %s...\n" % wiki.dbName)
+                sys.stderr.write("Running %s...\n" % wiki.db_name)
             result = runner.run()
             if result is not None and result:
                 exitcode = 0

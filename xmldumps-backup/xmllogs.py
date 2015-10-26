@@ -24,7 +24,7 @@ def dologsbackup(wikidb, outfile,
     '''
     outfiles = {'logs': {'name': outfile}}
     for filetype in outfiles:
-        outfiles[filetype]['temp'] = os.path.join(wikiconf.tempDir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
+        outfiles[filetype]['temp'] = os.path.join(wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:
@@ -132,7 +132,7 @@ def main():
         usage("no such file found: " + configfile)
 
     wikiconf = Config(configfile)
-    wikiconf.parseConfFilePerProject(wiki)
+    wikiconf.parse_conffile_per_project(wiki)
     dologsbackup(wiki, output_file, wikiconf, start, end, dryrun)
 
 if __name__ == '__main__':

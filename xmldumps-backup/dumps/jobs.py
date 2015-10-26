@@ -82,7 +82,7 @@ class Dump(object):
     def set_status(self, status, set_updated=True):
         self.runinfo.set_status(status)
         if set_updated:
-            self.runinfo.set_updated(TimeUtils.prettyTime())
+            self.runinfo.set_updated(TimeUtils.pretty_time())
 
     def set_updated(self, updated):
         self.runinfo.set_updated(updated)
@@ -227,23 +227,23 @@ class Dump(object):
         # we assume the result is always going to be run in a subshell.
         # much quicker than this script trying to read output
         # and pass it to a subprocess
-        output_filename_esc = MiscUtils.shellEscape(output_filename)
-        head_esc = MiscUtils.shellEscape(head)
-        tail_esc = MiscUtils.shellEscape(tail)
-        grep_esc = MiscUtils.shellEscape(grep)
+        output_filename_esc = MiscUtils.shell_escape(output_filename)
+        head_esc = MiscUtils.shell_escape(head)
+        tail_esc = MiscUtils.shell_escape(tail)
+        grep_esc = MiscUtils.shell_escape(grep)
 
         uncompression_command_esc = uncompression_command[:]
         for command in uncompression_command_esc:
-            command = MiscUtils.shellEscape(command)
+            command = MiscUtils.shell_escape(command)
         for command in compression_command:
-            command = MiscUtils.shellEscape(command)
+            command = MiscUtils.shell_escape(command)
 
         if not files:
             raise BackupError("No files for the recombine step found in %s." % self.name())
 
         for file_obj in files:
             # uh oh FIXME
-            # f = MiscUtils.shellEscape(file_obj.filename)
+            # f = MiscUtils.shell_escape(file_obj.filename)
             fpath = runner.dump_dir.filename_public_path(file_obj)
             chunknum = chunknum + 1
             pipeline = []
@@ -1092,7 +1092,7 @@ class XmlDump(Dump):
                               self.wiki.config.writeuptopageid)
 
         inputfile_path = runner.dump_dir.filename_public_path(input_file)
-        output_file_path = os.path.join(self.wiki.config.tempDir, output_file.filename)
+        output_file_path = os.path.join(self.wiki.config.temp_dir, output_file.filename)
         if input_file.file_ext == "gz":
             command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
             command2 = "%s > %s" % (self.wiki.config.gzip, output_file_path)
@@ -1163,7 +1163,7 @@ class XmlDump(Dump):
                                     self.checkpoint_file.first_page_id,
                                     str(int(self.checkpoint_file.last_page_id) + 1), runner)
             stub_option = ("--stub=gzip:%s" % os.path.join(
-                self.wiki.config.tempDir, stub_output_file.filename))
+                self.wiki.config.temp_dir, stub_output_file.filename))
         elif self.page_id_range:
             # two cases. redoing a specific chunk, OR no chunks,
             # redoing the whole output file. ouch, hope it isn't huge.
@@ -1184,7 +1184,7 @@ class XmlDump(Dump):
             self.write_partial_stub(stub_input_file, stub_output_file,
                                     first_page_id, last_page_id, runner)
 
-            stub_option = "--stub=gzip:%s" % os.path.join(self.wiki.config.tempDir,
+            stub_option = "--stub=gzip:%s" % os.path.join(self.wiki.config.temp_dir,
                                                           stub_output_file.filename)
         else:
             stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(outfile)
@@ -1225,7 +1225,7 @@ class XmlDump(Dump):
             raise BackupError("php command %s not found" % self.wiki.config.php)
 
         if self._checkpoints_enabled:
-            checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpointTime)
+            checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpoint_time)
             checkpoint_file = "--checkpointfile=%s" % output_file.new_filename(
                 output_file.dumpname, output_file.file_type, output_file.file_ext,
                 output_file.date, output_file.chunk, "p%sp%s", None)
@@ -1343,7 +1343,7 @@ class XmlDump(Dump):
             start_page_id = 1
             end_page_id = None
 
-        dumps = self.wiki.dumpDirs()
+        dumps = self.wiki.dump_dirs()
         dumps.sort()
         dumps.reverse()
         for date in dumps:
