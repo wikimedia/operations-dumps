@@ -25,358 +25,356 @@ class MaxRevID(object):
         self.date = date
         self.cutoff = cutoff
         self.dryrun = dryrun
-        self.maxID = None
+        self.max_id = None
 
-    def getMaxRevID(self, wikiName):
+    def get_max_revid(self, wikiname):
         query = ("select rev_id from revision where rev_timestamp < \"%s\" "
                  "order by rev_timestamp desc limit 1" % self.cutoff)
-        db = DBServer(self._config, wikiName)
-        self.maxID = RunSimpleCommand.runWithOutput(db.buildSqlCommand(query),
-                                                    shell=True)
+        db_info = DBServer(self._config, wikiname)
+        self.max_id = RunSimpleCommand.run_with_output(db_info.build_sql_command(query),
+                                                       shell=True)
 
-    def recordMaxRevID(self, wikiName):
-        self.getMaxRevID(wikiName)
+    def record_max_revid(self, wikiname):
+        self.get_max_revid(wikiname)
         if not self.dryrun:
-            fileObj = MaxRevIDFile(self._config, self.date, wikiName)
-            FileUtils.write_file_in_place(fileObj.getPath(), self.maxID,
+            file_obj = MaxRevIDFile(self._config, self.date, wikiname)
+            FileUtils.write_file_in_place(file_obj.get_path(), self.max_id,
                                           self._config.fileperms)
 
-    def readMaxRevIDFromFile(self, wikiName, date=None):
+    def read_max_revid_from_file(self, wikiname, date=None):
         if date is None:
             date = self.date
         try:
-            fileObj = MaxRevIDFile(self._config, date, wikiName)
-            return FileUtils.read_file(fileObj.getPath().rstrip())
+            file_obj = MaxRevIDFile(self._config, date, wikiname)
+            return FileUtils.read_file(file_obj.get_path().rstrip())
         except:
             return None
 
-    def exists(self, wikiName, date=None):
+    def exists(self, wikiname, date=None):
         if date is None:
             date = self.date
-        return exists(MaxRevIDFile(self._config, date, wikiName).getPath())
+        return exists(MaxRevIDFile(self._config, date, wikiname).get_path())
 
 
 class Link(object):
 
-    def makeLink(path, linkText):
-        return('<a href = "' + path + '">' + linkText + "</a>")
+    def make_link(path, link_text):
+        return '<a href = "' + path + '">' + link_text + "</a>"
 
-    makeLink = staticmethod(makeLink)
+    make_link = staticmethod(make_link)
 
 
 class Index(object):
     def __init__(self, config, date, verbose):
         self._config = config
         self.date = date
-        self.indexFile = IndexFile(self._config)
-        self.incrDir = IncrementDir(self._config)
+        self.indexfile = IndexFile(self._config)
+        self.incrdir = IncrementDir(self._config)
         self.verbose = verbose
 
-    def doAllWikis(self):
+    def do_all_wikis(self):
         text = ""
-        for w in self._config.allWikisList:
-            result = self.doOneWiki(w)
+        for wiki in self._config.all_wikis_list:
+            result = self.do_one_wiki(wiki)
             if result:
                 log(self.verbose, "result for wiki %s is %s"
-                    % (w, result))
+                    % (wiki, result))
                 text = text + "<li>" + result + "</li>\n"
-        indexText = (self._config.readTemplate("incrs-index.html")
-                     % {"items": text})
-        FileUtils.write_file_in_place(self.indexFile.getPath(),
-                                      indexText, self._config.fileperms)
+        index_text = (self._config.readTemplate("incrs-index.html")
+                      % {"items": text})
+        FileUtils.write_file_in_place(self.indexfile.get_path(),
+                                      index_text, self._config.fileperms)
 
-    def doOneWiki(self, w, date=None):
-        if (w not in self._config.privateWikisList and
-                w not in self._config.closedWikisList and
-                w not in self._config.skipWikisList):
-            incrDumpsDirs = IncDumpDirs(self._config, w)
-            if not exists(self.incrDir.getIncDirNoDate(w)):
-                log(self.verbose, "No dump for wiki %s" % w)
+    def do_one_wiki(self, wiki, date=None):
+        if (wiki not in self._config.private_wikis_list and
+                wiki not in self._config.closed_wikis_list and
+                wiki not in self._config.skip_wikis_list):
+            incr_dumps_dirs = IncDumpDirs(self._config, wiki)
+            if not exists(self.incrdir.get_incdir_no_date(wiki)):
+                log(self.verbose, "No dump for wiki %s" % wiki)
                 return
             if date is not None:
-                incrDate = date
+                incr_date = date
             else:
-                incrDate = incrDumpsDirs.getLatestIncrDate(True)
-            if not incrDate:
-                log(self.verbose, "No dump for wiki %s" % w)
+                incr_date = incr_dumps_dirs.get_latest_incr_date(True)
+            if not incr_date:
+                log(self.verbose, "No dump for wiki %s" % wiki)
                 return
 
-            otherRunsText = "other runs: %s" % Link.makeLink(w, w)
+            other_runs_text = "other runs: %s" % Link.make_link(wiki, wiki)
             try:
-                lock = IncrDumpLock(self._config, incrDate, w)
-                lockDate = lock.getLockInfo()
+                lock = IncrDumpLock(self._config, incr_date, wiki)
+                lock_date = lock.get_lockinfo()
             except:
-                lockDate = None
-            if lockDate is not None:
-                lockText = "run started on %s." % lockDate
+                lock_date = None
+            if lock_date is not None:
+                lock_text = "run started on %s." % lock_date
             else:
-                lockText = None
+                lock_text = None
 
             try:
-                stub = StubFile(self._config, incrDate, w)
-                (stubDate, stubSize) = stub.getFileInfo()
+                stub = StubFile(self._config, incr_date, wiki)
+                (stub_date, stub_size) = stub.get_fileinfo()
                 log(self.verbose, "stub for %s %s %s"
-                    % (w, safe(stubDate), safe(stubSize)))
-                if stubDate:
-                    stubText = ("stubs: %s (size %s)"
-                                % (Link.makeLink(
-                                    os.path.join(
-                                        w, incrDate,
-                                        stub.getFileName()),
-                                    stubDate), stubSize))
+                    % (wiki, safe(stub_date), safe(stub_size)))
+                if stub_date:
+                    stub_text = ("stubs: %s (size %s)"
+                                 % (Link.make_link(
+                                     os.path.join(
+                                         wiki, incr_date,
+                                         stub.get_filename()),
+                                     stub_date), stub_size))
                 else:
-                    stubText = None
+                    stub_text = None
 
-                revs = RevsFile(self._config, incrDate, w)
-                (revsDate, revsSize) = revs.getFileInfo()
+                revs = RevsFile(self._config, incr_date, wiki)
+                (revs_date, revs_size) = revs.get_fileinfo()
                 log(self.verbose, "revs for %s %s %s"
-                    % (w, safe(revsDate), safe(revsSize)))
-                if revsDate:
-                    revsText = ("revs: %s (size %s)"
-                                % (Link.makeLink(os.path.join(
-                                    w, incrDate, revs.getFileName()),
-                                    revsDate), revsSize))
+                    % (wiki, safe(revs_date), safe(revs_size)))
+                if revs_date:
+                    revs_text = ("revs: %s (size %s)"
+                                 % (Link.make_link(os.path.join(
+                                     wiki, incr_date, revs.get_filename()),
+                                                   revs_date), revs_size))
                 else:
-                    revsText = None
+                    revs_text = None
 
-                stat = StatusFile(self._config, incrDate, w)
-                statContents = FileUtils.read_file(stat.getPath())
-                log(self.verbose, "status for %s %s" % (w, safe(statContents)))
-                if statContents:
-                    statText = "(%s)" % (statContents)
+                stat = StatusFile(self._config, incr_date, wiki)
+                stat_contents = FileUtils.read_file(stat.get_path())
+                log(self.verbose, "status for %s %s" % (wiki, safe(stat_contents)))
+                if stat_contents:
+                    stat_text = "(%s)" % (stat_contents)
                 else:
-                    statText = None
+                    stat_text = None
 
             except:
                 log(self.verbose, "Error encountered, no information available"
-                    " for wiki %s" % w)
+                    " for wiki %s" % wiki)
                 return ("<strong>%s</strong> Error encountered,"
-                        " no information available | %s" % (w, otherRunsText))
+                        " no information available | %s" % (wiki, other_runs_text))
 
             try:
-                wikinameText = "<strong>%s</strong>" % w
+                wikiname_text = "<strong>%s</strong>" % wiki
 
-                wikiInfo = (" ".join(filter(None,
-                                            [wikinameText,
-                                             lockText, statText]))
-                            + "<br />")
-                wikiInfo = (wikiInfo + " &nbsp;&nbsp; " +
-                            " |  ".join(filter(None,
-                                               [stubText, revsText,
-                                                otherRunsText])))
+                wiki_info = (" ".join(filter(None,
+                                             [wikiname_text,
+                                              lock_text, stat_text]))
+                             + "<br />")
+                wiki_info = (wiki_info + " &nbsp;&nbsp; " +
+                             " |  ".join(filter(None,
+                                                [stub_text, revs_text,
+                                                 other_runs_text])))
             except:
-                if (self.verbose):
+                if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 log(self.verbose, "Error encountered formatting information"
-                    " for wiki %s" % w)
+                    " for wiki %s" % wiki)
                 return ("Error encountered formatting information"
-                        " for wiki %s" % w)
+                        " for wiki %s" % wiki)
 
-            return wikiInfo
+            return wiki_info
 
 
 class DumpResults(object):
-    def __init__(self):
-        self.TODO = 1
-        self.FAILED = -1
-        self.OK = 0
+    TODO = 1
+    FAILED = -1
+    GOOD = 0
 
 
 class IncrDump(object):
-    def __init__(self, config, date, cutoff, wikiName, doStubs,
-                 doRevs, doIndexUpdate, dryrun, verbose, forcerun):
+    def __init__(self, config, date, cutoff, wikiname, do_stubs,
+                 do_revs, do_index_update, dryrun, verbose, forcerun):
         self._config = config
         self.date = date
         self.cutoff = cutoff
-        self.wikiName = wikiName
-        self.incrDir = IncrementDir(self._config, self.date)
-        self.doStubs = doStubs
-        self.doRevs = doRevs
-        self.doIndexUpdate = doIndexUpdate
+        self.wikiname = wikiname
+        self.incrdir = IncrementDir(self._config, self.date)
+        self.do_stubs = do_stubs
+        self.do_revs = do_revs
+        self.do_index_update = do_index_update
         self.dryrun = dryrun
         self.forcerun = forcerun
-        self.maxRevIDObj = MaxRevID(self._config, self.date, cutoff,
-                                    self.dryrun)
-        self.statusInfo = StatusInfo(self._config, self.date, self.wikiName)
-        self.stubFile = StubFile(self._config, self.date, self.wikiName)
-        self.revsFile = RevsFile(self._config, self.date, self.wikiName)
-        self.incrDumpsDirs = IncDumpDirs(self._config, self.wikiName)
+        self.max_revid_obj = MaxRevID(self._config, self.date, cutoff,
+                                      self.dryrun)
+        self.status_info = StatusInfo(self._config, self.date, self.wikiname)
+        self.stubfile = StubFile(self._config, self.date, self.wikiname)
+        self.revsfile = RevsFile(self._config, self.date, self.wikiname)
+        self.incr_dumps_dirs = IncDumpDirs(self._config, self.wikiname)
         self.verbose = verbose
 
-    def doOneWiki(self):
-        retCodes = DumpResults()
-        if (self.wikiName not in self._config.privateWikisList and
-                self.wikiName not in self._config.closedWikisList):
-            if not exists(self.incrDir.getIncDir(self.wikiName)):
-                os.makedirs(self.incrDir.getIncDir(self.wikiName))
+    def do_one_wiki(self):
+        if (self.wikiname not in self._config.private_wikis_list and
+                self.wikiname not in self._config.closed_wikis_list):
+            if not exists(self.incrdir.get_incdir(self.wikiname)):
+                os.makedirs(self.incrdir.get_incdir(self.wikiname))
 
-            status = self.statusInfo.getStatus()
+            status = self.status_info.get_status()
             if status == "done" and not self.forcerun:
                 log(self.verbose, "wiki %s skipped, adds/changes dump already"
-                    " complete" % self.wikiName)
-                return retCodes.OK
+                    " complete" % self.wikiname)
+                return DumpResults.GOOD
 
             if not self.dryrun:
-                lock = IncrDumpLock(self._config, self.date, self.wikiName)
-                if not lock.getLock():
+                lock = IncrDumpLock(self._config, self.date, self.wikiname)
+                if not lock.get_lock():
                     log(self.verbose, "wiki %s skipped, wiki is locked,"
                         " another process should be doing the job"
-                        % self.wikiName)
-                    return retCodes.TODO
+                        % self.wikiname)
+                    return DumpResults.TODO
 
-                self.incrDumpsDirs.cleanupOldIncrDumps(self.date)
+                self.incr_dumps_dirs.cleanup_old_incrdumps(self.date)
 
-            log(self.verbose, "Doing run for wiki: %s" % self.wikiName)
+            log(self.verbose, "Doing run for wiki: %s" % self.wikiname)
 
             try:
-                maxRevID = self.dumpMaxRevID()
-                if not maxRevID:
-                    return retCodes.FAILED
+                max_revid = self.dump_max_revid()
+                if not max_revid:
+                    return DumpResults.FAILED
 
-                prevRevID = self.getPrevRevID(maxRevID)
-                if not prevRevID:
-                    return retCodes.FAILED
+                prev_revid = self.get_prev_revid(max_revid)
+                if not prev_revid:
+                    return DumpResults.FAILED
 
-                if self.doStubs:
-                    if not self.dumpStub(prevRevID, maxRevID):
-                        return retCodes.FAILED
+                if self.do_stubs:
+                    if not self.dump_stub(prev_revid, max_revid):
+                        return DumpResults.FAILED
 
-                if self.doRevs:
-                    if not self.dumpRevs():
-                        return retCodes.FAILED
+                if self.do_revs:
+                    if not self.dump_revs():
+                        return DumpResults.FAILED
 
                 if not self.dryrun:
                     if not self.md5sums():
-                        return retCodes.FAILED
-                    self.statusInfo.setStatus("done")
+                        return DumpResults.FAILED
+                    self.status_info.set_status("done")
                     lock.unlock()
 
-                if self.doIndexUpdate:
+                if self.do_index_update:
                     index = Index(self._config, self.date, self.verbose)
-                    index.doAllWikis()
+                    index.do_all_wikis()
             except:
-                if (self.verbose):
+                if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 if not self.dryrun:
                     lock.unlock()
-                return retCodes.FAILED
+                return DumpResults.FAILED
         log(self.verbose, "Success!  Wiki %s incremental dump complete."
-            % self.wikiName)
-        return retCodes.OK
+            % self.wikiname)
+        return DumpResults.GOOD
 
-    def dumpMaxRevID(self):
-        if not self.maxRevIDObj.exists(self.wikiName):
+    def dump_max_revid(self):
+        if not self.max_revid_obj.exists(self.wikiname):
             log(self.verbose, "Wiki %s retrieving max revid from db."
-                % self.wikiName)
-            self.maxRevIDObj.recordMaxRevID(self.wikiName)
-            maxRevID = self.maxRevIDObj.maxID
+                % self.wikiname)
+            self.max_revid_obj.record_max_revid(self.wikiname)
+            max_revid = self.max_revid_obj.max_id
         else:
-            maxRevID = self.maxRevIDObj.readMaxRevIDFromFile(
-                self.wikiName)
+            max_revid = self.max_revid_obj.read_max_revid_from_file(
+                self.wikiname)
 
         # end rev id is not included in dump
-        if maxRevID is not None:
-            maxRevID = str(int(maxRevID) + 1)
+        if max_revid is not None:
+            max_revid = str(int(max_revid) + 1)
 
-        log(self.verbose, "maxRevID is %s" % safe(maxRevID))
-        return maxRevID
+        log(self.verbose, "max_revid is %s" % safe(max_revid))
+        return max_revid
 
-    def getPrevRevID(self, maxRevID):
+    def get_prev_revid(self, max_revid):
         # get the previous rundate, with or without maxrevid file
         # we can populate that file if need be
-        prevDate = self.incrDumpsDirs.getPrevIncrDate(self.date)
-        log(self.verbose, "prevDate is %s" % safe(prevDate))
+        prev_date = self.incr_dumps_dirs.get_prev_incrdate(self.date)
+        log(self.verbose, "prev_date is %s" % safe(prev_date))
 
-        prevRevID = None
+        prev_revid = None
 
-        if prevDate:
-            prevRevID = self.maxRevIDObj.readMaxRevIDFromFile(
-                self.wikiName, prevDate)
+        if prev_date:
+            prev_revid = self.max_revid_obj.read_max_revid_from_file(
+                self.wikiname, prev_date)
 
-            if prevRevID is None:
+            if prev_revid is None:
                 log(self.verbose, "Wiki %s retrieving prevRevId from db."
-                    % self.wikiName)
-                prevRevIDObj = MaxRevID(self._config, prevDate,
-                                        cutoffFromDate(prevDate, self._config),
-                                        self.dryrun)
-                prevRevIDObj.recordMaxRevID(self.wikiName)
-                prevRevID = prevRevIDObj.maxID
+                    % self.wikiname)
+                prev_revid_obj = MaxRevID(self._config, prev_date,
+                                          cutoff_from_date(prev_date, self._config),
+                                          self.dryrun)
+                prev_revid_obj.record_max_revid(self.wikiname)
+                prev_revid = prev_revid_obj.max_id
         else:
             log(self.verbose, "Wiki %s no previous runs, using %s - 10 "
-                % (self.wikiName, maxRevID))
-            prevRevID = str(int(maxRevID) - 10)
-            if int(prevRevID) < 1:
-                prevRevID = str(1)
+                % (self.wikiname, max_revid))
+            prev_revid = str(int(max_revid) - 10)
+            if int(prev_revid) < 1:
+                prev_revid = str(1)
 
         # this incr will cover every revision from the last
         # incremental through the maxid we wrote out already.
-        if prevRevID is not None:
-            prevRevID = str(int(prevRevID) + 1)
-        log(self.verbose, "prevRevID is %s" % safe(prevRevID))
-        return prevRevID
+        if prev_revid is not None:
+            prev_revid = str(int(prev_revid) + 1)
+        log(self.verbose, "prev_revid is %s" % safe(prev_revid))
+        return prev_revid
 
-    def dumpStub(self, startRevID, endRevID):
-        scriptCommand = MultiVersion.MWScriptAsArray(self._config,
-                                                     "dumpBackup.php")
+    def dump_stub(self, start_revid, end_revid):
+        script_command = MultiVersion.mwscript_as_array(self._config,
+                                                        "dumpBackup.php")
         command = ["%s" % self._config.php, "-q"]
-        command.extend(scriptCommand)
-        command.extend(["--wiki=%s" % self.wikiName, "--stub", "--quiet",
-                        "--output=gzip:%s" % self.stubFile.getPath(),
-                        "--revrange", "--revstart=%s" % startRevID,
-                        "--revend=%s" % endRevID])
+        command.extend(script_command)
+        command.extend(["--wiki=%s" % self.wikiname, "--stub", "--quiet",
+                        "--output=gzip:%s" % self.stubfile.get_path(),
+                        "--revrange", "--revstart=%s" % start_revid,
+                        "--revend=%s" % end_revid])
         if self.dryrun:
             print "would run command for stubs dump:", command
         else:
-            error = RunSimpleCommand.runWithNoOutput(command, shell=False)
-            if (error):
+            error = RunSimpleCommand.run_with_no_output(command, shell=False)
+            if error:
                 log(self.verbose, "error producing stub files for wiki"
-                    % self.wikiName)
+                    % self.wikiname)
                 return False
         return True
 
-    def dumpRevs(self):
-        scriptCommand = MultiVersion.MWScriptAsArray(self._config,
-                                                     "dumpTextPass.php")
+    def dump_revs(self):
+        script_command = MultiVersion.mwscript_as_array(self._config,
+                                                        "dumpTextPass.php")
         command = ["%s" % self._config.php, "-q"]
-        command.extend(scriptCommand)
-        command.extend(["--wiki=%s" % self.wikiName,
-                        "--stub=gzip:%s" % self.stubFile.getPath(),
+        command.extend(script_command)
+        command.extend(["--wiki=%s" % self.wikiname,
+                        "--stub=gzip:%s" % self.stubfile.get_path(),
                         "--quiet",
                         "--spawn=%s" % self._config.php,
-                        "--output=bzip2:%s" % self.revsFile.getPath()])
+                        "--output=bzip2:%s" % self.revsfile.get_path()])
         if self.dryrun:
             print "would run command for revs dump:", command
         else:
-            error = RunSimpleCommand.runWithNoOutput(command, shell=False)
-            if (error):
+            error = RunSimpleCommand.run_with_no_output(command, shell=False)
+            if error:
                 log(self.verbose, "error producing revision text files"
-                    " for wiki" % self.wikiName)
+                    " for wiki" % self.wikiname)
                 return False
         return True
 
-    def md5sumOneFile(self, filename):
+    def md5sum_one_file(self, filename):
         summer = hashlib.md5()
         infile = file(filename, "rb")
         bufsize = 4192 * 32
-        buffer = infile.read(bufsize)
-        while buffer:
-            summer.update(buffer)
-            buffer = infile.read(bufsize)
+        buff = infile.read(bufsize)
+        while buff:
+            summer.update(buff)
+            buff = infile.read(bufsize)
         infile.close()
         return summer.hexdigest()
 
     def md5sums(self):
         try:
-            md5File = MD5File(self._config, self.date, self.wikiName)
+            md5file = MD5File(self._config, self.date, self.wikiname)
             text = ""
             files = []
-            if self.doStubs:
-                files.append(self.stubFile.getPath())
-            if self.doRevs:
-                files.append(self.revsFile.getPath())
-            for f in files:
-                text = text + "%s\n" % self.md5sumOneFile(f)
-                FileUtils.write_file_in_place(md5File.getPath(),
+            if self.do_stubs:
+                files.append(self.stubfile.get_path())
+            if self.do_revs:
+                files.append(self.revsfile.get_path())
+            for fname in files:
+                text = text + "%s\n" % self.md5sum_one_file(fname)
+                FileUtils.write_file_in_place(md5file.get_path(),
                                               text, self._config.fileperms)
             return True
         except:
@@ -396,51 +394,50 @@ def safe(item):
 
 
 class IncrDumpLoop(object):
-    def __init__(self, config, date, cutoff, doStubs, doRevs,
-                 doIndexUpdate, dryrun, verbose, forcerun):
+    def __init__(self, config, date, cutoff, do_stubs, do_revs,
+                 do_index_update, dryrun, verbose, forcerun):
         self._config = config
         self.date = date
         self.cutoff = cutoff
-        self.doStubs = doStubs
-        self.doRevs = doRevs
-        self.doIndexUpdate = doIndexUpdate
+        self.do_stubs = do_stubs
+        self.do_revs = do_revs
+        self.do_index_update = do_index_update
         self.dryrun = dryrun
         self.verbose = verbose
         self.forcerun = forcerun
 
-    def doRunOnAllWikis(self):
-        retCodes = DumpResults()
+    def do_run_on_all_wikis(self):
         failures = 0
         todos = 0
-        for w in self._config.allWikisList:
-            dump = IncrDump(self._config, self.date, self.cutoff, w,
-                            self.doStubs, self.doRevs, self.doIndexUpdate,
+        for wiki in self._config.all_wikis_list:
+            dump = IncrDump(self._config, self.date, self.cutoff, wiki,
+                            self.do_stubs, self.do_revs, self.do_index_update,
                             self.dryrun, self.verbose, self.forcerun)
-            result = dump.doOneWiki()
-            if result == retCodes.FAILED:
+            result = dump.do_one_wiki()
+            if result == DumpResults.FAILED:
                 failures = failures + 1
-            elif result == retCodes.TODO:
+            elif result == DumpResults.TODO:
                 todos = todos + 1
         return (failures, todos)
 
-    def doAllWikisTilDone(self, numFails):
+    def do_all_wikis_til_done(self, num_fails):
         fails = 0
         while 1:
-            (failures, todos) = self.doRunOnAllWikis()
+            (failures, todos) = self.do_run_on_all_wikis()
             if not failures and not todos:
                 break
             fails = fails + 1
-            if fails > numFails:
+            if fails > num_fails:
                 raise IncrementDumpsError("Too many consecutive failures,"
                                           "giving up")
             time.sleep(300)
 
 
-def cutoffFromDate(date, config):
+def cutoff_from_date(date, config):
     return time.strftime("%Y%m%d%H%M%S",
                          time.gmtime(calendar.timegm(time.strptime(
                              date + "235900UTC", "%Y%m%d%H%M%S%Z"))
-                             - config.delay))
+                                     - config.delay))
 
 
 def usage(message=None):
@@ -466,13 +463,13 @@ Options: --configfile, --date, --dryrun, --revsonly, --stubsonly, --verbose"
     sys.stderr.write(usage_message)
     sys.exit(1)
 
+
 def main():
-    configFile = False
-    result = False
+    config_file = False
     date = None
-    doStubs = True
-    doRevs = True
-    doIndexUpdate = True
+    do_stubs = True
+    do_revs = True
+    do_index_update = True
     dryrun = False
     verbose = False
     forcerun = False
@@ -489,16 +486,16 @@ def main():
         if opt == "--date":
             date = val
         elif opt == "--configfile":
-            configFile = val
+            config_file = val
         elif opt == "--stubsonly":
-            doRevs = False
-            doIndexUpdate = False
+            do_revs = False
+            do_index_update = False
         elif opt == "--revsonly":
-            doStubs = False
-            doIndexUpdate = False
+            do_stubs = False
+            do_index_update = False
         elif opt == "--indexonly":
-            doStubs = False
-            doRevs = False
+            do_stubs = False
+            do_revs = False
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--verbose":
@@ -506,12 +503,12 @@ def main():
         elif opt == "--forcerun":
             forcerun = True
 
-    if not doRevs and not doStubs and not doIndexUpdate:
+    if not do_revs and not do_stubs and not do_index_update:
         usage("You may not specify more than one of stubsonly,"
               "revsonly and indexonly together.")
 
-    if (configFile):
-        config = Config(configFile)
+    if config_file:
+        config = Config(config_file)
     else:
         config = Config()
 
@@ -520,18 +517,17 @@ def main():
         cutoff = time.strftime("%Y%m%d%H%M%S",
                                time.gmtime(time.time() - config.delay))
     else:
-        cutoff = cutoffFromDate(date, config)
+        cutoff = cutoff_from_date(date, config)
 
     if len(remainder) > 0:
-        dump = IncrDump(config, date, cutoff, remainder[0], doStubs,
-                        doRevs, doIndexUpdate, dryrun, verbose, forcerun)
-        dump.doOneWiki()
+        dump = IncrDump(config, date, cutoff, remainder[0], do_stubs,
+                        do_revs, do_index_update, dryrun, verbose, forcerun)
+        dump.do_one_wiki()
     else:
-        dump = IncrDumpLoop(config, date, cutoff, doStubs, doRevs,
-                            doIndexUpdate, dryrun, verbose, forcerun)
-        dump.doAllWikisTilDone(3)
+        dump = IncrDumpLoop(config, date, cutoff, do_stubs, do_revs,
+                            do_index_update, dryrun, verbose, forcerun)
+        dump.do_all_wikis_til_done(3)
 
 
 if __name__ == "__main__":
     main()
-        
