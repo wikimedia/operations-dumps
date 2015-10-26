@@ -30,7 +30,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(
-            wikiconf.tempDir,
+            wikiconf.temp_dir,
             os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
@@ -41,7 +41,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
                                                      "dumpBackup.php")
     command = [wikiconf.php, "-q"] + script_command
     version = MultiVersion.mw_version(wikiconf, wikidb)
-    abstract_cmd_dir = wikiconf.wikiDir
+    abstract_cmd_dir = wikiconf.wiki_dir
     if version:
         abstract_cmd_dir = abstract_cmd_dir + "/" + version
     abstract_filter = ("--plugin=AbstractFilter:"
@@ -169,7 +169,7 @@ def main():
                   "different number supplied")
 
     wikiconf = Config(configfile)
-    wikiconf.parseConfFilePerProject(wiki)
+    wikiconf.parse_conffile_per_project(wiki)
     do_abstractsbackup(wiki, output_files, variants, wikiconf,
                        start, end, dryrun)
 

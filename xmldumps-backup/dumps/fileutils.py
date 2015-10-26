@@ -178,7 +178,7 @@ class DumpFilename(object):
             date = self.wiki.date
         # fixme do the right thing in case no filetype or no ext
         parts = []
-        parts.append(self.wiki.dbName + "-" + date + "-" + dump_name + "%s" % chunk)
+        parts.append(self.wiki.db_name + "-" + date + "-" + dump_name + "%s" % chunk)
         if checkpoint:
             filetype = filetype + "-" + checkpoint
         if filetype:
@@ -280,7 +280,7 @@ class DumpFile(object):
         if not exists(self._wiki.config.head):
             raise BackupError("head command %s not found" % self._wiki.config.head)
         head = self._wiki.config.head
-        head_esc = MiscUtils.shellEscape(head)
+        head_esc = MiscUtils.shell_escape(head)
         pipeline.append([head, "-500"])
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
@@ -411,7 +411,7 @@ class DumpDir(object):
         If a different date is specified, use that instead"""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.privateDir(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.private_dir(), date_string, dump_file.filename)
 
     def filename_public_path(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the full path to the filename in the date subdir
@@ -420,21 +420,21 @@ class DumpDir(object):
         If a different date is specified, use that instead"""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.publicDir(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.public_dir(), date_string, dump_file.filename)
 
     def latest_dir(self):
         """Return 'latest' directory for the current project being dumped, e.g.
         if the current project is enwiki, this would return something like
         /mnt/data/xmldatadumps/public/enwiki/latest (if the directory /mnt/data/xmldatadumps/public
         is the path to the directory for public dumps)."""
-        return os.path.join(self._wiki.publicDir(), "latest")
+        return os.path.join(self._wiki.public_dir(), "latest")
 
     def web_path(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the full url to the filename for the date of
         the dump for the selected database."""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.webDir(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.web_dir(), date_string, dump_file.filename)
 
     def web_path_relative(self, dump_file, date_string=None):
         """Given a DumpFilename object produce the url relative
@@ -442,12 +442,12 @@ class DumpDir(object):
         the dump for the selected database."""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.webDirRelative(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.web_dir_relative(), date_string, dump_file.filename)
 
     def dir_cache_outdated(self, date):
         if not date:
             date = self._wiki.date
-        directory = os.path.join(self._wiki.publicDir(), date)
+        directory = os.path.join(self._wiki.public_dir(), date)
         if exists(directory):
             dir_time_stamp = os.stat(directory).st_mtime
             if date not in self._dir_cache or dir_time_stamp > self._dir_cache_time[date]:
@@ -462,7 +462,7 @@ class DumpDir(object):
         if not date:
             date = self._wiki.date
         if self.dir_cache_outdated(date):
-            directory = os.path.join(self._wiki.publicDir(), date)
+            directory = os.path.join(self._wiki.public_dir(), date)
             if exists(directory):
                 dir_time_stamp = os.stat(directory).st_mtime
                 files = os.listdir(directory)

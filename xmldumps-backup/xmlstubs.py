@@ -27,7 +27,7 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
                 'articles': {'name': articles_file}}
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(
-            wikiconf.tempDir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
+            wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:
@@ -152,7 +152,7 @@ def main():
         usage("no such file found: " + configfile)
 
     wikiconf = Config(configfile)
-    wikiconf.parseConfFilePerProject(wiki)
+    wikiconf.parse_conffile_per_project(wiki)
     dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf, start, end, dryrun)
 
 if __name__ == '__main__':

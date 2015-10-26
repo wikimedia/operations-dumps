@@ -13,15 +13,15 @@ import tempfile
 
 class FileUtils(object):
 
-    def fileAge(filename):
+    def file_age(filename):
         return time.time() - os.stat(filename).st_mtime
 
-    def atomicCreate(filename, mode='w'):
+    def atomic_create(filename, mode='w'):
         """Create a file, aborting if it already exists..."""
-        fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
-        return os.fdopen(fd, mode)
+        fhandle = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
+        return os.fdopen(fhandle, mode)
 
-    def writeFile(dirname, filename, text, perms=0):
+    def write_file(dirname, filename, text, perms=0):
         """Write text to a file, as atomically as possible,
         via a temporary file in a specified directory.
         Arguments: dirname = where temp file is created,
@@ -35,16 +35,16 @@ class FileUtils(object):
                 raise IOError("The given directory '%s' is neither "
                               "a directory nor can it be created" % dirname)
 
-        (fd, temp_filename) = tempfile.mkstemp("_txt", "wikidump_", dirname)
-        os.write(fd, text)
-        os.close(fd)
+        (fhandle, temp_filename) = tempfile.mkstemp("_txt", "wikidump_", dirname)
+        os.write(fhandle, text)
+        os.close(fhandle)
         if perms:
             os.chmod(temp_filename, perms)
         # This may fail across filesystems or on Windows.
         # Of course nothing else will work on Windows. ;)
         shutil.move(temp_filename, filename)
 
-    def writeFileInPlace(filename, text, perms=0):
+    def write_file_in_place(filename, text, perms=0):
         """Write text to a file, after opening it for write with truncation.
         This assumes that only one process or thread accesses the given file at a time.
         Arguments: filename = full path to actual file, text = contents
@@ -57,14 +57,14 @@ class FileUtils(object):
         if perms:
             os.chmod(filename, perms)
 
-    def readFile(filename):
+    def read_file(filename):
         """Read text from a file in one fell swoop."""
         filehdl = open(filename, "r")
         text = filehdl.read()
         filehdl.close()
         return text
 
-    def splitPath(path):
+    def split_path(path):
         # For some reason, os.path.split only does one level.
         parts = []
         (path, filename) = os.path.split(path)
@@ -76,29 +76,29 @@ class FileUtils(object):
             (path, filename) = os.path.split(path)
         return parts
 
-    def relativePath(path, base):
+    def relative_path(path, base):
         """Return a relative path to 'path' from the directory 'base'."""
-        path = FileUtils.splitPath(path)
-        base = FileUtils.splitPath(base)
+        path = FileUtils.split_path(path)
+        base = FileUtils.split_path(base)
         while base and path[0] == base[0]:
             path.pop(0)
             base.pop(0)
-        for prefix in base:
+        for prefix_unused in base:
             path.insert(0, "..")
         return os.path.join(*path)
 
-    def prettySize(size):
+    def pretty_size(size):
         """Return a string with an attractively formatted file size."""
         quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
-        return FileUtils._prettySize(size, quanta)
+        return FileUtils._pretty_size(size, quanta)
 
-    def _prettySize(size, quanta):
+    def _pretty_size(size, quanta):
         if size < 1024 or len(quanta) == 1:
             return quanta[0] % size
         else:
-            return FileUtils._prettySize(size / 1024.0, quanta[1:])
+            return FileUtils._pretty_size(size / 1024.0, quanta[1:])
 
-    def fileInfo(path):
+    def file_info(path):
         """Return a tuple of date/time and size of a file, or None, None"""
         try:
             timestamp = time.gmtime(os.stat(path).st_mtime)
@@ -108,16 +108,16 @@ class FileUtils(object):
         except:
             return(None, None)
 
-    fileAge = staticmethod(fileAge)
-    atomicCreate = staticmethod(atomicCreate)
-    writeFile = staticmethod(writeFile)
-    writeFileInPlace = staticmethod(writeFileInPlace)
-    readFile = staticmethod(readFile)
-    splitPath = staticmethod(splitPath)
-    relativePath = staticmethod(relativePath)
-    prettySize = staticmethod(prettySize)
-    _prettySize = staticmethod(_prettySize)
-    fileInfo = staticmethod(fileInfo)
+    file_age = staticmethod(file_age)
+    atomic_create = staticmethod(atomic_create)
+    write_file = staticmethod(write_file)
+    write_file_in_place = staticmethod(write_file_in_place)
+    read_file = staticmethod(read_file)
+    split_path = staticmethod(split_path)
+    relative_path = staticmethod(relative_path)
+    pretty_size = staticmethod(pretty_size)
+    _pretty_size = staticmethod(_pretty_size)
+    file_info = staticmethod(file_info)
 
 
 class TimeUtils(object):
@@ -125,20 +125,20 @@ class TimeUtils(object):
     def today():
         return time.strftime("%Y%m%d", time.gmtime())
 
-    def prettyTime():
+    def pretty_time():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
-    def prettyDate(key):
+    def pretty_date(key):
         "Prettify a MediaWiki date key"
         return "-".join((key[0:4], key[4:6], key[6:8]))
 
     today = staticmethod(today)
-    prettyTime = staticmethod(prettyTime)
-    prettyDate = staticmethod(prettyDate)
+    pretty_time = staticmethod(pretty_time)
+    pretty_date = staticmethod(pretty_date)
 
 
 class MiscUtils(object):
-    def dbList(filename):
+    def db_list(filename):
         """Read database list from a file"""
         if not filename:
             return []
@@ -152,7 +152,7 @@ class MiscUtils(object):
         dbs.sort()
         return dbs
 
-    def shellEscape(param):
+    def shell_escape(param):
         """Escape a string parameter, or set of strings, for the shell."""
         if isinstance(param, basestring):
             return "'" + param.replace("'", "'\\''") + "'"
@@ -160,15 +160,15 @@ class MiscUtils(object):
             # A blank string might actually be needed; None means we can leave it out
             return ""
         else:
-            return tuple([MiscUtils.shellEscape(x) for x in param])
+            return tuple([MiscUtils.shell_escape(x) for x in param])
 
-    dbList = staticmethod(dbList)
-    shellEscape = staticmethod(shellEscape)
+    db_list = staticmethod(db_list)
+    shell_escape = staticmethod(shell_escape)
 
 
 class Config(object):
     def __init__(self, config_file=False):
-        self.projectName = False
+        self.project_name = False
 
         home = os.path.dirname(sys.argv[0])
         if not config_file:
@@ -205,7 +205,7 @@ class Config(object):
             "smtpserver": "localhost",
             "staleage": "3600",
             # "database": {
-            # these are now set in getDbUserAndPassword() if needed
+            # these are now set in get_db_user_and_password() if needed
             "user": "",
             "password": "",
             # "tools": {
@@ -221,7 +221,7 @@ class Config(object):
             "grep": "/bin/grep",
             "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
             "writeuptopageid": "/usr/local/bin/writeuptopageid",
-            "recompressxml": "/usr/local/bin/recompressxml",
+            "recoompressxml": "/usr/local/bin/recompressxml",
             # "cleanup": {
             "keep": "3",
             # "chunks": {
@@ -261,13 +261,13 @@ class Config(object):
             print "The mandatory setting 'dir' in the section 'wiki' was not defined."
             raise ConfigParser.NoOptionError('wiki', 'dir')
 
-        self.dbUser = None
-        self.dbPassword = None
-        self.parseConfFileGlobally()
-        self.parseConfFilePerProject()
-        self.getDbUserAndPassword()  # get from MW adminsettings file if not set in conf file
+        self.db_user = None
+        self.db_password = None
+        self.parse_conffile_globally()
+        self.parse_conffile_per_project()
+        self.get_db_user_and_password()  # get from MW adminsettings file if not set in conf file
 
-    def parsePHPAssignment(self, line):
+    def parse_php_assignment(self, line):
         # not so much parse as grab a string to the right of the equals sign,
         # we expect a line that has  ... = "somestring" ;
         # with single or double quotes, spaes or not.  but nothing more complicated.
@@ -278,23 +278,23 @@ class Config(object):
         else:
             return ""
 
-    def getDbUserAndPassword(self):
+    def get_db_user_and_password(self):
         # check MW adminsettings file for these if we didn't have values for
         # them in the conf file; failing that we fall back on defaults specified
         # here
 
-        if self.dbUser:  # already set via conf file, don't override
+        if self.db_user:  # already set via conf file, don't override
             return
 
         default_dbuser = "root"
         default_dbpassword = ""
 
         if not self.conf.has_option("wiki", "adminsettings"):
-            self.dbUser = default_dbuser
-            self.dbPassword = default_dbpassword
+            self.db_user = default_dbuser
+            self.db_password = default_dbpassword
             return
 
-        adminfile = open(os.path.join(self.wikiDir, self.conf.get("wiki", "adminsettings")), "r")
+        adminfile = open(os.path.join(self.wiki_dir, self.conf.get("wiki", "adminsettings")), "r")
         lines = adminfile.readlines()
         adminfile.close()
 
@@ -303,53 +303,52 @@ class Config(object):
         # $wgDBadminuser = 'something';
         # $wgDBuser = $wgDBadminuser = "something" ;
 
-        for l in lines:
-            if "$wgDBadminuser" in l:
-                self.dbUser = self.parsePHPAssignment(l)
-            elif "$wgDBuser" in l:
-                default_dbuser = self.parsePHPAssignment(l)
-            elif "$wgDBadminpassword" in l:
-                self.dbPassword = self.parsePHPAssignment(l)
-            elif "$wgDBpassword" in l:
-                default_dbpassword = self.parsePHPAssignment(l)
+        for line in lines:
+            if "$wgDBadminuser" in line:
+                self.db_user = self.parse_php_assignment(line)
+            elif "$wgDBuser" in line:
+                default_dbuser = self.parse_php_assignment(line)
+            elif "$wgDBadminpassword" in line:
+                self.db_password = self.parse_php_assignment(line)
+            elif "$wgDBpassword" in line:
+                default_dbpassword = self.parse_php_assignment(line)
 
-        if not self.dbUser:
-            self.dbUser = default_dbuser
-        if not self.dbPassword:
-            self.dbPassword = default_dbpassword
+        if not self.db_user:
+            self.db_user = default_dbuser
+        if not self.db_password:
+            self.db_password = default_dbpassword
         return
 
-    def parseConfFileGlobally(self):
-        self.dbList = MiscUtils.dbList(self.conf.get("wiki", "dblist"))
-        self.skipDbList = MiscUtils.dbList(self.conf.get("wiki", "skipdblist"))
-        self.privateList = MiscUtils.dbList(self.conf.get("wiki", "privatelist"))
-        self.flaggedRevsList = MiscUtils.dbList(self.conf.get("wiki", "flaggedrevslist"))
-        self.wikidataList = MiscUtils.dbList(self.conf.get("wiki", "wikidatalist"))
-        self.globalUsageList = MiscUtils.dbList(self.conf.get("wiki", "globalusagelist"))
-        self.wikidataClientList = MiscUtils.dbList(self.conf.get("wiki", "wikidataclientlist"))
-        self.forceNormal = self.conf.getint("wiki", "forcenormal")
+    def parse_conffile_globally(self):
+        self.db_list = MiscUtils.db_list(self.conf.get("wiki", "dblist"))
+        self.skip_db_list = MiscUtils.db_list(self.conf.get("wiki", "skipdblist"))
+        self.private_list = MiscUtils.db_list(self.conf.get("wiki", "privatelist"))
+        self.flagged_revs_list = MiscUtils.db_list(self.conf.get("wiki", "flaggedrevslist"))
+        self.wikidata_list = MiscUtils.db_list(self.conf.get("wiki", "wikidatalist"))
+        self.global_usage_list = MiscUtils.db_list(self.conf.get("wiki", "globalusagelist"))
+        self.wikidata_client_list = MiscUtils.db_list(self.conf.get("wiki", "wikidataclientlist"))
         self.halt = self.conf.getint("wiki", "halt")
 
-        self.dbList = list(set(self.dbList) - set(self.skipDbList))
+        self.db_list = list(set(self.db_list) - set(self.skip_db_list))
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
-        self.publicDir = self.conf.get("output", "public")
-        self.privateDir = self.conf.get("output", "private")
-        self.tempDir = self.conf.get("output", "temp")
-        self.webRoot = self.conf.get("output", "webroot")
+        self.public_dir = self.conf.get("output", "public")
+        self.private_dir = self.conf.get("output", "private")
+        self.temp_dir = self.conf.get("output", "temp")
+        self.web_root = self.conf.get("output", "webroot")
         self.index = self.conf.get("output", "index")
-        self.templateDir = self.conf.get("output", "templatedir")
-        self.perDumpIndex = self.conf.get("output", "perdumpindex")
+        self.template_dir = self.conf.get("output", "templatedir")
+        self.perdump_index = self.conf.get("output", "perdumpindex")
         self.log_file = self.conf.get("output", "logfile")
         self.fileperms = self.conf.get("output", "fileperms")
         self.fileperms = int(self.fileperms, 0)
         if not self.conf.has_section('reporting'):
             self.conf.add_section('reporting')
-        self.adminMail = self.conf.get("reporting", "adminmail")
-        self.mailFrom = self.conf.get("reporting", "mailfrom")
-        self.smtpServer = self.conf.get("reporting", "smtpserver")
-        self.staleAge = self.conf.getint("reporting", "staleage")
+        self.admin_mail = self.conf.get("reporting", "adminmail")
+        self.mail_from = self.conf.get("reporting", "mailfrom")
+        self.smtp_server = self.conf.get("reporting", "smtpserver")
+        self.stale_age = self.conf.getint("reporting", "staleage")
 
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')
@@ -371,7 +370,7 @@ class Config(object):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
 
-    def parseConfFilePerProject(self, project_name=False):
+    def parse_conffile_per_project(self, project_name=False):
         # we need to read from the project section without falling back
         # to the defaults, which has_option() normally does, ugh.  so set
         # up a local conf instance without the defaults
@@ -379,57 +378,57 @@ class Config(object):
         conf.read(self.files)
 
         if project_name:
-            self.projectName = project_name
+            self.project_name = project_name
 
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
 
-        dbuser = self.getOptionForProjectOrDefault(conf, "database", "user", 0)
+        dbuser = self.get_opt_for_proj_or_default(conf, "database", "user", 0)
         if dbuser:
-            self.dbUser = dbuser
-        dbpassword = self.getOptionForProjectOrDefault(conf, "database", "password", 0)
+            self.db_user = dbuser
+        dbpassword = self.get_opt_for_proj_or_default(conf, "database", "password", 0)
         if dbpassword:
-            self.dbPassword = dbpassword
+            self.db_password = dbpassword
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')
-        self.chunksEnabled = self.getOptionForProjectOrDefault(
+        self.chunks_enabled = self.get_opt_for_proj_or_default(
             conf, "chunks", "chunksEnabled", 1)
-        self.pagesPerChunkHistory = self.getOptionForProjectOrDefault(
+        self.pages_per_chunk_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "pagesPerChunkHistory", 0)
-        self.revsPerChunkHistory = self.getOptionForProjectOrDefault(
+        self.revs_per_chunk_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "revsPerChunkHistory", 0)
-        self.chunksForAbstract = self.getOptionForProjectOrDefault(
+        self.chunks_for_abstract = self.get_opt_for_proj_or_default(
             conf, "chunks", "chunksForAbstract", 0)
-        self.pagesPerChunkAbstract = self.getOptionForProjectOrDefault(
+        self.pages_per_chunk_abstract = self.get_opt_for_proj_or_default(
             conf, "chunks", "pagesPerChunkAbstract", 0)
-        self.recombineHistory = self.getOptionForProjectOrDefault(
+        self.recombine_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "recombineHistory", 1)
-        self.checkpointTime = self.getOptionForProjectOrDefault(
+        self.checkpoint_time = self.get_opt_for_proj_or_default(
             conf, "chunks", "checkpointTime", 1)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
-        self.multistreamEnabled = self.getOptionForProjectOrDefault(
+        self.multistream_enabled = self.get_opt_for_proj_or_default(
             conf, 'otherformats', 'multistream', 1)
 
         if not self.conf.has_section('wiki'):
             self.conf.add_section('wiki')
-        self.wikiDir = self.getOptionForProjectOrDefault(conf, "wiki", "dir", 0)
+        self.wiki_dir = self.get_opt_for_proj_or_default(conf, "wiki", "dir", 0)
 
-    def getOptionForProjectOrDefault(self, conf, section_name, item_name, is_int):
-        if conf.has_section(self.projectName):
-            if conf.has_option(self.projectName, item_name):
+    def get_opt_for_proj_or_default(self, conf, section_name, item_name, is_int):
+        if conf.has_section(self.project_name):
+            if conf.has_option(self.project_name, item_name):
                 if is_int:
-                    return conf.getint(self.projectName, item_name)
+                    return conf.getint(self.project_name, item_name)
                 else:
-                    return conf.get(self.projectName, item_name)
+                    return conf.get(self.project_name, item_name)
         if is_int:
             return self.conf.getint(section_name, item_name)
         else:
             return self.conf.get(section_name, item_name)
 
-    def dbListByAge(self, use_status_time=False):
+    def db_list_by_age(self, use_status_time=False):
         """
         Sort wikis in reverse order of last successful dump :
 
@@ -452,15 +451,15 @@ class Config(object):
         """
         available = []
         today = int(TimeUtils.today())
-        for db in self.dbList:
-            wiki = Wiki(self, db)
+        for dbname in self.db_list:
+            wiki = Wiki(self, dbname)
 
             age = sys.maxint
             date = sys.maxint
-            last = wiki.latestDump()
+            last = wiki.latest_dump()
             status = ''
             if last:
-                dump_status = os.path.join(wiki.publicDir(), last, "status.html")
+                dump_status = os.path.join(wiki.public_dir(), last, "status.html")
                 try:
                     if use_status_time:
                         # only use the status file time, not the dir date
@@ -469,29 +468,29 @@ class Config(object):
                         date = today - int(last)
                     # tack on the file mtime so that if we have multiple wikis
                     # dumped on the same day, they get ordered properly
-                    age = FileUtils.fileAge(dump_status)
-                    status = FileUtils.readFile(dump_status)
+                    age = FileUtils.file_age(dump_status)
+                    status = FileUtils.read_file(dump_status)
                 except:
                     print "dump dir missing status file %s?" % dump_status
             dump_failed = (status == '') or ('dump aborted' in status)
-            available.append((dump_failed, date, age, db))
+            available.append((dump_failed, date, age, dbname))
         available.sort()
-        return [db for (_failed, _date, _age, db) in available]
+        return [dbname for (_failed, _date, _age, dbname) in available]
 
-    def readTemplate(self, name):
-        template = os.path.join(self.templateDir, name)
-        return FileUtils.readFile(template)
+    def read_template(self, name):
+        template = os.path.join(self.template_dir, name)
+        return FileUtils.read_file(template)
 
     def mail(self, subject, body):
         """Send out a quickie email."""
         message = MIMEText.MIMEText(body)
         message["Subject"] = subject
-        message["From"] = self.mailFrom
-        message["To"] = self.adminMail
+        message["From"] = self.mail_from
+        message["To"] = self.admin_mail
 
         try:
-            server = smtplib.SMTP(self.smtpServer)
-            server.sendmail(self.mailFrom, self.adminMail, message.as_string())
+            server = smtplib.SMTP(self.smtp_server)
+            server.sendmail(self.mail_from, self.admin_mail, message.as_string())
             server.close()
         except:
             print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
@@ -501,57 +500,57 @@ class Config(object):
 class Wiki(object):
     def __init__(self, config, db_name):
         self.config = config
-        self.dbName = db_name
+        self.db_name = db_name
         self.date = None
         self.watchdog = None
 
-    def isPrivate(self):
-        return self.dbName in self.config.privateList
+    def is_private(self):
+        return self.db_name in self.config.private_list
 
-    def hasFlaggedRevs(self):
-        return self.dbName in self.config.flaggedRevsList
+    def has_flagged_revs(self):
+        return self.db_name in self.config.flagged_revs_list
 
-    def hasWikidata(self):
-        return self.dbName in self.config.wikidataList
+    def has_wikidata(self):
+        return self.db_name in self.config.wikidata_list
 
     def has_global_usage(self):
-        return self.dbName in self.config.globalUsageList
+        return self.db_name in self.config.global_usage_list
 
-    def isWikidataClient(self):
-        return self.dbName in self.config.wikidataClientList
+    def is_wikidata_client(self):
+        return self.db_name in self.config.wikidata_client_list
 
-    def isLocked(self):
-        return os.path.exists(self.lockFile())
+    def is_locked(self):
+        return os.path.exists(self.lock_file())
 
-    def isStale(self):
-        if not self.isLocked():
+    def is_stale(self):
+        if not self.is_locked():
             return False
         try:
-            age = self.lockAge()
-            return age > self.config.staleAge
+            age = self.lock_age()
+            return age > self.config.stale_age
         except:
             # Lock file vanished while we were looking
             return False
 
     # Paths and directories...
 
-    def publicDir(self):
-        if self.isPrivate():
-            return self.privateDir()
+    def public_dir(self):
+        if self.is_private():
+            return self.private_dir()
         else:
-            return os.path.join(self.config.publicDir, self.dbName)
+            return os.path.join(self.config.public_dir, self.db_name)
 
-    def privateDir(self):
-        return os.path.join(self.config.privateDir, self.dbName)
+    def private_dir(self):
+        return os.path.join(self.config.private_dir, self.db_name)
 
-    def webDir(self):
-        web_root = self.config.webRoot
+    def web_dir(self):
+        web_root = self.config.web_root
         if web_root[-1] == '/':
             web_root = web_root[:-1]
-        return "/".join((web_root, self.dbName))
+        return "/".join((web_root, self.db_name))
 
-    def webDirRelative(self):
-        web_root_rel = self.webDir()
+    def web_dir_relative(self):
+        web_root_rel = self.web_dir()
         i = web_root_rel.find("://")
         if i >= 0:
             web_root_rel = web_root_rel[i+3:]
@@ -563,121 +562,121 @@ class Wiki(object):
     # Actions!
 
     def lock(self):
-        if not os.path.isdir(self.privateDir()):
+        if not os.path.isdir(self.private_dir()):
             try:
-                os.makedirs(self.privateDir())
+                os.makedirs(self.private_dir())
             except:
                 # Maybe it was just created (race condition)?
-                if not os.path.isdir(self.privateDir()):
+                if not os.path.isdir(self.private_dir()):
                     raise
-        lockf = FileUtils.atomicCreate(self.lockFile(), "w")
+        lockf = FileUtils.atomic_create(self.lock_file(), "w")
         lockf.write("%s %d" % (socket.getfqdn(), os.getpid()))
         lockf.close()
 
-        self.watchdog = LockWatchdog(self.lockFile())
+        self.watchdog = LockWatchdog(self.lock_file())
         self.watchdog.start()
         return True
 
     def unlock(self):
         if self.watchdog:
-            self.watchdog.stopWatching()
+            self.watchdog.stop_watching()
             self.watchdog = None
-        os.remove(self.lockFile())
+        os.remove(self.lock_file())
 
-    def setDate(self, date):
+    def set_date(self, date):
         self.date = date
 
-    def cleanupStaleLock(self):
-        date = self.latestDump()
+    def cleanup_stale_lock(self):
+        date = self.latest_dump()
         if date:
-            self.setDate(date)
-            self.writeStatus(self.reportStatusLine(
+            self.set_date(date)
+            self.write_status(self.report_statusline(
                 "<span class=\"failed\">dump aborted</span>"))
         self.unlock()
 
-    def writePerDumpIndex(self, html):
-        index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
-        FileUtils.writeFileInPlace(index, html, self.config.fileperms)
+    def write_perdump_index(self, html):
+        index = os.path.join(self.public_dir(), self.date, self.config.perdump_index)
+        FileUtils.write_file_in_place(index, html, self.config.fileperms)
 
-    def existsPerDumpIndex(self):
-        index = os.path.join(self.publicDir(), self.date, self.config.perDumpIndex)
+    def exists_perdump_index(self):
+        index = os.path.join(self.public_dir(), self.date, self.config.perdump_index)
         return os.path.exists(index)
 
-    def writeStatus(self, message):
-        index = os.path.join(self.publicDir(), self.date, "status.html")
-        FileUtils.writeFileInPlace(index, message, self.config.fileperms)
+    def write_status(self, message):
+        index = os.path.join(self.public_dir(), self.date, "status.html")
+        FileUtils.write_file_in_place(index, message, self.config.fileperms)
 
-    def statusLine(self):
-        date = self.latestDump()
+    def status_line(self):
+        date = self.latest_dump()
         if date:
-            status = os.path.join(self.publicDir(), date, "status.html")
+            status = os.path.join(self.public_dir(), date, "status.html")
             try:
-                return FileUtils.readFile(status)
+                return FileUtils.read_file(status)
             except:
-                return self.reportStatusLine("missing status record")
+                return self.report_statusline("missing status record")
         else:
-            return self.reportStatusLine("has not yet been dumped")
+            return self.report_statusline("has not yet been dumped")
 
-    def reportStatusLine(self, status, error=False):
+    def report_statusline(self, status, error=False):
         if error:
             # No state information, hide the timestamp
-            stamp = "<span style=\"visible: none\">" + TimeUtils.prettyTime() + "</span>"
+            stamp = "<span style=\"visible: none\">" + TimeUtils.pretty_time() + "</span>"
         else:
-            stamp = TimeUtils.prettyTime()
-        if self.isPrivate():
-            link = "%s (private data)" % self.dbName
+            stamp = TimeUtils.pretty_time()
+        if self.is_private():
+            link = "%s (private data)" % self.db_name
         else:
             if self.date:
-                link = "<a href=\"%s/%s\">%s</a>" % (self.dbName, self.date, self.dbName)
+                link = "<a href=\"%s/%s\">%s</a>" % (self.db_name, self.date, self.db_name)
             else:
-                link = "%s (new)" % self.dbName
+                link = "%s (new)" % self.db_name
         return "<li>%s %s: %s</li>\n" % (stamp, link, status)
 
-    def latestDump(self, index=-1, all=False):
+    def latest_dump(self, index=-1, return_all=False):
         """Find the last (or slightly less than last) dump for a db."""
-        dirs = self.dumpDirs()
+        dirs = self.dump_dirs()
         if dirs:
-            if all:
+            if return_all:
                 return dirs
             else:
                 return dirs[index]
         else:
             return None
 
-    def dateTouchedLatestDump(self):
+    def date_touched_latest_dump(self):
         mtime = 0
-        last = self.latestDump()
+        last = self.latest_dump()
         if last:
-            dump_status = os.path.join(self.publicDir(), last, "status.html")
+            dump_status = os.path.join(self.public_dir(), last, "status.html")
             try:
                 mtime = os.stat(dump_status).st_mtime
             except:
                 pass
         return time.strftime("%Y%m%d", time.gmtime(mtime))
 
-    def dumpDirs(self, private=False):
+    def dump_dirs(self, private=False):
         """List all dump directories for the given database."""
         if private:
-            base = self.privateDir()
+            base = self.private_dir()
         else:
-            base = self.publicDir()
+            base = self.public_dir()
         digits = re.compile(r"^\d{4}\d{2}\d{2}$")
         dates = []
         try:
-            for dir in os.listdir(base):
-                if digits.match(dir):
-                    dates.append(dir)
+            for dirname in os.listdir(base):
+                if digits.match(dirname):
+                    dates.append(dirname)
         except OSError:
             return []
         dates.sort()
         return dates
 
     # private....
-    def lockFile(self):
-        return os.path.join(self.privateDir(), "lock")
+    def lock_file(self):
+        return os.path.join(self.private_dir(), "lock")
 
-    def lockAge(self):
-        return FileUtils.fileAge(self.lockFile())
+    def lock_age(self):
+        return FileUtils.file_age(self.lock_file())
 
 
 class LockWatchdog(threading.Thread):
@@ -692,7 +691,7 @@ class LockWatchdog(threading.Thread):
         self.trigger = threading.Event()
         self.finished = threading.Event()
 
-    def stopWatching(self):
+    def stop_watching(self):
         """Run me outside..."""
         # Ask the thread to stop...
         self.trigger.set()
@@ -706,13 +705,13 @@ class LockWatchdog(threading.Thread):
     def run(self):
         LockWatchdog.threads.append(self)
         while not self.trigger.isSet():
-            self.touchLock()
+            self.touch_lock()
             self.trigger.wait(10)
         self.trigger.clear()
         self.finished.set()
         LockWatchdog.threads.remove(self)
 
-    def touchLock(self):
+    def touch_lock(self):
         """Run me inside..."""
         os.utime(self.lockfile, None)
 
@@ -720,7 +719,7 @@ class LockWatchdog(threading.Thread):
 def cleanup():
     """Call cleanup handlers for any background threads..."""
     for watchdog in LockWatchdog.threads:
-        watchdog.stopWatching()
+        watchdog.stop_watching()
 
 if __name__ == "__main__":
     config_unused = Config()

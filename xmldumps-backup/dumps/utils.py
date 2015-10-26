@@ -21,14 +21,14 @@ class MultiVersion(object):
         return " ".join(MultiVersion.mw_script_as_array(config, maintenance_script))
 
     def mw_script_as_array(config, maintenance_script):
-        mw_script_location = os.path.join(config.wikiDir, "multiversion", "MWScript.php")
+        mw_script_location = os.path.join(config.wiki_dir, "multiversion", "MWScript.php")
         if exists(mw_script_location):
             return [mw_script_location, maintenance_script]
         else:
-            return ["%s/maintenance/%s" % (config.wikiDir, maintenance_script)]
+            return ["%s/maintenance/%s" % (config.wiki_dir, maintenance_script)]
 
     def mw_version(config, db_name):
-        get_version_location = os.path.join(config.wikiDir, "multiversion", "getMWVersion")
+        get_version_location = os.path.join(config.wiki_dir, "multiversion", "getMWVersion")
         if exists(get_version_location):
             # run the command for the wiki and get the version
             command = get_version_location + " " + db_name
@@ -57,10 +57,10 @@ class DbServerInfo(object):
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
         command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getSlaveServer.php")
-        php_command = MiscUtils.shellEscape(self.wiki.config.php)
-        db_name = MiscUtils.shellEscape(self.db_name)
+        php_command = MiscUtils.shell_escape(self.wiki.config.php)
+        db_name = MiscUtils.shell_escape(self.db_name)
         for i in range(0, len(command_list)):
-            command_list[i] = MiscUtils.shellEscape(command_list[i])
+            command_list[i] = MiscUtils.shell_escape(command_list[i])
         command = " ".join(command_list)
         command = "%s -q %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
         results = RunSimpleCommand.run_and_return(command, self.error_callback).strip()
@@ -96,7 +96,7 @@ class DbServerInfo(object):
         params = ["-h", "%s" % host]  # Host
         if self.db_port:
             params += ["--port", "%s" % self.db_port]  # Port
-        params += ["-u", "%s" % self.wiki.config.dbUser]  # Username
+        params += ["-u", "%s" % self.wiki.config.db_user]  # Username
         params += ["%s" % self.password_option()]  # Password
         return params
 
@@ -139,10 +139,10 @@ class DbServerInfo(object):
     def password_option(self):
         """If you pass '-pfoo' mysql uses the password 'foo',
         but if you pass '-p' it prompts. Sigh."""
-        if self.wiki.config.dbPassword == "":
+        if self.wiki.config.db_password == "":
             return None
         else:
-            return "-p" + self.wiki.config.dbPassword
+            return "-p" + self.wiki.config.db_password
 
 
 class RunSimpleCommand(object):
@@ -251,8 +251,8 @@ class RunInfoFile(object):
             return 0
 
         # ok, there was no info there to be had, try the index file. yuck.
-        index_filename = os.path.join(runner.wiki.publicDir(),
-                                      date, runner.wiki.config.perDumpIndex)
+        index_filename = os.path.join(runner.wiki.public_dir(),
+                                      date, runner.wiki.config.perdump_index)
         status = self._get_status_from_html(index_filename, job_desc)
         if status == "done":
             return 1
@@ -288,15 +288,15 @@ class RunInfoFile(object):
         # sometimes need to get this info for an older run to check status of a file for
         # possible prefetch
         if date:
-            return os.path.join(self.wiki.publicDir(), date, "dumpruninfo.txt")
+            return os.path.join(self.wiki.public_dir(), date, "dumpruninfo.txt")
         else:
-            return os.path.join(self.wiki.publicDir(), self.wiki.date, "dumpruninfo.txt")
+            return os.path.join(self.wiki.public_dir(), self.wiki.date, "dumpruninfo.txt")
 
     def _get_dump_runinfo_dirname(self, date=None):
         if date:
-            return os.path.join(self.wiki.publicDir(), date)
+            return os.path.join(self.wiki.public_dir(), date)
         else:
-            return os.path.join(self.wiki.publicDir(), self.wiki.date)
+            return os.path.join(self.wiki.public_dir(), self.wiki.date)
 
     # format: name:%; updated:%; status:%
     def _get_old_runinfo_from_line(self, line):
@@ -318,8 +318,8 @@ class RunInfoFile(object):
 
     def _write_dump_runinfo_file(self, text):
         dump_runinfo_filename = self._get_dump_runinfo_filename()
-#        FileUtils.writeFile(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
-        FileUtils.writeFileInPlace(dump_runinfo_filename, text, self.wiki.config.fileperms)
+#        FileUtils.write_file(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
+        FileUtils.write_file_in_place(dump_runinfo_filename, text, self.wiki.config.fileperms)
 
     # format: name:%; updated:%; status:%
     def _get_status_from_runinfo_line(self, line, job_name):
@@ -417,7 +417,7 @@ class RunInfo(object):
         self._to_run = to_run
 
 
-# so if the pages/revsPerChunkAbstract/History are just one number it means
+# so if the pages/revs_per_chunk_abstr/_history are just one number it means
 # use that number for all the chunks, figure out yourself how many.
 # otherwise we get passed alist that says "here's now many for each chunk and it's this many chunks.
 # extra pages/revs go in the last chunk, stuck on the end. too bad. :-P
@@ -426,26 +426,26 @@ class Chunk(object,):
 
         self._db_name = db_name
         self.wiki = wiki
-        self._chunks_enabled = self.wiki.config.chunksEnabled
+        self._chunks_enabled = self.wiki.config.chunks_enabled
         if self._chunks_enabled:
             self.stats = PageAndEditStats(self.wiki, self._db_name, error_callback)
             if not self.stats.total_edits or not self.stats.total_pages:
                 raise BackupError("Failed to get DB stats, exiting")
-            if self.wiki.config.chunksForAbstract:
+            if self.wiki.config.chunks_for_abstract:
                 # we add 200 padding to cover new pages that may be added
                 pages_per_chunk = 200 + self.stats.total_pages/int(
-                    self.wiki.config.chunksForAbstract)
+                    self.wiki.config.chunks_for_abstract)
                 self._pages_per_chunk_abstract = [pages_per_chunk for i in range(
-                    0, int(self.wiki.config.chunksForAbstract))]
+                    0, int(self.wiki.config.chunks_for_abstract))]
             else:
                 self._pages_per_chunk_abstract = self.convert_comma_sep(
-                    self.wiki.config.pagesPerChunkAbstract)
+                    self.wiki.config.pages_per_chunk_abstract)
 
             self._pages_per_chunk_history = self.convert_comma_sep(
-                self.wiki.config.pagesPerChunkHistory)
+                self.wiki.config.pages_per_chunk_history)
             self._revs_per_chunk_history = self.convert_comma_sep(
-                self.wiki.config.revsPerChunkHistory)
-            self._recombine_history = self.wiki.config.recombineHistory
+                self.wiki.config.revs_per_chunk_history)
+            self._recombine_history = self.wiki.config.recombine_history
         else:
             self._pages_per_chunk_history = False
             self._revs_per_chunk_history = False
