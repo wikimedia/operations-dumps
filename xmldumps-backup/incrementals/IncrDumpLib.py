@@ -4,182 +4,197 @@ import sys
 import re
 import ConfigParser
 import dumps.WikiDump
-from dumps.WikiDump import FileUtils, TimeUtils, MiscUtils
+from dumps.WikiDump import FileUtils, MiscUtils
+from dumps.exceptions import BackupError
 from os.path import exists
 import socket
-import subprocess
 from subprocess import Popen, PIPE
 import shutil
 import time
 
+
 class ContentFile(object):
-    def __init__(self, config, date, wikiName):
+    def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.incrDir = IncrementDir(self._config, date)
-        self.wikiName = wikiName
+        self.incr_dir = IncrementDir(self._config, date)
+        self.wikiname = wikiname
 
     # override this.
-    def getFileName(self):
+    def get_filename(self):
         return "content.txt"
 
-    def getPath(self):
-        return os.path.join(self.incrDir.getIncDir(self.wikiName),self.getFileName())
+    def get_path(self):
+        return os.path.join(self.incr_dir.get_incdir(self.wikiname), self.get_filename())
 
-    def getFileInfo(self):
-        return FileUtils.file_info(self.getPath())
-    
+    def get_fileinfo(self):
+        return FileUtils.file_info(self.get_path())
+
+
 class MaxRevIDFile(ContentFile):
-    def getFileName(self):
+    def get_filename(self):
         return "maxrevid.txt"
 
+
 class StubFile(ContentFile):
-    def getFileName(self):
-        return "%s-%s-stubs-meta-hist-incr.xml.gz" % ( self.wikiName, self.date )
+    def get_filename(self):
+        return "%s-%s-stubs-meta-hist-incr.xml.gz" % (self.wikiname, self.date)
+
 
 class RevsFile(ContentFile):
-    def getFileName(self):
-        return "%s-%s-pages-meta-hist-incr.xml.bz2" % ( self.wikiName, self.date )
+    def get_filename(self):
+        return "%s-%s-pages-meta-hist-incr.xml.bz2" % (self.wikiname, self.date)
+
 
 class StatusFile(ContentFile):
-    def getFileName(self):
+    def get_filename(self):
         return "status.txt"
 
-    def getPath(self, date = None):
-        return os.path.join(self.incrDir.getIncDir(self.wikiName, date),self.getFileName())
+    def get_path(self, date=None):
+        return os.path.join(self.incr_dir.get_incdir(self.wikiname, date), self.get_filename())
+
 
 class LockFile(ContentFile):
-    def getFileName(self):
-        return "%s-%s.lock" % ( self.wikiName, self.date )
+    def get_filename(self):
+        return "%s-%s.lock" % (self.wikiname, self.date)
 
-    def getPath(self):
-        return os.path.join(self.incrDir.getIncDirNoDate(self.wikiName),self.getFileName())
+    def get_path(self):
+        return os.path.join(self.incr_dir.get_incdir_no_date(self.wikiname), self.get_filename())
 
-class  MaxRevIDLockFile(LockFile):
-    def getFileName(self):
-        return "%s-%s-maxrevid.lock" % ( self.wikiName, self.date )
-        
-class  IncrDumpLockFile(LockFile):
-    def getFileName(self):
-        return "%s-%s-incrdump.lock" % ( self.wikiName, self.date )
+
+class MaxRevIDLockFile(LockFile):
+    def get_filename(self):
+        return "%s-%s-maxrevid.lock" % (self.wikiname, self.date)
+
+
+class IncrDumpLockFile(LockFile):
+    def get_filename(self):
+        return "%s-%s-incrdump.lock" % (self.wikiname, self.date)
+
 
 class MD5File(ContentFile):
-    def getFileName(self):
-        return "%s-%s-md5sums.txt" % ( self.wikiName, self.date )
+    def get_filename(self):
+        return "%s-%s-md5sums.txt" % (self.wikiname, self.date)
+
 
 class IndexFile(ContentFile):
     def __init__(self, config):
         self._config = config
-        self.incrDir = IncrementDir(self._config)
+        self.incr_dir = IncrementDir(self._config)
 
-    def getFileName(self):
+    def get_filename(self):
         return "index.html"
 
-    def getPath(self):
-        return os.path.join(self.incrDir.getIncDirBase(),self.getFileName())
+    def get_path(self):
+        return os.path.join(self.incr_dir.get_incdir_base(), self.get_filename())
+
 
 class StatusInfo(object):
-    def __init__(self, config, date, wikiName):
+    def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.wikiName = wikiName
-        self.statusFile = StatusFile(self._config, self.date, self.wikiName)
+        self.wikiname = wikiname
+        self.status_file = StatusFile(self._config, self.date, self.wikiname)
 
-    def getStatus(self, date = None):
+    def get_status(self, date=None):
         status = ""
-        if exists(self.statusFile.getPath(date)):
-            status = FileUtils.read_file(self.statusFile.getPath(date)).rstrip()
-        return(status)
+        if exists(self.status_file.get_path(date)):
+            status = FileUtils.read_file(self.status_file.get_path(date)).rstrip()
+        return status
 
-    def setStatus(self, status):
-        FileUtils.write_file_in_place(self.statusFile.getPath(),status, self._config.fileperms)
+    def set_status(self, status):
+        FileUtils.write_file_in_place(self.status_file.get_path(), status, self._config.fileperms)
+
 
 class Lock(object):
-    def __init__(self, config, date, wikiName):
+    def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.wikiName = wikiName
-        self.lockFile = LockFile(self._config, self.date, self.wikiName)
+        self.wikiname = wikiname
+        self.lockfile = LockFile(self._config, self.date, self.wikiname)
 
-    def isLocked(self):
-        return exists(self.lockFile.getPath())
+    def is_locked(self):
+        return exists(self.lockfile.get_path())
 
-    def getLock(self):
+    def get_lock(self):
         try:
-            if not exists(self._config.incrementalsDir):
-                os.makedirs(self._config.incrementalsDir)
-            f = FileUtils.atomic_create(self.lockFile.getPath(), "w")
-            f.write("%s %d" % (socket.getfqdn(), os.getpid()))
-            f.close()
+            if not exists(self._config.incrementals_dir):
+                os.makedirs(self._config.incrementals_dir)
+            fhandle = FileUtils.atomic_create(self.lockfile.get_path(), "w")
+            fhandle.write("%s %d" % (socket.getfqdn(), os.getpid()))
+            fhandle.close()
             return True
         except:
             return False
 
-    def isStaleLock(self):
-        if not self.isLocked():
+    def is_stale_lock(self):
+        if not self.is_locked():
             return False
         try:
-            timestamp = os.stat(self.lockFile.getPath()).st_mtime
+            timestamp = os.stat(self.lockfile.get_path()).st_mtime
         except:
             return False
-        if (time.time() - timestamp) > self._config.staleInterval:
+        if (time.time() - timestamp) > self._config.stale_interval:
             return True
         else:
             return False
-            
-    def unlock(self):
-        os.remove(self.lockFile.getPath())
 
-    def getLockInfo(self):
+    def unlock(self):
+        os.remove(self.lockfile.get_path())
+
+    def get_lockinfo(self):
         try:
-            timestamp = os.stat(self.lockFile.getPath()).st_mtime
-            return time.strftime("%Y-%m-%d %H:%M:%S",timestamp)
+            timestamp = os.stat(self.lockfile.get_path()).st_mtime
+            return time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
         except:
             return None
 
+
 class IncrDumpLock(Lock):
-    def __init__(self, config, date, wikiName):
+    def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.wikiName = wikiName
-        self.lockFile = IncrDumpLockFile(self._config, self.date, self.wikiName)
+        self.wikiname = wikiname
+        self.lockfile = IncrDumpLockFile(self._config, self.date, self.wikiname)
+
 
 class MaxRevIDLock(Lock):
-    def __init__(self,config, date, wikiName):
+    def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.wikiName = wikiName
-        self.lockFile = MaxRevIDLockFile(self._config, self.date, self.wikiName)
+        self.wikiname = wikiname
+        self.lockfile = MaxRevIDLockFile(self._config, self.date, self.wikiname)
+
 
 class Config(dumps.WikiDump.Config):
-    def __init__(self, configFile=False):
-        self.projectName = False
+    def __init__(self, config_file=None):
+        self.project_name = False
 
         home = os.path.dirname(sys.argv[0])
-        if (not configFile):
-            configFile = "dumpincr.conf"
+        if config_file is None:
+            config_file = "dumpincr.conf"
         self.files = [
-            os.path.join(home,configFile),
+            os.path.join(home, config_file),
             "/etc/dumpincrementals.conf",
             os.path.join(os.getenv("HOME"), ".dumpincr.conf")]
         defaults = {
-            #"wiki": {
+            # "wiki": {
             "allwikislist": "",
             "privatewikislist": "",
             "closedwikislist": "",
             "skipwikislist": "",
-            #"output": {
+            # "output": {
             "incrementalsdir": "/dumps/public/incr",
             "templatedir": home,
-            "temp":"/dumps/temp",
+            "temp": "/dumps/temp",
             "webroot": "http://localhost/dumps/incr",
             "fileperms": "0640",
             "delay": "43200",
             "maxrevidstaleinterval": "3600",
-            #"database": {
+            # "database": {
             # moved defaults to get_db_user_and_password
-            #"tools": {
-            "mediawiki" : "",
+            # "tools": {
+            "mediawiki": "",
             "php": "/bin/php",
             "gzip": "/usr/bin/gzip",
             "bzip2": "/usr/bin/bzip2",
@@ -187,7 +202,7 @@ class Config(dumps.WikiDump.Config):
             "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
             "writeuptopageid": "/usr/local/bin/writeuptopageid",
             "multiversion": "",
-            #"cleanup": {
+            # "cleanup": {
             "keep": "3",
             }
 
@@ -198,35 +213,35 @@ class Config(dumps.WikiDump.Config):
             print "The mandatory configuration section 'wiki' was not defined."
             raise ConfigParser.NoSectionError('wiki')
 
-        if not self.conf.has_option("wiki","mediawiki"):
+        if not self.conf.has_option("wiki", "mediawiki"):
             print "The mandatory setting 'mediawiki' in the section 'wiki' was not defined."
-            raise ConfigParser.NoOptionError('wiki','mediawiki')
+            raise ConfigParser.NoOptionError('wiki', 'mediawiki')
 
         self.db_user = None
         self.db_password = None
 
-        self.parseConfFile()
+        self.parse_conffile()
 
-    def parseConfFile(self):
+    def parse_conffile(self):
         self.mediawiki = self.conf.get("wiki", "mediawiki")
         self.wiki_dir = self.mediawiki
-        self.allWikisList = MiscUtils.db_list(self.conf.get("wiki", "allwikislist"))
-        self.privateWikisList = MiscUtils.db_list(self.conf.get("wiki", "privatewikislist"))
-        self.closedWikisList = MiscUtils.db_list(self.conf.get("wiki", "closedwikislist"))
-        self.skipWikisList = MiscUtils.db_list(self.conf.get("wiki", "skipwikislist"))
+        self.all_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "allwikislist"))
+        self.private_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "privatewikislist"))
+        self.closed_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "closedwikislist"))
+        self.skip_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "skipwikislist"))
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
-        self.incrementalsDir = self.conf.get("output", "incrementalsdir")
-        self.tempDir = self.conf.get("output", "temp")
-        self.templateDir = self.conf.get("output", "templatedir")
-        self.webRoot = self.conf.get("output", "webroot")
+        self.incrementals_dir = self.conf.get("output", "incrementalsdir")
+        self.temp_dir = self.conf.get("output", "temp")
+        self.template_dir = self.conf.get("output", "templatedir")
+        self.webroot = self.conf.get("output", "webroot")
         self.fileperms = self.conf.get("output", "fileperms")
-        self.fileperms = int(self.fileperms,0)
+        self.fileperms = int(self.fileperms, 0)
         self.delay = self.conf.get("output", "delay")
-        self.delay = int(self.delay,0)
-        self.staleInterval = self.conf.get("output", "maxrevidstaleinterval")
-        self.staleInterval = int(self.staleInterval,0)
+        self.delay = int(self.delay, 0)
+        self.stale_interval = self.conf.get("output", "maxrevidstaleinterval")
+        self.stale_interval = int(self.stale_interval, 0)
 
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')
@@ -234,15 +249,15 @@ class Config(dumps.WikiDump.Config):
         self.gzip = self.conf.get("tools", "gzip")
         self.bzip2 = self.conf.get("tools", "bzip2")
         self.mysql = self.conf.get("tools", "mysql")
-        self.checkforbz2footer = self.conf.get("tools","checkforbz2footer")
-        self.writeuptopageid = self.conf.get("tools","writeuptopageid")
-        self.multiversion = self.conf.get("tools","multiversion")
+        self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
+        self.writeuptopageid = self.conf.get("tools", "writeuptopageid")
+        self.multiversion = self.conf.get("tools", "multiversion")
 
         if not self.conf.has_section('cleanup'):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
 
-        self.wikiDir = self.mediawiki # the parent class methods want this
+        self.wiki_dir = self.mediawiki  # the parent class methods want this
         self.db_user = None
         self.db_password = None
         if not self.conf.has_section('database'):
@@ -251,184 +266,193 @@ class Config(dumps.WikiDump.Config):
             self.db_user = self.conf.get("database", "user")
         if self.conf.has_option('database', 'password'):
             self.db_password = self.conf.get("database", "password")
-        self.get_db_user_and_password() # get from MW adminsettings file if not set in conf file
+        self.get_db_user_and_password()  # get from MW adminsettings file if not set in conf file
 
-    def readTemplate(self, name):
-        template = os.path.join(self.templateDir, name)
+    def read_template(self, name):
+        template = os.path.join(self.template_dir, name)
         return FileUtils.read_file(template)
 
+
 class RunSimpleCommand(object):
-    def runWithOutput(command, maxtries = 3, shell=False):
+    def run_with_output(command, maxtries=3, shell=False):
         """Run a command and return the output as a string.
         Raises IncrementDumpsError on non-zero return code."""
         success = False
         tries = 0
-        while (not success and tries < maxtries):
-            proc = Popen(command, shell = shell, stdout = PIPE, stderr = PIPE)
+        while not success and tries < maxtries:
+            proc = Popen(command, shell=shell, stdout=PIPE, stderr=PIPE)
             output, error = proc.communicate()
             if not proc.returncode:
                 success = True
             tries = tries + 1
         if not success:
-            if type(command).__name__=='list':
-                commandString = " ".join(command)
+            if type(command).__name__ == 'list':
+                command_string = " ".join(command)
             else:
-                commandString = command
+                command_string = command
             if proc:
-                raise IncrementDumpsError("command '" + commandString + ( "' failed with return code %s " % proc.returncode ) + " and error '" + error + "'")
+                raise IncrementDumpsError("command '" + command_string +
+                                          ("' failed with return code %s " % proc.returncode) +
+                                          " and error '" + error + "'")
             else:
-                raise IncrementDumpsError("command '" + commandString + ( "' failed"  ) + " and error '" + error + "'")
+                raise IncrementDumpsError("command '" + command_string +
+                                          ("' failed") + " and error '" + error + "'")
         return output
 
-    def runWithNoOutput(command, maxtries = 3, shell=False):
+    def run_with_no_output(command, maxtries=3, shell=False):
         """Run a command, expecting no output.
         Raises IncrementDumpsError on non-zero return code."""
         success = False
         tries = 0
-        while ((not success) and tries < maxtries):
-            proc = Popen(command, shell = shell, stderr = PIPE)
+        while (not success) and tries < maxtries:
+            proc = Popen(command, shell=shell, stderr=PIPE)
             # output will be None, we can ignore it
-            output, error = proc.communicate()
+            output_unused, error = proc.communicate()
             if not proc.returncode:
                 success = True
             tries = tries + 1
         if not success:
-            if type(command).__name__=='list':
-                commandString = " ".join(command)
+            if type(command).__name__ == 'list':
+                command_string = " ".join(command)
             else:
-                commandString = command
-            raise IncrementDumpsError("command '" + commandString + ( "' failed with return code %s " % proc.returncode ) + " and error '" + error + "'")
- 
-    runWithOutput = staticmethod(runWithOutput)
-    runWithNoOutput = staticmethod(runWithNoOutput)
+                command_string = command
+            raise IncrementDumpsError("command '" + command_string +
+                                      ("' failed with return code %s " %
+                                       proc.returncode) + " and error '" + error + "'")
+
+    run_with_output = staticmethod(run_with_output)
+    run_with_no_output = staticmethod(run_with_no_output)
+
 
 class MultiVersion(object):
-    def MWScriptAsString(config, maintenanceScript):
-        return(" ".join(MultiVersion.MWScriptAsArray(config, maintenanceScript)))
+    def mwscript_as_string(config, maintenance_script):
+        return " ".join(MultiVersion.mwscript_as_array(config, maintenance_script))
 
-    def MWScriptAsArray(config, maintenanceScript):
+    def mwscript_as_array(config, maintenance_script):
         if config.multiversion != "":
             if exists(config.multiversion):
-                return [ config.multiversion, maintenanceScript ]
-        return [ "%s/maintenance/%s" % (config.mediawiki, maintenanceScript) ]
+                return [config.multiversion, maintenance_script]
+        return ["%s/maintenance/%s" % (config.mediawiki, maintenance_script)]
 
-    MWScriptAsString = staticmethod(MWScriptAsString)
-    MWScriptAsArray = staticmethod(MWScriptAsArray)
+    mwscript_as_string = staticmethod(mwscript_as_string)
+    mwscript_as_array = staticmethod(mwscript_as_array)
+
 
 class DBServer(object):
-    def __init__(self, config, wikiName):
+    def __init__(self, config, wikiname):
         self.config = config
-        self.wikiName = wikiName
-        self.dbServer = self.defaultServer()
+        self.wikiname = wikiname
+        self.db_server = self.default_server()
 
-    def defaultServer(self):
-        if (not exists( self.config.php ) ):
+    def default_server(self):
+        if not exists(self.config.php):
             raise BackupError("php command %s not found" % self.config.php)
-        commandList = MultiVersion.MWScriptAsArray(self.config, "getSlaveServer.php")
-        command =  [ self.config.php, "-q" ]
-        command.extend(commandList)
-        command.extend( [ "--wiki=%s" % self.wikiName, "--group=dump" ])
-        return RunSimpleCommand.runWithOutput(command, shell=False).rstrip()
+        command_list = MultiVersion.mwscript_as_array(self.config, "getSlaveServer.php")
+        command = [self.config.php, "-q"]
+        command.extend(command_list)
+        command.extend(["--wiki=%s" % self.wikiname, "--group=dump"])
+        return RunSimpleCommand.run_with_output(command, shell=False).rstrip()
 
-    def buildSqlCommand(self, query):
+    def build_sql_command(self, query):
         """Put together a command to execute an sql query to the server for this DB."""
-        if (not exists( self.config.mysql ) ):
+        if not exists(self.config.mysql):
             raise BackupError("mysql command %s not found" % self.config.mysql)
-        command =  "/bin/echo '%s' | %s -h %s -u %s " % ( query, self.config.mysql, self.dbServer, self.config.db_user ) 
+        command = ("/bin/echo '%s' | %s -h %s -u %s " %
+                   (query, self.config.mysql, self.db_server, self.config.db_user))
         if self.config.db_password != "":
             command = command + "-p" + self.config.db_password
-        command = command + " -r --silent " + self.wikiName
+        command = command + " -r --silent " + self.wikiname
         return command
+
 
 class IncrementDumpsError(Exception):
     pass
 
+
 class IncrementDir(object):
-    def __init__(self, config, date = None):
+    def __init__(self, config, date=None):
         self._config = config
         self.date = date
 
-    def getIncDirBase(self):
-        return self._config.incrementalsDir
+    def get_incdir_base(self):
+        return self._config.incrementals_dir
 
-    def getIncDirNoDate(self, wikiName):
-            return os.path.join(self.getIncDirBase(), wikiName)
+    def get_incdir_no_date(self, wikiname):
+        return os.path.join(self.get_incdir_base(), wikiname)
 
-    def getIncDir(self, wikiName, date = None):
-        if (date == None):
-            return os.path.join(self.getIncDirBase(), wikiName, self.date)
+    def get_incdir(self, wikiname, date=None):
+        if date is None:
+            return os.path.join(self.get_incdir_base(), wikiname, self.date)
         else:
-            return os.path.join(self.getIncDirBase(), wikiName, date)
+            return os.path.join(self.get_incdir_base(), wikiname, date)
 
-class IncrementDumpsError(Exception):
-    pass
 
 class IncDumpDirs(object):
-    def __init__(self, config, wikiName):
+    def __init__(self, config, wikiname):
         self._config = config
-        self.wikiName = wikiName
-        self.incrDir = IncrementDir(self._config)
+        self.wikiname = wikiname
+        self.incr_dir = IncrementDir(self._config)
 
-    def getIncDumpDirs(self):
-        base = self.incrDir.getIncDirNoDate(self.wikiName)
+    def get_inc_dumpdirs(self):
+        base = self.incr_dir.get_incdir_no_date(self.wikiname)
         digits = re.compile(r"^\d{4}\d{2}\d{2}$")
         dates = []
         try:
-            for dir in os.listdir(base):
-                if digits.match(dir):
-                    dates.append(dir)
+            for dirname in os.listdir(base):
+                if digits.match(dirname):
+                    dates.append(dirname)
         except OSError:
             return []
         dates.sort()
         return dates
 
-    def cleanupOldIncrDumps(self, date):
-        old = self.getIncDumpDirs()
+    def cleanup_old_incrdumps(self, date):
+        old = self.get_inc_dumpdirs()
         if old:
             if old[-1] == date:
                 old = old[:-1]
             if self._config.keep > 0:
                 old = old[:-(self._config.keep)]
             for dump in old:
-                toRemove = os.path.join(self.incrDir.getIncDirNoDate(self.wikiName), dump)
-                shutil.rmtree("%s" % toRemove)
+                to_remove = os.path.join(self.incr_dir.get_incdir_no_date(self.wikiname), dump)
+                shutil.rmtree("%s" % to_remove)
 
-    def getPrevIncrDate(self, date, ok = False, revidok = False):
+    def get_prev_incrdate(self, date, dumpok=False, revidok=False):
         # find the most recent incr dump before the
         # specified date
-        # if "ok" is True, find most recent dump that completed successfully
+        # if "dumpok" is True, find most recent dump that completed successfully
         # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
         previous = None
-        old = self.getIncDumpDirs()
+        old = self.get_inc_dumpdirs()
         if old:
             for dump in old:
                 if dump == date:
                     return previous
                 else:
-                    if ok:
-                        statusInfo = StatusInfo(self._config, dump, self.wikiName)
-                        if statusInfo.getStatus(dump) == "done":
+                    if dumpok:
+                        status_info = StatusInfo(self._config, dump, self.wikiname)
+                        if status_info.get_status(dump) == "done":
                             previous = dump
                     elif revidok:
-                        maxRevIDFile = MaxRevIDFile(self._config, dump, self.wikiName)
-                        if exists(maxRevIDFile.getPath()):
-                            revid = FileUtils.read_file(maxRevIDFile.getPath().rstrip())
+                        max_revid_file = MaxRevIDFile(self._config, dump, self.wikiname)
+                        if exists(max_revid_file.get_path()):
+                            revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
                             if int(revid) > 0:
                                 previous = dump
                     else:
                         previous = dump
         return previous
 
-    def getLatestIncrDate(self, ok = False):
-        # find the most recent incr dump 
-        dirs = self.getIncDumpDirs()
+    def get_latest_incr_date(self, dumpok=False):
+        # find the most recent incr dump
+        dirs = self.get_inc_dumpdirs()
         if dirs:
-            if ok:
+            if dumpok:
                 for dump in reversed(dirs):
-                    statusInfo = StatusInfo(self._config, dump, self.wikiName)
-                    if statusInfo.getStatus(dump) == "done":
+                    status_info = StatusInfo(self._config, dump, self.wikiname)
+                    if status_info.get_status(dump) == "done":
                         return dump
             else:
-                return(dirs[-1])
+                return dirs[-1]
         else:
-            return(None)
+            return None
