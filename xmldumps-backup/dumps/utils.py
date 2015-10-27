@@ -32,7 +32,7 @@ class MultiVersion(object):
         if exists(get_version_location):
             # run the command for the wiki and get the version
             command = get_version_location + " " + db_name
-            version = RunSimpleCommand.run_and_return(command)
+            version = RunSimpleCommand.run_with_output(command, shell=True)
             if version:
                 version = version.rstrip()
                 return version
@@ -63,7 +63,7 @@ class DbServerInfo(object):
             command_list[i] = MiscUtils.shell_escape(command_list[i])
         command = " ".join(command_list)
         command = "%s -q %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
-        results = RunSimpleCommand.run_and_return(command, self.error_callback).strip()
+        results = RunSimpleCommand.run_with_output(command, shell=True, log_callback=self.error_callback).strip()
         if not results:
             raise BackupError("Failed to get database connection " +
                               "information for %s, bailing." % self.wiki.config.php)
@@ -146,31 +146,72 @@ class DbServerInfo(object):
 
 
 class RunSimpleCommand(object):
-    def run_and_return(command, log_callback=None):
+    def run_with_output(command, maxtries=3, shell=False, log_callback=None, retry_delay=5):
         """Run a command and return the output as a string.
         Raises BackupError on non-zero return code."""
-        retval = 1
-        retries = 0
-        maxretries = 3
-        proc = Popen(command, bufsize=64, shell=True, stdout=PIPE, stderr=PIPE)
-        output, error_unused = proc.communicate()
-        retval = proc.returncode
-        while retval and retries < maxretries:
-            if log_callback:
-                log_callback("Non-zero return code from '%s'" % command)
-            time.sleep(5)
-            proc = Popen(command, bufsize=64, shell=True, stdout=PIPE, stderr=PIPE)
-            output, error_unused = proc.communicate()
-            retval = proc.returncode
-            retries = retries + 1
-        if retval:
-            if log_callback:
-                log_callback("Non-zero return code from '%s'" % command)
-            raise BackupError("Non-zero return code from '%s'" % command)
+
+        if type(command).__name__ == 'list':
+            command_string = " ".join(command)
+        else:
+            command_string = command
+
+        success = False
+        error = "unknown"
+        tries = 0
+        while not success and tries < maxtries:
+            proc = Popen(command, bufsize=64, shell=shell, stdout=PIPE, stderr=PIPE)
+            output, error = proc.communicate()
+            if not proc.returncode:
+                success = True
+            else:
+                if log_callback is not None:
+                    log_callback("Non-zero return code from '%s'" % command_string)
+                time.sleep(retry_delay)
+            tries = tries + 1
+
+        if not success:
+            if log_callback is not None:
+                log_callback("Non-zero return code from '%s' after max retries" % command_string)
+            if proc:
+                raise BackupError("command '" + command_string +
+                                  ("' failed with return code %s " % proc.returncode) +
+                                  " and error '" + error + "'")
+            else:
+                raise BackupError("command '" + command_string +
+                                  ("' failed") + " and error '" + error + "'")
         else:
             return output
 
-    run_and_return = staticmethod(run_and_return)
+    def run_with_no_output(command, maxtries=3, shell=False, log_callback=None, retry_delay=5):
+        """Run a command, expecting no output.
+        Raises BackupError on non-zero return code."""
+
+        if type(command).__name__ == 'list':
+            command_string = " ".join(command)
+        else:
+            command_string = command
+
+        success = False
+        error = "unknown"
+        tries = 0
+        while (not success) and tries < maxtries:
+            proc = Popen(command, shell=shell, stderr=PIPE)
+            # output will be None, we can ignore it
+            output_unused, error = proc.communicate()
+            if not proc.returncode:
+                success = True
+            else:
+                time.sleep(retry_delay)
+            tries = tries + 1
+        if not success:
+            if log_callback is not None:
+                log_callback("Non-zero return code from '%s' after max retries" % command_string)
+            raise BackupError("command '" + command_string +
+                              ("' failed with return code %s " %
+                               proc.returncode) + " and error '" + error + "'")
+
+    run_with_output = staticmethod(run_with_output)
+    run_with_no_output = staticmethod(run_with_no_output)
 
 
 class PageAndEditStats(object):
