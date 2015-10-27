@@ -7,12 +7,14 @@ import getopt
 import os
 import sys
 import time
-from IncrDumpLib import Config, RunSimpleCommand, MultiVersion
-from IncrDumpLib import DBServer, IncrementDir, IncrementDumpsError
+from IncrDumpLib import Config
+from IncrDumpLib import DBServer, IncrementDir
 from IncrDumpLib import MaxRevIDFile, StatusFile, IndexFile
 from IncrDumpLib import StubFile, RevsFile, MD5File, IncDumpDirs
 from IncrDumpLib import IncrDumpLock, StatusInfo
+from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
+from dumps.utils import RunSimpleCommand, MultiVersion
 from os.path import exists
 import hashlib
 import traceback
@@ -314,8 +316,8 @@ class IncrDump(object):
         return prev_revid
 
     def dump_stub(self, start_revid, end_revid):
-        script_command = MultiVersion.mwscript_as_array(self._config,
-                                                        "dumpBackup.php")
+        script_command = MultiVersion.mw_script_as_array(self._config,
+                                                         "dumpBackup.php")
         command = ["%s" % self._config.php, "-q"]
         command.extend(script_command)
         command.extend(["--wiki=%s" % self.wikiname, "--stub", "--quiet",
@@ -333,8 +335,8 @@ class IncrDump(object):
         return True
 
     def dump_revs(self):
-        script_command = MultiVersion.mwscript_as_array(self._config,
-                                                        "dumpTextPass.php")
+        script_command = MultiVersion.mw_script_as_array(self._config,
+                                                         "dumpTextPass.php")
         command = ["%s" % self._config.php, "-q"]
         command.extend(script_command)
         command.extend(["--wiki=%s" % self.wikiname,
@@ -428,8 +430,8 @@ class IncrDumpLoop(object):
                 break
             fails = fails + 1
             if fails > num_fails:
-                raise IncrementDumpsError("Too many consecutive failures,"
-                                          "giving up")
+                raise BackupError("Too many consecutive failures,"
+                                  "giving up")
             time.sleep(300)
 
 

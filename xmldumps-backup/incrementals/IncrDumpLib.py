@@ -6,9 +6,9 @@ import ConfigParser
 import dumps.WikiDump
 from dumps.WikiDump import FileUtils, MiscUtils
 from dumps.exceptions import BackupError
+from dumps.utils import MultiVersion, RunSimpleCommand
 from os.path import exists
 import socket
-from subprocess import Popen, PIPE
 import shutil
 import time
 
@@ -273,71 +273,6 @@ class Config(dumps.WikiDump.Config):
         return FileUtils.read_file(template)
 
 
-class RunSimpleCommand(object):
-    def run_with_output(command, maxtries=3, shell=False):
-        """Run a command and return the output as a string.
-        Raises IncrementDumpsError on non-zero return code."""
-        success = False
-        tries = 0
-        while not success and tries < maxtries:
-            proc = Popen(command, shell=shell, stdout=PIPE, stderr=PIPE)
-            output, error = proc.communicate()
-            if not proc.returncode:
-                success = True
-            tries = tries + 1
-        if not success:
-            if type(command).__name__ == 'list':
-                command_string = " ".join(command)
-            else:
-                command_string = command
-            if proc:
-                raise IncrementDumpsError("command '" + command_string +
-                                          ("' failed with return code %s " % proc.returncode) +
-                                          " and error '" + error + "'")
-            else:
-                raise IncrementDumpsError("command '" + command_string +
-                                          ("' failed") + " and error '" + error + "'")
-        return output
-
-    def run_with_no_output(command, maxtries=3, shell=False):
-        """Run a command, expecting no output.
-        Raises IncrementDumpsError on non-zero return code."""
-        success = False
-        tries = 0
-        while (not success) and tries < maxtries:
-            proc = Popen(command, shell=shell, stderr=PIPE)
-            # output will be None, we can ignore it
-            output_unused, error = proc.communicate()
-            if not proc.returncode:
-                success = True
-            tries = tries + 1
-        if not success:
-            if type(command).__name__ == 'list':
-                command_string = " ".join(command)
-            else:
-                command_string = command
-            raise IncrementDumpsError("command '" + command_string +
-                                      ("' failed with return code %s " %
-                                       proc.returncode) + " and error '" + error + "'")
-
-    run_with_output = staticmethod(run_with_output)
-    run_with_no_output = staticmethod(run_with_no_output)
-
-
-class MultiVersion(object):
-    def mwscript_as_string(config, maintenance_script):
-        return " ".join(MultiVersion.mwscript_as_array(config, maintenance_script))
-
-    def mwscript_as_array(config, maintenance_script):
-        if config.multiversion != "":
-            if exists(config.multiversion):
-                return [config.multiversion, maintenance_script]
-        return ["%s/maintenance/%s" % (config.mediawiki, maintenance_script)]
-
-    mwscript_as_string = staticmethod(mwscript_as_string)
-    mwscript_as_array = staticmethod(mwscript_as_array)
-
-
 class DBServer(object):
     def __init__(self, config, wikiname):
         self.config = config
@@ -347,7 +282,7 @@ class DBServer(object):
     def default_server(self):
         if not exists(self.config.php):
             raise BackupError("php command %s not found" % self.config.php)
-        command_list = MultiVersion.mwscript_as_array(self.config, "getSlaveServer.php")
+        command_list = MultiVersion.mw_script_as_array(self.config, "getSlaveServer.php")
         command = [self.config.php, "-q"]
         command.extend(command_list)
         command.extend(["--wiki=%s" % self.wikiname, "--group=dump"])
@@ -363,10 +298,6 @@ class DBServer(object):
             command = command + "-p" + self.config.db_password
         command = command + " -r --silent " + self.wikiname
         return command
-
-
-class IncrementDumpsError(Exception):
-    pass
 
 
 class IncrementDir(object):
