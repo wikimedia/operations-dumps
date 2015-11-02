@@ -17,7 +17,7 @@ from dumps.CommandManagement import CommandPipeline
 
 from dumps.exceptions import *
 from dumps.fileutils import *
-from dumps.utils import MultiVersion, RunInfo
+from dumps.utils import MultiVersion
 
 
 class Dump(object):
@@ -25,7 +25,7 @@ class Dump(object):
         self._desc = desc
         self.verbose = verbose
         self.progress = ""
-        self.runinfo = RunInfo(name, "waiting", "")
+        self.runinfo = {"name": name, "status": "waiting", "updated": ""}
         self.dumpname = self.get_dumpname()
         self.file_type = self.get_filetype()
         self.file_ext = self.get_file_ext()
@@ -55,22 +55,34 @@ class Dump(object):
             self._chunks = False
 
     def name(self):
-        return self.runinfo.name()
+        if "name" in self.runinfo:
+            return self.runinfo["name"]
+        else:
+            return None
 
     def status(self):
-        return self.runinfo.status()
+        if "status" in self.runinfo:
+            return self.runinfo["status"]
+        else:
+            return None
 
     def updated(self):
-        return self.runinfo.updated()
+        if "updated" in self.runinfo:
+            return self.runinfo["updated"]
+        else:
+            return None
 
     def to_run(self):
-        return self.runinfo.to_run()
+        if "to_run" in self.runinfo:
+            return self.runinfo["to_run"]
+        else:
+            return None
 
     def set_name(self, name):
-        self.runinfo.set_name(name)
+        self.runinfo["name"] = name
 
     def set_to_run(self, to_run):
-        self.runinfo.set_to_run(to_run)
+        self.runinfo["to_run"] = to_run
 
     def set_skipped(self):
         self.set_status("skipped")
@@ -80,12 +92,12 @@ class Dump(object):
     # dump run; in those cases we don't want to clobber the timestamp
     # with the current time.
     def set_status(self, status, set_updated=True):
-        self.runinfo.set_status(status)
+        self.runinfo["status"] = status
         if set_updated:
-            self.runinfo.set_updated(TimeUtils.pretty_time())
+            self.runinfo["updated"] = TimeUtils.pretty_time()
 
     def set_updated(self, updated):
-        self.runinfo.set_updated(updated)
+        self.runinfo["updated"] = updated
 
     def description(self):
         return self._desc
@@ -162,7 +174,7 @@ class Dump(object):
         This function expects that all files to check for truncation live in the public dir"""
         ret = 0
 
-        if not runner._check_for_trunc_files_enabled or not self._check_truncation:
+        if "check_trunc_files" not in runner.enabled or not self._check_truncation:
             return ret
 
         for dump_fname in self.list_outfiles_to_check_for_truncation(
@@ -199,7 +211,7 @@ class Dump(object):
             sys.stderr.write(line)
         self.progress = line.strip()
         runner.status.update_status_files()
-        runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
+        runner.dumpjobdata.runinfofile.save_dump_runinfo_file(runner.dumpjobdata.runinfofile.report_dump_runinfo(runner.dump_item_list.dump_items))
 
     def time_to_wait(self):
         # we use wait this many secs for a command to complete that
@@ -285,7 +297,7 @@ class Dump(object):
         return recombine_command_string
 
     def cleanup_old_files(self, dump_dir, runner, chunks=False):
-        if runner._cleanup_old_files_enabled:
+        if "clean_old_files" not in runner.enabled:
             if self.checkpoint_file is not None:
                 # we only rerun this one, so just remove this one
                 if exists(dump_dir.filename_public_path(self.checkpoint_file)):
@@ -1353,7 +1365,7 @@ class XmlDump(Dump):
                 continue
 
             # see if this job from that date was successful
-            if not runner.runinfo_file.status_of_old_dump_is_done(
+            if not runner.dumpjobdata.runinfofile.status_of_old_dump_is_done(
                     runner, date, self.name(), self._desc):
                 runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
                 continue

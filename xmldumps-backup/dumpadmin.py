@@ -11,10 +11,9 @@ import glob
 import socket
 import signal
 import traceback
-from dumps.utils import RunInfoFile
-from dumps.runnerutils import NoticeFile
+from dumps.runnerutils import NoticeFile, RunInfoFile
 from dumps.jobs import DumpDir
-from worker import Runner
+from dumps.runner import Runner
 from dumps.WikiDump import Wiki, Config, TimeUtils
 
 
@@ -320,8 +319,8 @@ class ActionHandler(object):
             return [], None
 
         for entry in results:
-            if entry.status() == "failed":
-                failed_jobs.append(entry.name())
+            if entry["status"] == "failed":
+                failed_jobs.append(entry["name"])
         return failed_jobs, date
 
     def find_failed_dumps(self):
@@ -378,13 +377,19 @@ class ActionHandler(object):
         # and latest links.
         runner = Runner(wiki, prefetch=True, spawn=True, job=None,
                         skip_jobs=[], restart=False, notice="", dryrun=False,
-                        logging_enabled=False, chunk_to_do=False, checkpoint_file=None,
+                        enabled=None, chunk_to_do=False, checkpoint_file=None,
                         page_id_range=None, skipdone=[], verbose=self.verbose)
 
         if not failed_jobs:
             if self.verbose:
                 print "no failed jobs for wiki", wiki
+            return
 
+        if not self.dryrun:
+            runner.dumpjobdata.do_before_dump()
+
+        # need to redo the md5sums again of the files we don't toss...
+        # so they are copied into the temp file. eeewww
         for job in failed_jobs:
             files = get_job_output_files(wiki, job, runner.dump_item_list.dump_items)
             paths = [runner.dump_dir.filename_public_path(fileinfo) for fileinfo in files]
@@ -399,22 +404,26 @@ class ActionHandler(object):
                     except:
                         continue
 
+        if not self.dryrun:
+            for item in runner.dump_item_list.dump_items:
+                if item.status() == "done":
+                    runner.dumpjobdata.do_after_job(item)
+
         if self.dryrun:
             print "would update dumpruninfo file, checksums file, ",
             print "status file, index.html file and symlinks to latest dir"
             return
 
-        if self.verbose:
-            print "updating dump run info file for wiki", wiki.db_name
-        runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
-
-        if self.verbose:
-            print "updating symlinks for wiki", wiki.db_name
-        runner.sym_links.cleanup_symlinks()
+        runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
 
         if self.verbose:
             print "updating status files for wiki", wiki.db_name
-        runner.status.update_status_files()
+
+        if self.dump_item_list.all_possible_jobs_done():
+            # All jobs are either in status "done", "waiting", "failed", "skipped"
+            runner.status.update_status_files("done")
+        else:
+            runner.status.update_status_files("partialdone")
 
         if rerun:
             for job in failed_jobs:
@@ -428,13 +437,13 @@ class ActionHandler(object):
         self.log_and_print("%s: %s" % (TimeUtils.pretty_time(), stuff))
 
     def rerun_jobs(self, runner):
-        runner.checksums.prepare_checksums()
+        runner.dumpjobdata.do_before_dump()
+
         for item in runner.dump_item_list.dump_items:
             if item.to_run():
                 item.start()
                 runner.status.update_status_files()
-                runner.runinfo_file.save_dump_runinfo_file(
-                    runner.dump_item_list.report_dump_runinfo())
+                runner.dumpjobdata.do_before_job(runner.dump_item_list.dump_items)
                 try:
                     item.dump(runner)
                 except Exception, ex:
@@ -458,15 +467,11 @@ class ActionHandler(object):
                     runner.status.fail_count += 1
 
             if item.status() == "done":
-                runner.checksums.cp_chksum_tmpfiles_to_permfile()
-                runner.run_update_item_fileinfo(item)
+                runner.dumpjobdata.do_after_job(item)
             elif item.status() == "waiting" or item.status() == "skipped":
-                # don't update the checksum files for this item.
                 continue
             else:
                 # failure
-                # preexisting failures can be ignored, a failure from this
-                # job run has already been alerted
                 continue
 
         if runner.dump_item_list.all_possible_jobs_done():
@@ -478,9 +483,8 @@ class ActionHandler(object):
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
             runner.status.update_status_files("partialdone")
-            runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
 
-        runner.checksums.move_chksumfiles_into_place()
+        runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
 
     def do_maintenance(self):
         '''
@@ -549,7 +553,7 @@ class ActionHandler(object):
 
         runner = Runner(wiki, prefetch=True, spawn=True, job=None,
                         skip_jobs=[], restart=False, notice="", dryrun=False,
-                        logging_enabled=False, chunk_to_do=False, checkpoint_file=None,
+                        enabled=None, chunk_to_do=False, checkpoint_file=None,
                         page_id_range=None, skipdone=[], verbose=self.verbose)
 
         known_jobs = [item.name() for item in runner.dump_item_list.dump_items] + ['tables']
@@ -565,40 +569,25 @@ class ActionHandler(object):
                 print "known jobs", known_jobs
             return
 
-        runner.checksums.prepare_checksums()
+        runner.dumpjobdata.do_before_dump()
+
         for item in runner.dump_item_list.dump_items:
             if item.name() == job:
                 item.set_status(status, True)
             if item.status() == "done":
-                runner.checksums.cp_chksum_tmpfiles_to_permfile()
-                runner.run_update_item_fileinfo(item)
-        # regen checksums and all that
+                runner.dumpjobdata.do_after_job(item)
+            elif item.status() not in ["done", "waiting", "skipped"]:
+                runner.status.fail_count += 1
 
+        if self.verbose:
+            print "updating status files for wiki", wiki.db_name
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
             runner.status.update_status_files("done")
         else:
-            # This may happen if we start a dump now and abort before all items are
-            # done. Then some are left for example in state "waiting". When
-            # afterwards running a specific job, all (but one) of the jobs
-            # previously in "waiting" are still in status "waiting"
             runner.status.update_status_files("partialdone")
-            runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
 
-        runner.checksums.move_chksumfiles_into_place()
-
-        if self.verbose:
-            print "updating dump run info file for wiki", wiki.db_name
-        runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
-
-        if self.verbose:
-            print "updating symlinks for wiki", wiki.db_name
-        runner.sym_links.cleanup_symlinks()
-
-        if self.verbose:
-            print "updating status files for wiki", wiki.db_name
-        runner.status.update_status_files()
-
+        runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
         return
 
     def undo_maintenance(self):
