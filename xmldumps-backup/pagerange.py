@@ -9,7 +9,7 @@ import worker
 import CommandManagement
 
 from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
-from worker import Runner
+from dumps.runner import Runner
 
 class PageRange(object):
     """Methods for getting number of revisions per page, 
