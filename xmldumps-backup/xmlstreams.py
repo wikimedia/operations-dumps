@@ -10,7 +10,7 @@ the run.
 import os
 import sys
 import time
-import worker
+from dumps.utils import DbServerInfo
 from dumps.WikiDump import Wiki
 
 from subprocess import Popen, PIPE
@@ -149,7 +149,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
     '''
     wiki = Wiki(wikiconf, wikidb)
 
-    db_info = worker.DbServerInfo(wiki, wikidb)
+    db_info = DbServerInfo(wiki, wikidb)
     query = "select MAX(%s) from %s%s;" % (id_field, db_info.db_table_prefix, table)
     results = None
     retries = 0
