@@ -123,7 +123,7 @@ class ActionHandler(object):
     methods for all actions, whether on one wiki or on all
     '''
 
-    def __init__(self, actions, message, undo, configfile,
+    def __init__(self, actions, message, job_status, undo, configfile,
                  wikiname, dryrun, verbose):
         '''
         constructor.
@@ -142,6 +142,7 @@ class ActionHandler(object):
         self.wikiname = wikiname
         self.configfile = configfile
         self.message = message
+        self.job_status = job_status
         self.conf = Config(self.configfile)
 
         if self.wikiname is None:
@@ -197,9 +198,11 @@ class ActionHandler(object):
         only one wiki
         '''
         for item in self.actions:
-            for wiki in self.wikiconfs:
-                if item == "notice":
+            if item == "notice":
+                for wiki in self.wikiconfs:
                     self.do_notice(wiki)
+            elif item == "mark":
+                self.do_mark(self.wikiname)
 
     def undo_global_actions(self):
         '''
@@ -532,6 +535,72 @@ class ActionHandler(object):
         wiki.set_date(date)
         NoticeFile(wiki, self.message, True)
 
+    def do_mark(self, wikiname):
+        '''
+        mark the specified job with the specified status.
+        '''
+
+        wiki = Wiki(self.wikiconfs[wikiname], wikiname)
+        date = wiki.latest_dump()
+        if date is None:
+            print "dump never run, not marking job for wiki", wikiname
+            return
+        wiki.set_date(date)
+
+        runner = Runner(wiki, prefetch=True, spawn=True, job=None,
+                        skip_jobs=[], restart=False, notice="", dryrun=False,
+                        logging_enabled=False, chunk_to_do=False, checkpoint_file=None,
+                        page_id_range=None, skipdone=[], verbose=self.verbose)
+
+        known_jobs = [item.name() for item in runner.dump_item_list.dump_items] + ['tables']
+        if ':' in self.job_status:
+            job, status = self.job_status.split(":", 1)
+            if status not in ["done", "failed"]:
+                status = None
+            if job not in known_jobs:
+                job = None
+        if job is None or status is None:
+            print "bad or no job/status specified", self.job_status
+            if self.verbose:
+                print "known jobs", known_jobs
+            return
+
+        runner.checksums.prepare_checksums()
+        for item in runner.dump_item_list.dump_items:
+            if item.name() == job:
+                item.set_status(status, True)
+            if item.status() == "done":
+                runner.checksums.cp_chksum_tmpfiles_to_permfile()
+                runner.run_update_item_fileinfo(item)
+        # regen checksums and all that
+
+        if runner.dump_item_list.all_possible_jobs_done():
+            # All jobs are either in status "done", "waiting", "failed", "skipped"
+            runner.status.update_status_files("done")
+        else:
+            # This may happen if we start a dump now and abort before all items are
+            # done. Then some are left for example in state "waiting". When
+            # afterwards running a specific job, all (but one) of the jobs
+            # previously in "waiting" are still in status "waiting"
+            runner.status.update_status_files("partialdone")
+            runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
+
+        runner.checksums.move_chksumfiles_into_place()
+
+        if self.verbose:
+            print "updating dump run info file for wiki", wiki.db_name
+        runner.runinfo_file.save_dump_runinfo_file(runner.dump_item_list.report_dump_runinfo())
+
+        if self.verbose:
+            print "updating symlinks for wiki", wiki.db_name
+        runner.sym_links.cleanup_symlinks()
+
+        if self.verbose:
+            print "updating status files for wiki", wiki.db_name
+        runner.status.update_status_files()
+
+        return
+
     def undo_maintenance(self):
         '''
         remove any maintenance.txt file that may exist,
@@ -638,6 +707,14 @@ Usage: dumpadmin.py --<action> [--<action>...]
                      job that produces 4 pages-article files
                      but only one is actually bad, it will
                      remove them all.
+    mark        (-M) requires argument job:status.
+                     mark given job with given status, rewrite
+                     index.html, hashfiles and dumpruninfo for latest
+                     dump for specified wiki.
+                     Note that for 'failed' status, output files
+                     are not removed and 'latest' links remain in place.
+                     Available statuses: done, failed
+                     Available jobs: see worker.py --help
     maintenance (-m) touch maintenance.txt in cwd, causing
                      workers to run no wikis and sleep 5
                      minutes in between checks to see if
@@ -708,7 +785,8 @@ def get_action_opt(option):
     '''
     return action correspodning to command line option
     '''
-    action_options = ['kill', 'unlock', 'remove', 'rerun', 'maintenance', 'exit']
+    action_options = ['kill', 'unlock', 'remove', 'rerun', 'mark',
+                      'maintenance', 'exit']
     if option.startswith("--"):
         option = option[2:]
         if option in action_options:
@@ -730,14 +808,15 @@ def main():
     dryrun = False
     verbose = False
     message = None
+    status = None
     undo = None
     wiki = None
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:n:U:w:kurRmedvh",
-                                                 ["configfile=", "notice=", "no=", "undo=",
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:n:M:U:w:kCurRmedvh",
+                                                 ["configfile=", "notice=", "undo=",
                                                   "wiki=", "kill", "unlock", "remove", "rerun",
-                                                  "maintenance", "exit", "dryrun",
+                                                  "mark", "maintenance", "exit", "dryrun",
                                                   "verbose", "help"])
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
@@ -748,6 +827,9 @@ def main():
         elif opt in ["-n", "--notice"]:
             actions.append("notice")
             message = val
+        elif opt in ["-M", "--mark"]:
+            actions.append("mark")
+            status = val
         elif opt in ["-U", "--undo"]:
             undo = val
         elif opt in ["-w", "--wiki"]:
@@ -768,8 +850,9 @@ def main():
     check_options(remainder, configfile)
     undo = fixup_undo(undo)
     check_actions(undo, actions)
-
-    handler = ActionHandler(actions, message, undo, configfile,
+    if status is not None and wiki is None:
+        usage("mark requires the --wiki option")
+    handler = ActionHandler(actions, message, status, undo, configfile,
                             wiki, dryrun, verbose)
     handler.do_all()
 
