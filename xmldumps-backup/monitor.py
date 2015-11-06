@@ -3,8 +3,8 @@
 import os
 import sys
 from os.path import exists
-from dumps.WikiDump import FileUtils, Wiki, Config
-
+from dumps.WikiDump import Wiki, Config
+from dumps.fileutils import FileUtils
 
 def add_to_filename(filename, infix):
     base, suffix = filename.split('.', 1)
@@ -22,20 +22,21 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=T
 
     for db_name in dbs:
         wiki = Wiki(config, db_name)
-        if wiki.is_stale():
+        locker = Locker(wiki)
+        if locker.is_stale():
             print db_name + " is stale"
-            wiki.cleanup_stale_lock()
+            locker.cleanup_stale_lock()
         if showlocks:
-            if wiki.is_locked():
+            if locker.is_locked():
                 try:
-                    filehdl = open(wiki.lock_file(), 'r')
+                    filehdl = open(locker.get_lock_file_path(), 'r')
                     (host, pid) = filehdl.readline().split(" ")
                     filehdl.close()
                     print db_name, "is locked by pid", pid, "on", host
                 except:
                     print db_name, "is locked"
-        running = running or wiki.is_locked()
-        states.append(wiki.status_line())
+        running = running or locker.is_locked()
+        states.append(StatusHtml.get_status_line(wiki))
 
     if running:
         status = "Dumps are in progress..."

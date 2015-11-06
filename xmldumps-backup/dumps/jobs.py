@@ -12,12 +12,11 @@ import signal
 import traceback
 
 from os.path import exists
-from dumps.WikiDump import MiscUtils, TimeUtils
 from dumps.CommandManagement import CommandPipeline
 
 from dumps.exceptions import *
 from dumps.fileutils import *
-from dumps.utils import MultiVersion
+from dumps.utils import MultiVersion, TimeUtils, MiscUtils
 
 
 class Dump(object):
@@ -210,7 +209,8 @@ class Dump(object):
                 runner.log.add_to_log_queue(line)
             sys.stderr.write(line)
         self.progress = line.strip()
-        runner.status.update_status_files()
+        runner.indexhtml.update_index_html()
+        runner.statushtml.update_status_file()
         runner.dumpjobdata.runinfofile.save_dump_runinfo_file(runner.dumpjobdata.runinfofile.report_dump_runinfo(runner.dump_item_list.dump_items))
 
     def time_to_wait(self):

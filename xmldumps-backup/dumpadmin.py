@@ -12,10 +12,10 @@ import socket
 import signal
 import traceback
 from dumps.runnerutils import NoticeFile, RunInfoFile
-from dumps.jobs import DumpDir
+from dumps.fileutils import DumpDir
 from dumps.runner import Runner
-from dumps.WikiDump import Wiki, Config, TimeUtils
-
+from dumps.WikiDump import Wiki, Config, Locker
+from dumps.utils import TimeUtils
 
 def command_has_wiki(pid, wikiname):
     '''
@@ -357,14 +357,14 @@ class ActionHandler(object):
             for date in failed_dumps[wikiname]:
                 wiki = Wiki(self.wikiconfs[wikiname], wikiname)
                 wiki.set_date(date)
-
+                locker = Locker(wiki)
                 try:
-                    wiki.lock()
+                    locker.lock()
                 except:
                     sys.stderr.write("Couldn't lock %s, can't do cleanup\n" % wikiname)
                     continue
                 self.cleanup_dump(wiki, failed_dumps[wikiname][date], rerun=rerun)
-                wiki.unlock()
+                locker.unlock()
 
     def cleanup_dump(self, wiki, failed_jobs, rerun=False):
         '''
@@ -419,11 +419,13 @@ class ActionHandler(object):
         if self.verbose:
             print "updating status files for wiki", wiki.db_name
 
-        if self.dump_item_list.all_possible_jobs_done():
+        if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            runner.status.update_status_files("done")
+            runner.indexhtml.update_index_html("done")
+            runner.statushtml.update_status_file("done")
         else:
-            runner.status.update_status_files("partialdone")
+            runner.indexhtml.update_index_html("partialdone")
+            runner.statushtml.update_status_file("partialdone")
 
         if rerun:
             for job in failed_jobs:
@@ -442,7 +444,8 @@ class ActionHandler(object):
         for item in runner.dump_item_list.dump_items:
             if item.to_run():
                 item.start()
-                runner.status.update_status_files()
+                runner.indexhtml.update_index_html()
+                runner.statushtml.update_status_file()
                 runner.dumpjobdata.do_before_job(runner.dump_item_list.dump_items)
                 try:
                     item.dump(runner)
@@ -463,8 +466,8 @@ class ActionHandler(object):
                 # "in-progress", if an item chooses to override dump(...) and
                 # forgets to set the status. This is a failure as well.
                 if item.status() not in ["done", "waiting", "skipped"]:
-                    runner.status.report_failure()
-                    runner.status.fail_count += 1
+                    runner.failurehandler.report_failure()
+                    runner.failurehandler.failure_count += 1
 
             if item.status() == "done":
                 runner.dumpjobdata.do_after_job(item)
@@ -476,13 +479,15 @@ class ActionHandler(object):
 
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            runner.status.update_status_files("done")
+            runner.indexhtml.update_index_html_file("done")
+            runner.statushtml.update_status_file("done")
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            runner.status.update_status_files("partialdone")
+            runner.indexhtml.update_index_html("partialdone")
+            runner.statushtml.update_status_file("partialdone")
 
         runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
 
@@ -577,15 +582,17 @@ class ActionHandler(object):
             if item.status() == "done":
                 runner.dumpjobdata.do_after_job(item)
             elif item.status() not in ["done", "waiting", "skipped"]:
-                runner.status.fail_count += 1
+                runner.failurehandler.failure_count += 1
 
         if self.verbose:
             print "updating status files for wiki", wiki.db_name
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            runner.status.update_status_files("done")
+            runner.indexhtml.update_index_html("done")
+            runner.statushtml.update_status_file("done")
         else:
-            runner.status.update_status_files("partialdone")
+            runner.indexhtml.update_index_html("partialdone")
+            runner.statushtml.update_status_file("partialdone")
 
         runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
         return

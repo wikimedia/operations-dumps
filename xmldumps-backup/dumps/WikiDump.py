@@ -1,169 +1,14 @@
 import ConfigParser
-from email.mime import text as MIMEText
 import os
-import shutil
 import re
-import smtplib
 import socket
 import sys
 import threading
 import time
-import tempfile
 
-
-class FileUtils(object):
-
-    def file_age(filename):
-        return time.time() - os.stat(filename).st_mtime
-
-    def atomic_create(filename, mode='w'):
-        """Create a file, aborting if it already exists..."""
-        fhandle = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
-        return os.fdopen(fhandle, mode)
-
-    def write_file(dirname, filename, text, perms=0):
-        """Write text to a file, as atomically as possible,
-        via a temporary file in a specified directory.
-        Arguments: dirname = where temp file is created,
-        filename = full path to actual file, text = contents
-        to write to file, perms = permissions that the file will have after creation"""
-
-        if not os.path.isdir(dirname):
-            try:
-                os.makedirs(dirname)
-            except:
-                raise IOError("The given directory '%s' is neither "
-                              "a directory nor can it be created" % dirname)
-
-        (fhandle, temp_filename) = tempfile.mkstemp("_txt", "wikidump_", dirname)
-        os.write(fhandle, text)
-        os.close(fhandle)
-        if perms:
-            os.chmod(temp_filename, perms)
-        # This may fail across filesystems or on Windows.
-        # Of course nothing else will work on Windows. ;)
-        shutil.move(temp_filename, filename)
-
-    def write_file_in_place(filename, text, perms=0):
-        """Write text to a file, after opening it for write with truncation.
-        This assumes that only one process or thread accesses the given file at a time.
-        Arguments: filename = full path to actual file, text = contents
-        to write to file, perms = permissions that the file will have after creation,
-        if it did not exist already"""
-
-        filehdl = open(filename, "wt")
-        filehdl.write(text)
-        filehdl.close()
-        if perms:
-            os.chmod(filename, perms)
-
-    def read_file(filename):
-        """Read text from a file in one fell swoop."""
-        filehdl = open(filename, "r")
-        text = filehdl.read()
-        filehdl.close()
-        return text
-
-    def split_path(path):
-        # For some reason, os.path.split only does one level.
-        parts = []
-        (path, filename) = os.path.split(path)
-        if not filename:
-            # Probably a final slash
-            (path, filename) = os.path.split(path)
-        while filename:
-            parts.insert(0, filename)
-            (path, filename) = os.path.split(path)
-        return parts
-
-    def relative_path(path, base):
-        """Return a relative path to 'path' from the directory 'base'."""
-        path = FileUtils.split_path(path)
-        base = FileUtils.split_path(base)
-        while base and path[0] == base[0]:
-            path.pop(0)
-            base.pop(0)
-        for prefix_unused in base:
-            path.insert(0, "..")
-        return os.path.join(*path)
-
-    def pretty_size(size):
-        """Return a string with an attractively formatted file size."""
-        quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
-        return FileUtils._pretty_size(size, quanta)
-
-    def _pretty_size(size, quanta):
-        if size < 1024 or len(quanta) == 1:
-            return quanta[0] % size
-        else:
-            return FileUtils._pretty_size(size / 1024.0, quanta[1:])
-
-    def file_info(path):
-        """Return a tuple of date/time and size of a file, or None, None"""
-        try:
-            timestamp = time.gmtime(os.stat(path).st_mtime)
-            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
-            size = os.path.getsize(path)
-            return (timestamp, size)
-        except:
-            return(None, None)
-
-    file_age = staticmethod(file_age)
-    atomic_create = staticmethod(atomic_create)
-    write_file = staticmethod(write_file)
-    write_file_in_place = staticmethod(write_file_in_place)
-    read_file = staticmethod(read_file)
-    split_path = staticmethod(split_path)
-    relative_path = staticmethod(relative_path)
-    pretty_size = staticmethod(pretty_size)
-    _pretty_size = staticmethod(_pretty_size)
-    file_info = staticmethod(file_info)
-
-
-class TimeUtils(object):
-
-    def today():
-        return time.strftime("%Y%m%d", time.gmtime())
-
-    def pretty_time():
-        return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-
-    def pretty_date(key):
-        "Prettify a MediaWiki date key"
-        return "-".join((key[0:4], key[4:6], key[6:8]))
-
-    today = staticmethod(today)
-    pretty_time = staticmethod(pretty_time)
-    pretty_date = staticmethod(pretty_date)
-
-
-class MiscUtils(object):
-    def db_list(filename):
-        """Read database list from a file"""
-        if not filename:
-            return []
-        infile = open(filename)
-        dbs = []
-        for line in infile:
-            line = line.strip()
-            if line != "":
-                dbs.append(line)
-        infile.close()
-        dbs.sort()
-        return dbs
-
-    def shell_escape(param):
-        """Escape a string parameter, or set of strings, for the shell."""
-        if isinstance(param, basestring):
-            return "'" + param.replace("'", "'\\''") + "'"
-        elif param is None:
-            # A blank string might actually be needed; None means we can leave it out
-            return ""
-        else:
-            return tuple([MiscUtils.shell_escape(x) for x in param])
-
-    db_list = staticmethod(db_list)
-    shell_escape = staticmethod(shell_escape)
+from dumps.runnerutils import StatusHtml
+from dumps.fileutils import FileUtils
+from dumps.utils import MiscUtils, TimeUtils
 
 
 class Config(object):
@@ -459,7 +304,7 @@ class Config(object):
             last = wiki.latest_dump()
             status = ''
             if last:
-                dump_status = os.path.join(wiki.public_dir(), last, "status.html")
+                dump_status = StatusHtml.get_statusfile_path(wiki, last)
                 try:
                     if use_status_time:
                         # only use the status file time, not the dir date
@@ -480,21 +325,6 @@ class Config(object):
     def read_template(self, name):
         template = os.path.join(self.template_dir, name)
         return FileUtils.read_file(template)
-
-    def mail(self, subject, body):
-        """Send out a quickie email."""
-        message = MIMEText.MIMEText(body)
-        message["Subject"] = subject
-        message["From"] = self.mail_from
-        message["To"] = self.admin_mail
-
-        try:
-            server = smtplib.SMTP(self.smtp_server)
-            server.sendmail(self.mail_from, self.admin_mail, message.as_string())
-            server.close()
-        except:
-            print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
-            print message
 
 
 class Wiki(object):
@@ -518,19 +348,6 @@ class Wiki(object):
 
     def is_wikidata_client(self):
         return self.db_name in self.config.wikidata_client_list
-
-    def is_locked(self):
-        return os.path.exists(self.lock_file())
-
-    def is_stale(self):
-        if not self.is_locked():
-            return False
-        try:
-            age = self.lock_age()
-            return age > self.config.stale_age
-        except:
-            # Lock file vanished while we were looking
-            return False
 
     # Paths and directories...
 
@@ -561,76 +378,12 @@ class Wiki(object):
 
     # Actions!
 
-    def lock(self):
-        if not os.path.isdir(self.private_dir()):
-            try:
-                os.makedirs(self.private_dir())
-            except:
-                # Maybe it was just created (race condition)?
-                if not os.path.isdir(self.private_dir()):
-                    raise
-        lockf = FileUtils.atomic_create(self.lock_file(), "w")
-        lockf.write("%s %d" % (socket.getfqdn(), os.getpid()))
-        lockf.close()
-
-        self.watchdog = LockWatchdog(self.lock_file())
-        self.watchdog.start()
-        return True
-
-    def unlock(self):
-        if self.watchdog:
-            self.watchdog.stop_watching()
-            self.watchdog = None
-        os.remove(self.lock_file())
-
     def set_date(self, date):
         self.date = date
-
-    def cleanup_stale_lock(self):
-        date = self.latest_dump()
-        if date:
-            self.set_date(date)
-            self.write_status(self.report_statusline(
-                "<span class=\"failed\">dump aborted</span>"))
-        self.unlock()
-
-    def write_perdump_index(self, html):
-        index = os.path.join(self.public_dir(), self.date, self.config.perdump_index)
-        FileUtils.write_file_in_place(index, html, self.config.fileperms)
 
     def exists_perdump_index(self):
         index = os.path.join(self.public_dir(), self.date, self.config.perdump_index)
         return os.path.exists(index)
-
-    def write_status(self, message):
-        index = os.path.join(self.public_dir(), self.date, "status.html")
-        FileUtils.write_file_in_place(index, message, self.config.fileperms)
-
-    def status_line(self):
-        date = self.latest_dump()
-        if date:
-            status = os.path.join(self.public_dir(), date, "status.html")
-            try:
-                return FileUtils.read_file(status)
-            except:
-                return self.report_statusline("missing status record")
-        else:
-            return self.report_statusline("has not yet been dumped")
-
-    def report_statusline(self, status, error=False):
-        if error:
-            # No state information, hide the timestamp
-            stamp = "<span style=\"visible: none\">" + TimeUtils.pretty_time() + "</span>"
-        else:
-            stamp = TimeUtils.pretty_time()
-        if self.is_private():
-            link = "%s (private data)" % self.db_name
-        else:
-            if self.date:
-                link = "<a href=\"%s/%s\">%s</a>" % (self.db_name, self.date, self.db_name)
-            else:
-                link = "%s (new)" % self.db_name
-        return "<li>%s %s: %s</li>\n" % (stamp, link, status)
 
     def latest_dump(self, index=-1, return_all=False):
         """Find the last (or slightly less than last) dump for a db."""
@@ -647,7 +400,7 @@ class Wiki(object):
         mtime = 0
         last = self.latest_dump()
         if last:
-            dump_status = os.path.join(self.public_dir(), last, "status.html")
+            dump_status = StatusHtml.get_statusfile_path(self, last)
             try:
                 mtime = os.stat(dump_status).st_mtime
             except:
@@ -671,12 +424,61 @@ class Wiki(object):
         dates.sort()
         return dates
 
+
+class Locker(object):
+    def __init__(self, wiki):
+        self.wiki = wiki
+        self.watchdog = None
+
+    def is_locked(self):
+        return os.path.exists(self.get_lock_file_path())
+
+    def is_stale(self):
+        if not self.is_locked():
+            return False
+        try:
+            age = self.lock_age()
+            return age > self.wiki.config.stale_age
+        except:
+            # Lock file vanished while we were looking
+            return False
+
+    def lock(self):
+        if not os.path.isdir(self.wiki.private_dir()):
+            try:
+                os.makedirs(self.wiki.private_dir())
+            except:
+                # Maybe it was just created (race condition)?
+                if not os.path.isdir(self.wiki.private_dir()):
+                    raise
+        lockf = FileUtils.atomic_create(self.get_lock_file_path(), "w")
+        lockf.write("%s %d" % (socket.getfqdn(), os.getpid()))
+        lockf.close()
+
+        self.watchdog = LockWatchdog(self.get_lock_file_path())
+        self.watchdog.start()
+        return True
+
+    def unlock(self):
+        if self.watchdog is not None:
+            self.watchdog.stop_watching()
+            self.watchdog = None
+        os.remove(self.get_lock_file_path())
+
+    def cleanup_stale_lock(self):
+        date = self.wiki.latest_dump()
+        if date:
+            self.wiki.set_date(date)
+            StatusHtml.write_status(self.wiki, StatusHtml.status_line(
+                self.wiki, aborted=True))
+        self.unlock()
+
     # private....
-    def lock_file(self):
-        return os.path.join(self.private_dir(), "lock")
+    def get_lock_file_path(self):
+        return os.path.join(self.wiki.private_dir(), "lock")
 
     def lock_age(self):
-        return FileUtils.file_age(self.lock_file())
+        return FileUtils.file_age(self.get_lock_file_path())
 
 
 class LockWatchdog(threading.Thread):

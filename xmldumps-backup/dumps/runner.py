@@ -6,7 +6,6 @@ import traceback
 import Queue
 
 from os.path import exists
-from dumps.WikiDump import TimeUtils
 from dumps.CommandManagement import CommandsInParallel
 from dumps.jobs import AbstractDump, AllTitleDump, BackupError, BigXmlDump
 from dumps.jobs import DumpDir, DumpFilename, PrivateTable, PublicTable
@@ -15,9 +14,10 @@ from dumps.jobs import RecombineXmlStub, RecombineXmlRecompressDump
 from dumps.jobs import TitleDump, XmlDump, XmlLogging, XmlMultiStreamDump
 from dumps.jobs import XmlRecompressDump, XmlStub
 from dumps.runnerutils import SymLinks, Feeds, NoticeFile
-from dumps.runnerutils import Checksummer, Status, Maintenance, RunInfoFile, DumpRunJobData
+from dumps.runnerutils import Checksummer, IndexHtml, StatusHtml, FailureHandler
+from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
 
-from dumps.utils import DbServerInfo, Chunk
+from dumps.utils import DbServerInfo, Chunk, TimeUtils
 
 
 class Logger(object):
@@ -473,13 +473,15 @@ class Runner(object):
 
         if self.enabled is None:
             self.enabled = {}
-        for setting in [Status.NAME, Checksummer.NAME, RunInfoFile.NAME, SymLinks.NAME,
+        for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
+                        RunInfoFile.NAME, SymLinks.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
                         "clean_old_files", "check_trunc_files"]:
             self.enabled[setting] = True
 
         if self.dryrun or self._chunk_todo or self.checkpoint_file is not None:
-            for setting in [Status.NAME, Checksummer.NAME, RunInfoFile.NAME, SymLinks.NAME,
+            for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
+                            RunInfoFile.NAME, SymLinks.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
                 del self.enabled[setting]
 
@@ -493,7 +495,7 @@ class Runner(object):
         self.job_requested = job
 
         if self.job_requested == "latestlinks":
-            for setting in [Status.NAME, RunInfoFile.NAME]:
+            for setting in [StatusHtml.NAME, IndexHtml.NAME, RunInfoFile.NAME]:
                 del self.enabled[setting]
 
         if self.job_requested == "createdirs":
@@ -539,9 +541,18 @@ class Runner(object):
             email = False
         else:
             email = True
-        self.status = Status(self.wiki, self.dump_dir, self.dump_item_list.dump_items,
-                             self.dumpjobdata, self.enabled, email,
-                             self.log_and_print, self.verbose)
+        self.failurehandler = FailureHandler(self.wiki, email)
+        self.statushtml = StatusHtml(self.wiki, self.dump_dir,
+                                     self.dump_item_list.dump_items,
+                                     self.dumpjobdata, self.enabled,
+                                     self.failurehandler,
+                                     self.log_and_print, self.verbose)
+        self.indexhtml = IndexHtml(self.wiki, self.dump_dir,
+                                   self.dump_item_list.dump_items,
+                                   self.dumpjobdata, self.enabled,
+                                   self.failurehandler,
+                                   self.log_and_print, self.verbose)
+
 
     def log_queue_reader(self, log):
         if not log:
@@ -555,6 +566,10 @@ class Runner(object):
             self.log.add_to_log_queue("%s\n" % message)
         sys.stderr.write("%s\n" % message)
 
+    def html_update_callback(self):
+        self.indexhtml.update_index_html()
+        self.statushtml.update_status_file()
+
     # returns 0 on success, 1 on error
     def save_command(self, commands, outfile):
         """For one pipeline of commands, redirect output to a given file."""
@@ -564,7 +579,7 @@ class Runner(object):
             self.pretty_print_commands([series])
             return 0
         else:
-            return self.run_command([series], callback_timed=self.status.update_status_files)
+            return self.run_command([series], callback_timed=self.html_update_callback)
 
     def pretty_print_commands(self, command_series_list):
         for series in command_series_list:
@@ -621,10 +636,10 @@ class Runner(object):
         self.log_and_print("%s: %s %s" % (TimeUtils.pretty_time(), self.db_name, stuff))
 
     def run_handle_failure(self):
-        if self.status.fail_count < 1:
+        if self.failurehandler.failure_count < 1:
             # Email the site administrator just once per database
-            self.status.report_failure()
-        self.status.fail_count += 1
+            self.failurehandler.report_failure()
+        self.failurehandler.failure_count += 1
 
     def run(self):
         if self.job_requested:
@@ -681,7 +696,9 @@ class Runner(object):
                 % (self.db_name, item.name()))
             if item.to_run():
                 item.start()
-                self.status.update_status_files()
+                self.indexhtml.update_index_html()
+                self.statushtml.update_status_file()
+
                 self.dumpjobdata.do_before_job(self.dump_item_list.dump_items)
 
                 try:
@@ -719,13 +736,15 @@ class Runner(object):
 
         if self.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            self.status.update_status_files("done")
+            self.indexhtml.update_index_html("done")
+            self.statushtml.update_status_file("done")
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            self.status.update_status_files("partialdone")
+            self.indexhtml.update_index_html("done")
+            self.statushtml.update_status_file("done")
 
         self.dumpjobdata.do_after_dump(self.dump_item_list.dump_items)
 
@@ -746,7 +765,7 @@ class Runner(object):
             self.show_runner_state_complete()
 
         # let caller know if this was a successful run
-        if self.status.fail_count > 0:
+        if self.failurehandler.failure_count > 0:
             return False
         else:
             return True
