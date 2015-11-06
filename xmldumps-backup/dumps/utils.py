@@ -11,9 +11,53 @@ import socket
 
 from os.path import exists
 from subprocess import Popen, PIPE
-from dumps.WikiDump import FileUtils, MiscUtils
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
+
+
+class MiscUtils(object):
+    def db_list(filename):
+        """Read database list from a file"""
+        if not filename:
+            return []
+        infile = open(filename)
+        dbs = []
+        for line in infile:
+            line = line.strip()
+            if line != "":
+                dbs.append(line)
+        infile.close()
+        dbs.sort()
+        return dbs
+
+    def shell_escape(param):
+        """Escape a string parameter, or set of strings, for the shell."""
+        if isinstance(param, basestring):
+            return "'" + param.replace("'", "'\\''") + "'"
+        elif param is None:
+            # A blank string might actually be needed; None means we can leave it out
+            return ""
+        else:
+            return tuple([MiscUtils.shell_escape(x) for x in param])
+
+    db_list = staticmethod(db_list)
+    shell_escape = staticmethod(shell_escape)
+
+
+class TimeUtils(object):
+    def today():
+        return time.strftime("%Y%m%d", time.gmtime())
+
+    def pretty_time():
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+
+    def pretty_date(key):
+        "Prettify a MediaWiki date key"
+        return "-".join((key[0:4], key[4:6], key[6:8]))
+
+    today = staticmethod(today)
+    pretty_time = staticmethod(pretty_time)
+    pretty_date = staticmethod(pretty_date)
 
 
 class MultiVersion(object):

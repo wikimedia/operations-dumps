@@ -7,11 +7,122 @@ import sys
 import time
 import signal
 import traceback
+import tempfile
+import shutil
 
 from os.path import exists
-from dumps.WikiDump import MiscUtils
+from dumps.utils import MiscUtils
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
+
+
+class FileUtils(object):
+
+    def file_age(filename):
+        return time.time() - os.stat(filename).st_mtime
+
+    def atomic_create(filename, mode='w'):
+        """Create a file, aborting if it already exists..."""
+        fhandle = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
+        return os.fdopen(fhandle, mode)
+
+    def write_file(dirname, filename, text, perms=0):
+        """Write text to a file, as atomically as possible,
+        via a temporary file in a specified directory.
+        Arguments: dirname = where temp file is created,
+        filename = full path to actual file, text = contents
+        to write to file, perms = permissions that the file will have after creation"""
+
+        if not os.path.isdir(dirname):
+            try:
+                os.makedirs(dirname)
+            except:
+                raise IOError("The given directory '%s' is neither "
+                              "a directory nor can it be created" % dirname)
+
+        (fhandle, temp_filename) = tempfile.mkstemp("_txt", "wikidump_", dirname)
+        os.write(fhandle, text)
+        os.close(fhandle)
+        if perms:
+            os.chmod(temp_filename, perms)
+        # This may fail across filesystems or on Windows.
+        # Of course nothing else will work on Windows. ;)
+        shutil.move(temp_filename, filename)
+
+    def write_file_in_place(filename, text, perms=0):
+        """Write text to a file, after opening it for write with truncation.
+        This assumes that only one process or thread accesses the given file at a time.
+        Arguments: filename = full path to actual file, text = contents
+        to write to file, perms = permissions that the file will have after creation,
+        if it did not exist already"""
+
+        filehdl = open(filename, "wt")
+        filehdl.write(text)
+        filehdl.close()
+        if perms:
+            os.chmod(filename, perms)
+
+    def read_file(filename):
+        """Read text from a file in one fell swoop."""
+        filehdl = open(filename, "r")
+        text = filehdl.read()
+        filehdl.close()
+        return text
+
+    def split_path(path):
+        # For some reason, os.path.split only does one level.
+        parts = []
+        (path, filename) = os.path.split(path)
+        if not filename:
+            # Probably a final slash
+            (path, filename) = os.path.split(path)
+        while filename:
+            parts.insert(0, filename)
+            (path, filename) = os.path.split(path)
+        return parts
+
+    def relative_path(path, base):
+        """Return a relative path to 'path' from the directory 'base'."""
+        path = FileUtils.split_path(path)
+        base = FileUtils.split_path(base)
+        while base and path[0] == base[0]:
+            path.pop(0)
+            base.pop(0)
+        for prefix_unused in base:
+            path.insert(0, "..")
+        return os.path.join(*path)
+
+    def pretty_size(size):
+        """Return a string with an attractively formatted file size."""
+        quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
+        return FileUtils._pretty_size(size, quanta)
+
+    def _pretty_size(size, quanta):
+        if size < 1024 or len(quanta) == 1:
+            return quanta[0] % size
+        else:
+            return FileUtils._pretty_size(size / 1024.0, quanta[1:])
+
+    def file_info(path):
+        """Return a tuple of date/time and size of a file, or None, None"""
+        try:
+            timestamp = time.gmtime(os.stat(path).st_mtime)
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
+            size = os.path.getsize(path)
+            return (timestamp, size)
+        except:
+            return(None, None)
+
+    file_age = staticmethod(file_age)
+    atomic_create = staticmethod(atomic_create)
+    write_file = staticmethod(write_file)
+    write_file_in_place = staticmethod(write_file_in_place)
+    read_file = staticmethod(read_file)
+    split_path = staticmethod(split_path)
+    relative_path = staticmethod(relative_path)
+    pretty_size = staticmethod(pretty_size)
+    _pretty_size = staticmethod(_pretty_size)
+    file_info = staticmethod(file_info)
 
 
 class DumpFilename(object):

@@ -5,10 +5,10 @@ import os
 import sys
 
 from os.path import exists
-from dumps.WikiDump import TimeUtils, Wiki, Config, cleanup
+from dumps.WikiDump import Wiki, Config, cleanup, Locker
 from dumps.jobs import DumpFilename
 from dumps.runner import Runner
-
+from dumps.utils import TimeUtils
 
 def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
                checkpoint_file, prefetch, spawn, dryrun, skipdone, verbose,
@@ -83,7 +83,8 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
         return True
 
 
-def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun, html_notice, bystatustime=False,
+def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
+                        html_notice, bystatustime=False,
                         check_job_status=False, check_prereq_status=False,
                         date=None, job=None, skipjobs=None, page_id_range=None,
                         chunk_to_do=None, checkpoint_file=None, skipdone=False, restart=False,
@@ -115,7 +116,8 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun, 
                 continue
         try:
             if locks_enabled:
-                wiki.lock()
+                locker = Locker(wiki)
+                locker.lock()
             return wiki
         except:
             if check_prereq_status:
@@ -345,10 +347,11 @@ def main():
                 if last_ran >= cutoff:
                     wiki = None
             if wiki is not None and locks_enabled:
-                if force_lock and wiki.is_locked():
-                    wiki.unlock()
+                locker = Locker(wiki)
+                if force_lock and locker.is_locked():
+                    locker.unlock()
                 if locks_enabled:
-                    wiki.lock()
+                    locker.lock()
 
         else:
             # if the run is across all wikis and we are just doing one job,
@@ -423,7 +426,8 @@ def main():
                 exitcode = 0
             # if we are doing one piece only of the dump, we don't unlock either
             if locks_enabled:
-                wiki.unlock()
+                locker = Locker(wiki)
+                locker.unlock()
         elif wiki is not None:
             sys.stderr.write("Wikis available to run but prereqs not complete.\n")
             exitcode = 0
