@@ -7,12 +7,14 @@ import Queue
 
 from os.path import exists
 from dumps.CommandManagement import CommandsInParallel
-from dumps.jobs import AbstractDump, AllTitleDump, BackupError, BigXmlDump
-from dumps.jobs import DumpDir, DumpFilename, PrivateTable, PublicTable
-from dumps.jobs import RecombineAbstractDump, RecombineXmlDump
-from dumps.jobs import RecombineXmlStub, RecombineXmlRecompressDump
-from dumps.jobs import TitleDump, XmlDump, XmlLogging, XmlMultiStreamDump
-from dumps.jobs import XmlRecompressDump, XmlStub
+from dumps.exceptions import BackupError
+from dumps.fileutils import DumpDir, DumpFilename
+
+from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
+from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump, RecombineXmlStub, RecombineXmlRecompressDump
+from dumps.xmljobs import XmlDump, XmlLogging, XmlStub, BigXmlDump, AbstractDump
+from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
+
 from dumps.runnerutils import SymLinks, Feeds, NoticeFile
 from dumps.runnerutils import Checksummer, IndexHtml, StatusHtml, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
