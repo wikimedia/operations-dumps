@@ -293,7 +293,7 @@ class Dump(object):
                                     "%s %s" % (compression_command, output_filename))
         return recombine_command_string
 
-    def cleanup_old_files(self, dump_dir, runner, parts=False):
+    def cleanup_old_files(self, dump_dir, runner):
         if "clean_old_files" not in runner.enabled:
             if self.checkpoint_file is not None:
                 # we only rerun this one, so just remove this one
@@ -317,8 +317,8 @@ class Dump(object):
         else:
             return False
 
-    # list all regular output files that exist
     def list_reg_files(self, dump_dir, dump_names=None, date=None, parts=None):
+        '''list all regular output files that exist'''
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
@@ -327,8 +327,8 @@ class Dump(object):
                 date, dname, self.file_type, self.file_ext, parts, temp=False))
         return files
 
-    # list all checkpoint files that exist
     def list_checkpt_files(self, dump_dir, dump_names=None, date=None, parts=None):
+        '''list all checkpoint files that exist'''
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
@@ -337,8 +337,8 @@ class Dump(object):
                 date, dname, self.file_type, self.file_ext, parts, temp=False))
         return files
 
-    # list checkpoint files that have been produced for specified file part(s)
     def list_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None):
+        '''list checkpoint files that have been produced for specified file part(s)'''
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
@@ -347,8 +347,8 @@ class Dump(object):
                 None, dname, self.file_type, self.file_ext, parts, temp=False))
         return files
 
-    # list noncheckpoint files that have been produced for specified file part(s)
     def list_reg_files_for_filepart(self, dump_dir, parts, dump_names=None):
+        '''list noncheckpoint files that have been produced for specified file part(s)'''
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
@@ -357,8 +357,8 @@ class Dump(object):
                 None, dname, self.file_type, self.file_ext, parts, temp=False))
         return files
 
-    # list temp output files that have been produced for specified file part(s)
     def list_temp_files_for_filepart(self, dump_dir, parts, dump_names=None):
+        '''list temp output files that have been produced for specified file part(s)'''
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
@@ -369,18 +369,21 @@ class Dump(object):
                 None, dname, self.file_type, self.file_ext, parts, temp=True))
         return files
 
-    # internal function which all the public get*Possible functions call
-    # list all files that could be created for the given dumpname, filtering by the given args.
-    # by definition, checkpoint files are never returned in such a list, as we don't
-    # know where a checkpoint might be taken (which pageId start/end).
-    #
-    # if we get None for an arg then we accept all values for that arg in the filename
-    # if we get False for an arg (parts, temp), we reject any filename
-    # which contains a value for that arg
-    # if we get True for an arg (temp), we accept only filenames which contain a value for the arg
-    # parts should be a list of value(s), or True / False / None
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
                             file_type=None, file_ext=None, parts=None, temp=False):
+        '''
+        internal function which all the public get_*_possible functions call
+        list all files that could be created for the given dumpname, filtering by the given args.
+        by definition, checkpoint files are never returned in such a list, as we don't
+        know where a checkpoint might be taken (which pageId start/end).
+
+        if we get None for an arg then we accept all values for that arg in the filename
+        if we get False for an arg (parts, temp), we reject any filename
+        which contains a value for that arg
+        if we get True for an arg (temp), we accept only filenames which contain a value for the arg
+        parts should be a list of value(s), or True / False / None
+        '''
+
         files = []
         if dumpname is None:
             dumpname = self.dumpname
@@ -395,9 +398,11 @@ class Dump(object):
                                           file_type, file_ext, partnum, None, temp))
         return files
 
-    # based on dump name, parts, etc. get all the
-    # output files we expect to generate for these parts
     def get_reg_files_for_filepart_possible(self, dump_dir, parts, dump_names=None):
+        '''
+        based on dump name, parts, etc. get all the
+        output files we expect to generate for these parts
+        '''
         if not dump_names:
             dump_names = [self.dumpname]
         files = []
@@ -406,18 +411,17 @@ class Dump(object):
                 dump_dir, None, dname, self.file_type, self.file_ext, parts, temp=False))
         return files
 
-################################
-#
 # these routines are all used for listing output files for various purposes...
-#
-#
-    # Used for updating md5/sha1 lists, index.html
-    # Includes: checkpoints, parts, complete files, temp files if they
-    # exist. At end of run temp files must be gone.
-    # This is *all* output files for the dumpname, regardless of
-    # what's being re-run.
+
     def list_outfiles_to_publish(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        this is the complete list of files produced by a dump step.
+        Includes: checkpoints, parts, complete files, temp files if they
+        exist. At end of run temp files must be gone.
+        even if only one file part (one subjob) is being rerun, this lists all output files,
+        not just those for the one part.
+        '''
+
         if dump_names is None:
             dump_names = [self.dumpname]
         files = []
@@ -426,24 +430,24 @@ class Dump(object):
             return files
 
         if self._checkpoints_enabled:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
             files.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-                # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
         return files
 
-    # called at end of job run to see if results are intact or are garbage and must be tossed/rerun.
-    # Includes: checkpoints, parts, whole files.  Not included: temp files.
-    # This is only the files that should be produced from this run. So it is limited to a specific
-    # file part if that's being redone, or to all parts if the whole job is being redone,
-    # or to the whole files if there are no file parts (parallel subjobs) enabled.
     def list_outfiles_to_check_for_truncation(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        lists all files that will be examined at the end of the run to be sure
+        they were written out completely.
+        Includes: checkpoint files, file parts, whole files.
+        This includes only the files that should be produced from this specific
+        run, so if only one file part (subjob) is being redone, then only those files
+        will be listed.
+        '''
         if dump_names is None:
             dump_names = [self.dumpname]
         files = []
@@ -452,22 +456,21 @@ class Dump(object):
             return files
 
         if self._checkpoints_enabled:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
         return files
 
-    # called when putting together commands to produce output for the job.
-    # Includes: parts, whole files, temp files.   Not included: checkpoint files.
-    # This is only the files that should be produced from this run. So it is limited to a specific
-    # file part if that's being redone, or to all parts if the whole job
-    # is being redone, or to the whole files if there are no file parts (parallel subjobs) enabled.
     def list_outfiles_for_build_command(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        called when the job command is generated.
+        Includes: parts, whole files, temp files.
+        This includes only the files that should be produced from this specific
+        run, so if only one file part (subjob) is being redone, then only those files
+        will be listed.
+        '''
         if dump_names is None:
             dump_names = [self.dumpname]
         files = []
@@ -476,22 +479,21 @@ class Dump(object):
             return files
 
         if self._checkpoints_enabled:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-                # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
         return files
 
-    # called before job run to cleanup old files left around from any previous run(s)
-    # Includes: checkpoints, parts, whole files, temp files if they exist.
-    # This is only the files that should be produced from this run. So it is limited to a specific
-    # file part if that's being redone, or to all parts if the whole job is being redone,
-    # or to the whole files if there are no file parts (parallel subjobs) enabled.
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        called before job run to cleanup old files left around from any previous run(s)
+        Includes: checkpoints, parts, whole files, temp files if they exist.
+        This includes only the files that should be produced from this specific
+        run, so if only one file part (subjob) is being redone, then only those files
+        will be listed.
+        '''
         if dump_names is None:
             dump_names = [self.dumpname]
         files = []
@@ -500,26 +502,23 @@ class Dump(object):
             return files
 
         if self._checkpoints_enabled:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
             files.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_reg_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         return files
 
-    # used to generate list of input files for other phase (e.g. recombine, recompress)
-    # Includes: checkpoints, parts/whole files depending on whether
-    # parts are enabled. Not included: temp files.
-    # This is *all* output files for the job, regardless of what's being re-run.
-    # The caller can sort out which files go to which file part, in case input is
-    # needed on a per file part basis. (Is that going to be annoying? Nah,
-    # and we only do it once per job so who cares.)
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        used to generate list of files output from one dump step to be used as
+        input for other dump step (e.g. recombine, recompress)
+        Includes: checkpoints, partial files and/or whole files.
+        Even if only file part is being rerun, this will return the list
+        of all file parts.
+        '''
         if dump_names is None:
             dump_names = [self.dumpname]
         files = []
