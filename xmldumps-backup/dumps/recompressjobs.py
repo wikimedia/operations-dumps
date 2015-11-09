@@ -68,10 +68,16 @@ class XmlMultiStreamDump(XmlDump):
                             self.get_index_filetype(), self.file_ext, fname.partnum,
                             fname.checkpoint, fname.temp)
 
-    # output files is a list of checkpoint files, otherwise it is a list of one file.
-    # checkpoint files get done one at a time. we can't really do parallel recompression jobs of
-    # 200 files, right?
     def build_command(self, runner, output_files):
+        '''
+        arguments:
+        runner: Runner object
+        output_files: if checkpointing of files is enabled, this should be a
+                      list of checkpoint files, otherwise it should be a list
+                      of the one file that will be produced by the dump
+        Note that checkpoint files get done one at a time. not in parallel
+        '''
+
         # FIXME need shell escape
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
@@ -122,8 +128,8 @@ class XmlMultiStreamDump(XmlDump):
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
-    # shows all files possible if we don't have checkpoint files. without temp files of course
     def list_outfiles_to_publish(self, dump_dir):
+        '''shows all files possible if we don't have checkpoint files. without temp files of course'''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -131,9 +137,11 @@ class XmlMultiStreamDump(XmlDump):
             files.append(self.get_multistream_index_fname(inp_file))
         return files
 
-    # shows all files possible if we don't have checkpoint files. without temp files of course
-    # only the parts we are actually supposed to do (if there is a limit)
     def list_outfiles_to_check_for_truncation(self, dump_dir):
+        '''
+        shows all files possible if we don't have checkpoint files. without temp files of course
+        only the parts we are actually supposed to do (if there is a limit)
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -143,9 +151,11 @@ class XmlMultiStreamDump(XmlDump):
             files.append(self.get_multistream_index_fname(inp_file))
         return files
 
-    # shows all files possible if we don't have checkpoint files. no temp files.
-    # only the parts we are actually supposed to do (if there is a limit)
     def list_outfiles_for_build_command(self, dump_dir, partnum=None):
+        '''
+        shows all files possible if we don't have checkpoint files. no temp files.
+        only the parts we are actually supposed to do (if there is a limit)
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -162,10 +172,11 @@ class XmlMultiStreamDump(XmlDump):
                                       inp_file.partnum, inp_file.checkpoint, inp_file.temp))
         return files
 
-    # shows all files possible if we don't have checkpoint files. should include temp files
-    # does just the parts we do if there is a limit
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        shows all files possible if we don't have checkpoint files. should include temp files
+        does just the parts we do if there is a limit
+        '''
         if dump_names is None:
             dump_names = [self.dumpname]
         multistream_names = []
@@ -175,20 +186,20 @@ class XmlMultiStreamDump(XmlDump):
 
         files = []
         if self.item_for_recompression._checkpoints_enabled:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), multistream_names))
             files.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), multistream_names))
         else:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_reg_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), multistream_names))
         return files
 
-    # must return all output files that could be produced by a full run of this stage,
-    # not just whatever we happened to produce (if run for one file part, say)
     def list_outfiles_for_input(self, dump_dir):
+        '''
+        must return all output files that could be produced by a full run of this stage,
+        not just whatever we happened to produce (if run for one file part, say)
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -225,10 +236,16 @@ class XmlRecompressDump(Dump):
     def get_file_ext(self):
         return "7z"
 
-    # output files is a list of checkpoint files, otherwise it is a list of one file.
-    # checkpoint files get done one at a time. we can't really do parallel recompression jobs of
-    # 200 files, right?
     def build_command(self, runner, output_files):
+        '''
+        arguments:
+        runner: Runner object
+        output_files: if checkpointing of files is enabled, this should be a
+                      list of checkpoint files, otherwise it should be a list
+                      of the one file that will be produced by the dump
+        Note that checkpoint files get done one at a time, not in parallel
+        '''
+
         # FIXME need shell escape
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
@@ -276,8 +293,10 @@ class XmlRecompressDump(Dump):
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
-    # shows all files possible if we don't have checkpoint files. without temp files of course
     def list_outfiles_to_publish(self, dump_dir):
+        '''
+        shows all files possible if we don't have checkpoint files. without temp files of course
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -286,9 +305,11 @@ class XmlRecompressDump(Dump):
                                       inp_file.checkpoint, inp_file.temp))
         return files
 
-    # shows all files possible if we don't have checkpoint files. without temp files of course
-    # only the parts we are actually supposed to do (if there is a limit)
     def list_outfiles_to_check_for_truncation(self, dump_dir):
+        '''
+        shows all files possible if we don't have checkpoint files. without temp files of course
+        only the parts we are actually supposed to do (if there is a limit)
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -299,9 +320,11 @@ class XmlRecompressDump(Dump):
                                       inp_file.checkpoint, inp_file.temp))
         return files
 
-    # shows all files possible if we don't have checkpoint files. no temp files.
-    # only the parts we are actually supposed to do (if there is a limit)
     def list_outfiles_for_build_command(self, dump_dir, partnum=None):
+        '''
+        shows all files possible if we don't have checkpoint files. no temp files.
+        only the parts we are actually supposed to do (if there is a limit)
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
@@ -315,28 +338,29 @@ class XmlRecompressDump(Dump):
                                       inp_file.checkpoint, inp_file.temp))
         return files
 
-    # shows all files possible if we don't have checkpoint files. should include temp files
-    # does just the parts we do if there is a limit
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
-        # some stages (eg XLMStubs) call this for several different dump_names
+        '''
+        shows all files possible if we don't have checkpoint files. should include temp files
+        does just the parts we do if there is a limit
+        '''
         if dump_names is None:
             dump_names = [self.dumpname]
         files = []
         if self.item_for_recompression._checkpoints_enabled:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
             files.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            # we will pass list of parts or partnum_todo, or False, depending on the job setup.
             files.extend(self.list_reg_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         return files
 
-    # must return all output files that could be produced by a full run of this stage,
-    # not just whatever we happened to produce (if run for one file part, say)
     def list_outfiles_for_input(self, dump_dir):
+        '''
+        must return all output files that could be produced by a full run of this stage,
+        not just whatever we happened to produce (if run for one file part, say)
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:
