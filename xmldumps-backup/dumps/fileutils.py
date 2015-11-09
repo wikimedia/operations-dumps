@@ -129,11 +129,11 @@ class DumpFilename(object):
     """
     filename without directory name, and the methods that go with it,
     primarily for filenames that follow the standard naming convention, i.e.
-    projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a chunk
+    projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a file part
     number, possibly with start/end page id information embedded in the name).
 
     Constructor:
-    DumpFilename(dumpname, date = None, filetype, ext, chunk = None,
+    DumpFilename(dumpname, date = None, filetype, ext, partnum = None,
                  checkpoint = None, temp = False) -- pass in dumpname and
                       filetype/extension at least. filetype is one of xml sql,
                       extension is one of bz2/gz/7z.  Or you can pass in
@@ -149,7 +149,7 @@ class DumpFilename(object):
     attributes:
 
     is_checkpoint_file  filename of form dbname-date-dumpname-pxxxxpxxxx.xml.bz2
-    is_chunk_file       filename of form dbname-date-dumpnamex.xml.gz/bz2/7z
+    is_file_part        filename of form dbname-date-dumpnamex.xml.gz/bz2/7z
     is_temp_file        filename of form dbname-date-dumpname.xml.gz/bz2/7z-tmp
     first_page_id       for checkpoint files, taken from value in filename
     last_page_id      for checkpoint files, value taken from filename
@@ -157,18 +157,18 @@ class DumpFilename(object):
     basename          part of the filename after the project name and date (for
                           "enwiki-20110722-pages-meta-history12.xml.bz2" this would be
                           "pages-meta-history12.xml.bz2")
-    file_ext           extension (everything after the last ".") of the file
+    file_ext          extension (everything after the last ".") of the file
     date              date embedded in filename
     dumpname          dump name embedded in filename (eg "pages-meta-history"), if any
-    chunk             chunk number of file as string (for "pages-meta-history5.xml.bz2"
+    partnum           number of file part as string (for "pages-meta-history5.xml.bz2"
                       this would be "5")
-    chinkInt          chunk number as int
+    partnum_int       part number as int
     """
 
     def __init__(self, wiki, date=None, dump_name=None, filetype=None,
-                 ext=None, chunk=None, checkpoint=None, temp=False):
+                 ext=None, partnum=None, checkpoint=None, temp=False):
         """Constructor.  Arguments: the dump name as it should appear in the filename,
-        the date if different than the date of the dump run, the chunk number
+        the date if different than the date of the dump run, the file part number
         if there is one, and temp which is true if this is a temp file (ending in "-tmp")
         Alternatively, one can leave off all other other stuff and just pass the entire
         filename minus the dbname and the date. Returns true on success, false otherwise.."""
@@ -176,7 +176,7 @@ class DumpFilename(object):
         # if dump_name is not set, the caller can call
         # new_from_filename to initialize various values instead
         if dump_name:
-            filename = self.new_filename(dump_name, filetype, ext, date, chunk, checkpoint, temp)
+            filename = self.new_filename(dump_name, filetype, ext, date, partnum, checkpoint, temp)
             self.new_from_filename(filename)
 
     def is_ext(self, ext):
@@ -188,7 +188,7 @@ class DumpFilename(object):
     def new_from_filename(self, filename):
         '''
         Constructor.  Arguments: the full file name including
-        the chunk, the extension, etc BUT NOT the dir name.
+        the file part number, the extension, etc BUT NOT the dir name.
         returns True if successful, False otherwise
         (filename is not in the canonical form that we manage)
         '''
@@ -205,9 +205,9 @@ class DumpFilename(object):
         self.file_prefix = ""
         self.file_prefix_length = 0
 
-        self.is_chunk_file = False
-        self.chunk = None
-        self.chunk_int = 0
+        self.is_file_part = False
+        self.partnum = None
+        self.partnum_int = 0
 
         self.is_checkpoint_file = False
         self.checkpoint = None
@@ -269,27 +269,27 @@ class DumpFilename(object):
             if self.file_type and self.file_type.endswith("-" + self.checkpoint):
                 self.file_type = self.file_type[:-1 * (len(self.checkpoint) + 1)]
 
-        self.chunk_pattern = "(?P<chunk>[0-9]+)$"
-        self.compiled_chunk_pattern = re.compile(self.chunk_pattern)
-        result = self.compiled_chunk_pattern.search(self.dumpname)
+        self.partnum_pattern = "(?P<partnum>[0-9]+)$"
+        self.compiled_partnum_pattern = re.compile(self.partnum_pattern)
+        result = self.compiled_partnum_pattern.search(self.dumpname)
         if result:
-            self.is_chunk_file = True
-            self.chunk = result.group('chunk')
-            self.chunk_int = int(self.chunk)
-            # the dumpname has the chunk in it so lose it
+            self.is_file_part = True
+            self.partnum = result.group('partnum')
+            self.partnum_int = int(self.partnum)
+            # the dumpname has the file part number in it so lose it
             self.dumpname = self.dumpname.rstrip('0123456789')
 
         return True
 
     def new_filename(self, dump_name, filetype, ext, date=None,
-                     chunk=None, checkpoint=None, temp=None):
-        if not chunk:
-            chunk = ""
+                     partnum=None, checkpoint=None, temp=None):
+        if not partnum:
+            partnum = ""
         if not date:
             date = self.wiki.date
         # fixme do the right thing in case no filetype or no ext
         parts = []
-        parts.append(self.wiki.db_name + "-" + date + "-" + dump_name + "%s" % chunk)
+        parts.append(self.wiki.db_name + "-" + date + "-" + dump_name + "%s" % partnum)
         if checkpoint:
             filetype = filetype + "-" + checkpoint
         if filetype:
@@ -305,7 +305,7 @@ class DumpFilename(object):
 class DumpFile(object):
     """File containing output created by any job of a jump run.  This includes
     any file that follows the standard naming convention, i.e.
-    projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a chunk
+    projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a file part
     number, possibly with start/end page id information embedded in the name).
 
     Methods:
@@ -513,7 +513,7 @@ class DumpDir(object):
         self._db_name = db_name
         self._dir_cache = {}
         self._dir_cache_time = {}
-        self._chunk_file_cache = {}
+        self._filepart_cache = {}
         self._checkpoint_file_cache = {}
 
     def filename_private_path(self, dump_file, date_string=None):
@@ -601,16 +601,16 @@ class DumpDir(object):
         return self._dir_cache[date]
 
     def _get_files_filtered(self, date=None, dump_name=None, file_type=None,
-                            file_ext=None, chunks=None, temp=None, checkpoint=None):
+                            file_ext=None, parts=None, temp=None, checkpoint=None):
         '''
         list all files that exist, filtering by the given args.
         if we get None for an arg then we accept all values
         for that arg in the filename, including missing
-        if we get False for an arg (chunk, temp, checkpoint),
+        if we get False for an arg (parts, temp, checkpoint),
         we reject any filename which contains a value for that arg
-        if we get True for an arg (chunk, temp, checkpoint),
+        if we get True for an arg (parts, temp, checkpoint),
         we include only filenames which contain a value for that arg
-        chunks should be a list of value(s) or True / False / None
+        parts should be a list of value(s) or True / False / None
 
         note that we ignore files with ".truncated". these are known to be bad.
         '''
@@ -629,12 +629,12 @@ class DumpDir(object):
                 continue
             if file_ext is not None and fobj.file_ext != file_ext:
                 continue
-            if chunks is False and fobj.is_chunk_file:
+            if parts is False and fobj.is_file_part:
                 continue
-            if chunks is True and not fobj.is_chunk_file:
+            if parts is True and not fobj.is_file_part:
                 continue
-            # chunks is a list...
-            if chunks and chunks is not True and fobj.chunk_int not in chunks:
+            # parts is a list...
+            if parts and parts is not True and fobj.partnum_int not in parts:
                 continue
             if (temp is False and fobj.is_temp_file) or (temp and not fobj.is_temp_file):
                 continue
@@ -653,30 +653,30 @@ class DumpDir(object):
         alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key.filename)]
         mylist.sort(key=alphanum_key)
 
-    def get_checkpt_files_existing(self, date=None, dump_name=None,
-                                   file_type=None, file_ext=None, chunks=False, temp=False):
+    def get_checkpt_files(self, date=None, dump_name=None,
+                          file_type=None, file_ext=None, parts=False, temp=False):
         '''
         list all checkpoint files that exist, filtering by the given args.
         if we get None for an arg then we accept all values for that arg in the filename
-        if we get False for an arg (chunks, temp),
+        if we get False for an arg (parts, temp),
         we reject any filename which contains a value for that arg
-        if we get True for an arg (chunk, temp),
+        if we get True for an arg (parts, temp),
         we accept only filenames which contain a value for the arg
-        chunks should be a list of value(s), or True / False / None
+        parts should be a list of value(s), or True / False / None
         '''
         return self._get_files_filtered(date, dump_name, file_type,
-                                        file_ext, chunks, temp, checkpoint=True)
+                                        file_ext, parts, temp, checkpoint=True)
 
-    def get_reg_files_existing(self, date=None, dump_name=None,
-                               file_type=None, file_ext=None, chunks=False, temp=False):
+    def get_reg_files(self, date=None, dump_name=None,
+                      file_type=None, file_ext=None, parts=False, temp=False):
         '''
         list all non-checkpoint files that exist, filtering by the given args.
         if we get None for an arg then we accept all values for that arg in the filename
-        if we get False for an arg (chunk, temp),
+        if we get False for an arg (parts, temp),
         we reject any filename which contains a value for that arg
-        if we get True for an arg (chunk, temp),
+        if we get True for an arg (parts, temp),
         we accept only filenames which contain a value for the arg
-        chunks should be a list of value(s), or True / False / None
+        parts should be a list of value(s), or True / False / None
         '''
         return self._get_files_filtered(date, dump_name, file_type,
-                                        file_ext, chunks, temp, checkpoint=False)
+                                        file_ext, parts, temp, checkpoint=False)

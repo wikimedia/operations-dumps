@@ -482,7 +482,7 @@ class SymLinks(object):
             realfile = self.dump_dir.filename_public_path(dumpfile)
             latest_filename = dumpfile.new_filename(dumpfile.dumpname, dumpfile.file_type,
                                                     dumpfile.file_ext, 'latest',
-                                                    dumpfile.chunk, dumpfile.checkpoint,
+                                                    dumpfile.partnum, dumpfile.checkpoint,
                                                     dumpfile.temp)
             link = os.path.join(self.dump_dir.latest_dir(), latest_filename)
             if exists(link) or os.path.islink(link):
@@ -522,15 +522,15 @@ class SymLinks(object):
                         os.remove(link)
 
     # if the args are False or None, we remove all the old links for all values of the arg.
-    # example: if chunk is False or None then we remove all old values for all chunks
+    # example: if partnum is False or None then we remove all old values for all file parts
     # "old" means "older than the specified datestring".
-    def remove_symlinks_from_old_runs(self, date_string, dump_name=None, chunk=None,
-                                      checkpoint=None, onlychunks=False):
+    def remove_symlinks_from_old_runs(self, date_string, dump_name=None, partnum=None,
+                                      checkpoint=None, onlyparts=False):
         # fixme
-        # this needs to do more work if there are chunks or checkpoint files linked in here from
-        # earlier dates. checkpoint ranges change, and configuration of chunks changes too, so maybe
-        # old files still exist and the links need to be removed because we have newer files for the
-        # same phase of the dump.
+        # this needs to do more work if there are file parts or checkpoint files linked in here from
+        # earlier dates. checkpoint ranges change, and configuration of parallel jobs for file parts
+        # changes too, so maybe old files still exist and the links need to be removed because we
+        # have newer files for the same phase of the dump.
 
         if SymLinks.NAME in self._enabled:
             latest_dir = self.dump_dir.latest_dir()
@@ -545,7 +545,7 @@ class SymLinks(object):
                         # fixme check that these are ok if the value is None
                         if dump_name and (file_obj.dumpname != dump_name):
                             continue
-                        if (chunk or onlychunks) and (file_obj.chunk != chunk):
+                        if (partnum or onlyparts) and (file_obj.partnum != partnum):
                             continue
                         if checkpoint and (file_obj.checkpoint != checkpoint):
                             continue
@@ -648,13 +648,13 @@ class DumpRunJobData(object):
                 dump_names = item.list_dumpnames()
                 if type(dump_names).__name__ != 'list':
                     dump_names = [dump_names]
-                if item._chunks_enabled:
-                    # if there is a specific chunk, we want to only clear out
-                    # old files for that piece, because new files for the other
-                    # pieces may not have been generated yet.
-                    chunk = item._chunk_todo
+                if item._parts_enabled:
+                    # if there is a specific part we are doing, we want to only clear out
+                    # old files for that part, because new files for the other
+                    # parts may not have been generated yet.
+                    partnum = item._partnum_todo
                 else:
-                    chunk = None
+                    partnum = None
 
                 checkpoint = None
                 if item._checkpoints_enabled:
@@ -668,7 +668,7 @@ class DumpRunJobData(object):
 
                 for dump in dump_names:
                     self.symlinks.remove_symlinks_from_old_runs(
-                        self.wiki.date, dump, chunk, checkpoint, onlychunks=item.onlychunks)
+                        self.wiki.date, dump, partnum, checkpoint, onlyparts=item.onlyparts)
 
                 self.feeds.cleanup_feeds()
 
@@ -681,7 +681,7 @@ class DumpRunJobData(object):
         # this will include checkpoint files if they are enabled.
         for file_obj in item.list_outfiles_to_publish(self.dump_dir):
             if exists(self.dump_dir.filename_public_path(file_obj)):
-                # why would the file not exist? because we changed chunk numbers in the
+                # why would the file not exist? because we changed number of file parts in the
                 # middle of a run, and now we list more files for the next stage than there
                 # were for earlier ones
                 self.symlinks.save_symlink(file_obj)

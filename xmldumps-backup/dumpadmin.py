@@ -377,7 +377,7 @@ class ActionHandler(object):
         # and latest links.
         runner = Runner(wiki, prefetch=True, spawn=True, job=None,
                         skip_jobs=[], restart=False, notice="", dryrun=False,
-                        enabled=None, chunk_to_do=False, checkpoint_file=None,
+                        enabled=None, partnum_todo=False, checkpoint_file=None,
                         page_id_range=None, skipdone=[], verbose=self.verbose)
 
         if not failed_jobs:
@@ -558,7 +558,7 @@ class ActionHandler(object):
 
         runner = Runner(wiki, prefetch=True, spawn=True, job=None,
                         skip_jobs=[], restart=False, notice="", dryrun=False,
-                        enabled=None, chunk_to_do=False, checkpoint_file=None,
+                        enabled=None, partnum_todo=False, checkpoint_file=None,
                         page_id_range=None, skipdone=[], verbose=self.verbose)
 
         known_jobs = [item.name() for item in runner.dump_item_list.dump_items] + ['tables']
