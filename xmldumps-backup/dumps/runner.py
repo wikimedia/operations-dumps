@@ -19,7 +19,7 @@ from dumps.runnerutils import SymLinks, Feeds, NoticeFile
 from dumps.runnerutils import Checksummer, IndexHtml, StatusHtml, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
 
-from dumps.utils import DbServerInfo, Chunk, TimeUtils
+from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils
 
 
 class Logger(object):
@@ -60,8 +60,8 @@ class Logger(object):
 
 
 class DumpItemList(object):
-    def __init__(self, wiki, prefetch, spawn, chunk_to_do, checkpoint_file,
-                 singleJob, skip_jobs, chunk_info, page_id_range, dumpjobdata, dump_dir):
+    def __init__(self, wiki, prefetch, spawn, partnum_todo, checkpoint_file,
+                 singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir):
         self.wiki = wiki
         self._has_flagged_revs = self.wiki.has_flagged_revs()
         self._has_wikidata = self.wiki.has_wikidata()
@@ -69,9 +69,9 @@ class DumpItemList(object):
         self._is_wikidata_client = self.wiki.is_wikidata_client()
         self._prefetch = prefetch
         self._spawn = spawn
-        self.chunk_info = chunk_info
+        self.filepart = filepart
         self.checkpoint_file = checkpoint_file
-        self._chunk_todo = chunk_to_do
+        self._partnum_todo = partnum_todo
         self._single_job = singleJob
         self.skip_jobs = skip_jobs
         self.dumpjobdata = dumpjobdata
@@ -83,14 +83,14 @@ class DumpItemList(object):
         else:
             checkpoints = False
 
-        if self._single_job and self._chunk_todo:
+        if self._single_job and self._partnum_todo:
             if (self._single_job[-5:] == 'table' or
                     self._single_job[-9:] == 'recombine' or
                     self._single_job in ['createdirs', 'noop', 'latestlinks',
                                          'xmlpagelogsdump', 'pagetitlesdump',
                                          'alllpagetitlesdump'] or
                     self._single_job.endswith('recombine')):
-                raise BackupError("You cannot specify a chunk with the job %s, exiting.\n"
+                raise BackupError("You cannot specify a file part with the job %s, exiting.\n"
                                   % self._single_job)
 
         if self._single_job and self.checkpoint_file is not None:
@@ -168,23 +168,23 @@ class DumpItemList(object):
                            AllTitleDump("allpagetitlesdump", "List of all page titles"),
 
                            AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo",
-                                        self._get_chunk_to_do("abstractsdump"), self.wiki.db_name,
-                                        self.chunk_info.get_pages_per_chunk_abstract())]
+                                        self._get_partnum_todo("abstractsdump"), self.wiki.db_name,
+                                        self.filepart.get_pages_per_filepart_abstract())]
 
-        if self.chunk_info.chunks_enabled():
+        if self.filepart.parts_enabled():
             self.dump_items.append(RecombineAbstractDump(
                 "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
                 self.find_item_by_name('abstractsdump')))
 
         self.dump_items.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
-                                       self._get_chunk_to_do("xmlstubsdump"),
-                                       self.chunk_info.get_pages_per_chunk_history()))
-        if self.chunk_info.chunks_enabled():
+                                       self._get_partnum_todo("xmlstubsdump"),
+                                       self.filepart.get_pages_per_filepart_history()))
+        if self.filepart.parts_enabled():
             self.dump_items.append(RecombineXmlStub(
                 "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
                 self.find_item_by_name('xmlstubsdump')))
 
-        # NOTE that the chunk_info thing passed here is irrelevant,
+        # NOTE that the filepart thing passed here is irrelevant,
         # these get generated from the stubs which are all done in one pass
         self.dump_items.append(
             XmlDump("articles",
@@ -194,10 +194,10 @@ class DumpItemList(object):
                     "This contains current versions of article content, " +
                     "and is the archive most mirror sites will probably want.",
                     self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn,
-                    self.wiki, self._get_chunk_to_do("articlesdump"),
-                    self.chunk_info.get_pages_per_chunk_history(), checkpoints,
+                    self.wiki, self._get_partnum_todo("articlesdump"),
+                    self.filepart.get_pages_per_filepart_history(), checkpoints,
                     self.checkpoint_file, self.page_id_range))
-        if self.chunk_info.chunks_enabled():
+        if self.filepart.parts_enabled():
             self.dump_items.append(
                 RecombineXmlDump(
                     "articlesdumprecombine",
@@ -214,11 +214,11 @@ class DumpItemList(object):
                     "Discussion and user pages are included in this complete archive. " +
                     "Most mirrors won't want this extra material.",
                     self.find_item_by_name('xmlstubsdump'), self._prefetch,
-                    self._spawn, self.wiki, self._get_chunk_to_do("metacurrentdump"),
-                    self.chunk_info.get_pages_per_chunk_history(), checkpoints,
+                    self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
+                    self.filepart.get_pages_per_filepart_history(), checkpoints,
                     self.checkpoint_file, self.page_id_range))
 
-        if self.chunk_info.chunks_enabled():
+        if self.filepart.parts_enabled():
             self.dump_items.append(
                 RecombineXmlDump(
                     "metacurrentdumprecombine",
@@ -288,10 +288,10 @@ class DumpItemList(object):
                 "Suitable for archival and statistical use, " +
                 "most mirror sites won't want or need this.",
                 self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn,
-                self.wiki, self._get_chunk_to_do("metahistorybz2dump"),
-                self.chunk_info.get_pages_per_chunk_history(),
+                self.wiki, self._get_partnum_todo("metahistorybz2dump"),
+                self.filepart.get_pages_per_filepart_history(),
                 checkpoints, self.checkpoint_file, self.page_id_range))
-        if self.chunk_info.chunks_enabled() and self.chunk_info.recombine_history():
+        if self.filepart.parts_enabled() and self.filepart.recombine_history():
             self.dump_items.append(
                 RecombineXmlDump(
                     "metahistorybz2dumprecombine",
@@ -311,10 +311,10 @@ class DumpItemList(object):
                 "Suitable for archival and statistical use, " +
                 "most mirror sites won't want or need this.",
                 self.find_item_by_name('metahistorybz2dump'),
-                self.wiki, self._get_chunk_to_do("metahistory7zdump"),
-                self.chunk_info.get_pages_per_chunk_history(),
+                self.wiki, self._get_partnum_todo("metahistory7zdump"),
+                self.filepart.get_pages_per_filepart_history(),
                 checkpoints, self.checkpoint_file))
-        if self.chunk_info.chunks_enabled() and self.chunk_info.recombine_history():
+        if self.filepart.parts_enabled() and self.filepart.recombine_history():
             self.dump_items.append(
                 RecombineXmlRecompressDump(
                     "metahistory7zdumprecombine",
@@ -326,7 +326,7 @@ class DumpItemList(object):
                     self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
         if self.wiki.config.multistream_enabled:
-            if self.chunk_info.chunks_enabled():
+            if self.filepart.parts_enabled():
                 input_for_multistream = "articlesdumprecombine"
             else:
                 input_for_multistream = "articlesdump"
@@ -421,10 +421,10 @@ class DumpItemList(object):
                 return item
         return None
 
-    def _get_chunk_to_do(self, job_name):
+    def _get_partnum_todo(self, job_name):
         if self._single_job:
             if self._single_job == job_name:
-                return self._chunk_todo
+                return self._partnum_todo
         return False
 
     # read in contents from dump run info file and stuff into dump_items for later reference
@@ -444,18 +444,18 @@ class DumpItemList(object):
 class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, enabled=None,
-                 chunk_to_do=False, checkpoint_file=None, page_id_range=None,
+                 partnum_todo=False, checkpoint_file=None, page_id_range=None,
                  skipdone=False, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.db_name
         self.prefetch = prefetch
         self.spawn = spawn
-        self.chunk_info = Chunk(wiki, self.db_name, self.log_and_print)
+        self.filepart_info = FilePartInfo(wiki, self.db_name, self.log_and_print)
         self.restart = restart
         self.html_notice_file = None
         self.log = None
         self.dryrun = dryrun
-        self._chunk_todo = chunk_to_do
+        self._partnum_todo = partnum_todo
         self.checkpoint_file = checkpoint_file
         self.page_id_range = page_id_range
         self.skipdone = skipdone
@@ -465,11 +465,11 @@ class Runner(object):
         if self.checkpoint_file is not None:
             fname = DumpFilename(self.wiki)
             fname.new_from_filename(checkpoint_file)
-            # we should get chunk if any
-            if not self._chunk_todo and fname.chunk_int:
-                self._chunk_todo = fname.chunk_int
-            elif self._chunk_todo and fname.chunk_int and self._chunk_todo != fname.chunk_int:
-                raise BackupError("specifed chunk to do does not match chunk "
+            # we should get file partnum if any
+            if not self._partnum_todo and fname.partnum_int:
+                self._partnum_todo = fname.partnum_int
+            elif self._partnum_todo and fname.partnum_int and self._partnum_todo != fname.partnum_int:
+                raise BackupError("specifed partnum to do does not match part number "
                                   "of checkpoint file %s to redo", self.checkpoint_file)
             self.checkpoint_file = fname
 
@@ -481,7 +481,7 @@ class Runner(object):
                         "clean_old_files", "check_trunc_files"]:
             self.enabled[setting] = True
 
-        if self.dryrun or self._chunk_todo or self.checkpoint_file is not None:
+        if self.dryrun or self._partnum_todo or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
                             RunInfoFile.NAME, SymLinks.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
@@ -534,9 +534,9 @@ class Runner(object):
 
         # some or all of these dump_items will be marked to run
         self.dump_item_list = DumpItemList(self.wiki, self.prefetch, self.spawn,
-                                           self._chunk_todo, self.checkpoint_file,
+                                           self._partnum_todo, self.checkpoint_file,
                                            self.job_requested, self.skip_jobs,
-                                           self.chunk_info, self.page_id_range,
+                                           self.filepart_info, self.page_id_range,
                                            self.dumpjobdata, self.dump_dir)
         # only send email failure notices for full runs
         if self.job_requested:

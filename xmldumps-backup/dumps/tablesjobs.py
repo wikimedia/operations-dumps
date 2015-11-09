@@ -15,7 +15,7 @@ class PublicTable(Dump):
 
     def __init__(self, table, name, desc):
         self._table = table
-        self._chunks_enabled = False
+        self._parts_enabled = False
         Dump.__init__(self, name, desc)
 
     def get_dumpname(self):

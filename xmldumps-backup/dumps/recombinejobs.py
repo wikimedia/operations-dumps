@@ -134,7 +134,7 @@ class RecombineXmlRecompressDump(Dump):
         Dump.__init__(self, name, desc)
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
-        self._chunks_enabled = False
+        self._parts_enabled = False
 
     def get_filetype(self):
         return self.item_for_recombine.get_filetype()
@@ -179,7 +179,7 @@ class RecombineXmlRecompressDump(Dump):
 
 class RecombineAbstractDump(Dump):
     def __init__(self, name, desc, item_for_recombine):
-        # no chunkToDo, no chunks generally (False, False), even though input may have it
+        # no partnum_todo, no parts generally (False, False), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
         Dump.__init__(self, name, desc)

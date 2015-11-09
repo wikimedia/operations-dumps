@@ -10,7 +10,7 @@ from dumps.jobs import DumpFilename
 from dumps.runner import Runner
 from dumps.utils import TimeUtils
 
-def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
+def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
                checkpoint_file, prefetch, spawn, dryrun, skipdone, verbose,
                html_notice, prereqs=False, restart=False):
     '''
@@ -41,7 +41,7 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
 
     runner = Runner(wiki, prefetch=prefetch, spawn=spawn, job=job,
                     skip_jobs=skipjobs, restart=restart, notice=html_notice, dryrun=dryrun,
-                    enabled=None, chunk_to_do=chunk_to_do, checkpoint_file=checkpoint_file,
+                    enabled=None, partnum_todo=partnum_todo, checkpoint_file=checkpoint_file,
                     page_id_range=page_id_range, skipdone=skipdone, verbose=verbose)
 
     if not runner.dump_item_list.old_runinfo_retrieved:
@@ -87,7 +87,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
                         html_notice, bystatustime=False,
                         check_job_status=False, check_prereq_status=False,
                         date=None, job=None, skipjobs=None, page_id_range=None,
-                        chunk_to_do=None, checkpoint_file=None, skipdone=False, restart=False,
+                        partnum_todo=None, checkpoint_file=None, skipdone=False, restart=False,
                         verbose=False):
     if config.halt:
         sys.stderr.write("Dump process halted by config.\n")
@@ -111,7 +111,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
                 continue
         if check_job_status:
             if check_jobs(wiki, date, job, skipjobs, page_id_range,
-                          chunk_to_do, checkpoint_file, restart,
+                          partnum_todo, checkpoint_file, restart,
                           prefetch, spawn, dryrun, skipdone, verbose, html_notice):
                 continue
         try:
@@ -123,7 +123,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
             if check_prereq_status:
                 # if we skip locked wikis which are missing the prereqs for this job,
                 # there are still wikis where this job needs to run
-                if not check_jobs(wiki, date, job, skipjobs, page_id_range, chunk_to_do,
+                if not check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
                                   checkpoint_file, prefetch, spawn, dryrun, skipdone, verbose,
                                   html_notice, prereqs=True, restart=restart):
                     missing_prereqs = True
@@ -139,17 +139,18 @@ def usage(message=None):
     if message:
         sys.stderr.write("%s\n" % message)
     usage_text = """Usage: python worker.py [options] [wikidbname]
-Options: --aftercheckpoint, --checkpoint, --chunk, --configfile, --date, --job,
+Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job,
          --skipjobs, --addnotice, --delnotice, --force, --noprefetch,
          --nospawn, --restartfrom, --log, --cutoff\n")
---aftercheckpoint: Restart thie job from the after specified checkpoint file, doing the
-               rest of the job for the appropriate chunk if chunks are configured
-               or for the all the rest of the revisions if no chunks are configured;
+--aftercheckpoint: Restart this job from the after specified checkpoint file, doing the
+               rest of the job for the appropriate part number if parallel subjobs each
+               doing one part are configured, or for the all the rest of the revisions
+               if no parallel subjobs are configured;
                only for jobs articlesdump, metacurrentdump, metahistorybz2dump.
 --checkpoint:  Specify the name of the checkpoint file to rerun (requires --job,
-               depending on the file this may imply --chunk)
---chunk:       Specify the number of the chunk to rerun (use with a specific job
-               to rerun, only if parallel jobs (chunks) are enabled).
+               depending on the file this may imply --partnum)
+--partnum:     Specify the number of the part to rerun (use with a specific job
+               to rerun, only if parallel jobs (parts) are enabled).
 --configfile:  Specify an alternative configuration file to read.
                Default config file name: wikidump.conf
 --date:        Rerun dump of a given date (probably unwise)
@@ -208,7 +209,7 @@ def main():
         enable_logging = False
         html_notice = ""
         dryrun = False
-        chunk_to_do = False
+        partnum_todo = False
         after_checkpoint = False
         checkpoint_file = None
         page_id_range = None
@@ -223,7 +224,7 @@ def main():
                 sys.argv[1:], "",
                 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=',
                  'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn',
-                 'restartfrom', 'aftercheckpoint=', 'log', 'chunk=',
+                 'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
                  'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
                  "exclusive", 'verbose'])
         except:
@@ -236,8 +237,8 @@ def main():
                 config_file = val
             elif opt == '--checkpoint':
                 checkpoint_file = val
-            elif opt == '--chunk':
-                chunk_to_do = int(val)
+            elif opt == '--partnum':
+                partnum_todo = int(val)
             elif opt == "--force":
                 force_lock = True
             elif opt == '--aftercheckpoint':
@@ -280,10 +281,10 @@ def main():
             usage("--force cannot be used with --job option")
         if restart and not job_requested:
             usage("--restartfrom requires --job and the job from which to restart")
-        if chunk_to_do and not job_requested:
-            usage("--chunk option requires a specific job for which to rerun that chunk")
-        if chunk_to_do and restart:
-            usage("--chunk option can be specified only for one specific job")
+        if partnum_todo and not job_requested:
+            usage("--partnum option requires a specific job for which to rerun that part")
+        if partnum_todo and restart:
+            usage("--partnum option can be specified only for one specific job")
         if checkpoint_file is not None and (len(remainder) == 0):
             usage("--checkpoint option requires the name of a wikidb to be specified")
         if checkpoint_file is not None and not job_requested:
@@ -328,7 +329,7 @@ def main():
             sys.stderr.write("Exiting.\n")
             sys.exit(1)
 
-        if dryrun or chunk_to_do or (job_requested and not restart and not do_locking):
+        if dryrun or partnum_todo or (job_requested and not restart and not do_locking):
             locks_enabled = False
         else:
             locks_enabled = True
@@ -373,7 +374,7 @@ def main():
                                        dryrun, html_notice, check_status_time,
                                        check_job_status, check_prereq_status,
                                        date, job_requested, skip_jobs, page_id_range,
-                                       chunk_to_do, checkpoint_file, skipdone, restart, verbose)
+                                       partnum_todo, checkpoint_file, skipdone, restart, verbose)
 
         if wiki is not None and wiki:
             # process any per-project configuration options
@@ -397,7 +398,7 @@ def main():
                     usage("--aftercheckpoint option requires the "
                           "name of a checkpoint file, bad filename provided")
                 page_id_range = str(int(fname.last_page_id) + 1)
-                chunk_to_do = fname.chunk_int
+                partnum_todo = fname.partnum_int
                 # now we don't need this.
                 checkpoint_file = None
                 after_checkpoint_jobs = ['articlesdump', 'metacurrentdump',
@@ -412,7 +413,7 @@ def main():
                 enabled = {"logging": True}
             runner = Runner(wiki, prefetch, spawn, job_requested, skip_jobs,
                             restart, html_notice, dryrun, enabled,
-                            chunk_to_do, checkpoint_file, page_id_range, skipdone, verbose)
+                            partnum_todo, checkpoint_file, page_id_range, skipdone, verbose)
 
             if restart:
                 sys.stderr.write("Running %s, restarting from job %s...\n" %

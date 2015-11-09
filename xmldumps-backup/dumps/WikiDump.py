@@ -70,24 +70,25 @@ class Config(object):
             # "cleanup": {
             "keep": "3",
             # "chunks": {
-            # set this to 1 to enable runing the various xml dump stages as chunks in parallel
+            # set this to 1 to enable runing the various xml dump stages as subjobs in parallel
             "chunksEnabled": "0",
-            # for page history runs, number of pages for each chunk, specified separately
+            # for page history runs, number of pages for each file part, specified separately
             # e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
-            # would define 10 chunks with the specified number of pages in each and any extra in
-            # a final 11th chunk
+            # would define 10 subjobs with 10 file parts and the specified number of pages in
+            # each and any extra in a final 11th part
             "pagesPerChunkHistory": False,
-            # revs per chunk (roughly, it will be split along page lines)
+            # revs per file part (roughly, it will be split along page lines)
             # for history and current dumps
             # values: positive integer, "compute",
             # this field is overriden by pagesPerChunkHistory
             # CURRENTLY NOT COMPLETE so please don't use this.
             "revsPerChunkHistory": False,
-            # pages per chunk for abstract runs
+            # pages per file part for abstract runs
             "pagesPerChunkAbstract": False,
-            # number of chunks for abstract dumps, overrides pagesPerChunkAbstract
+            # number of file parts (and subjobs that produce them) for abstract dumps,
+            # overrides pagesPerChunkAbstract
             "chunksForAbstract": 0,
-            # whether or not to recombine the history pieces
+            # whether or not to recombine the history file parts
             "recombineHistory": "1",
             # do we write out checkpoint files at regular intervals?
             # (article/metacurrent/metahistory dumps only.)
@@ -237,15 +238,15 @@ class Config(object):
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')
-        self.chunks_enabled = self.get_opt_for_proj_or_default(
+        self.parts_enabled = self.get_opt_for_proj_or_default(
             conf, "chunks", "chunksEnabled", 1)
-        self.pages_per_chunk_history = self.get_opt_for_proj_or_default(
+        self.pages_per_filepart_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "pagesPerChunkHistory", 0)
-        self.revs_per_chunk_history = self.get_opt_for_proj_or_default(
+        self.revs_per_filepart_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "revsPerChunkHistory", 0)
-        self.chunks_for_abstract = self.get_opt_for_proj_or_default(
+        self.numparts_for_abstract = self.get_opt_for_proj_or_default(
             conf, "chunks", "chunksForAbstract", 0)
-        self.pages_per_chunk_abstract = self.get_opt_for_proj_or_default(
+        self.pages_per_filepart_abstract = self.get_opt_for_proj_or_default(
             conf, "chunks", "pagesPerChunkAbstract", 0)
         self.recombine_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "recombineHistory", 1)

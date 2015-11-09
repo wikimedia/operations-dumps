@@ -17,12 +17,12 @@ class XmlStub(Dump):
     A second pass will import text from prior dumps or the database to make
     full files for the public."""
 
-    def __init__(self, name, desc, chunkToDo, chunks=False, checkpoints=False):
-        self._chunk_todo = chunkToDo
-        self._chunks = chunks
-        if self._chunks:
-            self._chunks_enabled = True
-            self.onlychunks = True
+    def __init__(self, name, desc, partnum_todo, parts=False, checkpoints=False):
+        self._partnum_todo = partnum_todo
+        self._parts = parts
+        if self._parts:
+            self._parts_enabled = True
+            self.onlyparts = True
         self.history_dump_name = "stub-meta-history"
         self.current_dump_name = "stub-meta-current"
         self.articles_dump_name = "stub-articles"
@@ -85,26 +85,26 @@ class XmlStub(Dump):
         articles_file = runner.dump_dir.filename_public_path(outf)
         history_file = runner.dump_dir.filename_public_path(DumpFilename(
             runner.wiki, outf.date, self.history_dump_name, outf.file_type,
-            outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
+            outf.file_ext, outf.partnum, outf.checkpoint, outf.temp))
         current_file = runner.dump_dir.filename_public_path(DumpFilename(
             runner.wiki, outf.date, self.current_dump_name, outf.file_type,
-            outf.file_ext, outf.chunk, outf.checkpoint, outf.temp))
+            outf.file_ext, outf.partnum, outf.checkpoint, outf.temp))
 #        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0],
                    "--wiki", runner.db_name, "--articles", articles_file,
                    "--history", history_file, "--current", current_file]
 
-        if outf.chunk:
+        if outf.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._chunks[i] for i in range(0, outf.chunk_int-1)]) + 1
+            start = sum([self._parts[i] for i in range(0, outf.partnum_int-1)]) + 1
             startopt = "--start=%s" % start
-            # if we are on the last chunk, we should get up to the last pageid,
+            # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if outf.chunk_int < len(self._chunks):
-                end = sum([self._chunks[i] for i in range(0, outf.chunk_int)]) + 1
+            if outf.partnum_int < len(self._parts):
+                end = sum([self._parts[i] for i in range(0, outf.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -131,7 +131,7 @@ class XmlStub(Dump):
 class XmlLogging(Dump):
     """ Create a logging dump of all page activity """
 
-    def __init__(self, desc, chunks=False):
+    def __init__(self, desc, parts=False):
         Dump.__init__(self, "xmlpagelogsdump", desc)
 
     def detail(self):
@@ -176,19 +176,19 @@ class XmlLogging(Dump):
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
     def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch, spawn,
-                 wiki, chunkToDo, chunks=False, checkpoints=False, checkpoint_file=None,
+                 wiki, partnum_todo, parts=False, checkpoints=False, checkpoint_file=None,
                  page_id_range=None, verbose=False):
         self._subset = subset
         self._detail = detail
         self._desc = desc
         self._prefetch = prefetch
         self._spawn = spawn
-        self._chunks = chunks
-        if self._chunks:
-            self._chunks_enabled = True
-            self.onlychunks = True
+        self._parts = parts
+        if self._parts:
+            self._parts_enabled = True
+            self.onlyparts = True
         self._page_id = {}
-        self._chunk_todo = chunkToDo
+        self._partnum_todo = partnum_todo
 
         self.wiki = wiki
         self.item_for_stubs = item_for_stubs
@@ -229,10 +229,10 @@ class XmlDump(Dump):
             if sname.endswith(dumpname):
                 stub_dumpname = sname
         input_files = self.item_for_stubs.list_outfiles_for_input(runner.dump_dir, [stub_dumpname])
-        if self._chunks_enabled and self._chunk_todo:
+        if self._parts_enabled and self._partnum_todo:
             # reset inputfiles to just have the one we want.
             for inp_file in input_files:
-                if inp_file.chunk_int == self._chunk_todo:
+                if inp_file.partnum_int == self._partnum_todo:
                     input_files = [inp_file]
                     break
             if len(input_files) > 1:
@@ -313,12 +313,12 @@ class XmlDump(Dump):
         elif self._checkpoints_enabled:
             # we write a temp file, it will be checkpointed every so often.
             output_file = DumpFilename(self.wiki, outfile.date, self.dumpname,
-                                       outfile.file_type, self.file_ext, outfile.chunk,
+                                       outfile.file_type, self.file_ext, outfile.partnum,
                                        outfile.checkpoint, temp=True)
         else:
             # we write regular files
             output_file = DumpFilename(self.wiki, outfile.date, self.dumpname,
-                                       outfile.file_type, self.file_ext, outfile.chunk,
+                                       outfile.file_type, self.file_ext, outfile.partnum,
                                        checkpoint=False, temp=False)
 
         # Page and revision data pulled from this skeleton dump...
@@ -337,13 +337,13 @@ class XmlDump(Dump):
             stub_input_filename = self.checkpoint_file.new_filename(
                 stub_dumpname, self.item_for_stubs.get_filetype(),
                 self.item_for_stubs.get_file_ext(), self.checkpoint_file.date,
-                self.checkpoint_file.chunk)
+                self.checkpoint_file.partnum)
             stub_input_file = DumpFilename(self.wiki)
             stub_input_file.new_from_filename(stub_input_filename)
             stub_output_filename = self.checkpoint_file.new_filename(
                 stub_dumpname, self.item_for_stubs.get_filetype(),
                 self.item_for_stubs.get_file_ext(), self.checkpoint_file.date,
-                self.checkpoint_file.chunk, self.checkpoint_file.checkpoint)
+                self.checkpoint_file.partnum, self.checkpoint_file.checkpoint)
             stub_output_file = DumpFilename(self.wiki)
             stub_output_file.new_from_filename(stub_output_filename)
             self.write_partial_stub(stub_input_file, stub_output_file,
@@ -352,15 +352,15 @@ class XmlDump(Dump):
             stub_option = ("--stub=gzip:%s" % os.path.join(
                 self.wiki.config.temp_dir, stub_output_file.filename))
         elif self.page_id_range:
-            # two cases. redoing a specific chunk, OR no chunks,
+            # two cases. redoing a specific file part, OR no parts,
             # redoing the whole output file. ouch, hope it isn't huge.
-            if self._chunk_todo or not self._chunks_enabled:
+            if self._partnum_todo or not self._parts_enabled:
                 stub_input_file = outfile
 
             stub_output_filename = stub_input_file.new_filename(
                 stub_dumpname, self.item_for_stubs.get_filetype(),
                 self.item_for_stubs.get_file_ext(), stub_input_file.date,
-                stub_input_file.chunk, stub_input_file.checkpoint)
+                stub_input_file.partnum, stub_input_file.checkpoint)
             stub_output_file = DumpFilename(self.wiki)
             stub_output_file.new_from_filename(stub_output_filename)
             if ',' in self.page_id_range:
@@ -381,7 +381,7 @@ class XmlDump(Dump):
         sources = []
         possible_sources = None
         if self._prefetch:
-            possible_sources = self._find_previous_dump(runner, outfile.chunk)
+            possible_sources = self._find_previous_dump(runner, outfile.partnum)
             # if we have a list of more than one then
             # we need to check existence for each and put them together in a string
             if possible_sources:
@@ -389,18 +389,18 @@ class XmlDump(Dump):
                     sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
                     if exists(sname):
                         sources.append(sname)
-        if outfile.chunk:
-            chunkinfo = "%s" % outfile.chunk
+        if outfile.partnum:
+            partnum_str = "%s" % outfile.partnum
         else:
-            chunkinfo = ""
+            partnum_str = ""
         if len(sources) > 0:
             source = "bzip2:%s" % (";".join(sources))
             runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." %
-                                     (self._subset, chunkinfo, source))
+                                     (self._subset, partnum_str, source))
             prefetch = "--prefetch=%s" % (source)
         else:
             runner.show_runner_state("... building %s %s XML dump, no text prefetch..." %
-                                     (self._subset, chunkinfo))
+                                     (self._subset, partnum_str))
             prefetch = ""
 
         if self._spawn:
@@ -415,7 +415,7 @@ class XmlDump(Dump):
             checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpoint_time)
             checkpoint_file = "--checkpointfile=%s" % output_file.new_filename(
                 output_file.dumpname, output_file.file_type, output_file.file_ext,
-                output_file.date, output_file.chunk, "p%sp%s", None)
+                output_file.date, output_file.partnum, "p%sp%s", None)
         else:
             checkpoint_time = ""
             checkpoint_file = ""
@@ -451,10 +451,10 @@ class XmlDump(Dump):
         possibles = []
         if len(file_list):
             # (a) nasty hack, see below (b)
-            maxchunks = 0
+            maxparts = 0
             for file_obj in file_list:
-                if file_obj.is_chunk_file and file_obj.chunk_int > maxchunks:
-                    maxchunks = file_obj.chunk_int
+                if file_obj.is_file_part and file_obj.partnum_int > maxparts:
+                    maxparts = file_obj.partnum_int
                 if not file_obj.first_page_id:
                     fname = DumpFile(
                         self.wiki, runner.dump_dir.filename_public_path(file_obj, date),
@@ -482,13 +482,13 @@ class XmlDump(Dump):
                         # (b) nasty hack, see (a)
                         # it's not a checkpoint fle or we'd have the pageid in the filename
                         # so... temporary hack which will give expensive results
-                        # if chunk file, and it's the last chunk, put none
-                        # if it's not the last chunk, get the first pageid in the next
-                        #  chunk and subtract 1
-                        # if not chunk, put none.
-                        if file_obj.is_chunk_file and file_obj.chunk_int < maxchunks:
+                        # if file part, and it's the last one, put none
+                        # if it's not the last part, get the first pageid in the next
+                        #  part and subtract 1
+                        # if not file part, put none.
+                        if file_obj.is_file_part and file_obj.partnum_int < maxparts:
                             for fname in file_list:
-                                if fname.chunk_int == file_obj.chunk_int + 1:
+                                if fname.partnum_int == file_obj.partnum_int + 1:
                                     # not true!  this could be a few past where it really is
                                     # (because of deleted pages that aren't included at all)
                                     file_obj.last_page_id = str(int(fname.first_page_id) - 1)
@@ -518,12 +518,12 @@ class XmlDump(Dump):
 
     # this finds the content file or files from the first previous successful dump
     # to be used as input ("prefetch") for this run.
-    def _find_previous_dump(self, runner, chunk=None):
+    def _find_previous_dump(self, runner, partnum=None):
         """The previously-linked previous successful dump."""
-        if chunk:
-            start_page_id = sum([self._chunks[i] for i in range(0, int(chunk)-1)]) + 1
-            if len(self._chunks) > int(chunk):
-                end_page_id = sum([self._chunks[i] for i in range(0, int(chunk))])
+        if partnum:
+            start_page_id = sum([self._parts[i] for i in range(0, int(partnum)-1)]) + 1
+            if len(self._parts) > int(partnum):
+                end_page_id = sum([self._parts[i] for i in range(0, int(partnum))])
             else:
                 end_page_id = None
         else:
@@ -546,25 +546,25 @@ class XmlDump(Dump):
                 continue
 
             # first check if there are checkpoint files from this run we can use
-            files = self.list_checkpt_files_existing(
-                runner.dump_dir, [self.dumpname], date, chunks=None)
+            files = self.list_checkpt_files(
+                runner.dump_dir, [self.dumpname], date, parts=None)
             possible_prefetch_list = self.get_relevant_prefetch_files(
                 files, start_page_id, end_page_id, date, runner)
             if len(possible_prefetch_list):
                 return possible_prefetch_list
 
-            # ok, let's check for chunk files instead, from any run
+            # ok, let's check for file parts instead, from any run
             # (may not conform to our numbering for this job)
-            files = self.list_reg_files_existing(
-                runner.dump_dir, [self.dumpname], date, chunks=True)
+            files = self.list_reg_files(
+                runner.dump_dir, [self.dumpname], date, parts=True)
             possible_prefetch_list = self.get_relevant_prefetch_files(
                 files, start_page_id, end_page_id, date, runner)
             if len(possible_prefetch_list):
                 return possible_prefetch_list
 
             # last shot, get output file that contains all the pages, if there is one
-            files = self.list_reg_files_existing(runner.dump_dir, [self.dumpname],
-                                                 date, chunks=False)
+            files = self.list_reg_files(runner.dump_dir, [self.dumpname],
+                                        date, parts=False)
             # there is only one, don't bother to check for relevance :-P
             possible_prefetch_list = files
             files = []
@@ -621,12 +621,12 @@ class BigXmlDump(XmlDump):
 class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
-    def __init__(self, name, desc, chunkToDo, db_name, chunks=False):
-        self._chunk_todo = chunkToDo
-        self._chunks = chunks
-        if self._chunks:
-            self._chunks_enabled = True
-            self.onlychunks = True
+    def __init__(self, name, desc, partnum_todo, db_name, parts=False):
+        self._partnum_todo = partnum_todo
+        self._parts = parts
+        if self._parts:
+            self._parts_enabled = True
+            self.onlyparts = True
         self.db_name = db_name
         Dump.__init__(self, name, desc)
 
@@ -650,23 +650,23 @@ class AbstractDump(Dump):
             dumpname = self.dumpname_from_variant(variant)
             file_obj = DumpFilename(runner.wiki, fname.date, dumpname,
                                     fname.file_type, fname.file_ext,
-                                    fname.chunk, fname.checkpoint)
+                                    fname.partnum, fname.checkpoint)
             outputs.append(runner.dump_dir.filename_public_path(file_obj))
             variants.append(variant_option)
 
             command.extend(["--outfiles=%s" % ",".join(outputs),
                             "--variants=%s" % ",".join(variants)])
 
-        if fname.chunk:
+        if fname.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._chunks[i] for i in range(0, fname.chunk_int-1)]) + 1
+            start = sum([self._parts[i] for i in range(0, fname.partnum_int-1)]) + 1
             startopt = "--start=%s" % start
-            # if we are on the last chunk, we should get up to the last pageid,
+            # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if fname.chunk_int < len(self._chunks):
-                end = sum([self._chunks[i] for i in range(0, fname.chunk_int)]) + 1
+            if fname.partnum_int < len(self._parts):
+                end = sum([self._parts[i] for i in range(0, fname.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
         pipeline = [command]
