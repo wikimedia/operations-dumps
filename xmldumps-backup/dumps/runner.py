@@ -111,21 +111,15 @@ class DumpItemList(object):
                                         "Data for blocks of IP addresses, ranges, and users."),
                            PrivateTable("archive", "archivetable",
                                         "Deleted page and revision data."),
-                           # PrivateTable("updates", "updatestable",
-                           #              "Update dataset for OAI updater system."),
                            PrivateTable("logging", "loggingtable",
                                         "Data for various events (deletions, uploads, etc)."),
                            PrivateTable("oldimage", "oldimagetable",
                                         "Metadata on prior versions of uploaded images."),
-                           # PrivateTable("filearchive", "filearchivetable",
-                           #             "Deleted image data"),
 
                            PublicTable("site_stats", "sitestatstable",
                                        "A few statistics such as the page count."),
                            PublicTable("image", "imagetable",
                                        "Metadata on current versions of uploaded media/files."),
-                           # PublicTable("oldimage", "oldimagetable",
-                           #            "Metadata on prior versions of uploaded media/files."),
                            PublicTable("pagelinks", "pagelinkstable",
                                        "Wiki page-to-page link records."),
                            PublicTable("categorylinks", "categorylinkstable",
@@ -138,9 +132,6 @@ class DumpItemList(object):
                                        "Wiki external URL link records."),
                            PublicTable("langlinks", "langlinkstable",
                                        "Wiki interlanguage link records."),
-                           # PublicTable("interwiki", "interwikitable",
-                           #            "Set of defined interwiki prefixes " +
-                           #            "and links for this wiki."),
                            PublicTable("user_groups", "usergroupstable", "User group assignments."),
                            PublicTable("category", "categorytable", "Category information."),
 
@@ -152,10 +143,6 @@ class DumpItemList(object):
                                        "Name/value pairs for pages."),
                            PublicTable("protected_titles", "protectedtitlestable",
                                        "Nonexistent pages that have been protected."),
-                           # PublicTable("revision", revisiontable",
-                           #            "Base per-revision data (does not include text)."), // safe?
-                           # PrivateTable("text", "texttable",
-                           #            "Text blob storage. May be compressed, etc."), // ?
                            PublicTable("redirect", "redirecttable", "Redirect list"),
                            PublicTable("iwlinks", "iwlinkstable",
                                        "Interwiki link tracking records"),
@@ -171,18 +158,17 @@ class DumpItemList(object):
                                         self._get_partnum_todo("abstractsdump"), self.wiki.db_name,
                                         self.filepart.get_pages_per_filepart_abstract())]
 
-        if self.filepart.parts_enabled():
-            self.dump_items.append(RecombineAbstractDump(
-                "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
-                self.find_item_by_name('abstractsdump')))
+        self.append_job_if_needed(RecombineAbstractDump(
+            "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
+            self.find_item_by_name('abstractsdump')))
 
         self.dump_items.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                                        self._get_partnum_todo("xmlstubsdump"),
                                        self.filepart.get_pages_per_filepart_history()))
-        if self.filepart.parts_enabled():
-            self.dump_items.append(RecombineXmlStub(
-                "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
-                self.find_item_by_name('xmlstubsdump')))
+
+        self.append_job_if_needed(RecombineXmlStub(
+            "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
+            self.find_item_by_name('xmlstubsdump')))
 
         # NOTE that the filepart thing passed here is irrelevant,
         # these get generated from the stubs which are all done in one pass
@@ -197,15 +183,15 @@ class DumpItemList(object):
                     self.wiki, self._get_partnum_todo("articlesdump"),
                     self.filepart.get_pages_per_filepart_history(), checkpoints,
                     self.checkpoint_file, self.page_id_range))
-        if self.filepart.parts_enabled():
-            self.dump_items.append(
-                RecombineXmlDump(
-                    "articlesdumprecombine",
-                    "<big><b>Recombine articles, templates, media/file descriptions, " +
-                    "and primary meta-pages.</b></big>",
-                    "This contains current versions of article content, and is " +
-                    "the archive most mirror sites will probably want.",
-                    self.find_item_by_name('articlesdump')))
+
+        self.append_job_if_needed(
+            RecombineXmlDump(
+                "articlesdumprecombine",
+                "<big><b>Recombine articles, templates, media/file descriptions, " +
+                "and primary meta-pages.</b></big>",
+                "This contains current versions of article content, and is " +
+                "the archive most mirror sites will probably want.",
+                self.find_item_by_name('articlesdump')))
 
         self.dump_items.append(
             XmlDump("meta-current",
@@ -218,65 +204,60 @@ class DumpItemList(object):
                     self.filepart.get_pages_per_filepart_history(), checkpoints,
                     self.checkpoint_file, self.page_id_range))
 
-        if self.filepart.parts_enabled():
-            self.dump_items.append(
-                RecombineXmlDump(
-                    "metacurrentdumprecombine",
-                    "Recombine all pages, current versions only.",
-                    "Discussion and user pages are included in this complete archive. " +
-                    "Most mirrors won't want this extra material.",
-                    self.find_item_by_name('metacurrentdump')))
+        self.append_job_if_needed(
+            RecombineXmlDump(
+                "metacurrentdumprecombine",
+                "Recombine all pages, current versions only.",
+                "Discussion and user pages are included in this complete archive. " +
+                "Most mirrors won't want this extra material.",
+                self.find_item_by_name('metacurrentdump')))
 
         self.dump_items.append(
             XmlLogging("Log events to all pages and users."))
 
-        if self._has_flagged_revs:
-            self.dump_items.append(
-                PublicTable("flaggedpages", "flaggedpagestable",
-                            "This contains a row for each flagged article, " +
-                            "containing the stable revision ID, if the lastest edit " +
-                            "was flagged, and how long edits have been pending."))
-            self.dump_items.append(
-                PublicTable("flaggedrevs", "flaggedrevstable",
-                            "This contains a row for each flagged revision, " +
-                            "containing who flagged it, when it was flagged, " +
-                            "reviewer comments, the flag values, and the " +
-                            "quality tier those flags fall under."))
+        self.append_job_if_needed(
+            PublicTable("flaggedpages", "flaggedpagestable",
+                        "This contains a row for each flagged article, " +
+                        "containing the stable revision ID, if the lastest edit " +
+                        "was flagged, and how long edits have been pending."))
+        self.append_job_if_needed(
+            PublicTable("flaggedrevs", "flaggedrevstable",
+                        "This contains a row for each flagged revision, " +
+                        "containing who flagged it, when it was flagged, " +
+                        "reviewer comments, the flag values, and the " +
+                        "quality tier those flags fall under."))
 
-        if self._has_wikidata:
-            self.dump_items.append(
-                PublicTable("wb_items_per_site", "wbitemspersitetable",
-                            "For each Wikidata item, this contains rows with the " +
-                            "corresponding page name on a given wiki project."))
-            self.dump_items.append(
-                PublicTable("wb_terms", "wbtermstable",
-                            "For each Wikidata item, this contains rows with a label, " +
-                            "an alias and a description of the item in a given language."))
-            self.dump_items.append(
-                PublicTable("wb_entity_per_page", "wbentityperpagetable",
-                            "Contains a mapping of page ids and entity ids, with " +
-                            "an additional entity type column."))
-            self.dump_items.append(
-                PublicTable("wb_property_info", "wbpropertyinfotable",
-                            "Contains a mapping of Wikidata property ids and data types."))
-            self.dump_items.append(
-                PublicTable("wb_changes_subscription", "wbchangessubscriptiontable",
-                            "Tracks which Wikibase Client wikis are using which items."))
-            self.dump_items.append(
-                PublicTable("sites", "sitestable",
-                            "This contains the SiteMatrix information from " +
-                            "meta.wikimedia.org provided as a table."))
+        self.append_job_if_needed(
+            PublicTable("wb_items_per_site", "wbitemspersitetable",
+                        "For each Wikidata item, this contains rows with the " +
+                        "corresponding page name on a given wiki project."))
+        self.append_job_if_needed(
+            PublicTable("wb_terms", "wbtermstable",
+                        "For each Wikidata item, this contains rows with a label, " +
+                        "an alias and a description of the item in a given language."))
+        self.append_job_if_needed(
+            PublicTable("wb_entity_per_page", "wbentityperpagetable",
+                        "Contains a mapping of page ids and entity ids, with " +
+                        "an additional entity type column."))
+        self.append_job_if_needed(
+            PublicTable("wb_property_info", "wbpropertyinfotable",
+                        "Contains a mapping of Wikidata property ids and data types."))
+        self.append_job_if_needed(
+            PublicTable("wb_changes_subscription", "wbchangessubscriptiontable",
+                        "Tracks which Wikibase Client wikis are using which items."))
+        self.append_job_if_needed(
+            PublicTable("sites", "sitestable",
+                        "This contains the SiteMatrix information from " +
+                        "meta.wikimedia.org provided as a table."))
 
-        if self._has_global_usage:
-            self.dump_items.append(
-                PublicTable("globalimagelinks", "globalimagelinkstable",
-                            "Global wiki media/files usage records."))
+        self.append_job_if_needed(
+            PublicTable("globalimagelinks", "globalimagelinkstable",
+                        "Global wiki media/files usage records."))
 
-        if self._is_wikidata_client:
-            self.dump_items.append(
-                PublicTable("wbc_entity_usage", "wbcentityusagetable",
-                            "Tracks which pages use which Wikidata items or properties " +
-                            "and what aspect (e.g. item label) is used."))
+        self.append_job_if_needed(
+            PublicTable("wbc_entity_usage", "wbcentityusagetable",
+                        "Tracks which pages use which Wikidata items or properties " +
+                        "and what aspect (e.g. item label) is used."))
 
         self.dump_items.append(
             BigXmlDump(
@@ -291,16 +272,15 @@ class DumpItemList(object):
                 self.wiki, self._get_partnum_todo("metahistorybz2dump"),
                 self.filepart.get_pages_per_filepart_history(),
                 checkpoints, self.checkpoint_file, self.page_id_range))
-        if self.filepart.parts_enabled() and self.filepart.recombine_history():
-            self.dump_items.append(
-                RecombineXmlDump(
-                    "metahistorybz2dumprecombine",
-                    "Recombine all pages with complete edit history (.bz2)",
-                    "These dumps can be *very* large, uncompressing up to " +
-                    "100 times the archive download size. " +
-                    "Suitable for archival and statistical use, " +
-                    "most mirror sites won't want or need this.",
-                    self.find_item_by_name('metahistorybz2dump')))
+        self.append_job_if_needed(
+            RecombineXmlDump(
+                "metahistorybz2dumprecombine",
+                "Recombine all pages with complete edit history (.bz2)",
+                "These dumps can be *very* large, uncompressing up to " +
+                "100 times the archive download size. " +
+                "Suitable for archival and statistical use, " +
+                "most mirror sites won't want or need this.",
+                self.find_item_by_name('metahistorybz2dump')))
         self.dump_items.append(
             XmlRecompressDump(
                 "meta-history",
@@ -314,16 +294,15 @@ class DumpItemList(object):
                 self.wiki, self._get_partnum_todo("metahistory7zdump"),
                 self.filepart.get_pages_per_filepart_history(),
                 checkpoints, self.checkpoint_file))
-        if self.filepart.parts_enabled() and self.filepart.recombine_history():
-            self.dump_items.append(
-                RecombineXmlRecompressDump(
-                    "metahistory7zdumprecombine",
-                    "Recombine all pages with complete edit history (.7z)",
-                    "These dumps can be *very* large, uncompressing " +
-                    "up to 100 times the archive download size. " +
-                    "Suitable for archival and statistical use, " +
-                    "most mirror sites won't want or need this.",
-                    self.find_item_by_name('metahistory7zdump'), self.wiki))
+        self.append_job_if_needed(
+            RecombineXmlRecompressDump(
+                "metahistory7zdumprecombine",
+                "Recombine all pages with complete edit history (.7z)",
+                "These dumps can be *very* large, uncompressing " +
+                "up to 100 times the archive download size. " +
+                "Suitable for archival and statistical use, " +
+                "most mirror sites won't want or need this.",
+                self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
         if self.wiki.config.multistream_enabled:
             if self.filepart.parts_enabled():
@@ -350,6 +329,24 @@ class DumpItemList(object):
         else:
             self.old_runinfo_retrieved = False
 
+    def append_job_if_needed(self, job):
+        if job.name().endswith("recombine"):
+            if self.filepart.parts_enabled():
+                if 'metahistory' not in job.name() or self.filepart.recombine_history():
+                    self.dump_items.append(job)
+            elif job.name().startswith("wb_") or job.name() == "sitestable":
+                if self._has_wikidata:
+                    self.dump_items.append(job)
+            elif job.name().startswith("flagged"):
+                if self._has_flagged_revs:
+                    self.dump_items.append(job)
+            elif job.name().startswith("global"):
+                if self._has_global_usage:
+                    self.dump_items.append(job)
+            elif job.name().startswith("wbc_"):
+                if self._is_wikidata_client:
+                    self.dump_items.append(job)
+                
     def append_job(self, jobname, job):
         if jobname not in self.skip_jobs:
             self.dump_items.append(job)
