@@ -442,7 +442,7 @@ class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, enabled=None,
                  partnum_todo=None, checkpoint_file=None, page_id_range=None,
-                 skipdone=False, verbose=False):
+                 skipdone=False, cleanup=False, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.db_name
         self.prefetch = prefetch
@@ -458,6 +458,7 @@ class Runner(object):
         self.skipdone = skipdone
         self.verbose = verbose
         self.enabled = enabled
+        self.cleanup_old_files = cleanup
 
         if self.checkpoint_file is not None:
             fname = DumpFilename(self.wiki)
@@ -475,8 +476,11 @@ class Runner(object):
         for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
                         RunInfoFile.NAME, SymLinks.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
-                        "clean_old_files", "check_trunc_files"]:
+                        "cleanup_old_files", "check_trunc_files"]:
             self.enabled[setting] = True
+
+        if not self.cleanup_old_files:
+            del self.enabled["cleanup_old_files"]
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
@@ -485,11 +489,8 @@ class Runner(object):
                 del self.enabled[setting]
 
         if self.dryrun:
-            for setting in ["logging", "check_trunc_files", "clean_old_files"]:
+            for setting in ["logging", "check_trunc_files"]:
                 del self.enabled[setting]
-        if self.page_id_range:
-            for setting in ["clean_old_files"]:
-                self.enabled[setting] = True
 
         self.job_requested = job
 
@@ -503,11 +504,11 @@ class Runner(object):
 
         if self.job_requested == "latestlinks" or self.job_requested == "createdirs":
             for setting in [Checksummer.NAME, NoticeFile.NAME, "makedir",
-                            "clean_old_dumps", "clean_old_files", "check_trunc_files"]:
+                            "clean_old_dumps", "check_trunc_files"]:
                 del self.enabled[setting]
 
         if self.job_requested == "noop":
-            for setting in ["clean_old_dumps", "clean_old_files", "check_trunc_files"]:
+            for setting in ["clean_old_dumps", "check_trunc_files"]:
                 del self.enabled[setting]
 
         self.skip_jobs = skip_jobs
