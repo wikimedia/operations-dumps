@@ -37,7 +37,7 @@ class Dump(object):
         if not hasattr(self, 'checkpoint_file'):
             self.checkpoint_file = None
         if not hasattr(self, '_partnum_todo'):
-            self._partnum_todo = False
+            self._partnum_todo = None
         if not hasattr(self, '_prerequisite_items'):
             self._prerequisite_items = []
         if not hasattr(self, '_check_truncation'):

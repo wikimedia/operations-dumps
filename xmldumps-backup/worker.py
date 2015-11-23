@@ -209,7 +209,7 @@ def main():
         enable_logging = False
         html_notice = ""
         dryrun = False
-        partnum_todo = False
+        partnum_todo = None
         after_checkpoint = False
         checkpoint_file = None
         page_id_range = None
@@ -281,9 +281,9 @@ def main():
             usage("--force cannot be used with --job option")
         if restart and not job_requested:
             usage("--restartfrom requires --job and the job from which to restart")
-        if partnum_todo and not job_requested:
+        if partnum_todo is not None and not job_requested:
             usage("--partnum option requires a specific job for which to rerun that part")
-        if partnum_todo and restart:
+        if partnum_todo is not None and restart:
             usage("--partnum option can be specified only for one specific job")
         if checkpoint_file is not None and (len(remainder) == 0):
             usage("--checkpoint option requires the name of a wikidb to be specified")
@@ -329,7 +329,7 @@ def main():
             sys.stderr.write("Exiting.\n")
             sys.exit(1)
 
-        if dryrun or partnum_todo or (job_requested and not restart and not do_locking):
+        if dryrun or partnum_todo is not None or (job_requested and not restart and not do_locking):
             locks_enabled = False
         else:
             locks_enabled = True
