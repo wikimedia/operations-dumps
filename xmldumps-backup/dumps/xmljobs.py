@@ -5,10 +5,12 @@ All xml dump jobs are defined here
 import os
 import re
 from os.path import exists
+import signal
 
+from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFile, DumpFilename
-from dumps.utils import MultiVersion
+from dumps.utils import MultiVersion, MiscUtils
 from dumps.jobs import Dump
 
 
@@ -195,9 +197,6 @@ class XmlDump(Dump):
         if checkpoints:
             self._checkpoints_enabled = True
         self.checkpoint_file = checkpoint_file
-        if self.checkpoint_file is not None:
-            # we don't checkpoint the checkpoint file.
-            self._checkpoints_enabled = False
         self.page_id_range = page_id_range
         self._prerequisite_items = [self.item_for_stubs]
         self._check_truncation = True
@@ -215,45 +214,248 @@ class XmlDump(Dump):
     def get_file_ext(self):
         return "bz2"
 
-    def run(self, runner):
-        commands = []
-        self.cleanup_old_files(runner.dump_dir, runner)
+    def get_stub_files(self, runner, partnum=None):
         # just get the files pertaining to our dumpname, which is *one* of
         # articles, pages-current, pages-history.
         # stubs include all of them together.
+
+        if partnum is None:
+            partnum = self._partnum_todo
+
+        # we will either return the one full stubs file that exists
+        # or the one stub file part, if we are (re)running a specific
+        # file part (subjob), or all file parts if we are (re)running
+        # the entire job which is configured for subjobs.
         if not self.dumpname.startswith(self.get_dumpname_base()):
             raise BackupError("dumpname %s of unknown form for this job" % self.dumpname)
+
         dumpname = self.dumpname[len(self.get_dumpname_base()):]
         stub_dumpnames = self.item_for_stubs.list_dumpnames()
         for sname in stub_dumpnames:
             if sname.endswith(dumpname):
                 stub_dumpname = sname
         input_files = self.item_for_stubs.list_outfiles_for_input(runner.dump_dir, [stub_dumpname])
-        if self._parts_enabled and self._partnum_todo:
-            # reset inputfiles to just have the one we want.
-            for inp_file in input_files:
-                if inp_file.partnum_int == self._partnum_todo:
-                    input_files = [inp_file]
-                    break
-            if len(input_files) > 1:
-                raise BackupError("Trouble finding stub files for xml dump run")
+        if self._parts_enabled:
+            if partnum is not None:
+                for inp_file in input_files:
+                    if inp_file.partnum == partnum:
+                        input_files = [inp_file]
+                        break
+        return input_files
 
-        if self.checkpoint_file is not None:
-            # fixme this should be an input file, not the output checkpoint file. move
-            # the code out of build_command that does the conversion and put it here.
-            series = self.build_command(runner, self.checkpoint_file)
-            commands.append(series)
+    def get_chkptfile_from_pageids(self):
+        if ',' in self.page_id_range:
+            first_page_id, last_page_id = self.page_id_range.split(',', 1)
         else:
-            for inp_file in input_files:
-                # output_file = DumpFilename(self.wiki, inp_file.date, inp_file.dumpname,
-                #                            inp_file.file_type, self.file_ext)
-                series = self.build_command(runner, inp_file)
-                commands.append(series)
+            first_page_id = self.page_id_range
+            last_page_id = "00000"  # indicates no last page id specified, go to end of stub
+        checkpoint_string = DumpFilename.make_checkpoint_string(first_page_id, last_page_id)
+        if self._partnum_todo:
+            partnum = self._partnum_todo
+        else:
+            # fixme is that right? maybe NOT
+            partnum = None
+        fileobj = DumpFilename(self.get_dumpname(), self.wiki.date, self.get_filetype(),
+                               self.get_file_ext(), partnum, checkpoint_string)
+        return fileobj.filename
+
+    def get_missing_before(self, needed_range, have_range):
+        # given range of numbers needed and range of numbers we have,
+        # return range of numbers needed before first number we have,
+        # or None if none
+        if have_range is None:
+            return needed_range
+        elif needed_range is None or int(have_range[0]) <= int(needed_range[0]):
+            return None
+        else:
+            return (needed_range[0], str(int(have_range[0]) - 1), needed_range[2])
+
+    def find_missing_ranges(self, needed, have):
+        # given list tuples of ranges of numbers needed, and ranges of numbers we have,
+        # determine the ranges of numbers missing and return list of said tuples
+        needed_index = 0
+        have_index = 0
+        missing = []
+
+        if not needed:
+            return missing
+        if not have:
+            return needed
+
+        needed_range = needed[needed_index]
+        have_range = have[have_index]
+
+        while True:
+            # if we're out of haves, append everything we need
+            if have_range is None:
+                missing.append(needed_range)
+                needed_index += 1
+                if needed_index < len(needed):
+                    needed_range = needed[needed_index]
+                else:
+                    # end of needed. done
+                    return missing
+
+            before_have = self.get_missing_before(needed_range, have_range)
+
+            # write anything we don't have
+            if before_have is not None:
+                missing.append(before_have)
+
+            # if we haven't already exhausted all the ranges we have...
+            if have_range is not None:
+                # skip over the current range of what we have
+                skip_up_to = str(int(have_range[1]) + 1)
+                while int(needed_range[1]) < int(skip_up_to):
+                    needed_index += 1
+                    if needed_index < len(needed):
+                        needed_range = needed[needed_index]
+                    else:
+                        # end of needed. done
+                        return missing
+
+                if int(needed_range[0]) < int(skip_up_to):
+                    needed_range = (skip_up_to, needed_range[1], needed_range[2])
+
+                # get the next range we have
+                have_index += 1
+                if have_index < len(have):
+                    have_range = have[have_index]
+                else:
+                    have_range = None
+
+        return missing
+
+    def chkpt_file_from_page_range(self, page_range, partnum):
+        checkpoint_string = DumpFilename.make_checkpoint_string(
+            page_range[0], page_range[1])
+        output_file = DumpFilename(self.wiki, self.wiki.date, self.dumpname,
+                                   self.get_filetype(), self.get_file_ext(),
+                                   partnum, checkpoint=checkpoint_string,
+                                   temp=False)
+        return output_file
+
+    def run(self, runner):
+        # here we will either clean up or not depending on how we were called FIXME
+        self.cleanup_old_files(runner.dump_dir, runner)
+        commands = []
+
+        todo = []
+
+        if self.page_id_range is not None:
+            # convert to checkpoint filename, handle the same way
+            self.checkpoint_file = self.get_chkptfile_from_pageids()
+
+        if self.checkpoint_file:
+            todo = [self.checkpoint_file]
+        else:
+            # list all the output files that would be produced w/o
+            # checkpoint files on
+            outfiles = self.get_reg_files_for_filepart_possible(
+                runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
+            if self._checkpoints_enabled:
+
+                # get the stub list that would be used for the current run
+                stubs = self.get_stub_files(runner)
+                stubs.sort(key=lambda thing: thing.filename)
+
+                # get the page ranges covered by stubs
+                stub_ranges = []
+                for stub in stubs:
+                    fname = DumpFile(self.wiki,
+                                     runner.dump_dir.filename_public_path(stub, stub.date),
+                                     stub, self.verbose)
+                    stub_ranges.append((fname.find_first_page_id_in_file(),
+                                        self.find_last_page_id(stub, runner), stub.partnum))
+
+                # get list of existing checkpoint files
+                chkpt_files = self.list_checkpt_files(
+                    runner.dump_dir, [self.dumpname], runner.wiki.date, parts=None)
+                chkpt_files.sort(key=lambda thing: thing.filename)
+                # get the page ranges covered by existing checkpoint files
+                checkpoint_ranges = [(chkptfile.first_page_id, chkptfile.last_page_id,
+                                      chkptfile.partnum)
+                                     for chkptfile in chkpt_files]
+                if self.verbose:
+                    print "checkpoint_ranges is", checkpoint_ranges
+                    print "stub_ranges is", stub_ranges
+
+                if not checkpoint_ranges:
+                    # no page ranges covered by checkpoints. do all output files
+                    # the usual way
+                    todo = outfiles
+                else:
+                    todo = []
+                    parts = self.get_fileparts_list()
+                    for partnum in parts:
+                        if not [int(chkpt_range[2]) for chkpt_range in checkpoint_ranges
+                                if int(chkpt_range[2]) == int(partnum)]:
+                            # no page ranges covered by checkpoints for a particular
+                            # file part (subjob) so do that output file the
+                            # regular way
+                            todo.extend([outfile for outfile in outfiles
+                                         if int(outfile.partnum) == int(partnum)])
+
+                    missing = self.find_missing_ranges(stub_ranges, checkpoint_ranges)
+                    todo.extend([self.chkpt_file_from_page_range((first, last), partnum)
+                                 for (first, last, partnum) in missing])
+
+            else:
+                # do the missing files only
+                # FIXME public or private depending on the wiki!
+                todo = [outfile for outfile in outfiles
+                        if not os.path.exists(runner.dump_dir.filename_public_path(outfile))]
+
+        partial_stubs = []
+        if self.verbose:
+            print "todo is", [to.filename for to in todo]
+        for fileobj in todo:
+
+            stub_for_file = self.get_stub_files(runner, fileobj.partnum)[0]
+
+            if fileobj.first_page_id is None:
+                partial_stubs.append(stub_for_file)
+            else:
+                stub_output_file = DumpFilename(
+                    self.wiki, fileobj.date, fileobj.dumpname,
+                    self.item_for_stubs.get_filetype(),
+                    self.item_for_stubs.get_file_ext(),
+                    fileobj.partnum,
+                    DumpFilename.make_checkpoint_string(fileobj.first_page_id, fileobj.last_page_id), temp=True)
+
+                self.write_partial_stub(stub_for_file, stub_output_file, runner)
+                if not self.has_no_entries(stub_output_file, runner):
+                    partial_stubs.append(stub_output_file)
+
+        if self.verbose:
+            print "partial_stubs is", [ps.filename for ps in partial_stubs]
+        if partial_stubs:
+            stub_files = partial_stubs
+        else:
+            return
+
+        for stub_file in stub_files:
+            series = self.build_command(runner, stub_file)
+            commands.append(series)
 
         error = runner.run_command(commands, callback_stderr=self.progress_callback,
                                    callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing xml file(s) %s" % self.dumpname)
+
+    def has_no_entries(self, xmlfile, runner):
+        '''
+        see if it has a page id in it or not. no? then return True
+        '''
+        if xmlfile.is_temp_file:
+            path = os.path.join(self.wiki.config.temp_dir, xmlfile.filename)
+        else:
+            path = runner.dump_dir.filename_public_path(xmlfile, self.wiki.date)
+        fname = DumpFile(self.wiki, path, xmlfile, self.verbose)
+        if fname.find_first_page_id_in_file() is None:
+            return True
+        else:
+            return False
 
     def build_eta(self, runner):
         """Tell the dumper script whether to make ETA estimate on page or revision count."""
@@ -273,7 +475,7 @@ class XmlDump(Dump):
             bz2mode = "bzip2"
         return "--output=%s:%s" % (bz2mode, xmlbz2)
 
-    def write_partial_stub(self, input_file, output_file, start_page_id, end_page_id, runner):
+    def write_partial_stub(self, input_file, output_file, runner):
         if not exists(self.wiki.config.writeuptopageid):
             raise BackupError("writeuptopageid command %s not found" %
                               self.wiki.config.writeuptopageid)
@@ -291,13 +493,14 @@ class XmlDump(Dump):
             command2 = "%s > %s" % (self.wiki.config.bzip2, output_file_path)
         else:
             raise BackupError("unknown stub file extension %s" % input_file.file_ext)
-        if end_page_id:
+        if output_file.last_page_id is not None and output_file.last_page_id is not "00000":
             command = [command1 + ("| %s %s %s |" % (self.wiki.config.writeuptopageid,
-                                                     start_page_id, end_page_id)) + command2]
+                                                     output_file.first_page_id,
+                                                     output_file.last_page_id)) + command2]
         else:
             # no lastpageid? read up to eof of the specific stub file that's used for input
             command = [command1 + ("| %s %s |" % (self.wiki.config.writeuptopageid,
-                                                  start_page_id)) + command2]
+                                                  output_file.first_page_id)) + command2]
 
         pipeline = [command]
         series = [pipeline]
@@ -305,83 +508,75 @@ class XmlDump(Dump):
         if error:
             raise BackupError("failed to write partial stub file %s" % output_file.filename)
 
-    def build_command(self, runner, outfile):
+    def get_last_500_lines(self, fileobj, runner):
+        if not fileobj.filename or not exists(runner.dump_dir.filename_public_path(fileobj)):
+            return None
+
+        dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
+                        fileobj, self.verbose)
+        pipeline = dumpfile.setup_uncompression_command()
+
+        tail = self.wiki.config.tail
+        if not exists(tail):
+            raise BackupError("tail command %s not found" % tail)
+        tail_esc = MiscUtils.shell_escape(tail)
+        pipeline.append([tail, "-500"])
+        # without shell
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.run_pipeline_get_output()
+        if (proc.exited_successfully() or
+            (proc.get_failed_cmds_with_retcode() ==
+             [[-signal.SIGPIPE, pipeline[0]]]) or
+            (proc.get_failed_cmds_with_retcode() ==
+             [[signal.SIGPIPE + 128, pipeline[0]]])):
+            last_lines = proc.output()
+        return last_lines
+
+    def find_last_page_id(self, fileobj, runner):
+        lastlines = self.get_last_500_lines(fileobj, runner)
+        # now look for the last page id in here. eww
+        if not lastlines:
+            return None
+        title_and_id_pattern = re.compile(r'<title>(?P<title>.+?)</title>\s*' +
+                                          r'(<ns>[0-9]+</ns>\s*)?' +
+                                          r'<id>(?P<pageid>\d+?)</id>')
+        result = None
+        for result in re.finditer(title_and_id_pattern, lastlines):
+            pass
+        if result is not None:
+            return result.group('pageid')
+        else:
+            return None
+
+    def build_command(self, runner, stub_file):
         """Build the command line for the dump, minus output and filter options"""
 
-        if self.checkpoint_file is not None:
-            output_file = outfile
-        elif self._checkpoints_enabled:
+        if self._checkpoints_enabled:
             # we write a temp file, it will be checkpointed every so often.
-            output_file = DumpFilename(self.wiki, outfile.date, self.dumpname,
-                                       outfile.file_type, self.file_ext, outfile.partnum,
-                                       outfile.checkpoint, temp=True)
+            temp = True
         else:
-            # we write regular files
-            output_file = DumpFilename(self.wiki, outfile.date, self.dumpname,
-                                       outfile.file_type, self.file_ext, outfile.partnum,
-                                       checkpoint=False, temp=False)
+            temp = False
 
-        # Page and revision data pulled from this skeleton dump...
-        # FIXME we need the stream wrappers for proper use of writeupto. this is a hack.
-        if self.checkpoint_file is not None or self.page_id_range:
-            # fixme I now have this code in a couple places, make it a function.
-            if not self.dumpname.startswith(self.get_dumpname_base()):
-                raise BackupError("dumpname %s of unknown form for this job" % self.dumpname)
-            dumpname = self.dumpname[len(self.get_dumpname_base()):]
-            stub_dumpnames = self.item_for_stubs.list_dumpnames()
-            for sname in stub_dumpnames:
-                if sname.endswith(dumpname):
-                    stub_dumpname = sname
+        output_file = DumpFilename(self.wiki, stub_file.date, self.dumpname,
+                                   self.get_filetype(), self.file_ext, stub_file.partnum,
+                                   DumpFilename.make_checkpoint_string(stub_file.first_page_id,
+                                                                       stub_file.last_page_id),
+                                   temp)
 
-        if self.checkpoint_file is not None:
-            stub_input_filename = self.checkpoint_file.new_filename(
-                stub_dumpname, self.item_for_stubs.get_filetype(),
-                self.item_for_stubs.get_file_ext(), self.checkpoint_file.date,
-                self.checkpoint_file.partnum)
-            stub_input_file = DumpFilename(self.wiki)
-            stub_input_file.new_from_filename(stub_input_filename)
-            stub_output_filename = self.checkpoint_file.new_filename(
-                stub_dumpname, self.item_for_stubs.get_filetype(),
-                self.item_for_stubs.get_file_ext(), self.checkpoint_file.date,
-                self.checkpoint_file.partnum, self.checkpoint_file.checkpoint)
-            stub_output_file = DumpFilename(self.wiki)
-            stub_output_file.new_from_filename(stub_output_filename)
-            self.write_partial_stub(stub_input_file, stub_output_file,
-                                    self.checkpoint_file.first_page_id,
-                                    str(int(self.checkpoint_file.last_page_id) + 1), runner)
-            stub_option = ("--stub=gzip:%s" % os.path.join(
-                self.wiki.config.temp_dir, stub_output_file.filename))
-        elif self.page_id_range:
-            # two cases. redoing a specific file part, OR no parts,
-            # redoing the whole output file. ouch, hope it isn't huge.
-            if self._partnum_todo or not self._parts_enabled:
-                stub_input_file = outfile
-
-            stub_output_filename = stub_input_file.new_filename(
-                stub_dumpname, self.item_for_stubs.get_filetype(),
-                self.item_for_stubs.get_file_ext(), stub_input_file.date,
-                stub_input_file.partnum, stub_input_file.checkpoint)
-            stub_output_file = DumpFilename(self.wiki)
-            stub_output_file.new_from_filename(stub_output_filename)
-            if ',' in self.page_id_range:
-                (first_page_id, last_page_id) = self.page_id_range.split(',', 2)
-            else:
-                first_page_id = self.page_id_range
-                last_page_id = None
-            self.write_partial_stub(stub_input_file, stub_output_file,
-                                    first_page_id, last_page_id, runner)
-
-            stub_option = "--stub=gzip:%s" % os.path.join(self.wiki.config.temp_dir,
-                                                          stub_output_file.filename)
+        stub_path = os.path.join(self.wiki.config.temp_dir, stub_file.filename)
+        if os.path.exists(stub_path):
+            # if this is a partial stub file in temp dir, use that
+            stub_option = "--stub=gzip:%s" % stub_path
         else:
-            stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(outfile)
+            # use regular stub file
+            stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(stub_file)
 
         # Try to pull text from the previous run; most stuff hasn't changed
         # Source=$OutputDir/pages_$section.xml.bz2
         sources = []
         possible_sources = None
         if self._prefetch:
-            possible_sources = self._find_previous_dump(runner, outfile.partnum)
+            possible_sources = self._find_previous_dump(runner, output_file.partnum)
             # if we have a list of more than one then
             # we need to check existence for each and put them together in a string
             if possible_sources:
@@ -389,8 +584,8 @@ class XmlDump(Dump):
                     sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
                     if exists(sname):
                         sources.append(sname)
-        if outfile.partnum:
-            partnum_str = "%s" % outfile.partnum
+        if output_file.partnum:
+            partnum_str = "%s" % stub_file.partnum
         else:
             partnum_str = ""
         if len(sources) > 0:
@@ -504,11 +699,11 @@ class XmlDump(Dump):
                     # also be sure that if a critical page is deleted by the time we
                     # try to figure out ranges, that we don't get hosed
                     if ((first_page_id_in_file <= int(start_page_id) and
-                            (last_page_id_in_file is None or
-                             last_page_id_in_file >= int(start_page_id))) or
-                            (first_page_id_in_file >= int(start_page_id) and
-                             (end_page_id is None or
-                              first_page_id_in_file <= int(end_page_id)))):
+                         (last_page_id_in_file is None or
+                          last_page_id_in_file >= int(start_page_id))) or
+                        (first_page_id_in_file >= int(start_page_id) and
+                         (end_page_id is None or
+                          first_page_id_in_file <= int(end_page_id)))):
                         possibles.append(file_obj)
                 except:
                     runner.debug(

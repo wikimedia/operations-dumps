@@ -165,6 +165,14 @@ class DumpFilename(object):
     partnum_int       part number as int
     """
 
+    def make_checkpoint_string(first_page_id, last_page_id):
+        if first_page_id is not None and last_page_id is not None:
+            return "p" + first_page_id + "p" + last_page_id
+        else:
+            return None
+
+    make_checkpoint_string = staticmethod(make_checkpoint_string)
+
     def __init__(self, wiki, date=None, dump_name=None, filetype=None,
                  ext=None, partnum=None, checkpoint=None, temp=False):
         """Constructor.  Arguments: the dump name as it should appear in the filename,
@@ -257,10 +265,14 @@ class DumpFilename(object):
         if self.filename.startswith(self.file_prefix):
             self.basename = self.filename[self.file_prefix_length:]
 
-        self.checkpoint_pattern = r"-p(?P<first>[0-9]+)p(?P<last>[0-9]+)\." + self.file_ext + "$"
+        self.checkpoint_pattern = r"-p(?P<first>[0-9]+)p(?P<last>[0-9]+)\." + self.file_ext
+        if self.temp is not None:
+            self.checkpoint_pattern += self.temp + "$"
+        else:
+            self.checkpoint_pattern += "$"
+
         self.compiled_checkpoint_pattern = re.compile(self.checkpoint_pattern)
         result = self.compiled_checkpoint_pattern.search(self.filename)
-
         if result:
             self.is_checkpoint_file = True
             self.first_page_id = result.group('first')
@@ -288,15 +300,15 @@ class DumpFilename(object):
         if not date:
             date = self.wiki.date
         # fixme do the right thing in case no filetype or no ext
-        parts = []
-        parts.append(self.wiki.db_name + "-" + date + "-" + dump_name + "%s" % partnum)
+        fields = []
+        fields.append(self.wiki.db_name + "-" + date + "-" + dump_name + "%s" % partnum)
         if checkpoint:
             filetype = filetype + "-" + checkpoint
         if filetype:
-            parts.append(filetype)
+            fields.append(filetype)
         if ext:
-            parts.append(ext)
-        filename = ".".join(parts)
+            fields.append(ext)
+        filename = ".".join(fields)
         if temp:
             filename = filename + "-tmp"
         return filename

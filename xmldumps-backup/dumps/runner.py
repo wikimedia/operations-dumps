@@ -83,7 +83,7 @@ class DumpItemList(object):
         else:
             checkpoints = False
 
-        if self._single_job and self._partnum_todo:
+        if self._single_job and self._partnum_todo is not None:
             if (self._single_job[-5:] == 'table' or
                     self._single_job[-9:] == 'recombine' or
                     self._single_job in ['createdirs', 'noop', 'latestlinks',
@@ -441,7 +441,7 @@ class DumpItemList(object):
 class Runner(object):
     def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, enabled=None,
-                 partnum_todo=False, checkpoint_file=None, page_id_range=None,
+                 partnum_todo=None, checkpoint_file=None, page_id_range=None,
                  skipdone=False, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.db_name
@@ -463,9 +463,9 @@ class Runner(object):
             fname = DumpFilename(self.wiki)
             fname.new_from_filename(checkpoint_file)
             # we should get file partnum if any
-            if not self._partnum_todo and fname.partnum_int:
+            if self._partnum_todo is None and fname.partnum_int:
                 self._partnum_todo = fname.partnum_int
-            elif self._partnum_todo and fname.partnum_int and self._partnum_todo != fname.partnum_int:
+            elif self._partnum_todo is not None and fname.partnum_int and self._partnum_todo != fname.partnum_int:
                 raise BackupError("specifed partnum to do does not match part number "
                                   "of checkpoint file %s to redo", self.checkpoint_file)
             self.checkpoint_file = fname
@@ -478,7 +478,7 @@ class Runner(object):
                         "clean_old_files", "check_trunc_files"]:
             self.enabled[setting] = True
 
-        if self.dryrun or self._partnum_todo or self.checkpoint_file is not None:
+        if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
                             RunInfoFile.NAME, SymLinks.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
