@@ -780,7 +780,9 @@ class XmlDump(Dump):
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         files = Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names)
         files_to_return = []
+
         if self.page_id_range:
+            # this file is for one page range only
             if ',' in self.page_id_range:
                 (first_page_id, last_page_id) = self.page_id_range.split(',', 2)
                 first_page_id = int(first_page_id)
@@ -788,8 +790,9 @@ class XmlDump(Dump):
             else:
                 first_page_id = int(self.page_id_range)
                 last_page_id = None
-            # filter any checkpoint files, removing from the list any with
-            # page range outside of the page range this job will cover
+
+            # checkpoint files cover specific page ranges. for those,
+            # list only files within the given page range for cleanup
             for fname in files:
                 if fname.is_checkpoint_file:
                     if (not first_page_id or
@@ -801,6 +804,9 @@ class XmlDump(Dump):
                             files_to_return.append(fname)
                 else:
                     files_to_return.append(fname)
+        else:
+            files_to_return = files
+
         return files_to_return
 
 
