@@ -141,7 +141,7 @@ def usage(message=None):
     usage_text = """Usage: python worker.py [options] [wikidbname]
 Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job,
          --skipjobs, --addnotice, --delnotice, --force, --noprefetch,
-         --nospawn, --restartfrom, --log, --cutoff\n")
+         --nospawn, --restartfrom, --log, --cleanup, --cutoff\n")
 --aftercheckpoint: Restart this job from the after specified checkpoint file, doing the
                rest of the job for the appropriate part number if parallel subjobs each
                doing one part are configured, or for the all the rest of the revisions
@@ -187,6 +187,8 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
 --cutoff:      Given a cutoff date in yyyymmdd format, display the next wiki for which
                dumps should be run, if its last dump was older than the cutoff date,
                and exit, or if there are no such wikis, just exit
+--cleanup:     Remove all files that may already exist for the spefici wiki and
+               run, for the specified job or all jobs
 --verbose:     Print lots of stuff (includes printing full backtraces for any exception)
                This is used primarily for debugging
 """
@@ -218,6 +220,7 @@ def main():
         skipdone = False
         do_locking = False
         verbose = False
+        cleanup_files = False
 
         try:
             (options, remainder) = getopt.gnu_getopt(
@@ -226,7 +229,7 @@ def main():
                  'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn',
                  'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
                  'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
-                 "exclusive", 'verbose'])
+                 "exclusive", "cleanup", 'verbose'])
         except:
             usage("Unknown option specified")
 
@@ -270,6 +273,8 @@ def main():
                     usage("--cutoff value must be in yyyymmdd format")
             elif opt == "--skipdone":
                 skipdone = True
+            elif opt == "--cleanup":
+                cleanup_files = True
             elif opt == "--exclusive":
                 do_locking = True
             elif opt == "--verbose":
@@ -413,7 +418,8 @@ def main():
                 enabled = {"logging": True}
             runner = Runner(wiki, prefetch, spawn, job_requested, skip_jobs,
                             restart, html_notice, dryrun, enabled,
-                            partnum_todo, checkpoint_file, page_id_range, skipdone, verbose)
+                            partnum_todo, checkpoint_file, page_id_range, skipdone,
+                            cleanup_files, verbose)
 
             if restart:
                 sys.stderr.write("Running %s, restarting from job %s...\n" %
