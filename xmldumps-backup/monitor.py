@@ -3,8 +3,10 @@
 import os
 import sys
 from os.path import exists
-from dumps.WikiDump import Wiki, Config
+from dumps.WikiDump import Wiki, Config, Locker
 from dumps.fileutils import FileUtils
+from dumps.runnerutils import StatusHtml
+
 
 def add_to_filename(filename, infix):
     base, suffix = filename.split('.', 1)
@@ -36,7 +38,7 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=T
                 except:
                     print db_name, "is locked"
         running = running or locker.is_locked()
-        states.append(StatusHtml.get_status_line(wiki))
+        states.append(StatusHtml.status_line(wiki))
 
     if running:
         status = "Dumps are in progress..."
