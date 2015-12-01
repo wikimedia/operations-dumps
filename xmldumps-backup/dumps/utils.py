@@ -338,7 +338,7 @@ class FilePartInfo(object,):
             if self.wiki.config.numparts_for_abstract:
                 # we add 200 padding to cover new pages that may be added
                 pages_per_filepart = 200 + self.stats.total_pages/int(
-                    self.wiki.config.parts_for_abstract)
+                    self.wiki.config.numparts_for_abstract)
                 self._pages_per_filepart_abstract = [pages_per_filepart for i in range(
                     0, int(self.wiki.config.numparts_for_abstract))]
             else:
