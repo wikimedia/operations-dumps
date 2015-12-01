@@ -489,8 +489,11 @@ class Runner(object):
                 del self.enabled[setting]
 
         if self.dryrun:
-            for setting in ["logging", "check_trunc_files"]:
+            for setting in ["check_trunc_files"]:
                 del self.enabled[setting]
+            # may not always be present
+            if "logging" in self.enabled:
+                del self.enabled["logging"]
 
         self.job_requested = job
 
