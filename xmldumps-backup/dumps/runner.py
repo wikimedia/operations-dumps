@@ -28,8 +28,8 @@ class Logger(object):
             self.log_file = open(log_filename, "a")
         else:
             self.log_file = None
-            self.queue = Queue.Queue()
-            self.jobs_done = "JOBSDONE"
+        self.queue = Queue.Queue()
+        self.jobs_done = "JOBSDONE"
 
     def log_write(self, line=None):
         if self.log_file:
