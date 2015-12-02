@@ -206,7 +206,8 @@ class IncrDump(object):
 
     def do_one_wiki(self):
         if (self.wikiname not in self._config.private_wikis_list and
-                self.wikiname not in self._config.closed_wikis_list):
+                self.wikiname not in self._config.closed_wikis_list and
+                self.wikiname not in self._config.skip_wikis_list):
             if not exists(self.incrdir.get_incdir(self.wikiname)):
                 os.makedirs(self.incrdir.get_incdir(self.wikiname))
 
