@@ -13,7 +13,7 @@ def add_to_filename(filename, infix):
     return base + "-" + infix + ("." + suffix if suffix else "")
 
 
-def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=True):
+def generate_index(config, other_indexhtml=None, sorted_by_db=False):
     running = False
     states = []
 
@@ -26,17 +26,7 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False, showlocks=T
         wiki = Wiki(config, db_name)
         locker = Locker(wiki)
         if locker.is_stale():
-            print db_name + " is stale"
             locker.cleanup_stale_lock()
-        if showlocks:
-            if locker.is_locked():
-                try:
-                    filehdl = open(locker.get_lock_file_path(), 'r')
-                    (host, pid) = filehdl.readline().split(" ")
-                    filehdl.close()
-                    print db_name, "is locked by pid", pid, "on", host
-                except:
-                    print db_name, "is locked"
         running = running or locker.is_locked()
         states.append(StatusHtml.status_line(wiki))
 
@@ -78,7 +68,7 @@ def update_index(config):
     temp_fname = output_fname_sorted_by_db + ".tmp"
     filehdl = open(temp_fname, "wt")
     filehdl.write(generate_index(config, other_indexhtml=output_fname,
-                                 sorted_by_db=True, showlocks=False))
+                                 sorted_by_db=True))
     filehdl.close()
     os.rename(temp_fname, output_fname_sorted_by_db)
 

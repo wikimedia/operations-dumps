@@ -18,16 +18,18 @@ while [ $# -gt 0 ]; do
     fi
 done
 
+cd ${WIKIDUMP_BASE}
+
 pythonargs=( "$WIKIDUMP_BASE/monitor.py" )
 if [ ! -z "$CONFIGFILE" ]; then
     pythonargs=( "${pythonargs[@]}" "$CONFIGFILE" )
 fi
 
 while true; do
-    echo ""
-    echo "Sweeping!"
-    echo python ${pythonargs[@]}
+#    echo ""
+#    echo "Sweeping!"
+#    echo python ${pythonargs[@]}
     python ${pythonargs[@]}
-    echo "sleeping"
+#    echo "sleeping"
     sleep 15
 done
