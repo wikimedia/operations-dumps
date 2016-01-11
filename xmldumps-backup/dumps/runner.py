@@ -746,8 +746,8 @@ class Runner(object):
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            self.indexhtml.update_index_html("done")
-            self.statushtml.update_status_file("done")
+            self.indexhtml.update_index_html("partialdone")
+            self.statushtml.update_status_file("partialdone")
 
         self.dumpjobdata.do_after_dump(self.dump_item_list.dump_items)
 
