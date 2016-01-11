@@ -20,8 +20,12 @@ class Config(object):
             config_file = "wikidump.conf"
         self.files = [
             os.path.join(home, config_file),
-            "/etc/wikidump.conf",
-            os.path.join(os.getenv("HOME"), ".wikidump.conf")]
+            "/etc/wikidump.conf"
+            ]
+        home = os.getenv("HOME")
+        if home is not None:
+            self.files.append(os.path.join(os.getenv("HOME"),
+                                           ".wikidump.conf"))
         defaults = {
             # "wiki": {
             "dblist": "",
