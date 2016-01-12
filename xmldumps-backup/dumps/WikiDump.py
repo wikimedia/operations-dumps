@@ -278,9 +278,49 @@ class Config(object):
         else:
             return self.conf.get(section_name, item_name)
 
+    def db_latest_status(self):
+        '''
+        return list of tuples for each wiki:
+            status of latest wiki dump or None if wiki never dumped,
+            wiki name
+        '''
+        dbinfo = []
+        for dbname in self.db_list:
+            wiki = Wiki(self, dbname)
+            last = wiki.latest_dump()
+            status = ''
+            if last:
+                dump_status = StatusHtml.get_statusfile_path(wiki, last)
+                try:
+                    status = FileUtils.read_file(dump_status)
+                except:
+                    status = 'failed'
+                for value in ['missing', 'not yet', 'failed', 'aborted',
+                              'progress', 'partial', 'complete']:
+                    if value in status:
+                        status = value
+                        break
+            else:
+                status = None
+            dbinfo.append((dbname, status, last))
+        return dbinfo
+
     def db_list_by_age(self, use_status_time=False):
+        '''
+        return just the db names, sorted in reverse order of last successful dump
+        '''
+        available = self.db_info_by_age(use_status_time)
+        return [dbname for (_failed, _date, _age, dbname) in available]
+
+    def db_info_by_age(self, use_status_time=False):
         """
-        Sort wikis in reverse order of last successful dump :
+        Sort wikis in reverse order of last successful dump and return
+        tuples of information for each wiki:
+          * whether the dump failed,
+          * the date of the run as found in dump dir string OR
+            as determined by time of status file, if use_status_time is True,
+          * age of status file if any,
+          * wiki name
 
         Order is (DumpFailed, Age), and False < True :
         First, wikis whose latest dump was successful, most recent dump first
@@ -325,7 +365,7 @@ class Config(object):
             dump_failed = (status == '') or ('dump aborted' in status)
             available.append((dump_failed, date, age, dbname))
         available.sort()
-        return [dbname for (_failed, _date, _age, dbname) in available]
+        return available
 
     def read_template(self, name):
         template = os.path.join(self.template_dir, name)

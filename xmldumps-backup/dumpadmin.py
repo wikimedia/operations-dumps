@@ -122,7 +122,7 @@ class ActionHandler(object):
     methods for all actions, whether on one wiki or on all
     '''
 
-    def __init__(self, actions, message, job_status, undo, configfile,
+    def __init__(self, actions, show, message, job_status, undo, configfile,
                  wikiname, dryrun, verbose):
         '''
         constructor.
@@ -141,6 +141,7 @@ class ActionHandler(object):
         self.wikiname = wikiname
         self.configfile = configfile
         self.message = message
+        self.show = show
         self.job_status = job_status
         self.conf = Config(self.configfile)
 
@@ -190,6 +191,8 @@ class ActionHandler(object):
                 self.do_maintenance()
             elif item == "exit":
                 self.do_exit()
+            elif item == "show":
+                self.do_show()
 
     def do_per_wiki_actions(self):
         '''
@@ -523,6 +526,31 @@ class ActionHandler(object):
             print "creating exit file"
         create_file("exit.txt")
 
+    def do_show(self):
+        '''
+        show specified information for all wikis
+        '''
+        if self.show == 'lastrun':
+            dbinfo = self.conf.db_latest_status()
+            dbdates = [date for (_dbname, _status, date) in dbinfo if date is not None]
+            dbdates.sort()
+            if not len(dbdates):
+                print ""
+            else:
+                print dbdates[-1]
+        elif self.show == "alldone":
+            dbinfo = self.conf.db_latest_status()
+            # skip cases where there is no status file. maybe we will revisit this later
+            statuses = [status for (_dbname, status, _date) in dbinfo if status is not None]
+            for status in statuses:
+                if status != "complete":
+                    print ""
+                    break
+            else:
+                print "True"
+        else:
+            print "No such known element for 'show'"
+
     def do_notice(self, wikiname):
         '''
         create a notice.txt file for the particular wiki for
@@ -723,6 +751,14 @@ Usage: dumpadmin.py --<action> [--<action>...]
                      this notice file is incorporated into
                      the web page shown to users, once
                      the page is regenerated (during runs)
+    show        (-s) show one of the following:
+                       lastrun -- latest last run date, as determined
+                                  by the dump directory name, for all
+                                  wikis covered by config file, or
+                                  "" if no dumps have ever run
+                       alldone -- "True" if all wikis have complete dumps
+                                  without failure (ignoring wikis
+                                  that have never been dumped), else ""
 
     OR
 
@@ -782,7 +818,7 @@ def get_action_opt(option):
     return action correspodning to command line option
     '''
     action_options = ['kill', 'unlock', 'remove', 'rerun', 'mark',
-                      'maintenance', 'exit']
+                      'maintenance', 'exit', 'show']
     if option.startswith("--"):
         option = option[2:]
         if option in action_options:
@@ -809,10 +845,10 @@ def main():
     wiki = None
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:n:M:U:w:kCurRmedvh",
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:n:M:U:w:s:kCurRmedvh",
                                                  ["configfile=", "notice=", "undo=",
-                                                  "wiki=", "kill", "unlock", "remove", "rerun",
-                                                  "mark", "maintenance", "exit", "dryrun",
+                                                  "wiki=", "show=", "kill", "unlock", "remove",
+                                                  "rerun", "mark", "maintenance", "exit", "dryrun",
                                                   "verbose", "help"])
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
@@ -823,6 +859,9 @@ def main():
         elif opt in ["-n", "--notice"]:
             actions.append("notice")
             message = val
+        elif opt in ["-s", "--show"]:
+            actions.append("show")
+            show = val
         elif opt in ["-M", "--mark"]:
             actions.append("mark")
             status = val
@@ -848,7 +887,7 @@ def main():
     check_actions(undo, actions)
     if status is not None and wiki is None:
         usage("mark requires the --wiki option")
-    handler = ActionHandler(actions, message, status, undo, configfile,
+    handler = ActionHandler(actions, show, message, status, undo, configfile,
                             wiki, dryrun, verbose)
     handler.do_all()
 
