@@ -106,7 +106,11 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
     for dbname in nextdbs:
         wiki = Wiki(config, dbname)
         if cutoff:
-            last_updated = wiki.date_touched_latest_dump()
+            if bystatustime:
+                last_updated = wiki.date_touched_latest_dump()
+            else:
+                last_updated = wiki.latest_dump()
+
             if last_updated >= cutoff:
                 continue
         if check_job_status:
@@ -363,18 +367,26 @@ def main():
             # if the run is across all wikis and we are just doing one job,
             # we want the age of the wikis by the latest status update
             # and not the date the run started
-            if job_requested:
-                check_status_time = True
-            else:
+            if job_requested and job_requested == 'createdirs':
                 check_status_time = False
-            if skipdone:
+                # there won't actually be a status for this job but we want
+                # to ensure that the directory and the status file are present
+                # and intact
                 check_job_status = True
-            else:
-                check_job_status = False
-            if job_requested and skipdone:
-                check_prereq_status = True
-            else:
                 check_prereq_status = False
+            else:
+                if job_requested:
+                    check_status_time = True
+                else:
+                    check_status_time = False
+                if skipdone:
+                    check_job_status = True
+                else:
+                    check_job_status = False
+                if job_requested and skipdone:
+                    check_prereq_status = True
+                else:
+                    check_prereq_status = False
             wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn,
                                        dryrun, html_notice, check_status_time,
                                        check_job_status, check_prereq_status,
