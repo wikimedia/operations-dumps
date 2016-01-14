@@ -1,351 +1,285 @@
 import getopt
-import os
-import re
 import sys
 import time
-import WikiDump
-import bz2
-import worker
-import CommandManagement
 
-from CommandManagement import CommandPipeline, CommandSeries, CommandsInParallel
-from dumps.runner import Runner
+from dumps.WikiDump import Config, Wiki
+from xmlstreams import get_max_id
+from dumps.utils import DbServerInfo
+
+
+def get_count_from_output(sqloutput):
+    lines = sqloutput.splitlines()
+    if lines and lines[1]:
+        if not lines[1].isdigit():
+            return None   # probably NULL or missing table
+        return int(lines[1])
+    return None
+
+
+def get_estimate_from_output(sqloutput):
+    lines = sqloutput.splitlines()
+    if lines and lines[1]:
+        fields = lines[1].split()
+        # id | select_type | table | type | possible_keys | key | key_len | ref | rows
+        if not fields[8].isdigit():
+            return None   # probably NULL or missing table
+        return int(fields[8])
+    return None
+
 
 class PageRange(object):
-    """Methods for getting number of revisions per page, 
-    estimating how many revisions a consecutive number of pages contains
-    given a certain starting page ID,  estimating how long it will take
-    to retrieve a certain number of revisions starting from a certain
-    revisionID
-    We use this for splitting up history runs into small chunks to be run in 
+    '''
+    Methods for getting number of revisions for a page range.
+    We use this for splitting up history runs into small chunks to be run in
     parallel, with each job taking roughly the same length of time.
-    Note that doing a straight log curve fit doesn't work; it's got to be done 
-    by approximation.
-    Speed of retrieval of revisions depends on revision size and whether it's
-    prefetchable (in the previous dump's file) or must be retrieved from the
-    external store (database query)."""
-    def __init__(self, dbname, config): 
-        """Arguments:
-        dbname -- the name of the database we are dumping
-        config -- this is the general config context used by the runner class."""
-        self._dbname = dbname
-        self._config = config
-        self._totalPages = None
-        # this is the number of pages we typically poll when we get estimated revs per page
-        # at some pageID
-        self._sampleSize = 500 
-        self.getNumPagesInDB()
+    '''
 
-    def getNumPagesInDB(self):
-        pipeline = []
-        pipeline.append([ "echo", '$dbr = wfGetDB( DB_SLAVE ); $count = $dbr->selectField( "page", "max(page_id)", false ); if ( intval($count) > 0 ) { echo intval($count); }' ])
-        pipeline.append([ '%s' % self._config.php, '%s/maintenance/eval.php' % config.wikiDir , '%s' % self._dbname])
-        p = CommandPipeline(pipeline, quiet=True)
-        p.run_pipeline_get_output()
-        if not p.exited_successfully():
-            print "DEBUG: serious error encountered (1)"
-            return None
-        output = p.output()
-        output = output.rstrip('\n')
-        if (output != ''):
-            self._totalPages = int(output)
-            return output
+    def __init__(self, dbname, config, maxrev=None, verbose=False):
+        '''
+        Arguments:
+        dbname  -- the name of the database we are dumping
+        config  -- this is the general config context used by the runner class
+        maxrev  -- if specified, this is the number of total revisions in a dump
+                   if not specified, the max(rev_id) value from the db will be used,
+                   which will not account for revisions which should be skipped
+                   because pages have been deleted
+        '''
+        self.dbname = dbname
+        self.config = config
+        self.verbose = verbose
 
-    def runDBQueryAndGetOutput(self,query):
-        pipeline = []
-        pipeline.append( query )
-        pipeline.append([ '%s' % self._config.php, '%s/maintenance/eval.php' % self._config.wikiDir, '%s' % self._dbname])
-        p = CommandPipeline(pipeline, quiet=True)
-        p.run_pipeline_get_output()
-        output = p.output().rstrip('\n')
-        return(output)
-
-    def estimateNumRevsPerPage(self, pageID):
-        """Get the number of revisions for self._sampleSize pages starting at a given pageID.
-        Returns an estimated number of revisions per page based on this.
-        This assumes that the older pages (lower page ID) have
-        generally more revisions."""
-
-        pageRangeStart = str(pageID)
-        pageRangeEnd = str(pageID + self._sampleSize)
-        query = [ "echo", '$dbr = wfGetDB( DB_SLAVE ); $count = $dbr->selectField( "revision", "COUNT(distinct(rev_page))", array( "rev_page < ' + pageRangeEnd + '", "rev_page >=  ' + pageRangeStart + '" ) ); echo $count;' ]
-#        query = [ "echo", '$dbr = wfGetDB( DB_SLAVE ); $result = $dbr->query( "SELECT COUNT(*) FROM ( SELECT "revision", "COUNT(*)", array( "rev_page < ' + pageRangeEnd + '", "rev_page >=  ' + pageRangeStart + '" ) ); echo $count;' ]
-        print query
-        rowCount = self.runDBQueryAndGetOutput(query)
-        rowCount = int(rowCount)
-        if (rowCount > 0):
-#            limit = str(rowCount*9/10)
-            limit = str(rowCount)
-            print "there were %s many rows in the request, getting %s" % (rowCount, limit)
-            queryString = "select avg(a.cnt) as avgcnt from (select  count(rev_page) as cnt from revision  where rev_page >=" + pageRangeStart + " and rev_page < " + pageRangeEnd + " group by rev_page order by cnt asc limit " + limit + ") as a;"
-            query = [ "echo", '$dbr = wfGetDB( DB_SLAVE ); $res = $dbr->query( "' + queryString  + '" ); if ($res && $dbr->numRows( $res ) > 0) { while( $row = $dbr->fetchObject( $res ) ) { echo $row->avgcnt; } }' ]
-            average = self.runDBQueryAndGetOutput(query)
-            if (average):
-                revsPerPage = int(round(float(average)))
-                if (revsPerPage == 0):
-                    revsPerPage = 1
-                print "got average of %s revs per page at pageid %s" % (revsPerPage, pageID)
-                print "that amounts to ", revsPerPage * self._sampleSize
-                return (revsPerPage, rowCount)
-        return (None, None)
-
-    def getEstimatedRevsForIntervalFromEndpoints(self, revsPage0, revsPage1, pageID0, pageID1, pagesP0, pagesP1):
-        """given the revs per page estimate at each endpoint, and the number of undeleted pages out of the sample size
-        (self._sampleSize is the sample size), figure out the estimated revs for the interval"""
-
-        estimatedPagesInInterval = self.getEstimatedUndeletedPagesInInterval(pageID0, pageID1, pagesP0, pagesP1)
-        # now we can get a notion of how many revs might be in the interval
-
-        # FIXME is this always what we want, is the average? or do we want it form the greater endpoint? or what?
-        estimatedRevsInInterval =  abs((revsPage0 + revsPage1) * estimatedPagesInInterval /2)
-        return(estimatedRevsInInterval)
-
-    def getEstimatedUndeletedPagesInInterval(self, pageID0, pageID1, pagesP0, pagesP1):
-        """given the number of undeleted pages at both P0 and P1 for our standard sample size self._sampleSize, 
-        guesstimate the number of undeleted pages for the whole interval"""
-        # guess at number of undeleted pages in the interval
-        estimatedPagesInInterval = int(round((pageID1 - pageID0) * (pagesP0 + pagesP1)/(2*self._sampleSize)))
-        print "estimatedPagesInInterval %s" % estimatedPagesInInterval
-        return(estimatedPagesInInterval)
-
-    def checkEstimatedRevsAgainstErrorMargin(self, revsPage0, revsPage1, pageID0, pageID1, pagesP0, pagesP1, errorMargin):
-        """Decide if the estimated number of revs is within our 
-        margin of error"""
-
-        # fixme call the previous function to do this
-
-        # guess at number of undeleted pages in the interval
-        estimatedPagesInInterval = int(round((pageID1 - pageID0) * (pagesP0 + pagesP1)/self._sampleSize))
-        # now we can get a notion of how many revs might be in the interval
-        if abs((revsPage0 - revsPage1) * estimatedPagesInInterval) < errorMargin:
-            return True
-        return False
-
-    def getErrorMarginForInterval(self, pageIDStart, pageIDEnd, maxRevs = None):
-        if (not maxRevs):
-            errorMargin = round((pageIDEnd - pageIDStart)*5/100)
+        self.total_pages = get_max_id(self.config, self.dbname, 'page_id', 'page')
+        if maxrev is not None:
+            self.total_revs = maxrev
         else:
-            # get three samples, take the min revs per page, 
-            # guess based on that where pageIDEnd ought to be as a max cutoff, 
-            # set error margin from that
-            
-            intervalSize = pageIDEnd - pageIDStart
-            print "%s %s %s" % (pageIDStart, pageIDStart + intervalSize/10, pageIDStart + intervalSize/5)
-            (sample1, pcount1) = self.estimateNumRevsPerPage(pageIDStart)
-            (sample2, pcount2) = self.estimateNumRevsPerPage(round(pageIDStart + intervalSize/10))
-            (sample3, pcount3) = self.estimateNumRevsPerPage(round(pageIDStart + intervalSize/5))
-            print "%s/%s, %s/%s, %s/%s" % (sample1, pcount1, sample2, pcount2, sample3, pcount3)
+            self.total_revs = get_max_id(self.config, self.dbname, 'rev_id', 'revision')
+        self.wiki = Wiki(self.config, self.dbname)
+        self.db_info = DbServerInfo(self.wiki, self.dbname)
 
-            if not sample1 or not sample2 or not sample3:
-                errorMargin = round((pageIDEnd - pageIDStart)*5/100)
-            else:
-                revsPerPage = min(sample1,sample2,sample3)
-                undeletedPagesPerSample = min(pcount1, pcount2, pcount3)
-                newIntervalSize = (maxRevs/revsPerPage)*(undeletedPagesPerSample/self._sampleSize)
-                newPageIDEnd = pageIDStart + newIntervalSize
-                if newPageIDEnd < pageIDEnd:
-                    newPageIDEnd = pageIDEnd
-                errorMargin = round((newPageIDEnd - pageIDStart)*5/100)
-            if errorMargin < self._sampleSize:
-                errorMargin = sampleSize
+    def get_page_ranges(self, numjobs):
+        '''
+        get and return list of tuples consisting of page id start and end to be passed to
+        self.numjobs jobs which should run in approximately the same length of time
+        for full history dumps, which is all we care about, really
+        numjobs -- number of jobs to be run in parallel, and so number of page ranges
+                   we want to produce for these parallel runs
+        '''
 
-    def estimateNumRevsForPageRange(self, pageIDStart, pageIDEnd, maxRevs = None):
-        """estimate the cumulative number of revisions for a given page interval.
-        if the parameter maxRevs is supplied, stop when we get to that point
-        (within margin of error of it anyways).
-        return (revisions, page id of upper end of interval)"""
+        ranges = []
+        page_start = 1
+        numrevs = self.total_revs/numjobs + 1
+        prevguess = 0
+        for jobnum in range(1, int(numjobs) + 1):
+            if jobnum == numjobs:
+                # last job, don't bother searching. just append up to max page id
+                ranges.append((page_start, self.total_pages))
+                break
+            numjobs_left = numjobs - jobnum + 1
+            interval = ((self.total_pages - page_start)/numjobs_left) + 1
+            (start, end) = self.get_page_range(page_start, numrevs,
+                                               page_start + interval, prevguess)
+            page_start = end + 1
+            prevguess = end
+            if end > self.total_pages:
+                end = self.total_pages
+            ranges.append((start, end))
+            if page_start > self.total_pages:
+                break
+        return ranges
 
-        # error margin has to make sense given the interval size; too small and we will never
-        # get an estimate that meets it, too large and our estimate will have no value
+    def get_estimate(self, page_start, badguess):
+        query = ("explain select count(rev_id) from revision where "
+                 "rev_page >= %d and rev_page < %d" % (page_start, badguess))
+        queryout = self.run_sql_query(query)
+        if queryout is None:
+            print "unexpected output from sql query, giving up:"
+            print query, queryout
+            sys.exit(1)
+        return get_estimate_from_output(queryout)
 
-        errorMargin = self.getErrorMarginForInterval(pageIDStart, pageIDEnd, maxRevs)
+    def get_count(self, page_start, badguess):
+        query = ("select count(rev_id) from revision where "
+                 "rev_page >= %d and rev_page < %d" % (page_start, badguess))
+        queryout = self.run_sql_query(query)
+        if queryout is None:
+            print "unexpected output from sql query, giving up:"
+            print query, queryout
+            sys.exit(1)
 
-        print "pageIDEnd is %s" % pageIDEnd
+        revcount = get_count_from_output(queryout)
+        if revcount is None:
+            print "unexpected output from sql query, giving up:"
+            print query, queryout
+            sys.exit(1)
+        return revcount
 
-        if (pageIDEnd + self._sampleSize > self._totalPages):
-            pageIDEnd = self._totalPages - self._sampleSize
-        else:
-            print "pageIDEnd + self._sampleSize < self._totalPages", pageIDEnd + self._sampleSize, self._totalPages
+    def get_revcount(self, page_start, guess, estimate):
+        total = 0
+        maxtodo = 1000000
 
-        if (pageIDEnd < pageIDStart):
-            pageIDEnd = pageIDStart
+        runstodo = estimate/maxtodo + 1
+        step = (guess - page_start)/runstodo
+        ends = range(page_start, guess, step)
 
-        print "estimateNumRevsForPageRange:", pageIDStart, pageIDEnd, self._totalPages
-        if (pageIDEnd - pageIDStart) < self._sampleSize:
-            # just take the estimate for revs at pageIDStart, call it good
-            print "estimateNumRevsForPageRange: initial pageend is close enough to pagestart to quit"
-            (estimate, pages) = self.estimateNumRevsPerPage(pageIDStart)
-            if (estimate):
-                return (estimate*pages,pageIDStart+self._sampleSize)
-            else:
-                return(None, None)
-        (estimateP0, pagesP0) = self.estimateNumRevsPerPage(pageIDStart)
-        if (not estimateP0):
-            return (None, None)
-        if estimateP0 * pagesP0 > maxRevs:
-            # we're already over.  too bad, report it back,
-            # we just don't do fine grained enough estimates for this case whatever it is
-            return (estimateP0 * pagesP0,pageIDStart+self._sampleSize)
-        else:
-            print "estimateP0 %s is less than maxRevs %s" % (estimateP0, maxRevs)
+        if ends[-1] != guess:
+            ends.append(guess)
+        interval_start = ends.pop(0)
 
-        (estimatePN, pagesPN) = self.estimateNumRevsPerPage(pageIDEnd)
-        if (not estimatePN):
-            return (None, None)
+        for interval_end in ends:
+            count = self.get_count(interval_start, interval_end)
+            interval_start = interval_end + 1
+            total += count
+        return total
 
-        # fixme put these comments somewhere useful
-        # on the one hand we want revs per page
-        # on the other hand we want pages not deleted out of the 500, these are both useful numbers
-
-        if self.checkEstimatedRevsAgainstErrorMargin(estimateP0, estimatePN, pagesP0, pagesPN, pageIDStart, pageIDEnd, errorMargin):
-            print "estimateNumRevsForPageRange: our first two estimates are close enough together to quit"
-            print "they are %s and %s for page ids %s and %s respectively" % (estimateP0, estimatePN, pageIDStart, pageIDEnd)
-            return (estimateP0*(pageIDEnd - pageIDStart), pageIDEnd)
-        # main loop, here's where we have to do real work
-        pageIDTemp = pageIDEnd
-        tempMargin = errorMargin
-        numintervals = 1
-
-        i=0 # debug
-
+    def get_page_range(self, page_start, numrevs, badguess, prevguess):
+        if self.verbose:
+            print ("get_page_range called with page_start", page_start,
+                   "numrevs", numrevs, "badguess", badguess,
+                   "prevguess", prevguess)
+        interval_start = page_start
+        interval_end = badguess
+        revcount = 0
         while True:
-            i = i + 1 # debug
-            tempMargin = tempMargin/2
-            # FIXME this means that our final estimate may be outside the error margin
-            if (tempMargin < 1):
-                tempMargin = 1
-            pageIDTemp = (pageIDTemp - pageIDStart)/2 + pageIDStart
-            if pageIDTemp - self._sampleSize> self._totalPages:
-                pageIDTemp = self._totalPages - self._sampleSize
-            if pageIDTemp < pageIDStart:
-                # FIXME we really need to do something more with this case...
-                pageIDTemp = pageIDStart
+            if self.verbose:
+                print ("page range loop, start page_id", interval_start,
+                       "end page_id:", interval_end)
 
-            numIntervals = numintervals *2
-            (estimateP0, pagesP0) = self.estimateNumRevsPerPage(pageIDStart)
-            (estimatePN, pagesPN) = self.estimateNumRevsPerPage(pageIDTemp)
-            if (not estimateP0 or not estimatePN):
-                return (None, None)
-            # the "distance less than self._sampleSize" clause is just a catchall in case the slope of the
-            # curve is so steep that we can't get a good estimate within the margin of error...
-            # in which case we have the absolute number (revs for 500 pages at p0) and we use it
-            if self.checkEstimatedRevsAgainstErrorMargin(estimateP0, estimatePN, pageIDStart, pageIDTemp, pagesP0, pagesPN, tempMargin) or (pageIDTemp - pageIDStart < self._sampleSize):
-                print "estimateNumRevsForPageRange: estimate of 1st interval close enough on %sth iteration for estimates %s and %s at %s and %s, tempmargin %s" %( i, estimateP0, estimatePN, pageIDStart, pageIDTemp, tempMargin) 
-                step = pageIDTemp - pageIDStart
-                if (step < self._sampleSize):
-                    step = self._sampleSize
-                (estimatePI1, pagesPI1) = self.estimateNumRevsPerPage(pageIDStart)
-                if (not estimatePI1):
-                    return (None, None)
-                totalEstimate = 0
-                print "have estimate %s at %s (pageIDStart)" % (estimatePI1, pageIDStart)
+            estimate = self.get_estimate(interval_start, interval_end)
+            revcount_adj = self.get_revcount(interval_start, interval_end, estimate)
+            if badguess < prevguess:
+                revcount -= revcount_adj
+            else:
+                revcount += revcount_adj
 
-                pageI = pageIDStart
-                while (pageI <= pageIDEnd):
-                    (estimatePI2, pagesPI2) = self.estimateNumRevsPerPage(pageI+step)
-                    if (not estimatePI2):
-                        return None
-                    print "have estimate %s at %s, step is %s and we added it to %s" % (estimatePI2, pageI+step, step, pageI)
-                    print "*******estimatePI1, estimatePI2, pageI, pageI+step,  pagesPI1, pagesPI2:", estimatePI1, estimatePI2, pageI, pageI+step,  pagesPI1, pagesPI2
-                    estimate = self.getEstimatedRevsForIntervalFromEndpoints(estimatePI1, estimatePI2, pageI, pageI+step,  pagesPI1, pagesPI2)
+            if self.verbose:
+                print "estimate is", estimate, "revcount is", revcount, "and numrevs is", numrevs
 
-                    if (maxRevs):
-                        # FIXME do we know we are within the margin of error? ummmm
+            interval = abs(prevguess - badguess) / 2
+            if not interval:
+                return (page_start, badguess)
+            prevguess = badguess
 
-                        if (totalEstimate + estimate > maxRevs):
-                            print "about to return with totalEstimate %s + estimate %s > maxRevs %s" % (totalEstimate, estimate, maxRevs)
-                            if (totalEstimate):
-                                return (totalEstimate, pageI)
-                            else:
-                                return (estimate, pageI)
+            if revcount - numrevs > 100:
+                # too many
+                if self.verbose:
+                    print "too many, adjusting to", badguess, " minus", interval
+                badguess = badguess - interval
+            elif numrevs - revcount > 100:
+                # too few
+                badguess = badguess + interval
+            else:
+                return (page_start, badguess)
+            if badguess < prevguess:
+                interval_start = badguess
+                interval_end = prevguess
+            else:
+                interval_start = prevguess
+                interval_end = badguess
 
-                    # since the number of revs decreases as the page id increases, 
-                    # eventually our interval size can get larger too and still
-                    # keep us within the margin of error
+    def run_sql_query(self, query, maxretries=3):
+        results = None
+        retries = 0
+        while results is None and retries < maxretries:
+            retries = retries + 1
+            results = self.db_info.run_sql_and_get_output(query)
+            if results is None:
+                time.sleep(5)
+                # get db config again in case something's changed
+                self.db_info = DbServerInfo(self.wiki, self.dbname)
+                continue
+            return results
+        return results
 
-                    undeletedPagesInInterval = self.getEstimatedUndeletedPagesInInterval(pageI, pageI+step, pagesPI1, pagesPI2)
-                    if (estimatePI2 == estimatePI1):
-                        multiplier = 2
-                    else:
-                        multiplier = int( abs ( tempMargin/( (estimatePI2*undeletedPagesInInterval) - (estimatePI1*undeletedPagesInInterval) ) ) )
 
-                    # check if this makes sense with the multiplier, is that really how we get it?
-                    if multiplier > 1:
-                        print "got multiplier %s from tempMargin %s and estimateP1 %s, estimateP2 %s, undelPagesInInterval %s, step currently %s" % (multiplier, tempMargin, estimatePI1, estimatePI2, undeletedPagesInInterval, step)
-                        step = step * multiplier
-                        print "step now adjusted to %s" % step
-                        # FIXME is this right?
-                        tempMargin = tempMargin * multiplier
-                        # redo the estimate so it matches the new step size I guess
-                        estimate = self.getEstimatedRevsForIntervalFromEndpoints(estimatePI1, estimatePI2, pageI, pageI+step,  pagesPI1, pagesPI2)
+def usage(message=None):
+    '''
+    display a helpful usage message with
+    an optional introductory message first
+    '''
+    if message is not None:
+        sys.stderr.write(message)
+        sys.stderr.write("\n")
+    usage_message = """
+Usage: pagerange.py --wiki <wikiname> --jobs <int>
+        [--maxrev <int>] [--configfile <path>] [--verbose] [--help]
 
-                    print "*******added %s to totalestimate %s for %s" % ( estimate, totalEstimate, totalEstimate + estimate )
-                    totalEstimate = totalEstimate + estimate
+This script generates a list of page intervals suitable for use
+by pagesPerChunkHistory in a wiki dumps config file.  Provide
+the name of the wiki and the number of parallel jobs you wish to
+run for dumping page revision content, and it will generate a list
+which should ensure that each job will contain about the same
+number of revisions and hence take about the same length of time
+to complete.
 
-                    estimatePI1 = estimatePI2
-                    pageI = pageI + step
-                    pagesPI1 = pagesPI2
+Note that this script does not account for revisions that should not
+be counted because they belong to deleted pages and so will not be
+dumped. when the script decides how many revisions should be processed
+by each job, it references the total number of revisions instead.
+So you may end up with not very many pages in the last page range.
 
-                return (totalEstimate, pageIDEnd)
+If this happens for you, you may specify the total number of revisions in the
+dump if you have a recent number handy (e.g. by grep '<revision>'| wc -l of the
+stubs dumps).  You can pass that number with the --maxrev option
+as described below.
 
-    def getPageEndForNumRevsFromPageStart(self, pageIDStart, numRevs):
-        """given a starting pageID and the number of revs we want
-        in the page range, find an ending page ID so that the cumulative number of revs 
-        for the pages in that interval is around (and less than) numRevs"""
-        if not self._totalPages:
-            print "getPageEndForNumRevsFromPageStart: calling getNumPagesInDB"
-            if not self.getNumPagesInDB():
-                # something wrong with this db or the server or... anyways, we bail
-                return None
+--wiki       (-w):  name of db of wiki for which to run
+--jobs       (-j):  generate page ranges for this number of jobs
+--maxrev     (-m):  use this number for the total number of revisions
+                    rather than using maxrevid from the database
+--configfile (-c):  path to config file
+--verbose    (-v):  display messages about what the script is doing
+--help       (-h):  display this help message
+"""
+    sys.stderr.write(usage_message)
+    sys.exit(1)
 
-        # can't have more revs than pages.  well actually
-        # we can since some pages might have been deleted and then
-        # their ids are no longer in the page table. But how are
-        # the odds that there will be a bunch of those *and* that there 
-        # will be less pages than that with more than one revision?  
-        # so screw it.
-        pageIDMax = pageIDStart + numRevs
-        print "getPageEndForNumRevsFromPageStart: got total pages %s" % self._totalPages
-        if pageIDMax > self._totalPages:
-            pageIDMax = self._totalPages
-        (estimatedRevs, pageIDEnd) = self.estimateNumRevsForPageRange(pageIDStart,pageIDMax,numRevs)
-        return(pageIDEnd)
+
+def main():
+    wiki = None
+    configpath = "wikidump.conf"
+    jobs = None
+    maxrev = None
+    verbose = False
+    try:
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:w:j:m:vh",
+                                                 ["configfile=", "wiki=", "jobs=",
+                                                  "verbose", "help"])
+    except getopt.GetoptError as err:
+        usage("Unknown option specified: " + str(err))
+
+    for (opt, val) in options:
+        if opt in ["-c", "--configfile"]:
+            configpath = val
+        elif opt in ["-w", "--wiki"]:
+            wiki = val
+        elif opt in ["-j", "--jobs"]:
+            if not val.isdigit():
+                usage("--jobs argument requires a number")
+            jobs = int(val)
+        elif opt in ["-m", "--maxrev"]:
+            if not val.isdigit():
+                usage("--maxrev argument requires a number")
+            maxrev = int(val)
+        elif opt in ["-v", "--verbose"]:
+            verbose = True
+        elif opt in ["-h", "--help"]:
+            usage("Help for this script")
+
+    if len(remainder) > 0:
+        usage("Unknown option specified")
+
+    if wiki is None or jobs is None:
+        usage("One of mandatory options 'wiki' or 'jobs' not set")
+
+    config = Config(configpath)
+    prange = PageRange(wiki, config, maxrev, verbose)
+    ranges = prange.get_page_ranges(jobs)
+    print "for %d jobs, have ranges:" % jobs
+    print ranges
+    # convert ranges into the output we need for the pagesperchunkhistory config
+    pages_per_job = [page_end - page_start for (page_start, page_end) in ranges]
+    print "for %d jobs, have config setting:" % jobs
+    print pages_per_job
 
 if __name__ == "__main__":
-    
-    config = WikiDump.Config()
-    testchunks = PageRange('enwiki',config)
-    # test with 5000 error margin
-    wiki = WikiDump.Wiki(config, 'enwiki')
-    date = None
-    checkpoint = None
-    prefetch = False
-    spawn = False
-    jobRequested = None
-#    runner = Runner(wiki, date, checkpoint, prefetch, spawn, jobRequested)
-    
-    numPages = testchunks.getNumPagesInDB()
-    if not numPages:
-        print ">>>>>>>>>failed to retrieve number of pages for db elwikidb"
-    else:
-        print ">>>>>>>>>total number of pages: %s" % numPages
-
-#    pageIDStart = 20000
-#    pageIDEnd = 110000
-    pageIDStart = 2000000
-    pageIDEnd = 3000000
-    maxNumRevs = 2500000
-#    maxNumRevs = 25000
-#    (revcount, pageID) = testchunks.estimateNumRevsForPageRange(pageIDStart, pageIDEnd, maxNumRevs)
-#    print ">>>>>>>>>got revcount", revcount, "for range (%s, %s) ending now at %s" % ( pageIDStart, pageIDEnd, pageID)
-
-    maxNumRevs = 30000000
-    pageIDStart = 1
-    pageIDEnd = 2969038
-    endpageid = 0
-    while (endpageid < numPages):
-        endpageid = testchunks.getPageEndForNumRevsFromPageStart(pageIDStart, maxNumRevs)
-        print ">>>>>>>>>we think that starting from", pageIDStart, "if you go to about ", endpageid, "you get around ", maxNumRevs, "revisions and not more than that (not more? really?)"
-        pageIDStart = endpageid
-        
-
+    main()
