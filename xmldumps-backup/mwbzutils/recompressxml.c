@@ -166,10 +166,10 @@ off_t endBz2Stream(bz_stream *strm, char *outBuf, int bufSize, FILE *fd) {
 
   do {
     strm->avail_in = 0;
-    result = BZ2_bzCompress ( strm, BZ_FINISH );
-    fwrite(outBuf,bufSize-strm->avail_out,1,fd);
     strm->next_out = outBuf;
     strm->avail_out = 8192;
+    result = BZ2_bzCompress ( strm, BZ_FINISH );
+    fwrite(outBuf,bufSize-strm->avail_out,1,fd);
   } while (result != BZ_STREAM_END);
   offset = (off_t)strm->total_out_lo32 | ((off_t)strm->total_out_hi32 << 32);
   BZ2_bzCompressEnd(strm);
