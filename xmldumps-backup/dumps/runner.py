@@ -15,7 +15,7 @@ from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump, Recombi
 from dumps.xmljobs import XmlDump, XmlLogging, XmlStub, BigXmlDump, AbstractDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 
-from dumps.runnerutils import SymLinks, Feeds, NoticeFile
+from dumps.runnerutils import RunSettings, SymLinks, Feeds, NoticeFile
 from dumps.runnerutils import Checksummer, IndexHtml, StatusHtml, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
 
@@ -474,7 +474,7 @@ class Runner(object):
         if self.enabled is None:
             self.enabled = {}
         for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
-                        RunInfoFile.NAME, SymLinks.NAME,
+                        RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
                         "cleanup_old_files", "check_trunc_files"]:
             self.enabled[setting] = True
@@ -484,7 +484,7 @@ class Runner(object):
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
-                            RunInfoFile.NAME, SymLinks.NAME,
+                            RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
                 del self.enabled[setting]
 

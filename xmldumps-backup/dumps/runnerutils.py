@@ -6,6 +6,7 @@ import time
 import traceback
 from email.mime import text as MIMEText
 import smtplib
+import json
 
 from os.path import exists
 from dumps.exceptions import BackupError
@@ -610,6 +611,80 @@ class Feeds(object):
                         os.remove(os.path.join(latest_dir, fname))
 
 
+class RunSettings(object):
+    NAME = 'runsettings'
+
+    def __init__(self, wiki, dump_dir, logfn=None, debugfn=None,
+                 enabled=None, verbose=False):
+        self.wiki = wiki
+        self.dump_dir = dump_dir
+        self.logfn = logfn
+        self.debugfn = debugfn
+        self.enabled = enabled
+        self.verbose = verbose
+
+    def get_settings_path(self):
+        file_obj = DumpFilename(self.wiki, None, "runsettings.txt")
+        return self.dump_dir.filename_public_path(file_obj)
+
+    def get_settings_from_config(self):
+        return [self.wiki.config.parts_enabled,
+                self.wiki.config.pages_per_filepart_history,
+                self.wiki.config.revs_per_filepart_history,
+                self.wiki.config.numparts_for_abstract,
+                self.wiki.config.pages_per_filepart_abstract,
+                self.wiki.config.recombine_history,
+                self.wiki.config.checkpoint_time]
+
+    def write_settings(self):
+        '''
+        stash current run settings in file in dump directory if
+        such file does not already exist
+        '''
+        if RunSettings.NAME not in self.enabled:
+            return
+
+        settings_path = self.get_settings_path()
+        if os.path.exists(settings_path):
+            return
+        setting_info = self.get_settings_from_config()
+
+        with open(settings_path, "w+") as settings_fd:
+            settings_fd.write(json.dumps(setting_info) + "\n")
+
+    def read_settings(self):
+        '''
+        retrieve current run settings from file in dump directory
+        '''
+        settings_path = self.get_settings_path()
+        if not os.path.exists(settings_path):
+            return None
+        with open(settings_path, "r") as settings_fd:
+            contents = settings_fd.read()
+            settings_fd.close()
+        if contents[-1] == '\n':
+            contents = contents[:-1]
+        return json.loads(contents)
+
+    def apply_settings_to_config(self, settings=None):
+        '''
+        apply settings to wiki configuration, retrieving
+        them from the settings stash file first if they are
+        not passed in as an argument
+        '''
+        if settings is None:
+            settings = self.read_settings()
+        if settings is None:
+            return
+        self.wiki.config.parts_enabled = settings[0]
+        self.wiki.config.pages_per_filepart_history = settings[1]
+        self.wiki.config.revs_per_filepart_history = settings[2]
+        self.wiki.config.numparts_for_abstract = settings[3]
+        self.wiki.config.pages_per_filepart_abstract = settings[4]
+        self.wiki.config.recombine_history = settings[5]
+        self.wiki.config.checkpoint_time = settings[6]
+
+
 class DumpRunJobData(object):
     def __init__(self, wiki, dump_dir, notice, logfn=None, debugfn=None,
                  enabled=None, verbose=False):
@@ -621,6 +696,14 @@ class DumpRunJobData(object):
         self.debugfn = debugfn
         self.enabled = enabled
         self.verbose = verbose
+
+        # write config settings down if not already present
+        self.settings_stash = RunSettings(wiki, dump_dir, logfn, debugfn, enabled, verbose)
+        self.settings_stash.write_settings()
+        # if there was a settings stash, use it to override config values
+        self.settings_stash.apply_settings_to_config()
+
+        # now we can set up everything else
         self.runinfofile = RunInfoFile(wiki, enabled, verbose)
         self.checksummer = Checksummer(wiki, dump_dir, enabled, verbose)
         self.feeds = Feeds(wiki, dump_dir, wiki.db_name, debugfn, enabled)
