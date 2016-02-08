@@ -88,7 +88,7 @@ def usage(message=None):
         sys.stderr.write(message)
     usagemessage = """Usage: python listwikiuploaddirs.py --allwikis filename --scriptpath dir
                                    [multiversion] [closedwikis filename]
-                                   [privatewikis filename] [wmfhack]
+                                   [privatewikis filename] [skipwikis filename] [wmfhack]
 
 This script dumps a list of media upload dirs for all specified wikis.
 If names of closed and/or private wikis are provided, files in these lists
@@ -109,6 +109,8 @@ Optional arguments:
                  skipped even if they are included in the allwikis file
 --privatewikis:  name of a file which contains all private wikis (these will be
                  skipped even if they are included in the allwikis file
+--skipwikis:     name of a file which contains other wikis to be skipped
+                 even if they are included in the allwikis file
 --wmfhack:       use $site/$lang to put together the upload dir; works for WMF
                  wikis only and it is a hack so you have been warned. Note that
                  this produces a path relative to the root of the WMF upload
@@ -120,18 +122,19 @@ Optional arguments:
 if __name__ == "__main__":
     closedWikis = []
     privateWikis = []
+    skipWikis = []
     allWikis = None
     multiversion = False
     scriptPath = None
     wmfhack = False
 
-    allWikisFile = closedWikisFile = privateWikisFile = None
+    allWikisFile = closedWikisFile = privateWikisFile = skipWikisFile = None
 
     try:
         (options, rem) = getopt.gnu_getopt(sys.argv[1:], "",
                                            ["allwikis=", "closedwikis=",
                                             "privatewikis=", "scriptpath=",
-                                            "multiversion", "wmfhack"])
+                                            "skipwikis=", "multiversion", "wmfhack"])
     except:
         usage("Unknown option specified\n")
 
@@ -146,6 +149,8 @@ if __name__ == "__main__":
             multiversion = True
         elif opt == "--scriptpath":
             scriptPath = val
+        elif opt == "--skipwikis":
+            skipWikisFile = val
         elif opt == "--wmfhack":
             wmfhack = True
 
@@ -165,13 +170,18 @@ if __name__ == "__main__":
         privateWikis = [line.strip() for line in fd]
         fd.close()
 
+    if skipWikisFile:
+        fd = open(skipWikisFile, "r")
+        skipWikis = [line.strip() for line in fd]
+        fd.close()
+
     if allWikisFile == "-":
         fd = sys.stdin
     else:
         fd = open(allWikisFile, "r")
     wikiListTemp = [l.strip() for l in fd]
     wikiList = [l for l in wikiListTemp if l not in privateWikis
-                and l not in closedWikis]
+                and l not in closedWikis and l not in skipWikis]
     if fd != sys.stdin:
         fd.close()
 
