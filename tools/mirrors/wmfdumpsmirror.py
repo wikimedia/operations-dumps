@@ -181,7 +181,7 @@ class RsyncFilesProcessor(object):
             # any completed jobs?
             job = self.jqueue.get_job_from_notify_queue()
             # no more jobs and mo more workers.
-            if not job:
+            if job is None:
                 if not self.jqueue.get_active_worker_count():
                     if self.dryrun or self.verbose:
                         MirrorMsg.display("no jobs left and no active workers\n")
@@ -465,7 +465,7 @@ class JobQueue(object):
         """see if any job has been put on
         the notify queue (meaning that it has
         been completed)"""
-        job_done = False
+        job_done = None
         # wait up to one minute.  after that we're pretty sure
         # that if there are no active workers there are no more
         # jobs that are going to get done either.
@@ -473,7 +473,7 @@ class JobQueue(object):
             job_done = self.notify_queue.get(timeout=60)
         except Empty:
             if not self.get_active_worker_count():
-                return False
+                return None
         return job_done
 
     def get_active_worker_count(self):
@@ -729,7 +729,7 @@ def main():
         usage("Missing required option")
 
     if not os.path.isdir(local_dir):
-        usage("local rsync directory", local_dir, "does not exist or is not a directory")
+        usage("local rsync directory %s does not exist or is not a directory") % local_dir
 
     if not rsync_list:
         rsync_list = "rsync-list.txt.rsync"
