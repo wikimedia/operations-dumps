@@ -30,7 +30,7 @@ class Job(object):
 class RsyncJob(Job):
     date_pattern = re.compile('^20[0-9]{6}$')
     def __init__(self, contents):
-        super( RsyncJob, self ).__init__(contents[0], contents)
+        super(RsyncJob, self).__init__(contents[0], contents)
         self.rsynced_by_job = self.get_dirs_per_proj_rsynced_by_job()
 
     # things that get here should look like:
@@ -67,7 +67,7 @@ class RsyncJob(Job):
                 if project_subdir not in projects[project]:
                     projects[project][project_subdir] = []
                 projects[project][project_subdir].append(project_file)
-            
+
         return projects
 
 class RsyncFilesProcessor(object):
@@ -91,7 +91,7 @@ class RsyncFilesProcessor(object):
 
     def _get_file_size(self, line):
         return int(line.split()[1])
-        
+
     def _get_path(self, line):
         return line.split()[4]
 
@@ -108,9 +108,9 @@ class RsyncFilesProcessor(object):
 
     def _get_file_name(self, line):
 
-        # the input consists of a list of filenames plus other info and we 
-        # can expect the dumps of one project to be listed in consecutive 
-        # lines rather than scattered about in the file (which is of no 
+        # the input consists of a list of filenames plus other info and we
+        # can expect the dumps of one project to be listed in consecutive
+        # lines rather than scattered about in the file (which is of no
         # concern for us but is good for rsync)
         # it's produced by rsync --list-only...
 
@@ -180,11 +180,11 @@ class RsyncFilesProcessor(object):
         while True:
             # any completed jobs?
             job = self.jqueue.get_job_from_notify_queue()
-            # no more jobs and mo more workers. 
+            # no more jobs and mo more workers.
             if not job:
                 if not self.jqueue.get_active_worker_count():
                     if self.dryrun or self.verbose:
-                        MirrorMsg.display( "no jobs left and no active workers\n")
+                        MirrorMsg.display("no jobs left and no active workers\n")
                     break
                 else:
                     continue
@@ -206,7 +206,7 @@ class RsyncFilesProcessor(object):
                 self.deleter.check_and_do_deletes(j)
 
 class DirDeleter(object):
-    """remove all dirs for the project that are not in the 
+    """remove all dirs for the project that are not in the
     list of dirs to rsync, we don't want them any more"""
     def __init__(self, jobs_per_project, local_path, verbose, dryrun):
         self.jobs_per_project = jobs_per_project
@@ -230,7 +230,7 @@ class DirDeleter(object):
         completed normally so we won't do deletions for a project
         with failed jobs"""
         for project in job.rsynced_by_job.keys():
-            ids = [ self.job_list[job_id] for job_id in self.jobs_per_project[project] if not self.job_list[job_id].check_if_done() or self.job_list[job_id].check_if_failed() ]
+            ids = [self.job_list[job_id] for job_id in self.jobs_per_project[project] if not self.job_list[job_id].check_if_done() or self.job_list[job_id].check_if_failed()]
             if not len(ids):
                 if self.dryrun:
                     MirrorMsg.display("Would do deletes for project %s\n" % project)
@@ -240,13 +240,13 @@ class DirDeleter(object):
             else:
                 if self.verbose:
                     MirrorMsg.display("No deletes for project %s\n" % project)
-                    
+
     def list_dirs_rsynced_for_proj(self, project):
-        """get directories we synced for this project, 
+        """get directories we synced for this project,
         across all jobs"""
         dirs_for_project = []
         for job_id in self.jobs_per_project[project]:
-            dirs_for_project.extend([ k for k in self.job_list[job_id].rsynced_by_job[project].keys() if not k in dirs_for_project ])
+            dirs_for_project.extend([k for k in self.job_list[job_id].rsynced_by_job[project].keys() if not k in dirs_for_project])
         return dirs_for_project
 
     def list_files_rsynced_for_proj_dir(self, project, dir_name):
@@ -284,7 +284,7 @@ class DirDeleter(object):
             if not dirbase in project_dirs_rsynced:
                 dir_name = os.path.join(project, dirbase)
                 if self.dryrun or self.verbose:
-                    MirrorMsg.display( "'%s'" % dir_name , True)
+                    MirrorMsg.display("'%s'" % dir_name, True)
                 if not self.dryrun:
                     try:
                         shutil.rmtree(self.get_full_local_path(dir_name))
@@ -307,10 +307,10 @@ class DirDeleter(object):
             if dirname in project_dirs_rsynced:
                 files_existing = os.listdir(self.get_full_local_path(os.path.join(project, dirname)))
                 files_rsynced = self.list_files_rsynced_for_proj_dir(project, dirname)
-                files_to_toss = [ f for f in files_existing if not f in files_rsynced ]
+                files_to_toss = [f for f in files_existing if not f in files_rsynced]
 
                 if self.dryrun or self.verbose:
-                    MirrorMsg.display( "for directory "+ dirname, True)
+                    MirrorMsg.display("for directory "+ dirname, True)
                     if not len(files_to_toss):
                         MirrorMsg.display("None", True)
                 for tossme in files_to_toss:
@@ -318,9 +318,9 @@ class DirDeleter(object):
                     if os.path.isdir(file_name):
                             continue
                     if self.dryrun or self.verbose:
-                        # we should never be pushing directories across as part of the rsync. 
+                        # we should never be pushing directories across as part of the rsync.
                         # so if we have a local directory, leave it alone
-                        MirrorMsg.display( "'%s'" % tossme , True)
+                        MirrorMsg.display("'%s'" % tossme, True)
                     if not self.dryrun:
                         try:
                             os.unlink(file_name)
@@ -335,7 +335,7 @@ class JobHandler(object):
         """this should be overriden to set and args
         that you need to actually process a job"""
         pass
-    
+
     def do_job(self, contents):
         """override this with a function that processes
         contents as desired"""
@@ -356,10 +356,10 @@ class Rsyncer(JobHandler):
         return self.do_rsync(contents)
 
     def do_rsync(self, files):
-        command = [ "/usr/bin/rsync" ]
-        command.extend([ "--files-from", "-" ])
-        command.extend( self.rsync_args )
-        command.extend([ self.rsync_remote_path,  self.local_path ])
+        command = ["/usr/bin/rsync"]
+        command.extend(["--files-from", "-"])
+        command.extend(self.rsync_args)
+        command.extend([self.rsync_remote_path, self.local_path])
 
         if self.dryrun or self.verbose:
             command_string = " ".join(command)
@@ -369,7 +369,7 @@ class Rsyncer(JobHandler):
             MirrorMsg.display("running %s" % command_string)
         if self.dryrun or self.verbose:
             MirrorMsg.display("with input:\n" + '\n'.join(files) + '\n', True)
-        return self.cmd.run_command(command, shell = False, input_text = '\n'.join(files) + '\n')
+        return self.cmd.run_command(command, shell=False, input_text='\n'.join(files) + '\n')
 
 class JobQueueHandler(multiprocessing.Process):
     def __init__(self, jqueue, handler, verbose, dryrun):
@@ -412,19 +412,19 @@ class JobQueue(object):
         self.end_of_jobs = None
 
         self._initial_worker_count = initial_worker_count
-        self._active_workers= []
+        self._active_workers = []
         if not self._initial_worker_count:
             self._initial_worker_count = 1
         if self.verbose or self.dryrun:
-            MirrorMsg.display( "about to start up %d workers:" % self._initial_worker_count )
+            MirrorMsg.display("about to start up %d workers:" % self._initial_worker_count)
         for i in xrange(0, self._initial_worker_count):
             worker = JobQueueHandler(self, self.handler, self.verbose, self.dryrun)
             worker.start()
             self._active_workers.append(worker)
             if self.verbose or self.dryrun:
-                MirrorMsg.display( '.', True)
+                MirrorMsg.display('.', True)
         if self.verbose or self.dryrun:
-            MirrorMsg.display( "done\n", True)
+            MirrorMsg.display("done\n", True)
 
     def get_job_on_queue(self):
         # after 5 minutes of waiting around we decide that
@@ -433,32 +433,32 @@ class JobQueue(object):
         # the queue or it died or hung
 
         try:
-            job = self.todo_queue.get(timeout = 60)
-        except Empty: 
+            job = self.todo_queue.get(timeout=60)
+        except Empty:
             if self.verbose or self.dryrun:
-                MirrorMsg.display( "job todo queue was empty\n" )
+                MirrorMsg.display("job todo queue was empty\n")
             return False
 
         if (job == self.end_of_jobs):
             if self.verbose or self.dryrun:
-                MirrorMsg.display( "found jobs done marker on jobs queue\n" )
+                MirrorMsg.display("found jobs done marker on jobs queue\n")
             return False
         else:
             if self.verbose or self.dryrun:
                 MirrorMsg.display("retrieved from the job queue: %s\n" % job.job_id)
             return job
-            
+
     def notify_job_done(self, job):
         self.notify_queue.put_nowait(job)
 
-    def add_to_job_queue(self,job=None):
+    def add_to_job_queue(self, job=None):
         if (job):
             self.todo_queue.put_nowait(job)
 
     def set_end_of_jobs(self):
         """stuff 'None' on the queue, so that when
         a worker reads this, it will clean up and exit"""
-        for i in xrange(0,self._initial_worker_count):
+        for i in xrange(0, self._initial_worker_count):
             self.todo_queue.put_nowait(self.end_of_jobs)
 
     def get_job_from_notify_queue(self):
@@ -470,14 +470,14 @@ class JobQueue(object):
         # that if there are no active workers there are no more
         # jobs that are going to get done either.
         try:
-            job_done = self.notify_queue.get(timeout = 60)
+            job_done = self.notify_queue.get(timeout=60)
         except Empty:
             if not self.get_active_worker_count():
                 return False
         return job_done
 
     def get_active_worker_count(self):
-        self._active_workers = [ w for w in self._active_workers if w.is_alive() ]
+        self._active_workers = [w for w in self._active_workers if w.is_alive()]
         return len(self._active_workers)
 
 class Command(object):
@@ -486,10 +486,10 @@ class Command(object):
         self.verbose = verbose
 
     def run_command(self, command, shell=False, input_text=False):
-        """Run a command, expecting no output. Raises MirrorError on 
+        """Run a command, expecting no output. Raises MirrorError on
         non-zero return code."""
 
-        if type(command).__name__=="list":
+        if type(command).__name__ == "list":
             command_string = " ".join(command)
         else:
             command_string = command
@@ -501,9 +501,9 @@ class Command(object):
                 MirrorMsg.display("about to run %s\n" % command_string)
 
         if input_text:
-            proc = Popen(command, shell = shell, stderr = PIPE, stdin = PIPE)
+            proc = Popen(command, shell=shell, stderr=PIPE, stdin=PIPE)
         else:
-            proc = Popen(command, shell = shell, stderr = PIPE)
+            proc = Popen(command, shell=shell, stderr=PIPE)
 
         output, error = proc.communicate(input_text)
         if output:
@@ -511,7 +511,7 @@ class Command(object):
 
         if proc.returncode:
             MirrorMsg.warn("command '%s failed with return code %s and error %s\n"
-                              % ( command_string, proc.returncode,  error ) )
+                              % (command_string, proc.returncode, error))
 
         # let the caller decide whether to bail or not
         return proc.returncode
@@ -525,7 +525,7 @@ class MirrorMsg(object):
         print "Warning:", os.getpid(), message
         sys.stdout.flush()
 
-    def display(message, continuation = False):
+    def display(message, continuation=False):
         # caller must add newlines to messages as desired
         if continuation:
             print message,
@@ -562,25 +562,25 @@ class Mirror(object):
     def get_full_local_path(self, rel_path):
         if rel_path.startswith(os.sep):
             rel_path = rel_path[len(os.sep):]
-        return(os.path.join(self.local_dir_name,rel_path))
+        return(os.path.join(self.local_dir_name, rel_path))
 
     def get_rsync_file_listing(self):
         """via rsync, get full list of files for rsync from remote host"""
-        command = [ "/usr/bin/rsync", "-tp", self.rsync_remote_root + '/' + self.rsync_file_list,  self.local_dir_name ]
+        command = ["/usr/bin/rsync", "-tp", self.rsync_remote_root + '/' + self.rsync_file_list, self.local_dir_name]
         # here we don't do a dry run, we will actually retrieve
         # the list (because otherwise the rest of the run
         # won't produce any information about what the run
         # would do).  we will turn on verbosity though if
         # dryrun was set
         cmd = Command(self.verbose or self.dryrun, False)
-        result = cmd.run_command(command, shell = False)
+        result = cmd.run_command(command, shell=False)
         if result:
             raise MirrorError("_failed to get list of files for rsync\n")
 
     def process_rsync_file_list(self):
         fdesc = open(self.get_full_local_path(self.rsync_file_list))
         if not fdesc:
-            raise MirrorError("failed to open list of files for rsync", os.path.join(self.local_dir_name,self.rsync_file_list))
+            raise MirrorError("failed to open list of files for rsync", os.path.join(self.local_dir_name, self.rsync_file_list))
         self.files_processor = RsyncFilesProcessor(fdesc, self.max_files_per_job, self.max_du_per_job, self.worker_count, self.rsync_remote_root, self.local_dir_name, self.rsync_args, self.verbose, self.dryrun)
         # create all jobs and put on todo queue
         self.files_processor.stuff_jobs_on_queue()
@@ -591,17 +591,17 @@ class Mirror(object):
             MirrorMsg.display("waiting for workers to process jobs\n")
         self.files_processor.do_postjob_processing(self.skip_deletes)
 
-    def setup_dir(self,dir_name):
+    def setup_dir(self, dir_name):
         if self.dryrun:
            return
- 
+
         if os.path.exists(dir_name):
             if not os.path.isdir(dir_name):
                 raise MirrorError("target directory name %s is not a directory, giving up" % dir_name)
         else:
             os.makedirs(dir_name)
 
-def usage(message = None):
+def usage(message=None):
     if message:
         print message
         print "Usage: python wmfdumpsmirror.py [--hostname dumpserver] -remotedir dirpath"
@@ -648,7 +648,7 @@ def usage(message = None):
         sys.exit(1)
 
 def get_size_in_bytes(value):
-    # expect digits optionally followed by one of 
+    # expect digits optionally followed by one of
     # K M G; if not, then we assume K
     size_pattern = re.compile('^([0-9]+)([K|M|G])?$')
     result = size_pattern.search(value)
@@ -671,7 +671,7 @@ def get_rsync_args(value):
     if not value:
         return None
     if ',' not in value:
-        return [ value ]
+        return [value]
     else:
         return value.split(',')
 
@@ -687,10 +687,10 @@ def main():
     dryrun = False
     skip_deletes = False
     verbose = False
-    
+
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", ["hostname=", "localdir=", "remotedir=", "rsynclist=",
-                          "rsyncargs=", "filesperjob=", "sizeperjob=", "workercount=", "dryrun", "skipdeletes", "verbose" ])
+                          "rsyncargs=", "filesperjob=", "sizeperjob=", "workercount=", "dryrun", "skipdeletes", "verbose"])
     except:
         usage("Unknown option specified")
 
@@ -729,7 +729,7 @@ def main():
         usage("Missing required option")
 
     if not os.path.isdir(local_dir):
-        usage("local rsync directory",local_dir,"does not exist or is not a directory")
+        usage("local rsync directory", local_dir, "does not exist or is not a directory")
 
     if not rsync_list:
         rsync_list = "rsync-list.txt.rsync"
@@ -744,7 +744,7 @@ def main():
         worker_count = 1
 
     if not rsync_args:
-        rsync_args = [ "-aq" ]
+        rsync_args = ["-aq"]
 
     if remote_dir[-1] == '/':
         remote_dir = remote_dir[:-1]
