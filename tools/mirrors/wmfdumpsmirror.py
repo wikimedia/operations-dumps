@@ -2,11 +2,74 @@ import getopt
 import os
 import re
 import sys
-import subprocess
 import shutil
 import multiprocessing
 from subprocess import Popen, PIPE
 from Queue import Empty
+
+# things that get here should look like:
+# aawikibooks/20120317/aawikibooks-20120317-all-titles-in-ns0.gz
+def get_path_elts_from_filename(path):
+    if not os.sep in path:
+        raise MirrorError("bad line encountered in rsync"
+                          "directory list: '%s'" % path)
+
+    components = path.split(os.sep)
+    if len(components) < 3 or not RsyncJob.date_pattern.search(components[-2]):
+        raise MirrorError("what garbage is this:"
+                          "%s in the filenames for rsync? " % path)
+    return components
+
+def get_file_size(line):
+    return int(line.split()[1])
+
+
+def get_path(line):
+    return line.split()[4]
+
+
+def check_line_wanted(line):
+    """is this a line we want, it has information about a
+    file for our jobs? if so return true, if not return
+    false.  we assume lines starting with '#' are comments,
+    blank lines are to be skipped, and we don't want
+    directory entries, only files and/or symlinks"""
+    if not line or line[0] == 'd' or line[0] == '#':
+        return False
+    else:
+        return True
+
+
+def get_file_name(self, line):
+    '''
+    the input consists of a list of filenames plus other info and we
+    can expect the dumps of one project to be listed in consecutive
+    lines rather than scattered about in the file (which is of no
+    concern for us but is good for rsync)
+    it's produced by rsync --list-only...
+
+    example:
+
+    drwxrwxr-x        4096 2012/03/17 13:23:04 aawikibooks
+    drwxr-xr-x        4096 2012/03/17 13:24:10 aawikibooks/20120317
+    -rw-r--r--          39 2012/03/17 13:23:54 aawikibooks/20120317/aawikibooks-20120317-all-titles-in-ns0.gz
+    -rw-r--r--         760 2012/03/17 13:23:39 aawikibooks/20120317/aawikibooks-20120317-category.sql.gz
+    -rw-r--r--         826 2012/03/17 13:23:23 aawikibooks/20120317/aawikibooks-20120317-categorylinks.sql.gz
+    -rw-r--r--        1513 2012/03/17 13:23:30 aawikibooks/20120317/aawikibooks-20120317-externallinks.sql.gz
+
+    we may also have a few files in the top level directory that
+    we want the mirrors to pick up (text or html files of particular interest)
+
+    note that the directories are also listed, we want to skip those
+    we'll allow commnts in there in case some other script produces the files
+    or humans edit them; skip those and empty lines, the rest should be good data
+    '''
+    path = get_path(line)
+    if not os.sep in path:
+        return line
+    else:
+        return line.split(os.sep)[-1]
+
 
 class Job(object):
     def __init__(self, job_id, job_contents):
@@ -27,24 +90,12 @@ class Job(object):
     def check_if_failed(self):
         return self.failed
 
+
 class RsyncJob(Job):
     date_pattern = re.compile('^20[0-9]{6}$')
     def __init__(self, contents):
         super(RsyncJob, self).__init__(contents[0], contents)
         self.rsynced_by_job = self.get_dirs_per_proj_rsynced_by_job()
-
-    # things that get here should look like:
-    # aawikibooks/20120317/aawikibooks-20120317-all-titles-in-ns0.gz
-    def _get_path_elts_from_filename(self, path):
-        if not os.sep in path:
-            raise MirrorError("bad line encountered in rsync"
-                              "directory list: '%s'" % path)
-
-        components = path.split(os.sep)
-        if len(components) < 3 or not RsyncJob.date_pattern.search(components[-2]):
-            raise MirrorError("what garbage is this:"
-                              "%s in the filenames for rsync? " % path)
-        return components
 
     def get_dirs_per_proj_rsynced_by_job(self):
         """return has of projects which are partially or completely
@@ -59,7 +110,7 @@ class RsyncJob(Job):
                 # html files that might be at the top of the tree;
                 # don't dig through their names looking for project dump info
                 continue
-            components = self._get_path_elts_from_filename(line)
+            components = get_path_elts_from_filename(line)
             if len(components):
                 project = os.sep + components[-3]
                 project_subdir = components[-2]
@@ -71,6 +122,7 @@ class RsyncJob(Job):
                 projects[project][project_subdir].append(project_file)
 
         return projects
+
 
 class RsyncFilesProcessor(object):
     # for now we have the file list be a flat file, sometime in the
@@ -95,66 +147,19 @@ class RsyncFilesProcessor(object):
         self.deleter = DirDeleter(self.jobs_per_project, self.local_path,
                                   self.verbose, self.dryrun)
 
-    def _get_file_size(self, line):
-        return int(line.split()[1])
-
-    def _get_path(self, line):
-        return line.split()[4]
-
-    def _check_line_wanted(self, line):
-        """is this a line we want, it has information about a
-        file for our jobs? if so return true, if not return
-        false.  we assume lines starting with '#' are comments,
-        blank lines are to be skipped, and we don't want
-        directory entries, only files and/or symlinks"""
-        if not line or line[0] == 'd' or line[0] == '#':
-            return False
-        else:
-            return True
-
-    def _get_file_name(self, line):
-        '''
-        the input consists of a list of filenames plus other info and we
-        can expect the dumps of one project to be listed in consecutive
-        lines rather than scattered about in the file (which is of no
-        concern for us but is good for rsync)
-        it's produced by rsync --list-only...
-
-        example:
-
-        drwxrwxr-x        4096 2012/03/17 13:23:04 aawikibooks
-        drwxr-xr-x        4096 2012/03/17 13:24:10 aawikibooks/20120317
-        -rw-r--r--          39 2012/03/17 13:23:54 aawikibooks/20120317/aawikibooks-20120317-all-titles-in-ns0.gz
-        -rw-r--r--         760 2012/03/17 13:23:39 aawikibooks/20120317/aawikibooks-20120317-category.sql.gz
-        -rw-r--r--         826 2012/03/17 13:23:23 aawikibooks/20120317/aawikibooks-20120317-categorylinks.sql.gz
-        -rw-r--r--        1513 2012/03/17 13:23:30 aawikibooks/20120317/aawikibooks-20120317-externallinks.sql.gz
-
-        we may also have a few files in the top level directory that
-        we want the mirrors to pick up (text or html files of particular interest)
-
-        note that the directories are also listed, we want to skip those
-        we'll allow commnts in there in case some other script produces the files
-        or humans edit them; skip those and empty lines, the rest should be good data
-        '''
-        path = self._get_path(line)
-        if not os.sep in path:
-            return line
-        else:
-            return line.split(os.sep)[-1]
-
     def stuff_jobs_on_queue(self):
         file_count = 0
         file_du = 0
         files = []
         line = self.file_list_fd.readline().rstrip()
         while line:
-            if not self._check_line_wanted(line):
+            if not check_line_wanted(line):
                 line = self.file_list_fd.readline().rstrip()
                 continue
-            path = self._get_path(line)
+            path = get_path(line)
             if path:
                 file_count = file_count + 1
-                file_du = file_du + self._get_file_size(line)
+                file_du = file_du + get_file_size(line)
                 files.append(path)
                 if file_du >= self.max_du_per_job or file_count >= self.max_files_per_job:
                     job = self.make_job(files)
@@ -216,6 +221,7 @@ class RsyncFilesProcessor(object):
                     MirrorMsg.display("checking post-job deletions\n")
                 self.deleter.check_and_do_deletes(j)
 
+
 class DirDeleter(object):
     """remove all dirs for the project that are not in the
     list of dirs to rsync, we don't want them any more"""
@@ -224,11 +230,12 @@ class DirDeleter(object):
         self.local_path = local_path
         self.verbose = verbose
         self.dryrun = dryrun
+        self.job_list = None
 
     def get_full_local_path(self, rel_path):
         if rel_path.startswith(os.sep):
             rel_path = rel_path[len(os.sep):]
-        return(os.path.join(self.local_path, rel_path))
+        return os.path.join(self.local_path, rel_path)
 
     def set_job_list(self, job_list):
         self.job_list = job_list
@@ -335,7 +342,7 @@ class DirDeleter(object):
                     file_name = self.get_full_local_path(
                         os.path.join(project, dirname, tossme))
                     if os.path.isdir(file_name):
-                            continue
+                        continue
                     if self.dryrun or self.verbose:
                         # we should never be pushing directories across as part of the rsync.
                         # so if we have a local directory, leave it alone
@@ -349,6 +356,7 @@ class DirDeleter(object):
         if self.dryrun or self.verbose:
             MirrorMsg.display('\n', True)
 
+
 class JobHandler(object):
     def init(self):
         """this should be overriden to set and args
@@ -360,6 +368,7 @@ class JobHandler(object):
         contents as desired"""
         print contents
         return False
+
 
 class Rsyncer(JobHandler):
     """all the info about rsync you ever wanted to
@@ -393,6 +402,7 @@ class Rsyncer(JobHandler):
         return self.cmd.run_command(command, shell=False,
                                     input_text='\n'.join(files) + '\n')
 
+
 class JobQueueHandler(multiprocessing.Process):
     def __init__(self, jqueue, handler, verbose, dryrun):
         multiprocessing.Process.__init__(self)
@@ -415,6 +425,7 @@ class JobQueueHandler(multiprocessing.Process):
         else:
             job.mark_done()
         self.jqueue.notify_job_done(job)
+
 
 class JobQueue(object):
     def __init__(self, initial_worker_count, handler, verbose, dryrun):
@@ -462,7 +473,7 @@ class JobQueue(object):
                 MirrorMsg.display("job todo queue was empty\n")
             return False
 
-        if (job == self.end_of_jobs):
+        if job == self.end_of_jobs:
             if self.verbose or self.dryrun:
                 MirrorMsg.display("found jobs done marker on jobs queue\n")
             return False
@@ -475,7 +486,7 @@ class JobQueue(object):
         self.notify_queue.put_nowait(job)
 
     def add_to_job_queue(self, job=None):
-        if (job):
+        if job:
             self.todo_queue.put_nowait(job)
 
     def set_end_of_jobs(self):
@@ -503,6 +514,7 @@ class JobQueue(object):
         self._active_workers = [w for w in self._active_workers if w.is_alive()]
         return len(self._active_workers)
 
+
 class Command(object):
     def __init__(self, verbose, dryrun):
         self.dryrun = dryrun
@@ -516,7 +528,7 @@ class Command(object):
             command_string = " ".join(command)
         else:
             command_string = command
-        if (self.dryrun or self.verbose):
+        if self.dryrun or self.verbose:
             if self.dryrun:
                 MirrorMsg.display("would run %s\n" % command_string)
                 return
@@ -534,13 +546,15 @@ class Command(object):
 
         if proc.returncode:
             MirrorMsg.warn("command '%s failed with return code %s and error %s\n"
-                              % (command_string, proc.returncode, error))
+                           % (command_string, proc.returncode, error))
 
         # let the caller decide whether to bail or not
         return proc.returncode
 
+
 class MirrorError(Exception):
     pass
+
 
 class MirrorMsg(object):
     def warn(message):
@@ -558,6 +572,7 @@ class MirrorMsg(object):
 
     warn = staticmethod(warn)
     display = staticmethod(display)
+
 
 class Mirror(object):
     """reading directories for rsync from a specified file,
@@ -583,11 +598,12 @@ class Mirror(object):
         self.max_du_per_job = max_du_per_job
         self.worker_count = worker_count
         self.skip_deletes = skip_deletes
+        self.files_processor = None
 
     def get_full_local_path(self, rel_path):
         if rel_path.startswith(os.sep):
             rel_path = rel_path[len(os.sep):]
-        return(os.path.join(self.local_dir_name, rel_path))
+        return os.path.join(self.local_dir_name, rel_path)
 
     def get_rsync_file_listing(self):
         """via rsync, get full list of files for rsync from remote host"""
@@ -625,7 +641,7 @@ class Mirror(object):
 
     def setup_dir(self, dir_name):
         if self.dryrun:
-           return
+            return
 
         if os.path.exists(dir_name):
             if not os.path.isdir(dir_name):
@@ -766,7 +782,8 @@ def main():
         usage("Missing required option")
 
     if not os.path.isdir(local_dir):
-        usage("local rsync directory %s does not exist or is not a directory") % local_dir
+        usage("local rsync directory %s"
+              " does not exist or is not a directory" % local_dir)
 
     if not rsync_list:
         rsync_list = "rsync-list.txt.rsync"
