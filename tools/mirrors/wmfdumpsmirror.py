@@ -651,51 +651,56 @@ class Mirror(object):
         else:
             os.makedirs(dir_name)
 
+
 def usage(message=None):
     if message:
-        print message
-        print "Usage: python wmfdumpsmirror.py [--hostname dumpserver] -remotedir dirpath"
-        print "              --localdir dirpath [--rsyncargs args] [--rsynclist filename]"
-        print "              [--filesperjob] [--sizeperjob] [--workercount] [--dryrun]"
-        print "              [--skipdeletes] [--verbose]"
-        print ""
-        print "This script does a continuous rsync from specified XML dumps rsync server,"
-        print "rsyncing the last N good dumps of each project and cleaning up old files."
-        print "The rsync is done on a list of files, not directories; bear this in mind"
-        print "when using the --rsyncargs option below.  The list of files should have"
-        print "been produced by rsync --list-only or be in the same format."
-        print ""
-        print "--hostname:     the name of the dump rsync server to contact"
-        print "                if this is left blank, the copy will be done from one path"
-        print "                to another on the local host"
-        print "--remotedir:   the remote path to the top of the dump directory tree"
-        print "                containing the mirror"
-        print "--localdir:     the full path to the top of the local directory tree"
-        print "                containing the mirror"
-        print "--rsyncargs:    arguments to be passed through to rsync, comma-separated,"
-        print "                with 'arg=value' for arguments that require a value"
-        print "                example:  --rsyncargs -tp,--bandwidth=10000"
-        print "                default: '-aq'"
-        print "--rsynclist:    the name of the list of dumps for rsync"
-        print "                default: rsync-list.txt.rsync"
-        print " --filesperjob: the maximum number of files to pass to a worker to process"
-        print "                at once"
-        print "                default: 1000"
-        print " --sizeperjob:  the maximum size of a batch of files to pass to a worker"
-        print "                to process at once (may be specified in K/M/G i.e. "
-        print "                kilobytes/megabytes/gigabytes; default is K) to a worker"
-        print "                to process at once"
-        print "                default: 500M"
-        print " --workercount: the number of worker processes to do simultaneous rsyncs"
-        print "                default: 1"
-        print " --dryrun:      don't do the rsync of files, just get the rsync file list"
-        print "                and print out what would be done"
-        print " --skipdeletes: copy or update files but don't delete anything"
-        print " --verbose:     print lots of diagnostic output"
-        print ""
-        print "Example: python wmfdumpsmirror.py --hostname dumps.wikimedia.org \\"
-        print "                --localdir /opt/data/dumps --rsyncfile rsync-list.txt.rsync"
-        sys.exit(1)
+        sys.stderr.write("%s\n" % message)
+    usage_message = """
+Usage: python wmfdumpsmirror.py [--hostname dumpserver] -remotedir dirpath
+              --localdir dirpath [--rsyncargs args] [--rsynclist filename]
+              [--filesperjob] [--sizeperjob] [--workercount] [--dryrun]
+              [--skipdeletes] [--verbose]
+
+This script does a continuous rsync from specified XML dumps rsync server,
+rsyncing the last N good dumps of each project and cleaning up old files.
+The rsync is done on a list of files, not directories; bear this in mind
+when using the --rsyncargs option below.  The list of files should have
+been produced by rsync --list-only or be in the same format.
+
+--hostname:     the name of the dump rsync server to contact
+                if this is left blank, the copy will be done from one path
+                to another on the local host
+--remotedir:   the remote path to the top of the dump directory tree
+                containing the mirror
+--localdir:     the full path to the top of the local directory tree
+                containing the mirror
+--rsyncargs:    arguments to be passed through to rsync, comma-separated,
+                with 'arg=value' for arguments that require a value
+                example:  --rsyncargs -tp,--bandwidth=10000
+                default: '-aq'
+--rsynclist:    the name of the list of dumps for rsync
+                default: rsync-list.txt.rsync
+ --filesperjob: the maximum number of files to pass to a worker to process
+                at once
+                default: 1000
+ --sizeperjob:  the maximum size of a batch of files to pass to a worker
+                to process at once (may be specified in K/M/G i.e.
+                kilobytes/megabytes/gigabytes; default is K) to a worker
+                to process at once
+                default: 500M
+ --workercount: the number of worker processes to do simultaneous rsyncs
+                default: 1
+ --dryrun:      don't do the rsync of files, just get the rsync file list
+                and print out what would be done
+ --skipdeletes: copy or update files but don't delete anything
+ --verbose:     print lots of diagnostic output
+
+Example: python wmfdumpsmirror.py --hostname dumps.wikimedia.org
+                --localdir /opt/data/dumps --rsyncfile rsync-list.txt.rsync
+"""
+    sys.stderr.write(usage_message)
+    sys.exit(1)
+
 
 def get_size_in_bytes(value):
     # expect digits optionally followed by one of
