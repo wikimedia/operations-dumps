@@ -129,7 +129,7 @@ class RsyncFilesProcessor(object):
     # not to distant future it will be maybe a stream cause we'll be
     # feeding a list from the api, that will be sketchy
     def __init__(self, file_list_fd, max_files_per_job, max_du_per_job,
-                 worker_count, rsync_remote_path, local_path, rsync_args,
+                 worker_count, rsync_source_path, dest_path, rsync_args,
                  verbose, dryrun):
         self.file_list_fd = file_list_fd
         self.max_files_per_job = max_files_per_job
@@ -137,14 +137,14 @@ class RsyncFilesProcessor(object):
         self.verbose = verbose
         self.dryrun = dryrun
         self.rsync_args = rsync_args
-        self.local_path = local_path
-        self.rsyncer = Rsyncer(rsync_remote_path, local_path,
+        self.dest_path = dest_path
+        self.rsyncer = Rsyncer(rsync_source_path, dest_path,
                                self.rsync_args, self.verbose, self.dryrun)
         self.jqueue = JobQueue(worker_count, self.rsyncer, self.verbose, self.dryrun)
         self.date_pattern = re.compile('^20[0-9]{6}$')
         self.jobs_per_project = {}
         self.jobs = {}
-        self.deleter = DirDeleter(self.jobs_per_project, self.local_path,
+        self.deleter = DirDeleter(self.jobs_per_project, self.dest_path,
                                   self.verbose, self.dryrun)
 
     def stuff_jobs_on_queue(self):
@@ -225,17 +225,17 @@ class RsyncFilesProcessor(object):
 class DirDeleter(object):
     """remove all dirs for the project that are not in the
     list of dirs to rsync, we don't want them any more"""
-    def __init__(self, jobs_per_project, local_path, verbose, dryrun):
+    def __init__(self, jobs_per_project, dest_path, verbose, dryrun):
         self.jobs_per_project = jobs_per_project
-        self.local_path = local_path
+        self.dest_path = dest_path
         self.verbose = verbose
         self.dryrun = dryrun
         self.job_list = None
 
-    def get_full_local_path(self, rel_path):
+    def get_full_dest_path(self, rel_path):
         if rel_path.startswith(os.sep):
             rel_path = rel_path[len(os.sep):]
-        return os.path.join(self.local_path, rel_path)
+        return os.path.join(self.dest_path, rel_path)
 
     def set_job_list(self, job_list):
         self.job_list = job_list
@@ -288,9 +288,9 @@ class DirDeleter(object):
         # remove the ones we didn't as we no longer want them
         project_dirs_rsynced = self.list_dirs_rsynced_for_proj(project)
 
-        if not os.path.exists(self.get_full_local_path(project)):
+        if not os.path.exists(self.get_full_dest_path(project)):
             return
-        dirs = os.listdir(self.get_full_local_path(project))
+        dirs = os.listdir(self.get_full_dest_path(project))
 
         if self.dryrun or self.verbose:
             MirrorMsg.display("for project %s:" % project)
@@ -310,10 +310,10 @@ class DirDeleter(object):
                     MirrorMsg.display("'%s'" % dir_name, True)
                 if not self.dryrun:
                     try:
-                        shutil.rmtree(self.get_full_local_path(dir_name))
+                        shutil.rmtree(self.get_full_dest_path(dir_name))
                     except:
                         MirrorMsg.warn("failed to remove directory or contents of %s\n"
-                                       % self.get_full_local_path(dir_name))
+                                       % self.get_full_dest_path(dir_name))
                         pass
         if self.dryrun or self.verbose:
             MirrorMsg.display('\n', True)
@@ -329,7 +329,7 @@ class DirDeleter(object):
 
         for dirname in dirs:
             if dirname in project_dirs_rsynced:
-                files_existing = os.listdir(self.get_full_local_path(
+                files_existing = os.listdir(self.get_full_dest_path(
                     os.path.join(project, dirname)))
                 files_rsynced = self.list_files_rsynced_for_proj_dir(project, dirname)
                 files_to_toss = [f for f in files_existing if not f in files_rsynced]
@@ -339,13 +339,13 @@ class DirDeleter(object):
                     if not len(files_to_toss):
                         MirrorMsg.display("None", True)
                 for tossme in files_to_toss:
-                    file_name = self.get_full_local_path(
+                    file_name = self.get_full_dest_path(
                         os.path.join(project, dirname, tossme))
                     if os.path.isdir(file_name):
                         continue
                     if self.dryrun or self.verbose:
                         # we should never be pushing directories across as part of the rsync.
-                        # so if we have a local directory, leave it alone
+                        # so if we have a dest directory, leave it alone
                         MirrorMsg.display("'%s'" % tossme, True)
                     if not self.dryrun:
                         try:
@@ -373,10 +373,10 @@ class JobHandler(object):
 class Rsyncer(JobHandler):
     """all the info about rsync you ever wanted to
        know but were afraid to ask..."""
-    def __init__(self, rsync_remote_path, local_path,
+    def __init__(self, rsync_source_path, dest_path,
                  rsync_args, verbose, dryrun):
-        self.rsync_remote_path = rsync_remote_path
-        self.local_path = local_path
+        self.rsync_source_path = rsync_source_path
+        self.dest_path = dest_path
         self.rsync_args = rsync_args
         self.verbose = verbose
         self.dryrun = dryrun
@@ -389,7 +389,7 @@ class Rsyncer(JobHandler):
         command = ["/usr/bin/rsync"]
         command.extend(["--files-from", "-"])
         command.extend(self.rsync_args)
-        command.extend([self.rsync_remote_path, self.local_path])
+        command.extend([self.rsync_source_path, self.dest_path])
 
         if self.dryrun or self.verbose:
             command_string = " ".join(command)
@@ -576,20 +576,20 @@ class MirrorMsg(object):
 
 class Mirror(object):
     """reading directories for rsync from a specified file,
-    rsync each one; remove directories locally that aren't in the file"""
+    rsync each one; remove directories destly that aren't in the file"""
 
-    def __init__(self, host_name, remote_dir_name, local_dir_name,
+    def __init__(self, host_name, source_dir_name, dest_dir_name,
                  rsync_list, rsync_args, max_files_per_job,
                  max_du_per_job, worker_count, skip_deletes, verbose, dryrun):
         self.host_name = host_name
-        self.remote_dir_name = remote_dir_name
-        self.local_dir_name = local_dir_name
+        self.source_dir_name = source_dir_name
+        self.dest_dir_name = dest_dir_name
         if self.host_name:
-            self.rsync_remote_root = self.host_name + "::" + self.remote_dir_name
+            self.rsync_source_root = self.host_name + "::" + self.source_dir_name
         else:
-            # the 'remote' dir is actually on the local host and we are
-            # rsyncing from one locally mounted filesystem to another
-            self.rsync_remote_root = self.remote_dir_name
+            # the 'source' dir is actually on the dest host and we are
+            # rsyncing from one destly mounted filesystem to another
+            self.rsync_source_root = self.source_dir_name
         self.rsync_file_list = rsync_list
         self.rsync_args = rsync_args
         self.verbose = verbose
@@ -600,16 +600,16 @@ class Mirror(object):
         self.skip_deletes = skip_deletes
         self.files_processor = None
 
-    def get_full_local_path(self, rel_path):
+    def get_full_dest_path(self, rel_path):
         if rel_path.startswith(os.sep):
             rel_path = rel_path[len(os.sep):]
-        return os.path.join(self.local_dir_name, rel_path)
+        return os.path.join(self.dest_dir_name, rel_path)
 
     def get_rsync_file_listing(self):
-        """via rsync, get full list of files for rsync from remote host"""
+        """via rsync, get full list of files for rsync from source host"""
         command = ["/usr/bin/rsync", "-tp",
-                   self.rsync_remote_root + '/' + self.rsync_file_list,
-                   self.local_dir_name]
+                   self.rsync_source_root + '/' + self.rsync_file_list,
+                   self.dest_dir_name]
         # here we don't do a dry run, we will actually retrieve
         # the list (because otherwise the rest of the run
         # won't produce any information about what the run
@@ -621,15 +621,15 @@ class Mirror(object):
             raise MirrorError("_failed to get list of files for rsync\n")
 
     def process_rsync_file_list(self):
-        fdesc = open(self.get_full_local_path(self.rsync_file_list))
+        fdesc = open(self.get_full_dest_path(self.rsync_file_list))
         if not fdesc:
             raise MirrorError("failed to open list of files for rsync",
-                              os.path.join(self.local_dir_name,
+                              os.path.join(self.dest_dir_name,
                                            self.rsync_file_list))
         self.files_processor = RsyncFilesProcessor(
             fdesc, self.max_files_per_job, self.max_du_per_job,
-            self.worker_count, self.rsync_remote_root,
-            self.local_dir_name, self.rsync_args, self.verbose, self.dryrun)
+            self.worker_count, self.rsync_source_root,
+            self.dest_dir_name, self.rsync_args, self.verbose, self.dryrun)
         # create all jobs and put on todo queue
         self.files_processor.stuff_jobs_on_queue()
         fdesc.close()
@@ -656,8 +656,8 @@ def usage(message=None):
     if message:
         sys.stderr.write("%s\n" % message)
     usage_message = """
-Usage: python wmfdumpsmirror.py [--hostname dumpserver] -remotedir dirpath
-              --localdir dirpath [--rsyncargs args] [--rsynclist filename]
+Usage: python wmfdumpsmirror.py [--hostname dumpserver] -sourcedir dirpath
+              --destdir dirpath [--rsyncargs args] [--rsynclist filename]
               [--filesperjob] [--sizeperjob] [--workercount] [--dryrun]
               [--skipdeletes] [--verbose]
 
@@ -669,10 +669,10 @@ been produced by rsync --list-only or be in the same format.
 
 --hostname:     the name of the dump rsync server to contact
                 if this is left blank, the copy will be done from one path
-                to another on the local host
---remotedir:   the remote path to the top of the dump directory tree
+                to another on the dest host
+--sourcedir:   the source path to the top of the dump directory tree
                 containing the mirror
---localdir:     the full path to the top of the local directory tree
+--destdir:     the full path to the top of the dest directory tree
                 containing the mirror
 --rsyncargs:    arguments to be passed through to rsync, comma-separated,
                 with 'arg=value' for arguments that require a value
@@ -696,7 +696,7 @@ been produced by rsync --list-only or be in the same format.
  --verbose:     print lots of diagnostic output
 
 Example: python wmfdumpsmirror.py --hostname dumps.wikimedia.org
-                --localdir /opt/data/dumps --rsyncfile rsync-list.txt.rsync
+                --destdir /opt/data/dumps --rsyncfile rsync-list.txt.rsync
 """
     sys.stderr.write(usage_message)
     sys.exit(1)
@@ -732,8 +732,8 @@ def get_rsync_args(value):
 
 def main():
     host_name = None
-    local_dir = None
-    remote_dir = None
+    dest_dir = None
+    source_dir = None
     rsync_list = None
     rsync_args = None
     max_files_per_job = None
@@ -745,7 +745,7 @@ def main():
 
     try:
         (options, remainder) = getopt.gnu_getopt(
-            sys.argv[1:], "", ["hostname=", "localdir=", "remotedir=",
+            sys.argv[1:], "", ["hostname=", "destdir=", "sourcedir=",
                                "rsynclist=", "rsyncargs=", "filesperjob=",
                                "sizeperjob=", "workercount=", "dryrun",
                                "skipdeletes", "verbose"])
@@ -761,10 +761,10 @@ def main():
             max_files_per_job = int(val)
         elif opt == "--hostname":
             host_name = val
-        elif opt == "--localdir":
-            local_dir = val
-        elif opt == "--remotedir":
-            remote_dir = val
+        elif opt == "--destdir":
+            dest_dir = val
+        elif opt == "--sourcedir":
+            source_dir = val
         elif opt == "--rsynclist":
             rsync_list = val
         elif opt == "--rsyncargs":
@@ -783,12 +783,12 @@ def main():
     if len(remainder) > 0:
         usage("Unknown option specified")
 
-    if not remote_dir or not local_dir:
+    if not source_dir or not dest_dir:
         usage("Missing required option")
 
-    if not os.path.isdir(local_dir):
-        usage("local rsync directory %s"
-              " does not exist or is not a directory" % local_dir)
+    if not os.path.isdir(dest_dir):
+        usage("dest rsync directory %s"
+              " does not exist or is not a directory" % dest_dir)
 
     if not rsync_list:
         rsync_list = "rsync-list.txt.rsync"
@@ -805,13 +805,13 @@ def main():
     if not rsync_args:
         rsync_args = ["-aq"]
 
-    if remote_dir[-1] == '/':
-        remote_dir = remote_dir[:-1]
+    if source_dir[-1] == '/':
+        source_dir = source_dir[:-1]
 
-    if local_dir[-1] == '/':
-        local_dir = local_dir[:-1]
+    if dest_dir[-1] == '/':
+        dest_dir = dest_dir[:-1]
 
-    mirror = Mirror(host_name, remote_dir, local_dir,
+    mirror = Mirror(host_name, source_dir, dest_dir,
                     rsync_list, rsync_args, max_files_per_job,
                     max_du_per_job, worker_count,
                     skip_deletes, verbose, dryrun)
