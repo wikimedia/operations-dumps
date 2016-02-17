@@ -294,7 +294,7 @@ class Dump(object):
         return recombine_command_string
 
     def cleanup_old_files(self, dump_dir, runner):
-        if "clean_old_files" in runner.enabled:
+        if "cleanup_old_files" in runner.enabled:
             if self.checkpoint_file is not None:
                 # we only rerun this one, so just remove this one
                 if exists(dump_dir.filename_public_path(self.checkpoint_file)):
