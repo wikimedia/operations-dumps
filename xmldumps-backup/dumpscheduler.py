@@ -18,7 +18,7 @@ import traceback
 LOG = logging.getLogger(__name__)
 
 
-def line_to_entry(line):
+def line_to_entry(line, total_slots):
     '''
     convert a line of text representing a command to be run,
     into an entry describing the command info
@@ -27,6 +27,12 @@ def line_to_entry(line):
     onfailure may be one of continue exit retry
     '''
     slots, count, onfailure, errornotify, command = line.split(' ', 4)
+
+    if count == 'max':
+        # figure out how many jobs can run at once given the
+        # total slots available
+        count = str(total_slots/int(slots))
+
     return {'slots': int(slots),
             'count': int(count),
             'command': command,
@@ -113,7 +119,7 @@ class Scheduler(object):
             line = line.rstrip('\n')
             if line.startswith('#') or line.startswith(" ") or not line:
                 continue
-            self.commands.append(line_to_entry(line))
+            self.commands.append(line_to_entry(line, self.total_slots))
         if self.input != sys.stdin:
             self.input.close()
 
@@ -320,7 +326,7 @@ class Scheduler(object):
             return None
 
         LOG.debug("entry slots is %s and free is %s", str(entry['slots']),
-                 str(self.free_slots))
+                  str(self.free_slots))
         if entry['slots'] <= self.free_slots:
             LOG.info("using %s slot(s), starting command %s",
                      str(entry['slots']), entry['command'])
@@ -424,6 +430,9 @@ where:
 
     numslots is the number of slots (free cores, perhaps) that one process takes,
     numcommands is the max number of copies of this command to run at once,
+                if 'max' is given as the value, the value will be calculated from
+                numslots the command uses vs slots the host has in total as specified
+                in the --slots arg to the script
     onfailure: what to do if a command fails: continue, retry=numofretries, exit
                note that numofretries is the number of total retries for the entire
                count of that command. So if 5 copies of the command are run and
@@ -521,7 +530,7 @@ def main():
     if working_dir is not None:
         os.chdir(working_dir)
     scheduler = Scheduler(commands_in, slots, cache, mailhost,
-                      email_from, restore, rerun)
+                          email_from, restore, rerun)
     scheduler.run()
 
 
