@@ -649,6 +649,11 @@ class RunSettings(object):
             return
         setting_info = self.get_settings_from_config()
 
+        if not os.path.exists(os.path.join(self.wiki.public_dir(), self.wiki.date)):
+            os.makedirs(os.path.join(self.wiki.public_dir(), self.wiki.date))
+        if not os.path.exists(os.path.join(self.wiki.private_dir(), self.wiki.date)):
+            os.makedirs(os.path.join(self.wiki.private_dir(), self.wiki.date))
+
         with open(settings_path, "w+") as settings_fd:
             settings_fd.write(json.dumps(setting_info) + "\n")
 
