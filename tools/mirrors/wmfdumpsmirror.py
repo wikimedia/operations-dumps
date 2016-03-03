@@ -16,7 +16,7 @@ from Queue import Empty
 # things that get here should look like:
 # aawikibooks/20120317/aawikibooks-20120317-all-titles-in-ns0.gz
 def get_path_elts_from_filename(path):
-    if not os.sep in path:
+    if os.sep not in path:
         raise MirrorError("bad line encountered in rsync"
                           "directory list: '%s'" % path)
 
@@ -53,7 +53,7 @@ def maketempdir():
 
 class Job(object):
     def __init__(self, job_id, job_contents):
-        self.job_id = job_id # this must be unique across all jobs
+        self.job_id = job_id  # this must be unique across all jobs
         self.contents = job_contents
         self.done = False
         self.failed = False
@@ -73,6 +73,7 @@ class Job(object):
 
 class RsyncJob(Job):
     date_pattern = re.compile('^20[0-9]{6}$')
+
     def __init__(self, contents):
         super(RsyncJob, self).__init__(contents[0], contents)
         self.rsynced_by_job = self.get_dirs_per_proj_rsynced_by_job()
@@ -84,7 +85,7 @@ class RsyncJob(Job):
 
         projects = {}
         for line in self.contents:
-            if not os.sep in line:
+            if os.sep not in line:
                 # files that aren't part of the project dumps but
                 # are included in the rsync... for example various
                 # html files that might be at the top of the tree;
@@ -251,7 +252,7 @@ class DirDeleter(object):
         for job_id in self.jobs_per_project[project]:
             dirs_for_project.extend(
                 [k for k in self.job_list[job_id].rsynced_by_job[project].keys()
-                 if not k in dirs_for_project])
+                 if k not in dirs_for_project])
         return dirs_for_project
 
     def list_files_rsynced_for_proj_dir(self, project, dir_name):
@@ -268,7 +269,7 @@ class DirDeleter(object):
         # find which dirs were rsynced for this project,
         # on the remote, remove the ones we didn't rsync, as we no longer want them
         project_dirs_rsynced = self.list_dirs_rsynced_for_proj(project)
-        #rsync -a --delete --exclude=/20151026/ --exclude=/20151027/ empty/ public/tenwiki/
+        # rsync -a --delete --exclude=/20151026/ --exclude=/20151027/ empty/ public/tenwiki/
 
         if self.emptydirpath is None:
             self.emptydirpath = maketempdir()
@@ -344,7 +345,7 @@ class JobQueueHandler(multiprocessing.Process):
     def run(self):
         while True:
             job = self.jqueue.get_job_on_queue()
-            if not job: # no jobs left, we're done
+            if not job:  # no jobs left, we're done
                 break
             self.do_job(job)
 
