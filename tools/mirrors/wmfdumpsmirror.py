@@ -110,22 +110,20 @@ class RsyncFilesProcessor(object):
     # feeding a list from the api, that will be sketchy
     def __init__(self, file_list_fd, max_files_per_job, max_du_per_job,
                  worker_count, rsync_source_root, rsync_dest_root,
-                 source_path, dest_path, rsync_args,
-                 verbose, dryrun):
+                 rsync_args, verbose, dryrun):
         self.file_list_fd = file_list_fd
         self.max_files_per_job = max_files_per_job
         self.max_du_per_job = max_du_per_job
         self.verbose = verbose
         self.dryrun = dryrun
         self.rsync_args = rsync_args
-        self.dest_path = dest_path
-        self.rsyncer = Rsyncer(rsync_source_root, rsync_dest_root, source_path, dest_path,
+        self.rsyncer = Rsyncer(rsync_source_root, rsync_dest_root,
                                self.rsync_args, self.verbose, self.dryrun)
         self.jqueue = JobQueue(worker_count, self.rsyncer, self.verbose, self.dryrun)
         self.date_pattern = re.compile('^20[0-9]{6}$')
         self.jobs_per_project = {}
         self.jobs = {}
-        self.deleter = DirDeleter(self.jobs_per_project, self.dest_path,
+        self.deleter = DirDeleter(self.jobs_per_project, rsync_dest_root,
                                   self.verbose, self.dryrun)
 
     def stuff_jobs_on_queue(self):
@@ -222,11 +220,6 @@ class DirDeleter(object):
             except:
                 pass
 
-    def get_full_dest_path(self, rel_path):
-        if rel_path.startswith(os.sep):
-            rel_path = rel_path[len(os.sep):]
-        return os.path.join(self.dest_path, rel_path)
-
     def set_job_list(self, job_list):
         self.job_list = job_list
 
@@ -311,12 +304,9 @@ class Rsyncer(JobHandler):
     """all the info about rsync you ever wanted to
        know but were afraid to ask..."""
     def __init__(self, rsync_source_root, rsync_dest_root,
-                 source_path, dest_path,
                  rsync_args, verbose, dryrun):
         self.rsync_source_root = rsync_source_root
         self.rsync_dest_root = rsync_dest_root
-        self.source_path = source_path
-        self.dest_path = dest_path
         self.rsync_args = rsync_args
         self.verbose = verbose
         self.dryrun = dryrun
@@ -531,18 +521,15 @@ class Mirror(object):
             self.remote = None
             self.host_name = None
 
-        self.source_dir_name = source_dir_name
-        self.dest_dir_name = dest_dir_name
-
         if self.host_name is not None and self.remote == "dest":
-            self.rsync_dest_root = self.host_name + "::" + self.dest_dir_name
+            self.rsync_dest_root = self.host_name + "::" + dest_dir_name
         else:
-            self.rsync_dest_root = self.dest_dir_name
+            self.rsync_dest_root = dest_dir_name
 
         if self.host_name is not None and self.remote == "source":
-            self.rsync_source_root = self.host_name + "::" + self.source_dir_name
+            self.rsync_source_root = self.host_name + "::" + source_dir_name
         else:
-            self.rsync_source_root = self.source_dir_name
+            self.rsync_source_root = source_dir_name
 
         self.rsync_file_list = rsync_list
         self.rsync_args = rsync_args
@@ -564,11 +551,6 @@ class Mirror(object):
                 pass
         if self.files_processor is not None:
             self.files_processor.deleter.cleanup()
-
-    def get_full_dest_path(self, rel_path):
-        if rel_path.startswith(os.sep):
-            rel_path = rel_path[len(os.sep):]
-        return os.path.join(self.dest_dir_name, rel_path)
 
     def get_rsync_file_listing(self):
         """via rsync, get full list of files for rsync from source host"""
@@ -595,7 +577,7 @@ class Mirror(object):
         self.files_processor = RsyncFilesProcessor(
             fdesc, self.max_files_per_job, self.max_du_per_job,
             self.worker_count, self.rsync_source_root, self.rsync_dest_root,
-            self.source_dir_name, self.dest_dir_name, self.rsync_args, self.verbose, self.dryrun)
+            self.rsync_args, self.verbose, self.dryrun)
         # create all jobs and put on todo queue
         self.files_processor.stuff_jobs_on_queue()
         fdesc.close()
