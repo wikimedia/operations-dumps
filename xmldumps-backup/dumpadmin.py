@@ -292,16 +292,17 @@ class ActionHandler(object):
         all wikis, provided they were locked on current host
         '''
         lock_info = self.find_dump_lockinfo()
-        # fixme does this iter over keys?
         for wiki in lock_info:
-            if check_process_running(lock_info[wiki]['pid']):
-                continue
-            if self.dryrun:
-                print "would remove lock", lock_info[wiki]['name']
-            else:
-                if self.verbose:
-                    print "removing lock for", wiki
-                os.unlink(lock_info[wiki]['filename'])
+            for lockfile_content in lock_info[wiki]:
+                if check_process_running(lockfile_content['pid']):
+                    continue
+                if self.dryrun:
+                    print("would remove lock", lockfile_content['filename'],
+                          "for wiki", wiki)
+                else:
+                    if self.verbose:
+                        print "removing lock for", wiki
+                    os.unlink(lockfile_content['filename'])
 
     def find_failed_dumps_for_wiki(self, wikiname):
         '''
@@ -361,14 +362,14 @@ class ActionHandler(object):
             for date in failed_dumps[wikiname]:
                 wiki = Wiki(self.wikiconfs[wikiname], wikiname)
                 wiki.set_date(date)
-                locker = Locker(wiki)
+                locker = Locker(wiki, date)
                 try:
                     locker.lock()
                 except:
                     sys.stderr.write("Couldn't lock %s, can't do cleanup\n" % wikiname)
                     continue
                 self.cleanup_dump(wiki, failed_dumps[wikiname][date], rerun=rerun)
-                locker.unlock()
+                locker.unlock(locker.get_lock_file_path())
 
     def cleanup_dump(self, wiki, failed_jobs, rerun=False):
         '''
@@ -679,26 +680,27 @@ class ActionHandler(object):
 
     def find_dump_lockinfo(self):
         '''
-        get host and pid information for lockfiles for the wiki
-        specified at instantiation or for all wikis
+        get and return host, pid, lockfile name for the wiki
+        specified at instantiation or for all wikis, for
+        lockfiles created on current host
         '''
         my_hostname = socket.getfqdn()
 
         lockfiles = []
         results = {}
         if self.wikiname is not None:
-            path = os.path.join(self.wikiconfs[self.wikiname].private_dir, self.wikiname, "lock")
-            if os.path.exists(path):
-                lockfiles = [path]
-
+            lockfiles = glob.glob(os.path.join(self.wikiconfs[self.wikiname].private_dir,
+                                               self.wikiname, "lock_*"))
         else:
-            lockfiles = glob.glob(os.path.join(self.conf.private_dir, "*", "lock"))
+            lockfiles = glob.glob(os.path.join(self.conf.private_dir, "*", "lock_*"))
 
         for filename in lockfiles:
             host, pid = get_lockfile_content(filename)
             wiki = self.get_wiki_from_lockfilename(filename)
             if host == my_hostname:
-                results[wiki] = {'pid': pid, 'host': host, 'filename': filename}
+                if wiki not in results:
+                    results[wiki] = []
+                results[wiki].append({'pid': pid, 'host': host, 'filename': filename})
         return results
 
     def get_wiki_from_lockfilename(self, filename):
@@ -706,12 +708,14 @@ class ActionHandler(object):
         given the full lockfile name, grab the wiki name out of it
         and return it
         '''
-        if filename.endswith("lock"):
-            filename = filename[:-4]
-        if filename.startswith(self.conf.private_dir):
+        if "lock" in filename and filename.startswith(self.conf.private_dir):
             filename = filename[len(self.conf.private_dir):]
-        filename = filename.strip(os.path.sep)
-        return filename
+            filename = filename.lstrip(os.path.sep)
+            # wikiname/lock_...
+            wikiname = filename.split(os.path.sep)[0]
+            return wikiname
+        else:
+            return None
 
 
 def usage(message=None):

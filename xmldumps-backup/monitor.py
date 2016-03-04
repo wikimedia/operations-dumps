@@ -25,9 +25,10 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False):
     for db_name in dbs:
         wiki = Wiki(config, db_name)
         locker = Locker(wiki)
-        if locker.is_stale():
-            locker.cleanup_stale_lock()
-        running = running or locker.is_locked()
+        lockfiles = locker.is_stale(all_locks=True)
+        if lockfiles:
+            locker.cleanup_stale_locks(lockfiles)
+        running = running or locker.is_locked(all_locks=True)
         states.append(StatusHtml.status_line(wiki))
 
     if running:

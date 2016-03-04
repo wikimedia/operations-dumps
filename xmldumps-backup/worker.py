@@ -122,7 +122,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
                 continue
         try:
             if locks_enabled:
-                locker = Locker(wiki)
+                locker = Locker(wiki, date)
                 locker.lock()
             return wiki
         except:
@@ -381,9 +381,10 @@ def main():
                 if last_ran >= cutoff:
                     wiki = None
             if wiki is not None and locks_enabled:
-                locker = Locker(wiki)
-                if force_lock and locker.is_locked():
-                    locker.unlock()
+                locker = Locker(wiki, date)
+                if force_lock:
+                    lockfiles = locker.is_locked()
+                    locker.unlock(lockfiles)
                 if locks_enabled:
                     locker.lock()
 
@@ -489,8 +490,9 @@ def main():
 
             # if we are doing one piece only of the dump, we don't unlock either
             if locks_enabled:
-                locker = Locker(wiki)
-                locker.unlock()
+                locker = Locker(wiki, date)
+                lockfiles = locker.is_locked()
+                locker.unlock(lockfiles)
         elif wiki is not None:
             sys.stderr.write("Wikis available to run but prereqs not complete.\n")
             exitcode = 0

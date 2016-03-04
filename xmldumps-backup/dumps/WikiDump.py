@@ -517,24 +517,80 @@ class Wiki(object):
 
 
 class Locker(object):
-    def __init__(self, wiki):
+    def __init__(self, wiki, date=None):
         self.wiki = wiki
         self.watchdog = None
+        self.date = self.get_date(date)
 
-    def is_locked(self):
-        return os.path.exists(self.get_lock_file_path())
+    def get_date(self, date):
+        if date == 'last':
+            dumps = sorted(self.wiki.dump_dirs())
+            if dumps:
+                date = dumps[-1]
+            else:
+                date = None
+        if date is None:
+            date = TimeUtils.today()
+        return date
 
-    def is_stale(self):
-        if not self.is_locked():
-            return False
-        try:
-            age = self.lock_age()
-            return age > self.wiki.config.stale_age
-        except:
-            # Lock file vanished while we were looking
-            return False
+    def is_locked(self, all_locks=False):
+        '''
+        Return list of lockfiles for the given wiki,
+        either for the one date for this instance,
+        or for all dates. If there are no lockfiles
+        an empty list will be returned
+        '''
+        if all_locks:
+            return self.get_locks()
+        else:
+            if os.path.exists(self.get_lock_file_path()):
+                return [self.get_lock_file_path()]
+            else:
+                return []
+
+    def get_locks(self):
+        '''
+        get and return list of all lockfiles for the given
+        wiki, regardless of date
+        '''
+        lockfiles = []
+        entries = os.listdir(self.wiki.private_dir())
+        for entry in entries:
+            if entry.startswith('lock_'):
+                lockfiles.append(os.path.join(self.wiki.private_dir(), entry))
+        return lockfiles
+
+    def is_stale(self, all_locks=False):
+        '''
+        check whether the wiki lockfile for the given
+        date or for all dates are stale, return the
+        list of stale lockfiles or an empty list if
+        there are none
+        '''
+        stale_locks = []
+        if all_locks:
+            lockfiles = self.get_locks()
+        else:
+            lockfiles = [self.get_lock_file_path()]
+
+        if not lockfiles:
+            return stale_locks
+        for lockfile in lockfiles:
+            try:
+                age = self.lock_age(lockfile)
+                if age > self.wiki.config.stale_age:
+                    stale_locks.append(lockfile)
+            except:
+                # Lock file vanished while we were looking
+                continue
+        return stale_locks
 
     def lock(self):
+        '''
+        create lock file for the given wiki and date, also
+        set up a watchdog that will update its timestamp
+        every minute.
+        '''
         if not os.path.isdir(self.wiki.private_dir()):
             try:
                 os.makedirs(self.wiki.private_dir())
@@ -550,26 +606,48 @@ class Locker(object):
         self.watchdog.start()
         return True
 
-    def unlock(self):
+    def unlock(self, lockfiles):
+        '''
+        Note:
+        if more than one lockfile is to be removed, they had better be
+        'stale' (no longer being updated by a watchdog) or this will fail
+        '''
         if self.watchdog is not None:
             self.watchdog.stop_watching()
             self.watchdog = None
-        os.remove(self.get_lock_file_path())
+        for lockfile in lockfiles:
+            try:
+                os.remove(lockfile)
+            except:
+                # someone else removed it?
+                pass
 
-    def cleanup_stale_lock(self):
-        date = self.wiki.latest_dump()
-        if date:
-            self.wiki.set_date(date)
-            StatusHtml.write_status(self.wiki, StatusHtml.status_line(
-                self.wiki, aborted=True))
-        self.unlock()
+    def get_date_from_lockfilename(self, lockfile):
+        return lockfile.split('_')[1]
+
+    def cleanup_stale_locks(self, lockfiles=None):
+        for lockfile in lockfiles:
+            date = self.get_date_from_lockfilename(lockfile)
+            if date:
+                self.wiki.set_date(date)
+                try:
+                    StatusHtml.write_status(self.wiki, StatusHtml.status_line(
+                        self.wiki, aborted=True))
+                except:
+                    # may be no directory to write into, if
+                    # the dump failed early enough
+                    pass
+        self.unlock(lockfiles)
 
     # private....
     def get_lock_file_path(self):
-        return os.path.join(self.wiki.private_dir(), "lock")
+        return os.path.join(self.wiki.private_dir(), "lock_{0}".format(self.date))
 
-    def lock_age(self):
-        return FileUtils.file_age(self.get_lock_file_path())
+    def lock_age(self, lockfile=None):
+        if lockfile is not None:
+            return FileUtils.file_age(lockfile)
+        else:
+            return FileUtils.file_age(self.get_lock_file_path())
 
 
 class LockWatchdog(threading.Thread):
