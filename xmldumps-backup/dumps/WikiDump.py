@@ -30,6 +30,7 @@ class Config(object):
             # "wiki": {
             "dblist": "",
             "privatelist": "",
+            "closedlist": "",
             "flaggedrevslist": "",
             "wikidatalist": "",
             "globalusagelist": "",
@@ -173,6 +174,7 @@ class Config(object):
         self.db_list = MiscUtils.db_list(self.conf.get("wiki", "dblist"))
         self.skip_db_list = MiscUtils.db_list(self.conf.get("wiki", "skipdblist"))
         self.private_list = MiscUtils.db_list(self.conf.get("wiki", "privatelist"))
+        self.closed_list = MiscUtils.db_list(self.conf.get("wiki", "closedlist"))
         self.flagged_revs_list = MiscUtils.db_list(self.conf.get("wiki", "flaggedrevslist"))
         self.wikidata_list = MiscUtils.db_list(self.conf.get("wiki", "wikidatalist"))
         self.global_usage_list = MiscUtils.db_list(self.conf.get("wiki", "globalusagelist"))
@@ -381,6 +383,9 @@ class Wiki(object):
 
     def is_private(self):
         return self.db_name in self.config.private_list
+
+    def is_closed(self):
+        return self.db_name in self.config.closed_list
 
     def has_flagged_revs(self):
         return self.db_name in self.config.flagged_revs_list
