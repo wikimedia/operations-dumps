@@ -190,7 +190,8 @@ class DbServerInfo(object):
 
 
 class RunSimpleCommand(object):
-    def run_with_output(command, maxtries=3, shell=False, log_callback=None, retry_delay=5):
+    def run_with_output(command, maxtries=3, shell=False, log_callback=None,
+                        retry_delay=5, verbose=False):
         """Run a command and return the output as a string.
         Raises BackupError on non-zero return code."""
 
@@ -226,7 +227,8 @@ class RunSimpleCommand(object):
         else:
             return output
 
-    def run_with_no_output(command, maxtries=3, shell=False, log_callback=None, retry_delay=5):
+    def run_with_no_output(command, maxtries=3, shell=False, log_callback=None,
+                           retry_delay=5, verbose=False):
         """Run a command, expecting no output.
         Raises BackupError on non-zero return code."""
 
@@ -234,7 +236,8 @@ class RunSimpleCommand(object):
             command_string = " ".join(command)
         else:
             command_string = command
-
+        if verbose:
+            print("command to be run with no output: ", commandString)
         success = False
         error = "unknown"
         tries = 0
@@ -253,6 +256,7 @@ class RunSimpleCommand(object):
             raise BackupError("command '" + command_string +
                               ("' failed with return code %s " %
                                proc.returncode) + " and error '" + error + "'")
+        return success
 
     run_with_output = staticmethod(run_with_output)
     run_with_no_output = staticmethod(run_with_no_output)
