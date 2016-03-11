@@ -321,7 +321,7 @@ def validate_args(date, output_dir, retries, script, query):
     if not output_dir:
         usage("Mandatory argument 'outputdir' was not specified.")
 
-    if not retries.isdigit():
+    if retries is not None and not retries.isdigit():
         usage("A positive number must be specified for retries.")
 
     if script is not None and query is not None:
