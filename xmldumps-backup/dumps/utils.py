@@ -93,6 +93,8 @@ class DbServerInfo(object):
         self.db_name = db_name
         self.error_callback = error_callback
         self.db_table_prefix = None
+        self.db_server = None
+        self.db_port = None
         self.get_db_server_and_prefix()
 
     def get_db_server_and_prefix(self):
@@ -237,7 +239,7 @@ class RunSimpleCommand(object):
         else:
             command_string = command
         if verbose:
-            print("command to be run with no output: ", commandString)
+            print("command to be run with no output: ", command_string)
         success = False
         error = "unknown"
         tries = 0
