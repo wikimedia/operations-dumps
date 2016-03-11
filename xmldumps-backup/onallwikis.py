@@ -1,8 +1,8 @@
 '''
 for every wiki, run a specified maintenance script
-with gz or bz2 compression of the output as desired,
-output to the specified directory in a subdirectory
-for the given date
+or mysql query, output to the specified directory
+with filename both of which may vary by wiki name
+and date
 '''
 
 import getopt
@@ -13,21 +13,55 @@ import time
 import traceback
 
 from dumps.WikiDump import Config, Wiki
-from dumps.utils import MultiVersion, TimeUtils, RunSimpleCommand
+from dumps.utils import MultiVersion, TimeUtils, RunSimpleCommand, DbServerInfo
 from dumps.exceptions import BackupError
+from dumps.fileutils import FileUtils
 
 
-class ScriptRunner(object):
+class Runner(object):
     '''
-    methods for handling maintenance scripts
+    base classs for script, query or other runners on a specified
+    wiki, no retries, option to skip wiki run if output already exists
+    '''
+    def __init__(self, dryrun, verbose):
+        self.dryrun = dryrun
+        self.verbose = verbose
+
+    def skip_if_done(self, wiki, filenameformat, output_dir, overwrite):
+        '''
+        set up and return output dir and filenames
+        if overwrite is not True, check to see if the output
+        file already exists, and if it does, display a
+        warning and return None, None instead
+        '''
+        outfile_base = filenameformat.format(
+            w=wiki.db_name, d=wiki.date,)
+        outfile_path = os.path.join(output_dir, outfile_base)
+        if not overwrite and os.path.exists(outfile_path):
+            # don't overwrite existing file, just return a happy value
+            if self.verbose:
+                print ("Skipping wiki %s, file %s exists already"
+                       % (wiki.db_name, outfile_path))
+            return None, None
+        return(outfile_base, outfile_path)
+
+    def run(self, wiki, filenameformat, output_dir, overwrite):
+        '''
+        implement this in your subclass
+        '''
+        raise NotImplementedError
+
+
+class ScriptRunner(Runner):
+    '''
+    maintenance script runner for a specific wiki
     '''
     def __init__(self, scriptname, args, dryrun, verbose):
         self.scriptname = scriptname
         self.args = args
-        self.dryrun = dryrun
-        self.verbose = verbose
+        super(ScriptRunner, self).__init__(dryrun, verbose)
 
-    def get_script_command(self, wiki, output_dir, outfile_base):
+    def get_command(self, wiki, output_dir, outfile_base):
         '''
         given the output directory and filename and the wiki
         object, put together and return an array consisting
@@ -44,39 +78,82 @@ class ScriptRunner(object):
             DIR=output_dir, FILE=outfile_base) for field in script_command]
         return script_command
 
-    def run_script(self, wiki, filenameformat, output_dir, overwrite):
+    def run(self, wiki, filenameformat, output_dir, overwrite):
         '''
         run a (maintenance) script on one wiki, expecting relevant output to
         go to a file
         '''
-        outfile_base = filenameformat.format(
-            w=wiki.db_name, d=wiki.date, s=self.scriptname)
-        outfile_path = os.path.join(output_dir, outfile_base)
-        if not overwrite and os.path.exists(outfile_path):
-            # don't overwrite existing file, just return a happy value
-            if self.verbose:
-                print ("Skipping wiki %s, file %s exists already"
-                       % (wiki.db_name, outfile_path))
+        filenameformat = filenameformat.replace('{d}', '{{d}}')
+        filenameformat = filenameformat.replace('{w}', '{{w}}')
+        filenameformat = filenameformat.format(s=self.scriptname)
+        (outfile_base, outfile_path) = self.skip_if_done(
+            wiki, filenameformat, output_dir, overwrite)
+        if outfile_base is None:
+            return True
+        command = self.get_command(wiki, outfile_path, outfile_base)
+        return RunSimpleCommand.run_with_output(
+            command, maxtries=1, shell=False, verbose=self.verbose)
+
+
+class QueryRunner(Runner):
+    '''
+    mysql query runner for a specific wiki
+    '''
+    def __init__(self, query, dryrun, verbose):
+        self.query = query
+        super(QueryRunner, self).__init__(dryrun, verbose)
+
+    def get_command(self, wiki, outfile_path, outfile_base):
+        '''
+        given the output directory and filename and the wiki
+        object, put together and return a command string
+        for mysql to run the query and dump the output
+        where required.
+        '''
+        dbserver = DbServerInfo(wiki, wiki.db_name)
+
+        if outfile_base.endswith(".gz"):
+            compress = "gzip"
+        elif outfile_base.endswith(".bz2"):
+            compress = "bzip2"
+        else:
+            compress = ""
+        pipeto = "%s > %s" % (compress, outfile_path)
+
+        return dbserver.build_sql_command(self.query, pipeto)
+
+    def run(self, wiki, filenameformat, output_dir, overwrite):
+        '''
+        run a (maintenance) script on one wiki, expecting relevant output to
+        go to a file
+        '''
+        (outfile_base, outfile_path) = self.skip_if_done(
+            wiki, filenameformat, output_dir, overwrite)
+        if outfile_base is None:
             return True
 
-        script_command = self.get_script_command(wiki, output_dir,
-                                                 outfile_base)
-        return RunSimpleCommand.run_with_output(
-            script_command, maxtries=1, shell=False, verbose=self.verbose)
+        command = self.get_command(wiki, outfile_path,
+                                   outfile_base)
+
+        if not isinstance(command, basestring):
+            # see if the list elts are lists tht need to be turned into strings
+            command = [element if isinstance(element, basestring)
+                       else ' '.join(element) for element in command]
+            command = '|'.join(command)
+        return RunSimpleCommand.run_with_no_output(
+            command, maxtries=1, shell=True, verbose=self.verbose)
 
 
 class WikiRunner(object):
     '''
     methods for running a script once on one wiki
     '''
-    def __init__(self, scriptrunner, wiki,
+    def __init__(self, runner, wiki,
                  filenameformat, output_dir):
         self.wiki = wiki
         self.wiki.config.parse_conffile_per_project(wiki.db_name)
-        self.scriptrunner = scriptrunner
+        self.runner = runner
         self.filenameformat = filenameformat
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
         self.output_dir = output_dir
 
     def get_output_dir(self):
@@ -85,8 +162,7 @@ class WikiRunner(object):
         be stashed
         '''
         return self.output_dir.format(
-            w=self.wiki.db_name, d=self.wiki.date,
-            s=self.scriptrunner.scriptname)
+            w=self.wiki.db_name, d=self.wiki.date)
 
     def do_one_wiki(self, overwrite):
         """returns true on success"""
@@ -94,19 +170,21 @@ class WikiRunner(object):
                 self.wiki.db_name not in self.wiki.config.closed_list and
                 self.wiki.db_name not in self.wiki.config.skip_db_list):
             try:
-                if self.scriptrunner.verbose:
+                if self.runner.verbose:
                     print "Doing run for wiki: ", self.wiki.db_name
-                if not self.scriptrunner.dryrun:
-                    if not self.scriptrunner.run_script(
+                if not self.runner.dryrun:
+                    if not os.path.exists(self.get_output_dir()):
+                        os.makedirs(self.get_output_dir())
+                    if not self.runner.run(
                             self.wiki, self.filenameformat,
                             self.get_output_dir(), overwrite):
                         return False
             except Exception:
-                if self.scriptrunner.verbose:
+                if self.runner.verbose:
                     traceback.print_exc(file=sys.stdout)
                 return False
-        if self.scriptrunner.verbose:
-            print "Success!  Wiki", self.wiki.db_name, "script complete."
+        if self.runner.verbose:
+            print "Success!  Wiki", self.wiki.db_name, "Run complete."
         return True
 
 
@@ -114,10 +192,10 @@ class WikiRunnerLoop(object):
     '''
     methods for running a script across all wikis, with retries
     '''
-    def __init__(self, config, scriptrunner, filenameformat,
+    def __init__(self, config, runner, filenameformat,
                  output_dir):
         self.config = config
-        self.scriptrunner = scriptrunner
+        self.runner = runner
         self.output_dir = output_dir
         self.filenameformat = filenameformat
         self.wikis_todo = self.config.db_list
@@ -130,7 +208,7 @@ class WikiRunnerLoop(object):
         for wiki_name in self.wikis_todo[:]:
             wiki = Wiki(self.config, wiki_name)
             wiki.set_date(date)
-            runner = WikiRunner(self.scriptrunner,
+            runner = WikiRunner(self.runner,
                                 wiki, self.filenameformat,
                                 self.output_dir)
             if runner.do_one_wiki(overwrite):
@@ -160,21 +238,35 @@ def usage(message=None):
     '''
     if message:
         sys.stderr.write(message + "\n")
-    usage_message = """Usage: python wikiqueries.py [options] [script-args]
+    usage_message = """Usage: python onallwikis.py [options] [script-args]
 
-Args following the options will be treated as arguments to the script and
-passed on.  The strings {DIR} and {FILE}, if they occur in any argument,
-will be replaced by the output directory and the expanded output filename,
+This script runs a mysql query or a php maintenance script across all
+wikis, stashing the outputs in files in the directory(ies) specified.
+
+Args following the options will be treated as arguments to the script if
+a script is to be run rather than a query, and they will be passed on.
+The strings {DIR} and {FILE}, if they occur in any argument, will be
+replaced by the output directory and the expanded output filename,
 respectively.
 
-Example:
+Filenames ending in .gz or .bz2 will result in compression of that type
+of query results, if a query is run.
+
+Examples:
 
 python onallwikis.py -c confs/wikidump.conf   \\
-    -f "{w}-{d}-testing"                      \\
+    -f "{d}"                                  \\
     -o `pwd`                                  \\
     -s generateSitemap.php                    \\
-    --retries 1 --nooverwrite                 \\
-    --verbose -- --fspath "{DIR}/{FILE}"
+    --retries 1                               \\
+    --verbose -- --fspath "{DIR"
+
+python onallwikis.py -c confs/wikidump.conf                    \\
+    -f "{w}-{d}-all-titles-in-ns-0.gz"                         \\
+    -o '/home/tester/wmf/dumps/xmldumps/{d}'                   \\
+    -q "'select page_title from page where page_namespace=0;'" \\
+    --retries 1 --nooverwrite                                  \\
+    --verbose
 
 Note that because this extension uses fspath to create a subdirectory
 instead of a file, the output lands in {DIR}{FILE}/variousfiles.gz; it's up
@@ -189,13 +281,19 @@ Options:
                       specified, in the format: YYYYMMDD.  If not specified,
                       today's date will be used.
 --filenameformat (f): Format string for the name of each file, with {w} for
-                      wikiname, optional {d} for date and {s} for script.
-                      Default: {w}-{d}-<scriptname>
+                      wikiname, optional {d} for date and, if a script is to
+                      be run, {s} for the scriptname.
+                      Default: {w}-{d}-{s}
 --outdir         (o): Put output files for all projects in this directory;
                       it will be created if it does not exist.  Accepts
-                      '{w}', '{d}', '{s}' for substituting wikiname, date,
-                      and/or script into the name.
+                      '{w}' and '{d}' for substituting wikiname and/or date
+                      into the name.
 --script         (s): Path of script to run on each project.
+--query          (q): MySQL query to be run on each project, if no script is
+                      specified to run.  If no script is specified and this
+                      option is also not supplied, the 'queryfile' option
+                      in the config file will be checked and that file read
+                      for the contents of the query.
 --wikiname       (w): Run the query only for the specific wiki
 --retries        (r): Number of times to try running the query on all wikis
                       in case of error, before giving up
@@ -211,7 +309,7 @@ Options:
     sys.exit(1)
 
 
-def validate_args(date, output_dir, retries):
+def validate_args(date, output_dir, retries, script, query):
     '''
     check specified args for validity, whining
     and bailing if the values have problems
@@ -226,6 +324,9 @@ def validate_args(date, output_dir, retries):
     if not retries.isdigit():
         usage("A positive number must be specified for retries.")
 
+    if script is not None and query is not None:
+        usage("Only one of the 'script' or 'query' options may be specified.")
+
 
 def get_args():
     '''
@@ -237,6 +338,7 @@ def get_args():
     output_dir = None
     overwrite = True
     script = None
+    query = None
     retries = None
     wikiname = None
     verbose = False
@@ -244,10 +346,11 @@ def get_args():
 
     try:
         (options, remainder) = getopt.gnu_getopt(
-            sys.argv[1:], "c:d:f:o:w:s:r:nDvh",
+            sys.argv[1:], "c:d:f:o:w:s:q:r:nDvh",
             ['configfile=', 'date=', 'filenameformat=',
-             'outdir=', 'script=', 'retries=', 'wiki=',
-             'dryrun', 'nooverwrite', 'verbose', 'help'])
+             'outdir=', 'script=', 'query=', 'retries=',
+             'wiki=', 'dryrun', 'nooverwrite',
+             'verbose', 'help'])
 
     except getopt.GetoptError as err:
         print str(err)
@@ -266,6 +369,8 @@ def get_args():
             wikiname = val
         elif opt in ["-s", "--script"]:
             script = val
+        elif opt in ["-q", "--query"]:
+            query = val
         elif opt in ["-r", "--retries"]:
             retries = val
         elif opt in ["-n", "--nooverwrite"]:
@@ -279,7 +384,7 @@ def get_args():
 
     return(configfile, date, dryrun, filenameformat,
            output_dir, overwrite, wikiname, script,
-           retries, verbose, remainder)
+           query, retries, verbose, remainder)
 
 
 def do_main():
@@ -289,9 +394,9 @@ def do_main():
 
     (configfile, date, dryrun, filenameformat,
      output_dir, overwrite, wikiname, script,
-     retries, verbose, remainder) = get_args()
+     query, retries, verbose, remainder) = get_args()
 
-    validate_args(date, output_dir, retries)
+    validate_args(date, output_dir, retries, script, query)
 
     if retries is None:
         retries = "3"
@@ -305,16 +410,21 @@ def do_main():
     if date is None:
         date = TimeUtils.today()
 
-    scriptrunner = ScriptRunner(script, remainder, dryrun, verbose)
+    if script is not None:
+        runner = ScriptRunner(script, remainder, dryrun, verbose)
+    else:
+        if query is None:
+            query = FileUtils.read_file(config.queryfile)
+        runner = QueryRunner(query, dryrun, verbose)
 
     if wikiname is not None:
         wiki = Wiki(config, wikiname)
         wiki.set_date(date)
-        wikirunner = WikiRunner(scriptrunner, wiki, filenameformat,
+        wikirunner = WikiRunner(runner, wiki, filenameformat,
                                 output_dir)
         wikirunner.do_one_wiki(overwrite)
     else:
-        wikirunner = WikiRunnerLoop(config, scriptrunner, filenameformat,
+        wikirunner = WikiRunnerLoop(config, runner, filenameformat,
                                     output_dir)
         wikirunner.do_all_wikis_til_done(retries, overwrite, date)
 
