@@ -100,6 +100,8 @@ class Config(object):
             "checkpointTime": "0",
             # "otherformats": {
             "multistream": "0",
+            #"query":{
+            "queryfile": "wikiquery.sql"
             }
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -221,6 +223,10 @@ class Config(object):
         if not self.conf.has_section('cleanup'):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
+
+        if not self.conf.has_section('query'):
+            self.conf.add_section('query')
+        self.queryfile = self.conf.get("query", "queryfile")
 
     def parse_conffile_per_project(self, project_name=False):
         # we need to read from the project section without falling back
