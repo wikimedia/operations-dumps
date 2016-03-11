@@ -120,7 +120,8 @@ class QueryRunner(Runner):
             compress = ""
         pipeto = "%s > %s" % (compress, outfile_path)
 
-        return dbserver.build_sql_command(self.query, pipeto)
+        query = self.query.format(w=wiki.db_name)
+        return dbserver.build_sql_command(query, pipeto)
 
     def run(self, wiki, filenameformat, output_dir, overwrite):
         '''
@@ -294,6 +295,8 @@ Options:
                       option is also not supplied, the 'queryfile' option
                       in the config file will be checked and that file read
                       for the contents of the query.
+                      Query string may have '{w}' in it for substituting the
+                      wikiname.
 --wikiname       (w): Run the query only for the specific wiki
 --retries        (r): Number of times to try running the query on all wikis
                       in case of error, before giving up
