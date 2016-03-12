@@ -45,7 +45,7 @@ class Runner(object):
             return None, None
         return(outfile_base, outfile_path)
 
-    def run(self, wiki, filenameformat, output_dir, overwrite):
+    def run(self, wiki, filenameformat, output_dir, overwrite, base):
         '''
         implement this in your subclass
         '''
@@ -61,24 +61,26 @@ class ScriptRunner(Runner):
         self.args = args
         super(ScriptRunner, self).__init__(dryrun, verbose)
 
-    def get_command(self, wiki, output_dir, outfile_base):
+    def get_command(self, wiki, output_dir, outfile_base, base):
         '''
         given the output directory and filename and the wiki
         object, put together and return an array consisting
         of the script name, args, and any multiversion
         invocations that need to precede it
         '''
+        if base is None:
+            base = wiki
         script_command = MultiVersion.mw_script_as_array(
-            wiki.config, self.scriptname)
-        script_command = [wiki.config.php, "-q"] + script_command
-        script_command.extend(["--wiki", wiki.db_name])
+            base.config, self.scriptname)
+        script_command = [base.config.php, "-q"] + script_command
+        script_command.extend(["--wiki", base.db_name])
         if self.args is not None:
             script_command.extend(self.args)
-        script_command = [field.format(
-            DIR=output_dir, FILE=outfile_base) for field in script_command]
+        script_command = [field.format(DIR=output_dir, FILE=outfile_base, w=wiki.db_name)
+                          for field in script_command]
         return script_command
 
-    def run(self, wiki, filenameformat, output_dir, overwrite):
+    def run(self, wiki, filenameformat, output_dir, overwrite, base=None):
         '''
         run a (maintenance) script on one wiki, expecting relevant output to
         go to a file
@@ -90,7 +92,7 @@ class ScriptRunner(Runner):
             wiki, filenameformat, output_dir, overwrite)
         if outfile_base is None:
             return True
-        command = self.get_command(wiki, outfile_path, outfile_base)
+        command = self.get_command(wiki, outfile_path, outfile_base, base)
         if self.dryrun:
             print "Would run:",
             print command
@@ -108,14 +110,17 @@ class QueryRunner(Runner):
         self.query = query
         super(QueryRunner, self).__init__(dryrun, verbose)
 
-    def get_command(self, wiki, outfile_path, outfile_base):
+    def get_command(self, wiki, outfile_path, outfile_base, base):
         '''
         given the output directory and filename and the wiki
         object, put together and return a command string
         for mysql to run the query and dump the output
         where required.
         '''
-        dbserver = DbServerInfo(wiki, wiki.db_name)
+        if base is None:
+            base = wiki
+
+        dbserver = DbServerInfo(base, base.db_name)
 
         if outfile_base.endswith(".gz"):
             compress = "gzip"
@@ -128,7 +133,7 @@ class QueryRunner(Runner):
         query = self.query.format(w=wiki.db_name)
         return dbserver.build_sql_command(query, pipeto)
 
-    def run(self, wiki, filenameformat, output_dir, overwrite):
+    def run(self, wiki, filenameformat, output_dir, overwrite, base=None):
         '''
         run a (maintenance) script on one wiki, expecting relevant output to
         go to a file
@@ -139,7 +144,7 @@ class QueryRunner(Runner):
             return True
 
         command = self.get_command(wiki, outfile_path,
-                                   outfile_base)
+                                   outfile_base, base)
 
         if not isinstance(command, basestring):
             # see if the list elts are lists tht need to be turned into strings
@@ -160,12 +165,16 @@ class WikiRunner(object):
     methods for running a script once on one wiki
     '''
     def __init__(self, runner, wiki,
-                 filenameformat, output_dir):
+                 filenameformat, output_dir,
+                 base):
         self.wiki = wiki
         self.wiki.config.parse_conffile_per_project(wiki.db_name)
         self.runner = runner
         self.filenameformat = filenameformat
         self.output_dir = output_dir
+        self.base = base
+        if self.base is not None:
+            self.base.config.parse_conffile_per_project(base.db_name)
 
     def get_output_dir(self):
         '''
@@ -182,13 +191,17 @@ class WikiRunner(object):
                 self.wiki.db_name not in self.wiki.config.skip_db_list):
             try:
                 if self.runner.verbose:
-                    print "Doing run for wiki: ", self.wiki.db_name
+                    if self.base is not None:
+                        print "Doing run for wiki: ", self.wiki.db_name, "on", self.base.dbname
+                    else:
+                        print "Doing run for wiki: ", self.wiki.db_name
                 if not self.runner.dryrun:
                     if not os.path.exists(self.get_output_dir()):
                         os.makedirs(self.get_output_dir())
                 if not self.runner.run(
                         self.wiki, self.filenameformat,
-                        self.get_output_dir(), overwrite):
+                        self.get_output_dir(), overwrite,
+                        self.base):
                     return False
             except Exception:
                 if self.runner.verbose:
@@ -204,10 +217,11 @@ class WikiRunnerLoop(object):
     methods for running a script across all wikis, with retries
     '''
     def __init__(self, config, runner, filenameformat,
-                 output_dir):
+                 output_dir, base):
         self.config = config
         self.runner = runner
         self.output_dir = output_dir
+        self.base = base
         self.filenameformat = filenameformat
         self.wikis_todo = self.config.db_list
 
@@ -221,7 +235,7 @@ class WikiRunnerLoop(object):
             wiki.set_date(date)
             runner = WikiRunner(self.runner,
                                 wiki, self.filenameformat,
-                                self.output_dir)
+                                self.output_dir, self.base)
             if runner.do_one_wiki(overwrite):
                 self.wikis_todo.remove(wiki_name)
 
@@ -256,9 +270,9 @@ wikis, stashing the outputs in files in the directory(ies) specified.
 
 Args following the options will be treated as arguments to the script if
 a script is to be run rather than a query, and they will be passed on.
-The strings {DIR} and {FILE}, if they occur in any argument, will be
-replaced by the output directory and the expanded output filename,
-respectively.
+The strings {DIR}, {FILE} and {w}, if they occur in any argument, will be
+replaced by the output directory, the expanded output filename and the
+wiki name, respectively.
 
 Filenames ending in .gz or .bz2 will result in compression of that type
 of query results, if a query is run.
@@ -270,7 +284,12 @@ python onallwikis.py -c confs/wikidump.conf   \\
     -o `pwd`                                  \\
     -s generateSitemap.php                    \\
     --retries 1                               \\
-    --verbose -- --fspath "{DIR"
+    --verbose -- --fspath "{DIR}"
+
+Note that because the extension uses fspath to create a subdirectory
+instead of a file, the output lands in {DIR}/variousfiles.gz; it's up
+to the enduser to make sure the terms {DIR} and {FILE} are used properly
+in the script args.
 
 python onallwikis.py -c confs/wikidump.conf                    \\
     -f "{w}-{d}-all-titles-in-ns-0.gz"                         \\
@@ -278,11 +297,6 @@ python onallwikis.py -c confs/wikidump.conf                    \\
     -q "'select page_title from page where page_namespace=0;'" \\
     --retries 1 --nooverwrite                                  \\
     --verbose
-
-Note that because this extension uses fspath to create a subdirectory
-instead of a file, the output lands in {DIR}{FILE}/variousfiles.gz; it's up
-to the enduser to make sure the terms {DIR} and {FILE} are used properly
-in the script args.
 
 Options:
 
@@ -307,7 +321,16 @@ Options:
                       for the contents of the query.
                       Query string may have '{w}' in it for substituting the
                       wikiname.
---wikiname       (w): Run the query only for the specific wiki
+--wiki           (w): Run the script/query only for the specific wiki
+--base           (b): Use the specified wiki as a base: run the script/query
+                      from there.  In this case as wikis are looped through
+                      they will only be used to modify script args or the
+                      query string supplied, as well as the output directory
+                      and filenames; if the 'wiki' argument is given, then
+                      the wikis looped through will be just the wiki supplied
+                      to that argument.
+                      This permits you to e.g. run a script on a media repo
+                      which dumps all image names in use on each wiki.
 --retries        (r): Number of times to try running the query on all wikis
                       in case of error, before giving up
                       Default: 3
@@ -354,15 +377,16 @@ def get_args():
     query = None
     retries = None
     wikiname = None
+    base = None
     verbose = False
     filenameformat = "{w}-{d}-{s}"
 
     try:
         (options, remainder) = getopt.gnu_getopt(
-            sys.argv[1:], "c:d:f:o:w:s:q:r:nDvh",
+            sys.argv[1:], "c:d:f:o:w:b:s:q:r:nDvh",
             ['configfile=', 'date=', 'filenameformat=',
              'outdir=', 'script=', 'query=', 'retries=',
-             'wiki=', 'dryrun', 'nooverwrite',
+             'wiki=', 'base=', 'dryrun', 'nooverwrite',
              'verbose', 'help'])
 
     except getopt.GetoptError as err:
@@ -379,6 +403,8 @@ def get_args():
         elif opt in ["-o", "--outdir"]:
             output_dir = val
         elif opt in ["-w", "--wiki"]:
+            wikiname = val
+        elif opt in ["-b", "--base"]:
             wikiname = val
         elif opt in ["-s", "--script"]:
             script = val
@@ -397,7 +423,7 @@ def get_args():
 
     return(configfile, date, dryrun, filenameformat,
            output_dir, overwrite, wikiname, script,
-           query, retries, verbose, remainder)
+           base, query, retries, verbose, remainder)
 
 
 def do_main():
@@ -407,7 +433,7 @@ def do_main():
 
     (configfile, date, dryrun, filenameformat,
      output_dir, overwrite, wikiname, script,
-     query, retries, verbose, remainder) = get_args()
+     base, query, retries, verbose, remainder) = get_args()
 
     validate_args(date, output_dir, retries, script, query)
 
@@ -434,11 +460,11 @@ def do_main():
         wiki = Wiki(config, wikiname)
         wiki.set_date(date)
         wikirunner = WikiRunner(runner, wiki, filenameformat,
-                                output_dir)
+                                output_dir, base)
         wikirunner.do_one_wiki(overwrite)
     else:
         wikirunner = WikiRunnerLoop(config, runner, filenameformat,
-                                    output_dir)
+                                    output_dir, base)
         wikirunner.do_all_wikis_til_done(retries, overwrite, date)
 
 if __name__ == "__main__":
