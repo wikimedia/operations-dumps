@@ -91,8 +91,12 @@ class ScriptRunner(Runner):
         if outfile_base is None:
             return True
         command = self.get_command(wiki, outfile_path, outfile_base)
-        return RunSimpleCommand.run_with_output(
-            command, maxtries=1, shell=False, verbose=self.verbose)
+        if self.dryrun:
+            print "Would run:",
+            print command
+        else:
+            return RunSimpleCommand.run_with_output(
+                command, maxtries=1, shell=False, verbose=self.verbose)
 
 
 class QueryRunner(Runner):
@@ -141,8 +145,12 @@ class QueryRunner(Runner):
             command = [element if isinstance(element, basestring)
                        else ' '.join(element) for element in command]
             command = '|'.join(command)
-        return RunSimpleCommand.run_with_no_output(
-            command, maxtries=1, shell=True, verbose=self.verbose)
+        if self.dryrun:
+            print "Would run:",
+            print command
+        else:
+            return RunSimpleCommand.run_with_no_output(
+                command, maxtries=1, shell=True, verbose=self.verbose)
 
 
 class WikiRunner(object):
@@ -176,10 +184,10 @@ class WikiRunner(object):
                 if not self.runner.dryrun:
                     if not os.path.exists(self.get_output_dir()):
                         os.makedirs(self.get_output_dir())
-                    if not self.runner.run(
-                            self.wiki, self.filenameformat,
-                            self.get_output_dir(), overwrite):
-                        return False
+                if not self.runner.run(
+                        self.wiki, self.filenameformat,
+                        self.get_output_dir(), overwrite):
+                    return False
             except Exception:
                 if self.runner.verbose:
                     traceback.print_exc(file=sys.stdout)
