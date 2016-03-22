@@ -1,31 +1,40 @@
 # -*- coding: utf-8  -*-
 
-import os
 import re
 import sys
-import time
 import getopt
 
 
 def usage(message=None):
-    print "Usage: %s [--sdate=date --edate=date [filename]" % sys.argv[0]
-    print "sdate: start date for which to print stats, default: earliest date in file "
-    print "edate: end date for which to print stats, default: latest date in file"
-    print "Date format: yyyy-mm-dd"
-    print "If filename is not specified, reads from stdin"
-    print ""
-    print "Format of input file: (sample line)"
-    print "2011-10-29  01:57:51   100311   Festiwal_Słowian_i_Wikingów_2009_121.jpg/640px-Festiwal_Słowian_i_Wikingów_2009_121.jpg"
-    print "date in yyyy-mm-dd format, time in hh:mm::ss format, size in bytes, thumb directory/thumb filename"
+    if message is not None:
+        sys.stderr.write(message + "\n")
+    usage_message = """
+Usage: thumbPxSize [--sdate=date] [--edate=date] [filename]
+
+  --sdate: start date for which to print stats, default: earliest date in file
+  --edate: end date for which to print stats, default: latest date in file
+
+Date format: yyyy-mm-dd
+
+If filename is not specified, reads from stdin
+
+Format of input file: (sample line)
+2011-10-29  01:57:51   100311   \
+    Festiwal_Słowian_i_Wikingów_2009_121.jpg/640px-Festiwal_Słowian_i_Wikingów_2009_121.jpg
+date in yyyy-mm-dd format, time in hh:mm::ss format, size in bytes, \
+    thumb directory/thumb filename
+"""
+    sys.stderr.write(usage_message)
     sys.exit(1)
 
-if __name__ == "__main__":
+
+def do_main():
     sdate = None
     edate = None
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "",
-                                                 [ 'sdate=', 'edate=', ])
+                                                 ['sdate=', 'edate='])
     except:
         usage("Unknown option specified")
 
@@ -36,72 +45,76 @@ if __name__ == "__main__":
             edate = val
 
     dateexp = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-    for d in filter(None, [ sdate, edate ]):
-        if not dateexp.match(d):
+    for date in filter(None, [sdate, edate]):
+        if not dateexp.match(date):
             usage("Bad date format.")
 
     if len(remainder) == 1:
-        inputFile = remainder[0]
-        fHandle = open(inputFile,"r")
+        input_file = remainder[0]
+        f_handle = open(input_file, "r")
     elif len(remainder) == 0:
-        fHandle = sys.stdin
+        f_handle = sys.stdin
     else:
         usage("Too many arguments.")
 
-    lastDirName = None
-    fileCounts = {}
+    last_dir_name = None
+    file_counts = {}
     sizes = {}
-    for line in fHandle:
+    for line in f_handle:
         try:
-            ( fDate, fTime, fSize, path ) = line.rstrip().split()
+            (f_date, ftime_unused, fsize_unused, path) = line.rstrip().split()
         except:
             print >> sys.stderr, "skipping badly formatted line: ", line.rstrip()
             continue
         try:
-            ( dirName, fName ) = path.split('/',2)
+            (dir_name, f_name) = path.split('/', 2)
         except:
             continue
-        if not lastDirName:
-            lastDirName = dirName
-        if dirName != lastDirName:
-            if (sdate and (fDate >= sdate)) or not sdate:
-                if (edate and (fDate <= edate)) or not edate:
+        if not last_dir_name:
+            last_dir_name = dir_name
+        if dir_name != last_dir_name:
+            if (sdate and (f_date >= sdate)) or not sdate:
+                if (edate and (f_date <= edate)) or not edate:
                     # print the stats
-                    dateStrings = fileCounts.keys()
-                    dateStrings.sort()
-                    for d in dateStrings:
-                        print "Date:", d, "ThumbsForFileThisDate:", fileCounts[d], "PixelSizes:",
-                        for k in sizes[d].keys():
-                            print "%s:%s" % (k, sizes[d][k]),
-                        print "Dir:", lastDirName
-            lastDirName = dirName
+                    date_strings = file_counts.keys()
+                    date_strings.sort()
+                    for date in date_strings:
+                        print("Date:", date, "ThumbsForFileThisDate:",
+                              file_counts[date], "PixelSizes:"),
+                        for key in sizes[date].keys():
+                            print "%s:%s" % (key, sizes[date][key]),
+                        print "Dir:", last_dir_name
+            last_dir_name = dir_name
             # reinitialize stats
-            fileCounts = {}
+            file_counts = {}
             sizes = {}
         # add to the stats.
-        if (sdate and (fDate >= sdate)) or not sdate:
-            if (edate and (fDate <= edate)) or not edate:
+        if (sdate and (f_date >= sdate)) or not sdate:
+            if (edate and (f_date <= edate)) or not edate:
                 try:
-                    ( pixelSize, junk ) = fName.split('px-',1)
+                    (pixel_size, junk_unused) = f_name.split('px-', 1)
                 except:
                     continue
-                if not fDate in sizes:
-                    sizes[fDate] = {}
-                if not pixelSize in sizes[fDate]:
-                    sizes[fDate][pixelSize] = 0
-                sizes[fDate][pixelSize] = sizes[fDate][pixelSize] + 1
-                if not fDate in fileCounts:
-                    fileCounts[fDate] = 0
-                fileCounts[fDate] = fileCounts[fDate] + 1
+                if f_date not in sizes:
+                    sizes[f_date] = {}
+                if pixel_size not in sizes[f_date]:
+                    sizes[f_date][pixel_size] = 0
+                sizes[f_date][pixel_size] = sizes[f_date][pixel_size] + 1
+                if f_date not in file_counts:
+                    file_counts[f_date] = 0
+                file_counts[f_date] = file_counts[f_date] + 1
+
     # print stats for final dir
-    if (sdate and (fDate >= sdate)) or not sdate:
-        if (edate and (fDate <= edate)) or not edate:
-            dateStrings = fileCounts.keys()
-            dateStrings.sort()
-            for d in dateStrings:
-                print "Date:", d, "ThumbsForFileThisDate:", fileCounts[d], "PixelSizes:",
-                for k in sizes[d].keys():
-                    print "%s:%s" % (k, sizes[d][k]),
-                print "Dir:", dirName
+    if (sdate and (f_date >= sdate)) or not sdate:
+        if (edate and (f_date <= edate)) or not edate:
+            date_strings = file_counts.keys()
+            date_strings.sort()
+            for date in date_strings:
+                print "Date:", date, "ThumbsForFileThisDate:", file_counts[date], "PixelSizes:",
+                for key in sizes[date].keys():
+                    print "%s:%s" % (key, sizes[date][key]),
+                print "Dir:", dir_name
     sys.exit(0)
 
+if __name__ == "__main__":
+    do_main()
