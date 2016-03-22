@@ -1,15 +1,83 @@
 import os
 import sys
-import salt.client
-import salt.cli.cp
-import salt.utils
 import time
 import hashlib
 import re
-from salt.exceptions import SaltInvocationError
 import runpy
+import salt.client
+import salt.cli.cp
+import salt.utils
+from salt.exceptions import SaltInvocationError
 
 # todo: test salt cmd_expandminions
+
+
+def condition_kwarg(arg, kwarg):
+    '''
+    Return a single arg structure for caller to use
+    '''
+    if isinstance(kwarg, dict):
+        kw_ = []
+        for key, val in kwarg.items():
+            kw_.append('{0}={1}'.format(key, val))
+        return list(arg) + kw_
+    return arg
+
+
+def get_file_md5s(dirname, files, callback=None):
+    '''
+    given list of filenames in a directory,
+    return a list of [md5, base filename]
+    '''
+    output = []
+    for fname in files:
+        md5out = None
+        try:
+            md5out = hashlib.md5(open(os.path.join(
+                dirname, fname)).read()).hexdigest().strip()
+        except Exception:
+            md5out = None
+        if not md5out:
+            sys.stderr.write("failed to get md5 of %s\n" % fname)
+            return None
+        if callback is not None:
+            output.append([md5out, callback(fname)])
+        else:
+            output.append([md5out, fname])
+    return output
+
+
+def get_md5s_ok_count(text):
+    '''
+    given output from md5sum -c -w on a list of files,
+    return the number of files for which the result is 'OK'
+    '''
+    return len([line for line in text.split('\n')
+                if line.endswith(': OK')])
+
+
+def check_date(date):
+    '''
+    check format of user specified date (mname-dd-yyyy) and return it
+    or return today's date in that format if no user date is specified
+    '''
+    if date is None:
+        print "No date specified, using today's date"
+        date = time.strftime("%b-%d-%Y", time.gmtime(time.time()))
+        return date[0].lower() + date[1:]
+    else:
+        # check the user's date for sanity
+        date_regexp = ('^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
+                       '-[0-9][0-9]-20[0-9][0-9]$')
+        if not re.match(date, date_regexp):
+            usage(None, "Bad format for datestring; expecting mon-dd-yyyy,"
+                  " example: mar-12-2012")
+        return date
+
+
+def get_tmp_filename(filename):
+    '''use standard format for name of all temp files'''
+    return filename + "_tmp"
 
 
 class LocalClientPlus(salt.client.LocalClient):
@@ -18,17 +86,6 @@ class LocalClientPlus(salt.client.LocalClient):
     list of known minions that match the specified expression,
     and for copying file content to a newly created remote file
     '''
-
-    def condition_kwarg(self, arg, kwarg):
-        '''
-        Return a single arg structure for caller to use
-        '''
-        if isinstance(kwarg, dict):
-            kw_ = []
-            for key, val in kwarg.items():
-                kw_.append('{0}={1}'.format(key, val))
-            return list(arg) + kw_
-        return arg
 
     def cmd_expandminions(self, tgt, fun, arg=(), timeout=None,
                           expr_form='glob', ret='',
@@ -43,7 +100,7 @@ class LocalClientPlus(salt.client.LocalClient):
           salt "$deployhosts" -v --out raw test.ping |
           grep '{' | mawk -F"'" '{ print $2 }'
         '''
-        arg = self.condition_kwarg(arg, kwarg)
+        arg = condition_kwarg(arg, kwarg)
         pub_data = self.run_job(tgt, fun, arg, expr_form, ret,
                                 timeout, **kwargs)
 
@@ -77,69 +134,53 @@ class LocalClientPlus(salt.client.LocalClient):
                         expr_form='glob')
 
 
-class Dirdate(object):
-    '''
-    handle date strings in directory names, used for
-    prep/staging area primarily
-    '''
-    def __init__(self, date=None):
-        self.date = self.check_date(date)
-
-    def check_date(self, date):
-        if date is None:
-            print "No date specified, using today's date"
-            date = time.strftime("%b-%d-%Y", time.gmtime(time.time()))
-            return date[0].lower() + date[1:]
-        else:
-            # check the user's date for sanity
-            date_regexp = ('^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
-                           '-[0-9][0-9]-20[0-9][0-9]$')
-            if not re.match(date, date_regexp):
-                usage(None, "Bad format for datestring; expecting mon-dd-yyyy,"
-                      " example: mar-12-2012")
-            return date
-
-
 class Conf(object):
     '''
     manage configuration dict from python file
     '''
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, conf_file):
+        self.conf_file = conf_file
         self.services = []
         self.all_services = []
-        self.cf = None
-        if filename:
+        self.conf = None
+        if conf_file:
             try:
-                self.cf = runpy.run_path(conf_file)['conf']
+                self.conf = runpy.run_path(conf_file)['conf']
             except IOError:
                 sys.stderr.write("Failed to read config file %s\n" % conf_file)
                 return
-            self.all_services = self.cf['services'].keys()
+            self.all_services = self.conf['services'].keys()
             self.check_conf()
 
     def check_conf(self):
-        if 'prepdirbase' not in self.cf:
+        '''
+        check that config contains all required settings
+        '''
+        if 'prepdirbase' not in self.conf:
             usage(None, "missing prepdirbase in config setup")
-        if 'targetbase' not in self.cf:
+        if 'targetbase' not in self.conf:
             usage(None, "missing targetbase in config setup")
-        if 'repo' not in self.cf:
+        if 'repo' not in self.conf:
             usage(None, "missing repo in config setup")
 
     def check_conf_services(self, services_requested):
+        '''
+        check that all services requested by user
+        have full config settings
+        '''
         if services_requested == ['all']:
             self.services = self.all_services
         else:
             services_found = [s for s in services_requested
-                              if s in self.cf['services']]
+                              if s in self.conf['services']]
             if len(services_found) != len(services_requested):
                 usage(None, "service named not listed in config setup")
             self.services = list(set(services_found))
-        for s in self.services:
-            if ('files' in self.cf['services'][s]
-                    and 'destdir' not in self.cf['services'][s]):
+        for service in self.services:
+            if ('files' in self.conf['services'][service]
+                    and 'destdir' not in self.conf['services'][service]):
                 usage(None, "files specified for service %s but no destdir"
-                      % s)
+                      % service)
 
 
 class Prep(object):
@@ -147,19 +188,25 @@ class Prep(object):
     set up/manage files in prep/staging area
     '''
     def __init__(self, conf, date=None):
-        self.c = conf
-        self.date = Dirdate(date)
-        self.prepdirbase = self.c.cf['prepdirbase']
+        self.conf = conf
+        self.date = check_date(date)
+        self.prepdirbase = self.conf.conf['prepdirbase']
         self.prepdir = None
-        self.targetbase = self.c.cf['targetbase']
-        self.repo = self.c.cf['repo']
+        self.targetbase = self.conf.conf['targetbase']
+        self.repo = self.conf.conf['repo']
 
     def get_repo_fileinfo(self, service):
-        return self.c.cf['services'][service]['files']
+        '''get information about all files in the repo
+        for the specified service'''
+        return self.conf.conf['services'][service]['files']
 
     def get_repo_filenames(self, service):
+        '''
+        get full paths of all files in the repo for the
+        specified service
+        '''
         result = []
-        files = self.c.cf['services'][service]['files']
+        files = self.conf.conf['services'][service]['files']
         for finfo in files:
             if 'path' in files[finfo]:
                 result.append({'name': finfo, 'path': files[finfo]['path']})
@@ -168,8 +215,13 @@ class Prep(object):
         return result
 
     def make_prepdir(self, service):
+        '''
+        a prep/staging directory on the remote host is used from
+        which to deploy
+        determine the prep dir path and create it if needed
+        '''
         errs = 0
-        self.prepdir = os.path.join(self.prepdirbase, service, self.date.date)
+        self.prepdir = os.path.join(self.prepdirbase, service, self.date)
         if os.path.isdir(self.prepdir):
             result = raw_input("directory %s" % self.prepdir +
                                " already exists, are you sure? y/n: ")
@@ -179,39 +231,45 @@ class Prep(object):
         else:
             try:
                 os.makedirs(self.prepdir)
-            except:
+            except Exception:
                 sys.stderr.write("failed to make prep dir %s\n" % self.prepdir)
                 errs += 1
 
         return errs
 
     def copy_files(self, service):
+        '''
+        copy files from the repo to the prep dir/staging area
+        '''
         errs = 0
         files = self.get_repo_filenames(service)
-        for f in files:
-            if f['path'] is not None:
-                copyme = os.path.join(self.repo, f['path'], f['name'])
+        for finfo in files:
+            if finfo['path'] is not None:
+                copyme = os.path.join(self.repo, finfo['path'], finfo['name'])
             else:
-                copyme = os.path.join(self.repo, f['name'])
+                copyme = os.path.join(self.repo, finfo['name'])
 
             try:
-                open(os.path.join(self.prepdir, f['name']), "w").write(
+                open(os.path.join(self.prepdir, finfo['name']), "w").write(
                     open(copyme).read())
-            except:
+            except Exception:
                 sys.stderr.write("failed to copy file %s to prepdir\n"
-                                 % f['name'])
+                                 % finfo['name'])
                 errs += 1
         return errs
 
     def check_repo_files(self, service):
-        # make sure they exist and are regular files
+        '''
+        check that all files in the repo to be deployed exist
+        and are regular files (not symlinks)
+        '''
         errs = 0
         files = self.get_repo_filenames(service)
-        for f in files:
-            if f['path'] is not None:
-                full_path = os.path.join(self.repo, f['path'], f['name'])
+        for finfo in files:
+            if finfo['path'] is not None:
+                full_path = os.path.join(self.repo, finfo['path'], finfo['name'])
             else:
-                full_path = os.path.join(self.repo, f['name'])
+                full_path = os.path.join(self.repo, finfo['name'])
             if not os.path.isfile(full_path):
                 sys.stderr.write("%s is not a file\n" % full_path)
                 errs += 1
@@ -222,17 +280,20 @@ class Prep(object):
         return errs
 
     def prepare(self):
+        '''
+        do prep/staging prior to deployment
+        '''
         errs = 0
-        for s in self.c.services:
-            errs += self.check_repo_files(s)
+        for service in self.conf.services:
+            errs += self.check_repo_files(service)
         if errs:
             sys.exit(1)
 
-        for s in self.c.services:
-            print "prepping for", s
-            if self.make_prepdir(s):
+        for service in self.conf.services:
+            print "prepping for", service
+            if self.make_prepdir(service):
                 sys.exit(1)
-            if self.copy_files(s):
+            if self.copy_files(service):
                 sys.exit(1)
             print "prepped in", self.prepdir, "done"
 
@@ -243,38 +304,54 @@ class Deploy(object):
     and from there to final location
     '''
     def __init__(self, conf, hostexpr, date):
-        self.c = conf
+        self.conf = conf
         self.deploy_hosts = hostexpr
-        self.date = Dirdate(date)
-        self.prepdirbase = self.c.cf['prepdirbase']
+        self.date = check_date(date)
+        self.prepdirbase = self.conf.conf['prepdirbase']
         self.prepdir = None
-        self.repo = self.c.cf['repo']
-        self.targetbase = self.c.cf['targetbase']
+        self.repo = self.conf.conf['repo']
+        self.targetbase = self.conf.conf['targetbase']
         self.salt = LocalClientPlus()
         self.expanded_deploy_hosts = self.salt.cmd_expandminions(
             self.deploy_hosts, "test.ping", expr_form='glob')
 
     def check_local_prepdir(self, service):
-        self.prepdir = os.path.join(self.prepdirbase, service, self.date.date)
+        '''
+        make sure the prep/staging area on the local host
+        exists and is a directory
+        '''
+        self.prepdir = os.path.join(self.prepdirbase, service, self.date)
         if not os.path.isdir(self.prepdir):
             sys.stderr.write("prepdir %s does not exist or is not"
                              " a directory, giving up\n" % self.prepdir)
             sys.exit(1)
 
     def check_missing_hosts(self, hosts_responding):
+        '''
+        check the hosts to which we are to deploy and
+        record/display errors for those that did not respond
+        '''
         errs = 0
-        for h in self.expanded_deploy_hosts:
-            if h not in hosts_responding:
-                sys.stderr.write("Host %s failed to respond\n" % h)
+        for host in self.expanded_deploy_hosts:
+            if host not in hosts_responding:
+                sys.stderr.write("Host %s failed to respond\n" % host)
                 errs += 1
         return errs
 
     def get_repo_fileinfo(self, service):
-        return self.c.cf['services'][service]['files']
+        '''
+        get and return information about all files
+        for the specified service
+        '''
+        return self.conf.conf['services'][service]['files']
 
     def get_repo_filenames(self, service):
+        '''
+        get and return basename and full path for each file
+        for the specified service
+        '''
         result = []
-        files = self.c.cf['services'][service]['files']
+        files = self.conf.conf['services'][service]['files']
         for finfo in files:
             if 'path' in files[finfo]:
                 result.append({'name': finfo,
@@ -284,15 +361,18 @@ class Deploy(object):
         return result
 
     def salt_make_remote_dir(self, dirname):
+        '''
+        make a directory on deployment targets via salt
+        '''
         errs = 0
         result = self.salt.cmd(self.deploy_hosts, "cmd.run_all",
                                ["mkdir -p " + dirname], expr_form='glob')
         hosts_responding = []
-        for h in result:
-            hosts_responding.append(h)
-            if result[h]['retcode']:
+        for host in result:
+            hosts_responding.append(host)
+            if result[host]['retcode']:
                 sys.stderr.write("couldn't create directory %s on %s\n"
-                                 % (dirname, h))
+                                 % (dirname, host))
                 errs += 1
         if self.check_missing_hosts(hosts_responding):
             sys.stderr.write("couldn't create directory on hosts" +
@@ -301,33 +381,16 @@ class Deploy(object):
 
         return errs
 
-    def get_file_md5s(self, dirname, files, callback=None):
-        output = []
-        for f in files:
-            md5out = None
-            try:
-                md5out = hashlib.md5(open(os.path.join(
-                    dirname, f)).read()).hexdigest().strip()
-            except:
-                md5out = None
-            if not md5out:
-                sys.stderr.write("failed to get md5 of %s\n" % f)
-                return None
-            if callback is not None:
-                output.append([md5out, callback(f)])
-            else:
-                output.append([md5out, f])
-        return output
-
-    def get_md5s_ok_count(self, text):
-        return len([line for line in text.split('\n')
-                    if line.endswith(': OK')])
-
     def check_file_md5s(self, service, local_dir):
+        '''
+        get md5 of local copy of each file for service,
+        compare to md5 of remote copy on each deployment target
+        report any that do not match
+        '''
         errs = 0
         files = self.get_repo_fileinfo(service)
-        md5s = self.get_file_md5s(local_dir, files, self.get_tmp_filename)
-        destdir = self.c.cf['services'][service]['destdir']
+        md5s = get_file_md5s(local_dir, files, get_tmp_filename)
+        destdir = self.conf.conf['services'][service]['destdir']
         # note that md5 needs two spaces between fields. no exceptions.
         md5s_to_check = ('\n'.join([
             m[0] + "  " + os.path.join(self.targetbase, destdir, m[1])
@@ -338,28 +401,36 @@ class Deploy(object):
                                expr_form='glob')
 
         hosts_responding = []
-        for h in result:
-            hosts_responding.append(h)
-            if (result[h]['retcode'] or
-                'stdout' not in result[h] or
-                ('stdout' in result[h] and
-                 ('did NOT match' in result[h]['stdout'] or
-                  self.get_md5s_ok_count(result[h]['stdout']) !=
-                  len(md5s)))):
-                sys.stderr.write("%s: bad file copy\n" % h)
-                if 'stdout' in result[h]:
-                    sys.stderr.write(result[h]['stdout'] + "\n")
-                if 'stderr' in result[h]:
-                    sys.stderr.write(result[h]['stderr'] + "\n")
+        for host in result:
+            hosts_responding.append(host)
+            if (result[host]['retcode'] or
+                    'stdout' not in result[host] or
+                    ('stdout' in result[host] and
+                     ('did NOT match' in result[host]['stdout'] or
+                      get_md5s_ok_count(result[host]['stdout']) !=
+                      len(md5s)))):
+                sys.stderr.write("%s: bad file copy\n" % host)
+                if 'stdout' in result[host]:
+                    sys.stderr.write(result[host]['stdout'] + "\n")
+                if 'stderr' in result[host]:
+                    sys.stderr.write(result[host]['stderr'] + "\n")
                 errs += 1
         errs += self.check_missing_hosts(hosts_responding)
         return errs
 
     def check_deploy(self, service):
+        '''
+        check that the deployment was successful
+        for now, just check md5s of copied files to be sure they arrived intact
+        '''
         errs = self.check_file_md5s(service, self.prepdir)
         return errs
 
     def salt_copy_file(self, filename, destpath):
+        '''
+        copy a given file to all deployment targets to the
+        specified destination path
+        '''
         errs = 0
         result = self.salt.mycp(self.deploy_hosts, filename,
                                 destpath)
@@ -369,13 +440,13 @@ class Deploy(object):
             sys.exit(1)
 
         hosts_responding = []
-        for h in result:
-            hosts_responding.append(h)
-            if destpath not in result[h] or result[h][destpath] is not True:
-                if 'stderr' in result[h]:
-                    sys.stderr.write(result[h]['stderr'] + "\n")
+        for host in result:
+            hosts_responding.append(host)
+            if destpath not in result[host] or result[host][destpath] is not True:
+                if 'stderr' in result[host]:
+                    sys.stderr.write(result[host]['stderr'] + "\n")
                 sys.stderr.write("couldn't copy file %s to %s on %s\n"
-                                 % (filename, destpath, h))
+                                 % (filename, destpath, host))
                 errs += 1
         if self.check_missing_hosts(hosts_responding):
             sys.stderr.write("couldn't copy file %s to hosts" +
@@ -386,6 +457,9 @@ class Deploy(object):
         return errs
 
     def salt_move_file(self, source_filename, dest_filename, destdir):
+        '''
+        move a file on all deployment targets
+        '''
         errs = 0
         result = self.salt.cmd(self.deploy_hosts, "cmd.run_all",
                                ["mv %s %s"
@@ -398,15 +472,15 @@ class Deploy(object):
             sys.exit(1)
 
         hosts_responding = []
-        for h in result:
-            hosts_responding.append(h)
-            if result[h]['retcode']:
-                if 'stderr' in result[h]:
-                    sys.stderr.write(result[h]['stderr'] + "\n")
+        for host in result:
+            hosts_responding.append(host)
+            if result[host]['retcode']:
+                if 'stderr' in result[host]:
+                    sys.stderr.write(result[host]['stderr'] + "\n")
                 sys.stderr.write("couldn't move file %s to %s on %s\n"
                                  % (os.path.join(destdir, source_filename),
                                     os.path.join(destdir, dest_filename),
-                                    h))
+                                    host))
                 errs += 1
         if self.check_missing_hosts(hosts_responding):
             sys.stderr.write("couldn't move file %s on hosts" +
@@ -417,6 +491,9 @@ class Deploy(object):
         return errs
 
     def set_file_mode(self, filename, destdir, mode):
+        '''
+        set permissions on a file on all deployment targets
+        '''
         errs = 0
         result = self.salt.cmd(self.deploy_hosts, "cmd.run_all",
                                ["chmod %s %s"
@@ -424,13 +501,13 @@ class Deploy(object):
                                                       destdir, filename))],
                                expr_form='glob')
         hosts_responding = []
-        for h in result:
-            hosts_responding.append(h)
-            if result[h]['retcode']:
-                if 'stderr' in result[h]:
-                    sys.stderr.write(result[h]['stderr'] + '\n')
+        for host in result:
+            hosts_responding.append(host)
+            if result[host]['retcode']:
+                if 'stderr' in result[host]:
+                    sys.stderr.write(result[host]['stderr'] + '\n')
                     sys.stderr.write("couldn't chmod file %s on %s\n"
-                                     % (filename, h))
+                                     % (filename, host))
                     errs += 1
         if self.check_missing_hosts(hosts_responding):
             sys.stderr.write("couldn't chmod file %s on hosts" +
@@ -438,50 +515,61 @@ class Deploy(object):
             errs += 1
         return errs
 
-    def get_tmp_filename(self, filename):
-        return filename + "_tmp"
-
     def deploy_file_for_service_docopy(self, service, filename):
+        '''
+        copy a file to remote temp destination for all deployment targets
+        '''
         errs = 0
-        destdir = self.c.cf['services'][service]['destdir']
+        destdir = self.conf.conf['services'][service]['destdir']
         errs += self.salt_copy_file(
             os.path.join(self.prepdir, filename),
             os.path.join(self.targetbase, destdir,
-                         self.get_tmp_filename(filename)))
-        if 'mode' in self.c.cf['services'][service]['files'][filename]:
-            mode = self.c.cf['services'][service]['files'][filename]['mode']
-            errs += self.set_file_mode(self.get_tmp_filename(filename),
+                         get_tmp_filename(filename)))
+        if 'mode' in self.conf.conf['services'][service]['files'][filename]:
+            mode = self.conf.conf['services'][service]['files'][filename]['mode']
+            errs += self.set_file_mode(get_tmp_filename(filename),
                                        destdir, mode)
         return errs
 
     def deploy_file_for_service_domove(self, service, filename):
+        '''
+        move file from temp to permanent destination for all deployment targets
+        '''
         errs = 0
-        destdir = self.c.cf['services'][service]['destdir']
-        errs += self.salt_move_file(self.get_tmp_filename(filename),
+        destdir = self.conf.conf['services'][service]['destdir']
+        errs += self.salt_move_file(get_tmp_filename(filename),
                                     filename, os.path.join(self.targetbase,
                                                            destdir))
         return errs
 
     def check_local_prepdir_contents(self, files, service):
-        for f in files:
-            if not os.path.exists(os.path.join(self.prepdir, f['name'])):
+        '''
+        check that local prep/staging area contains all files
+        for the given service
+        '''
+        for finfo in files:
+            if not os.path.exists(os.path.join(self.prepdir, finfo['name'])):
                 sys.stderr.write("missing file %s in %s for deploy of %s ,"
-                                 % (f['name'], self.prepdir, service) +
+                                 % (finfo['name'], self.prepdir, service) +
                                  " giving up\n")
                 sys.exit(1)
 
     def salt_update_release(self, service):
+        '''
+        write a release file into the remote dir tree on
+        all deployment targets
+        '''
         release_file = os.path.join(self.targetbase, service,
                                     "hackdeploy_RELEASE.txt")
         errs = 0
         result = self.salt.cmd(self.deploy_hosts, "cmd.run_all",
-                               ["/bin/echo " + self.date.date +
+                               ["/bin/echo " + self.date +
                                 " > " + release_file], expr_form='glob')
         hosts_responding = []
-        for h in result:
-            hosts_responding.append(h)
-            if result[h]['retcode']:
-                sys.stderr.write("couldn't update release info on %s\n", h)
+        for host in result:
+            hosts_responding.append(host)
+            if result[host]['retcode']:
+                sys.stderr.write("couldn't update release info on %s\n", host)
                 errs += 1
         if self.check_missing_hosts(hosts_responding):
             sys.stderr.write("couldn't update release info on" +
@@ -491,6 +579,9 @@ class Deploy(object):
         return errs
 
     def deploy_service(self, service):
+        '''
+        deploy one service to all deployment targets
+        '''
         errs = 0
         self.check_local_prepdir(service)
         files = self.get_repo_filenames(service)
@@ -498,13 +589,13 @@ class Deploy(object):
 
         # destdir on remote
         if self.salt_make_remote_dir(os.path.join(
-                self.targetbase, self.c.cf['services'][service]['destdir'])):
+                self.targetbase, self.conf.conf['services'][service]['destdir'])):
             sys.exit(1)
 
         print "deploying %s" % service + " to hosts (doing copies): ",
         print ", ".join(self.expanded_deploy_hosts)
-        for f in files:
-            errs += self.deploy_file_for_service_docopy(service, f['name'])
+        for finfo in files:
+            errs += self.deploy_file_for_service_docopy(service, finfo['name'])
 
         if errs:
             sys.stderr.write("giving up\n")
@@ -517,8 +608,8 @@ class Deploy(object):
 
         print "deploying %s" % service + " to hosts (doing moves): ",
         print ", ".join(self.expanded_deploy_hosts)
-        for f in files:
-            errs += self.deploy_file_for_service_domove(service, f['name'])
+        for finfo in files:
+            errs += self.deploy_file_for_service_domove(service, finfo['name'])
 
         if errs:
             sys.stderr.write("giving up\n")
@@ -531,9 +622,12 @@ class Deploy(object):
         return 0
 
     def deploy(self):
+        '''
+        deploy files for each service specified
+        '''
         errs = 0
-        for s in self.c.services:
-            errs += self.deploy_service(s)
+        for service in self.conf.services:
+            errs += self.deploy_service(service)
         return errs
 
 
@@ -542,17 +636,17 @@ def usage(conf_file, message=None):
 in the configuration file.
 """
     if conf_file:
-        c = Conf(conf_file)
-        if c is not None and c.cf is not None:
+        conf = Conf(conf_file)
+        if conf is not None and conf.conf is not None:
             services_known = ("Reading config file: %s\n\n" % conf_file +
                               "<service> may be one of the following:\n")
-            for s in c.all_services:
-                if 'description' in c.cf['services'][s]:
-                    descr = c.cf['services'][s]['description']
+            for service in conf.all_services:
+                if 'description' in conf.conf['services'][service]:
+                    descr = conf.conf['services'][service]['description']
                 else:
                     descr = 'No description available'
                 services_known += "    %s %s\n" % (
-                    s.ljust(30), descr)
+                    service.ljust(30), descr)
             services_known += "    %s all of the above\n" % "all".ljust(30)
 
     if message:
@@ -585,7 +679,8 @@ hack-deploy.py --help prints this usage message
     sys.exit(1)
 
 
-if __name__ == '__main__':
+def do_main():
+    '''entry point, does all the work'''
     conf_file = os.path.join(os.path.dirname(sys.argv[0]),
                              'hackdeploy.conf')
     prepdir_date = None
@@ -623,17 +718,20 @@ if __name__ == '__main__':
     else:
         usage(conf_file, "One of deploy or prep must be specified.")
 
-    cf = Conf(conf_file)
+    conf = Conf(conf_file)
     services = sys.argv[1].split(',')
-    cf.check_conf_services(services)
+    conf.check_conf_services(services)
 
     if sys.argv[2] == 'prep':
-        pr = Prep(cf, prepdir_date)
-        errors = pr.prepare()
+        prepper = Prep(conf, prepdir_date)
+        errors = prepper.prepare()
     elif sys.argv[2] == 'deploy':
-        dp = Deploy(cf, deploy_hosts, prepdir_date)
-        errors = dp.deploy()
+        deployer = Deploy(conf, deploy_hosts, prepdir_date)
+        errors = deployer.deploy()
 
     if errors:
         sys.stderr.write("Errors encountered\n")
         sys.exit(1)
+
+if __name__ == '__main__':
+    do_main()
