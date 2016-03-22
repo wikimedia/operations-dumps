@@ -1,138 +1,170 @@
-import os, re, sys, time, getopt, cdb, urllib
+import re
+import sys
+import getopt
+import urllib
 from os.path import exists
+import cdb
+
 
 class IWCdbUpdater(object):
-    def __init__(self, wikiDbName, wikiTablePrefix, cdbFile, siteType, wikiLangCode, dryrun, verbose):
-        self.wikiDbName = wikiDbName
-        self.wikiTablePrefix = wikiTablePrefix
-        self.cdbFile = cdbFile
-        self.newCdbFile = cdbFile + ".new"
-        self.siteType = siteType
-        self.wikiLangCode = wikiLangCode
+    def __init__(self, wiki_db_name, wiki_table_prefix, cdb_file,
+                 site_type, wiki_lang_code, dryrun, verbose):
+        self.wiki_db_name = wiki_db_name
+        self.wiki_table_prefix = wiki_table_prefix
+        self.cdb_file = cdb_file
+        self.new_cdb_file = cdb_file + ".new"
+        self.site_type = site_type
+        self.wiki_lang_code = wiki_lang_code
         self.dryrun = dryrun
         self.verbose = verbose
 
-        self.wikiName = self.getWikiName()
+        self.wiki_name = self.get_wiki_name()
 
         # if we can't find it, try to download it
-        if not exists(self.cdbFile):
+        if not exists(self.cdb_file):
             if self.dryrun:
-                sys.stderr.write("No such file %s, would download Wikimedia interwiki cdb file\n" % self.cdbFile)
+                sys.stderr.write("No such file %s, would download "
+                                 "Wikimedia interwiki cdb file\n" % self.cdb_file)
             elif self.verbose:
-                sys.stderr.write("No such file %s, downloading Wikimedia interwiki cdb file\n" % self.cdbFile)
+                sys.stderr.write("No such file %s, downloading "
+                                 "Wikimedia interwiki cdb file\n" % self.cdb_file)
             url = "https://noc.wikimedia.org/conf/interwiki.cdb"
-            urllib.urlretrieve(url, self.cdbFile)
+            urllib.urlretrieve(url, self.cdb_file)
 
-        self.oldcdbfd = cdb.init(self.cdbFile)
+        self.oldcdbfd = cdb.init(self.cdb_file)
         self.newcdbfd = None
+        self.update_these = {}
 
-    def getWikiName(self):
-        if self.wikiTablePrefix:
-            return("%s-%s" % (self.wikiDbName, self.wikiTablePrefix))
+    def get_wiki_name(self):
+        '''
+        return the wiki name including table prefix if needed
+        '''
+        if self.wiki_table_prefix:
+            return "%s-%s" % (self.wiki_db_name, self.wiki_table_prefix)
         else:
-            return self.wikiDbName
+            return self.wiki_db_name
 
     @staticmethod
-    def getKnownSiteTypesDict():
-        return { "wikibooks": "b", "wikimedia": "chapter", "wikidata": "d", "wikinews": 'n', "wikiquote": 'q', "wikisource": "s", "wikiversity": 'v', "wikivoyage": "voy", "wiki": 'w', "wiktionary": "wikt" }
+    def get_known_site_types_dict():
+        '''
+        return wiki types along with their abbreviations
+        '''
+        return {"wikibooks": "b", "wikimedia": "chapter",
+                "wikidata": "d", "wikinews": 'n', "wikiquote": 'q',
+                "wikisource": "s", "wikiversity": 'v',
+                "wikivoyage": "voy", "wiki": 'w', "wiktionary": "wikt"}
 
     @staticmethod
-    def getKnownSiteTypes():
-        return IWCdbUpdater.getKnownSiteTypesDict().keys()
+    def get_known_site_types():
+        '''
+        return the list of known wiki types
+        '''
+        return IWCdbUpdater.get_known_site_types_dict().keys()
 
     @staticmethod
-    def getAbbrevs():
-        return IWCdbUpdater.getKnownSiteTypesDict().values()
+    def get_abbrevs():
+        '''
+        return the list of abbreviations of known wiki types
+        '''
+        return IWCdbUpdater.get_known_site_types_dict().values()
 
     @staticmethod
-    def getAbbrevFromSiteType(siteType):
-        return IWCdbUpdater.getKnownSiteTypesDict()[siteType]
+    def get_abbrev_from_site_type(site_type):
+        '''
+        given a wiki type, return its abbreviation
+        '''
+        return IWCdbUpdater.get_known_site_types_dict()[site_type]
 
     @staticmethod
-    def getSiteUrl(langCode, siteType):
-        if siteType == 'wiki':
+    def get_site_url(lang_code, site_type):
+        '''
+        given the language code and wiki type, return the hostname
+        that would be used in a url
+        '''
+        if site_type == 'wiki':
             # special case
-            siteType = 'wikipedia'
-        return "%s.%s.org" % (langCode, siteType)
+            site_type = 'wikipedia'
+        return "%s.%s.org" % (lang_code, site_type)
 
-    def checkUpdateNeeded(self):
-        # check keys in existing cdb file to see if we actually need to do the update
-        # returns True and sets self.updateThese to a list of key/value pairs
-        # to be added/replaced if update is needed
-        # returns False if no update is needed
-        self.updateThese = {}
-
+    def check_update_needed(self):
+        '''
+        check keys in existing cdb file to see if we actually need to do the update
+        returns True and sets self.updateThese to a list of key/value pairs
+        to be added/replaced if update is needed
+        returns False if no update is needed
+        '''
         # key   enwiki-mw_:w
         # value  1 http://en.wikipedia.org/wiki/$1
-        st = IWCdbUpdater.getKnownSiteTypes()
-        for t in st:
-            key = "%s:%s" % (self.wikiName, IWCdbUpdater.getAbbrevFromSiteType(t))
-            oldValue = self.oldcdbfd.get(key)
-            newValue = "1 //%s/wiki/$1" % IWCdbUpdater.getSiteUrl(self.wikiLangCode, t)
-            if oldValue != newValue:
-                self.updateThese[key] = newValue
+        site_types = IWCdbUpdater.get_known_site_types()
+        for stype in site_types:
+            key = "%s:%s" % (self.wiki_name, IWCdbUpdater.get_abbrev_from_site_type(stype))
+            old_value = self.oldcdbfd.get(key)
+            new_value = "1 //%s/wiki/$1" % IWCdbUpdater.get_site_url(self.wiki_lang_code, stype)
+            if old_value != new_value:
+                self.update_these[key] = new_value
 
         # key    __sites:enwiki-mw
         # value  wiki
-        oldValue = self.oldcdbfd.get("__sites:%s" % self.wikiName)
-        if oldValue != self.siteType:
-            self.updateThese["__sites:%s" % self.wikiName] = self.siteType
+        old_value = self.oldcdbfd.get("__sites:%s" % self.wiki_name)
+        if old_value != self.site_type:
+            self.update_these["__sites:%s" % self.wiki_name] = self.site_type
 
         # key    __list:enwiki-mw
         # value  b chapter d n q s v voy w wikt
         try:
-            oldValueList = self.oldcdbfd.get("__list:%s" % self.wikiName).split()
-        except:
-            oldValueList = []
+            old_value_list = self.oldcdbfd.get("__list:%s" % self.wiki_name).split()
+        except Exception:
+            old_value_list = []
 
-        oldValueList.sort()
-        oldValueString = " ".join(oldValueList)
+        old_value_list.sort()
+        old_value_string = " ".join(old_value_list)
 
-        knownAbbrevs = self.getAbbrevs()
-        knownAbbrevs.sort()
-        knownAbbrevsString = " ".join(knownAbbrevs)
-        if oldValueString != knownAbbrevsString:
-            self.updateThese["__list:%s" % self.wikiName] = knownAbbrevsString
+        known_abbrevs = self.get_abbrevs()
+        known_abbrevs.sort()
+        known_abbrevs_string = " ".join(known_abbrevs)
+        if old_value_string != known_abbrevs_string:
+            self.update_these["__list:%s" % self.wiki_name] = known_abbrevs_string
 
         # key    __list:__sites
         # value  aawiki aawikibooks ... enwiki-mw ...
         try:
-            oldValueList = self.oldcdbfd.get("__list:__sites").split()
-        except:
-            oldValueList = []
-        if not self.wikiName in oldValueList:
-            oldValueList.append(self.wikiName)
-            self.updateThese["__list:__sites"] = " ".join(oldValueList)
+            old_value_list = self.oldcdbfd.get("__list:__sites").split()
+        except Exception:
+            old_value_list = []
+        if self.wiki_name not in old_value_list:
+            old_value_list.append(self.wiki_name)
+            self.update_these["__list:__sites"] = " ".join(old_value_list)
 
-        if len(self.updateThese.keys()):
-            return True
-        else:
-            return False
+        return bool(len(self.update_these.keys()))
 
-    def addOldKeys(self):
-        # read all entries from old db and add them to new db, skipping those
-        # for which values must be updated
-        for k in self.oldcdbfd.keys():
-            if not k in self.updateThese.keys():
+    def add_old_keys(self):
+        '''
+        read all entries from old db and add them to new db, skipping those
+        for which values must be updated
+        '''
+        for key in self.oldcdbfd.keys():
+            if key not in self.update_these.keys():
                 if self.dryrun:
-                    sys.stderr.write("Would copy existing key %s to new cdb db\n" % k)
-                elif verbose:
-                    sys.stderr.write("Copying existing key %s to new cdb db\n" % k)
-                if not dryrun:
-                    self.newcdbfd.add(k,self.oldcdbfd.get(k))
+                    sys.stderr.write("Would copy existing key %s to new cdb db\n" % key)
+                elif self.verbose:
+                    sys.stderr.write("Copying existing key %s to new cdb db\n" % key)
+                if not self.dryrun:
+                    self.newcdbfd.add(key, self.oldcdbfd.get(key))
 
-    def addNewKeys(self):
-        # add all the new/changed entries to the db
-        for k in self.updateThese.keys():
+    def add_new_keys(self):
+        '''
+        add all the new/changed entries to the db
+        '''
+        for key in self.update_these:
             if self.dryrun:
-                sys.stderr.write("Would add key %s to new cdb db\n" % k)
-            elif verbose:
-                sys.stderr.write("Adding key %s to new cdb db\n" % k)
+                sys.stderr.write("Would add key %s to new cdb db\n" % key)
+            elif self.verbose:
+                sys.stderr.write("Adding key %s to new cdb db\n" % key)
             if self.newcdbfd:
-                self.newcdbfd.add(k,self.updateThese[k])
+                self.newcdbfd.add(key, self.update_these[key])
 
-    def doUpdate(self):
-        if not self.checkUpdateNeeded():
+    def do_update(self):
+        if not self.check_update_needed():
             sys.stderr.write("No updates to cdb file needed, exiting.\n")
             return
 
@@ -141,141 +173,164 @@ class IWCdbUpdater(object):
         else:
             if self.verbose:
                 sys.stderr.write("Creating new empty cdb file\n")
-            self.newcdbfd = cdb.cdbmake(self.newCdbFile, self.newCdbFile + ".tmp")
-        self.addOldKeys()
-        self.addNewKeys()
+            self.newcdbfd = cdb.cdbmake(self.new_cdb_file, self.new_cdb_file + ".tmp")
+        self.add_old_keys()
+        self.add_new_keys()
 
     def done(self):
         # fixme is this going to rename some file from blah.tmp??
         if self.newcdbfd:
-            if verbose:
+            if self.verbose:
                 sys.stderr.write("closing new cdb file.\n")
             self.newcdbfd.finish()
 
-def getLocalSettingInfo(localSettingsFile, wikiDbName, wikiTablePrefix, siteType, wikiLangCode, verbose):
-    if not localSettingsFile:
-        return(wikiDbName, wikiTablePrefix, siteType, wikiLangCode)
+
+def get_local_setting_info(local_settings_file, wiki_db_name, wiki_table_prefix,
+                           site_type, wiki_lang_code, verbose):
+    if not local_settings_file:
+        return(wiki_db_name, wiki_table_prefix, site_type, wiki_lang_code)
 
     if verbose:
-        sys.stderr.write("before config file check, wikidbname %s, tableprefix %s, sitetype %s, langcode %s\n" % (wikiDbName, wikiTablePrefix, siteType, wikiLangCode))
-    fd = open(localSettingsFile, "r")
-    for line in fd:
+        sys.stderr.write("before config file check, wikidbname %s, "
+                         "tableprefix %s, sitetype %s, langcode %s\n"
+                         % (wiki_db_name, wiki_table_prefix, site_type, wiki_lang_code))
+    fdesc = open(local_settings_file, "r")
+    for line in fdesc:
         # expect: var = 'blah' ;  # some stuff
-        found = re.match("^\s*(?P<name>[^\s=]+)\s*=\s*(?P<val>[^\s;#]+)\s*;", line)
+        found = re.match(r"^\s*(?P<name>[^\s=]+)\s*=\s*(?P<val>[^\s;#]+)\s*;", line)
         if not found:
             if verbose:
                 sys.stderr.write("in config file skipping line %s" % line)
             continue
-        varName = found.group('name')
+        var_name = found.group('name')
         value = found.group('val')
         if (value[0] == '"' and value[-1] == '"') or value[0] == "'" and value[-1] == "'":
             value = value[1:-1]
-        if varName == "$wgDBname":
-            if not wikiDbName:
-                wikiDbName = value
-        elif varName == "$wgDBprefix":
-            if not wikiTablePrefix:
-                wikiTablePrefix = value
-        elif varName == "$wgInterwikiFallbackSite":
-            if not siteType:
-                siteType = value
-        elif varName == "$wgLanguageCode":
-            if not wikiLangCode:
-                wikiLangCode = value
-    fd.close()
+        if var_name == "$wgDBname":
+            if not wiki_db_name:
+                wiki_db_name = value
+        elif var_name == "$wgDBprefix":
+            if not wiki_table_prefix:
+                wiki_table_prefix = value
+        elif var_name == "$wgInterwikiFallbackSite":
+            if not site_type:
+                site_type = value
+        elif var_name == "$wgLanguageCode":
+            if not wiki_lang_code:
+                wiki_lang_code = value
+    fdesc.close()
     if verbose:
-        sys.stderr.write("after config file check, wikidbname %s, tableprefix %s, sitetype %s, langcode %s\n" % (wikiDbName, wikiTablePrefix, siteType, wikiLangCode))
-    return(wikiDbName, wikiTablePrefix, siteType, wikiLangCode)
+        sys.stderr.write("after config file check, wikidbname %s, "
+                         "tableprefix %s, sitetype %s, langcode %s\n"
+                         % (wiki_db_name, wiki_table_prefix, site_type, wiki_lang_code))
+    return(wiki_db_name, wiki_table_prefix, site_type, wiki_lang_code)
 
-def usage(message = None):
+
+def usage(message=None):
+    '''
+    display a help message describing how to use this script,
+    with an optional preceding message
+    '''
     if message:
         sys.stderr.write("%s\n" % message)
-    sys.stderr.write("Usage: python %s --wikidbname name --localsettings filename\n" % sys.argv[0])
-    sys.stderr.write("Usage:        [--cdbfile filename] [--sitetype type] [--langcode langcode] \n")
-    sys.stderr.write("              [--tableprefix prefix] [--dryrun] [--verbose]\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("This script adds entries to an interwiki cdb file so that MediaWiki will treat\n")
-    sys.stderr.write("the specified wiki as a wiki of the specified type and language for purposes of\n")
-    sys.stderr.write("interwiki links. The new cdb file has the extension '.new' added to the end of the filename.\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("--wikidbname:    the name of the wiki database, as specified in LocalSettings.php via\n")
-    sys.stderr.write("                 the $wgDBname variable\n")
-    sys.stderr.write("                 default: none, either this or localsettings must be specified\n")
-    sys.stderr.write("--localsettings: the name of the LocalSettings.php or other wiki config file which contains\n")
-    sys.stderr.write("                 configuration settings such as $wgDBname.  Values specified on the command\n")
-    sys.stderr.write("                 line will override values read from this file, if there is a conflict.\n")
-    sys.stderr.write("                 default: none, either this or wikidbname must be specified.\n")
-    sys.stderr.write("--tableprefix    the db table prefix in the wiki's LocalSettings.php file, via the $wgDBprefix\n")
-    sys.stderr.write("                 variable, if any.\n")
-    sys.stderr.write("                 default: none\n")
-    sys.stderr.write("--cdbfile:       the path to the cdb file you want to modify. If the file does not exist, an attempt\n")
-    sys.stderr.write("                 will be made to download http://noc.wikimedia.org/interwiki/interwiki.cdb and save\n")
-    sys.stderr.write("                 to the specified or default filename.\n")
-    sys.stderr.write("                 default: interwiki.cdb in the current working directory\n")
-    sys.stderr.write("--sitetype:      MediaWiki should treat your wiki as this projct type for purposes of\n")
-    sys.stderr.write("                 interwiki links.  Links to other languages of the same site type will\n")
-    sys.stderr.write("                 be treated differently than links to other projects.  If this isn't clear,\n")
-    sys.stderr.write("                 see http://www.mediawiki.org/wiki/Help:Interwiki_linking#Interwiki_links\n")
-    sys.stderr.write("                 known types: wiki (i.e. wikipedia), wiktionary, wikisource, wikiquote, wikinews,\n")
-    sys.stderr.write("                 wikivoyage, wikimedia, wikiversity\n")
-    sys.stderr.write("                 default: wiki (i.e. wikipedia)\n")
-    sys.stderr.write("--langcode:      code (typically two or three letters) of your wiki's language for MediaWiki\n")
-    sys.stderr.write("                 interlinks to other projects in the same language\n")
-    sys.stderr.write("                 A full list of language codes is here:\n")
-    sys.stderr.write("                 https://noc.wikimedia.org/conf/highlight.php?file=langlist\n")
-    sys.stderr.write("                 If the use of this option isn't clear, see\n")
-    sys.stderr.write("                 http://www.mediawiki.org/wiki/Help:Interwiki_linking#Interwiki_links\n")
-    sys.stderr.write("                 default: en  (i.e. English)\n")
-    sys.stderr.write("--dryrun:        don't write changes to the cdb file but report what would be done\n")
-    sys.stderr.write("                 default: write changes to the cdb file\n")
-    sys.stderr.write("--verbose:       write progress messages to stderr.\n")
-    sys.stderr.write("                 default: process quietly\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("Example usage:\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("python %s --wikidbname enwiki --tableprefix mw_\n" % sys.argv[0])
-    sys.stderr.write("\n")
-    sys.stderr.write("This will download the interwiki.cdb file in use on Wikimedia sites and will add\n")
-    sys.stderr.write("the appropriate entries for 'enwiki-mw_' to the new file which will be named\n")
-    sys.stderr.write("'interwiki.cdb.new' and saved in the current directory.\n")
-    sys.stderr.write("\n")
-    sys.stderr.write("python %s --localsettings /var/www/html/mywiki/LocalSettings.php\n" % sys.argv[0])
-    sys.stderr.write("\n")
-    sys.stderr.write("This will download the interwiki.cdb file in use on Wikimedia sites and will add\n")
-    sys.stderr.write("the appropriate entries, reading config vars from LocalSettings.php, to the new cdb\n")
-    sys.stderr.write("file which will be named 'interwiki.cdb.new' and saved in the current directory.\n")
-    sys.stderr.write("\n")
+    usage_message = '''
+Usage: python fixup-interwikis.py --wikidbname name --localsettings filename
+              [--cdbfile filename] [--sitetype type] [--langcode langcode]
+              [--tableprefix prefix] [--dryrun] [--verbose]
+
+This script adds entries to an interwiki cdb file so that MediaWiki will treat
+the specified wiki as a wiki of the specified type and language for purposes of
+interwiki links. The new cdb file has the extension '.new' added to the end of
+the filename.
+
+--wikidbname:    the name of the wiki database, as specified in LocalSettings.php
+                 via the $wgDBname variable
+                 default: none, either this or localsettings must be specified
+--localsettings: the name of the LocalSettings.php or other wiki config file
+                 which contains configuration settings such as $wgDBname.  Values
+                 specified on the command line will override values read from
+                 this file, if there is a conflict.
+                 default: none, either this or wikidbname must be specified.
+--tableprefix    the db table prefix in the wiki's LocalSettings.php file, via the
+                 $wgDBprefix variable, if any.
+                 default: none
+--cdbfile:       the path to the cdb file you want to modify. If the file does not
+                 exist, an attempt will be made to download
+                 http://noc.wikimedia.org/interwiki/interwiki.cdb and save to the
+                 specified or default filename.
+                 default: interwiki.cdb in the current working directory
+--sitetype:      MediaWiki should treat your wiki as this projct type for purposes
+                 of interwiki links.  Links to other languages of the same site type
+                 will be treated differently than links to other projects.  If this
+                 isn't clear, see
+                 http://www.mediawiki.org/wiki/Help:Interwiki_linking#Interwiki_links
+                 known types: wiki (i.e. wikipedia), wiktionary, wikisource,
+                 wikiquote, wikinews, wikivoyage, wikimedia, wikiversity
+                 default: wiki (i.e. wikipedia)
+--langcode:      code (typically two or three letters) of your wiki's language for
+                 MediaWiki interlinks to other projects in the same language
+                 A full list of language codes is here:
+                 https://noc.wikimedia.org/conf/highlight.php?file=langlist
+                 If the use of this option isn't clear, see
+                 http://www.mediawiki.org/wiki/Help:Interwiki_linking#Interwiki_links
+                 default: en  (i.e. English)
+--dryrun:        don't write changes to the cdb file but report what would be done
+                 default: write changes to the cdb file
+--verbose:       write progress messages to stderr.
+                 default: process quietly
+
+Example usage:
+
+python fixup-interwikis.py --wikidbname enwiki --tableprefix mw_
+
+This will download the interwiki.cdb file in use on Wikimedia sites and will add
+the appropriate entries for 'enwiki-mw_' to the new file which will be named
+'interwiki.cdb.new' and saved in the current directory.
+
+python fixup-interwikis.py --localsettings /var/www/html/mywiki/LocalSettings.php
+
+This will download the interwiki.cdb file in use on Wikimedia sites and will add
+the appropriate entries, reading config vars from LocalSettings.php, to the new cdb
+file which will be named 'interwiki.cdb.new' and saved in the current directory.
+'''
+    sys.stderr.write(usage_message)
     sys.exit(1)
 
 
-if __name__ == "__main__":
-    wikiDbName = None
-    wikiTablePrefix = None
-    cdbFile = "interwiki.cdb"
-    siteType = None
-    wikiLangCode = None
-    localSettingsFile = None
+def do_main():
+    '''
+    main entry point, does all the work
+    '''
+    wiki_db_name = None
+    wiki_table_prefix = None
+    cdb_file = "interwiki.cdb"
+    site_type = None
+    wiki_lang_code = None
+    local_settings_file = None
     dryrun = False
     verbose = False
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [ "wikidbname=", "cdbfile=", "sitetype=", "langcode=", "tableprefix=", "localsettings=", "help", "dryrun", "verbose" ])
-    except:
+        (options, remainder) = getopt.gnu_getopt(
+            sys.argv[1:], "",
+            ["wikidbname=", "cdbfile=", "sitetype=", "langcode=",
+             "tableprefix=", "localsettings=", "help", "dryrun", "verbose"])
+    except Exception:
         usage("Unknown option specified")
 
     for (opt, val) in options:
         if opt == "--wikidbname":
-            wikiDbName = val
+            wiki_db_name = val
         elif opt == "--cdbfile":
-            cdbFile = val
+            cdb_file = val
         elif opt == "--sitetype":
-            siteType = val
+            site_type = val
         elif opt == "--langcode":
-            wikiLangCode = val
+            wiki_lang_code = val
         elif opt == "--tableprefix":
-            wikiTablePrefix = val
+            wiki_table_prefix = val
         elif opt == "--localsettings":
-            localSettingsFile = val
+            local_settings_file = val
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--verbose":
@@ -286,19 +341,25 @@ if __name__ == "__main__":
     if len(remainder) > 0:
         usage("Unknown option specified")
 
-    if not wikiDbName and not localSettingsFile:
-        usage("Missing value for --wikidbname and no localsettings specified, one of these arguments must be provided\n")
+    if not wiki_db_name and not local_settings_file:
+        usage("Missing value for --wikidbname and no localsettings specified, "
+              "one of these arguments must be provided\n")
 
-    (wikiDbName, wikiTablePrefix, siteType, wikiLangCode) = getLocalSettingInfo(localSettingsFile, wikiDbName, wikiTablePrefix, siteType, wikiLangCode, verbose)
+    (wiki_db_name, wiki_table_prefix, site_type, wiki_lang_code) = get_local_setting_info(
+        local_settings_file, wiki_db_name, wiki_table_prefix, site_type, wiki_lang_code, verbose)
 
-    if siteType == None:
-        siteType = "wiki"
-    if wikiLangCode == None:
-        wikiLangCode = "en"
+    if site_type is None:
+        site_type = "wiki"
+    if wiki_lang_code is None:
+        wiki_lang_code = "en"
 
-    if siteType not in IWCdbUpdater.getKnownSiteTypes():
+    if site_type not in IWCdbUpdater.get_known_site_types():
         usage("Unknown type specified for --sitetype\n")
 
-    iu = IWCdbUpdater(wikiDbName, wikiTablePrefix, cdbFile, siteType, wikiLangCode, dryrun, verbose)
-    iu.doUpdate()
-    iu.done()
+    updater = IWCdbUpdater(wiki_db_name, wiki_table_prefix, cdb_file,
+                           site_type, wiki_lang_code, dryrun, verbose)
+    updater.do_update()
+    updater.done()
+
+if __name__ == "__main__":
+    do_main()
