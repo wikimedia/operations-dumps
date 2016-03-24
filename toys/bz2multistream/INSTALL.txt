@@ -23,7 +23,7 @@ LC_ALL=${LC_ALL_save}; export LC_ALL
 (or you can use the helper script sort.sh for this step)
 
 cat elwiki-pages-multistream-index-sorted.txt | \
-python ./writetoc.py --field 3 --separator ':' --indexfile elwiki-pages-multistream-toc.txt
+python ./writetoc.py --field 3 --separator ':' --tocfile elwiki-pages-multistream-toc.txt
 
 After the above, you can optionally create a configuration file "wikiarticles.conf".
 See the wikiarticles.conf.sample for more information.  An example configuration file
