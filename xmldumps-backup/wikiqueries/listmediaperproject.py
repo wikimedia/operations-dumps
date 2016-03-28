@@ -3,63 +3,64 @@ import sys
 import getopt
 import time
 from subprocess import Popen, PIPE
-from wikiqueries import Config
+from dumps.WikiDump import Config
+
+
+def get_file_name_format(phase):
+    return "{w}-{d}-" + phase + "-wikiqueries.gz"
 
 
 class MediaPerProject(object):
-    def __init__(self, conf, outputDir, remoteRepoName,
-                 verbose, wqConfigFile, wqPath, overwrite, wiki=None):
+    def __init__(self, conf, output_dir, remote_repo_name,
+                 verbose, wq_config_file, wq_path, overwrite, wiki=None):
         self.conf = conf
-        self.outputDir = outputDir
-        self.remoteRepoName = remoteRepoName
+        self.output_dir = output_dir
+        self.remote_repo_name = remote_repo_name
         self.verbose = verbose
         self.date = time.strftime("%Y%m%d", time.gmtime())
-        self.fileNameFormat = "{w}-{d}-wikiqueries.gz"
-        self.wqConfigFile = wqConfigFile
-        self.wqPath = wqPath
+        self.file_name_format = "{w}-{d}-wikiqueries.gz"
+        self.wq_config_file = wq_config_file
+        self.wq_path = wq_path
         self.overwrite = overwrite
-        if not os.path.exists(outputDir):
-            os.makedirs(outputDir)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         if wiki is not None:
-            self.wikisToDo = [wiki]
+            self.wikis_to_do = [wiki]
         else:
-            self.wikisToDo = [w for w in self.conf.allWikisList
-                              if w not in self.conf.privateWikisList and
-                              w not in self.conf.closedWikisList and
-                              w not in self.conf.skipWikisList]
+            self.wikis_to_do = [w for w in self.conf.db_list
+                                if w not in self.conf.private_list and
+                                w not in self.conf.closed_list and
+                                w not in self.conf.skip_db_list]
 
-    def getFileNameFormat(self, phase):
-        return "{w}-{d}-" + phase + "-wikiqueries.gz"
-
-    def writeLocalMedia(self):
+    def write_local_media(self):
         if self.verbose:
             print "Starting round one wikiqueries for image table"
-        if len(self.wikisToDo) == 1:
-            wiki = self.wikisToDo[0]
+        if len(self.wikis_to_do) == 1:
+            wiki = self.wikis_to_do[0]
         else:
             wiki = None
-        self.doWikiQueries('select img_name, img_timestamp from image',
-                           self.getFileNameFormat("local"), wiki)
+        self.do_wiki_queries('select img_name, img_timestamp from image',
+                             get_file_name_format("local"), wiki)
         if self.verbose:
             print "Done round one!!"
 
-    def doWikiQueries(self, query, fileNameFormat, wiki=None):
-        if not os.path.exists(wqConfigFile):
-            print "config file  %s does not exist" % wqConfigFile
+    def do_wiki_queries(self, query, file_name_format, wiki=None):
+        if not os.path.exists(self.wq_config_file):
+            print "config file  %s does not exist" % self.wq_config_file
             sys.exit(1)
-        command = ["python", self.wqPath, "--configfile", wqConfigFile,
-                   "--query", query, "--outdir", self.outputDir,
-                   "--filenameformat", fileNameFormat]
+        command = ["python", self.wq_path, "--configfile", self.wq_config_file,
+                   "--query", query, "--outdir", self.output_dir,
+                   "--filenameformat", file_name_format]
         if self.verbose:
             command.append("--verbose")
         if not self.overwrite:
             command.append("--nooverwrite")
         if wiki:
             command.append(wiki)
-        commandString = " ".join(["'" + c + "'" for c in command])
+        command_string = " ".join(["'" + c + "'" for c in command])
 
         if self.verbose:
-            print "About to run wikiqueries:", commandString
+            print "About to run wikiqueries:", command_string
         try:
             proc = Popen(command, stderr=PIPE)
             output_unused, error = proc.communicate()
@@ -71,21 +72,21 @@ class MediaPerProject(object):
             print "command %s failed" % command
             raise
 
-    def writeRemoteMedia(self):
+    def write_remote_media(self):
         if self.verbose:
             print "Starting round two wikiqueries for global image links table"
 
-        for w in self.wikisToDo:
-            if w == self.remoteRepoName:
+        for wiki in self.wikis_to_do:
+            if wiki == self.remote_repo_name:
                 if self.verbose:
-                    print "Skipping", w, "because it's the remote repo"
+                    print "Skipping", wiki, "because it's the remote repo"
             else:
                 if self.verbose:
-                    print "Doing db", w
-                self.doWikiQueries('select gil_to from globalimagelinks'
-                                   ' where gil_wiki= "%s"' % w,
-                                   self.getFileNameFormat("remote").format(
-                                       w=w, d='{d}'), self.remoteRepoName)
+                    print "Doing db", wiki
+                self.do_wiki_queries('select gil_to from globalimagelinks'
+                                     ' where gil_wiki= "%s"' % wiki,
+                                     get_file_name_format("remote").format(
+                                         w=wiki, d='{d}'), self.remote_repo_name)
         if self.verbose:
             print "Done round two!!"
 
@@ -119,18 +120,18 @@ remote repo (e.g. commons).
     sys.exit(1)
 
 
-if __name__ == "__main__":
-    outputDir = None
-    remoteRepoName = "commonswiki"
+def do_main():
+    output_dir = None
+    remote_repo_name = "commonswiki"
     verbose = False
     wiki = None
-    remoteOnly = False
-    localOnly = False
+    remote_only = False
+    local_only = False
     # by default we will overwrite existing files for
     # the same date and wiki(s)
     overwrite = True
-    wqPath = os.path.join(os.getcwd(), "wikiqueries.py")
-    wqConfigFile = os.path.join(os.getcwd(), "wikiqueries.conf")
+    wq_path = os.path.join(os.getcwd(), "wikiqueries.py")
+    wq_config_file = os.path.join(os.getcwd(), "wikiqueries.conf")
 
     try:
         (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", [
@@ -142,26 +143,26 @@ if __name__ == "__main__":
 
     for (opt, val) in options:
         if opt == "--outputdir":
-            outputDir = val
+            output_dir = val
         elif opt == "--remotereponame":
-            remoteRepoName = val
+            remote_repo_name = val
         elif opt == "--remoteonly":
-            remoteOnly = True
+            remote_only = True
         elif opt == "--localonly":
-            localOnly = True
+            local_only = True
         elif opt == "--nooverwrite":
             overwrite = False
         elif opt == "--verbose":
             verbose = True
         elif opt == "--wqconfig":
-            wqConfigFile = val
-            if not os.sep in val:
-                wqConfigFile = os.path.join(os.getcwd(), wqConfigFile)
+            wq_config_file = val
+            if os.sep not in val:
+                wq_config_file = os.path.join(os.getcwd(), wq_config_file)
             # bummer but we can't really avoid ita
         elif opt == "--wqpath":
-            wqPath = val
-            if not os.sep in val:
-                wqPath = os.path.join(os.getcwd(), wqPath)
+            wq_path = val
+            if os.sep not in val:
+                wq_path = os.path.join(os.getcwd(), wq_path)
 
     if len(remainder) == 1:
         if not remainder[0].isalpha():
@@ -171,23 +172,27 @@ if __name__ == "__main__":
     elif len(remainder) > 1:
         usage("Unknown argument(s) specified")
 
-    if not outputDir:
+    if not output_dir:
         usage("One or more mandatory options missing")
-    if localOnly and remoteOnly:
+    if local_only and remote_only:
         usage("Only one of 'localonly' and 'remoteonly'"
               " may be specified at once.")
 
-    config = Config(wqConfigFile)
+    config = Config(wq_config_file)
 
-    mpp = MediaPerProject(config, outputDir, remoteRepoName,
-                          verbose, wqConfigFile, wqPath, overwrite, wiki)
-    if not remoteOnly:
+    mpp = MediaPerProject(config, output_dir, remote_repo_name,
+                          verbose, wq_config_file, wq_path, overwrite, wiki)
+    if not remote_only:
         if verbose:
             print "generating lists of local media on each project"
-        mpp.writeLocalMedia()
-    if not localOnly:
+        mpp.write_local_media()
+    if not local_only:
         if verbose:
             print "generating remote hosted media lists for all projects"
-        mpp.writeRemoteMedia()
+        mpp.write_remote_media()
     if verbose:
         print "all projects completed."
+
+
+if __name__ == "__main__":
+    do_main()
