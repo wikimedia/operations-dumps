@@ -1,7 +1,5 @@
-import os
 import sys
 import getopt
-import subprocess
 from subprocess import Popen, PIPE
 
 
@@ -10,27 +8,26 @@ class PhpRunner(object):
     The maintenance class framework is set up already;
     the caller should supply a few lines of code that would
     go into the execute function."""
-    def __init__(self, scriptPath, phpBody, multiversion, wiki):
-        self.scriptPath = scriptPath
-        self.phpBody = phpBody
+    def __init__(self, script_path, php_body, multiversion, wiki):
+        self.script_path = script_path
+        self.php_body = php_body
         self.multiversion = multiversion
         self.wiki = wiki
-        pass
 
-    def runPhpScriptlet(self):
+    def run_php_scriptlet(self):
         command = ["php", "--", "--wiki=%s" % self.wiki]
-        return self.runCommand(command)
+        return self.run_command(command)
 
-    def runCommand(self, command):
+    def run_command(self, command):
         result = True
         try:
             proc = Popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            output, error = proc.communicate(self.getPhpCode())
+            output, error = proc.communicate(self.get_php_code())
             if proc.returncode:
                 # don't barf, let the caller decide what to do
                 sys.stderr.write("command '%s failed with return code %s and "
                                  "error %s\n" % (command,
-                                                 proc.returncode,  error))
+                                                 proc.returncode, error))
                 result = False
             print output
             if error:
@@ -40,18 +37,18 @@ class PhpRunner(object):
             raise
         return result
 
-    def getPhpCode(self):
-        if multiversion:
-            phpSetup = ("require_once( '%s/MWVersion.php' ); "
-                        "$dir = getMediaWikiCli(''); "
-                        "require_once( \"$dir/maintenance/Maintenance.php\" );"
-                        % self.scriptPath)
+    def get_php_code(self):
+        if self.multiversion:
+            php_setup = ("require_once( '%s/MWVersion.php' ); "
+                         "$dir = getMediaWikiCli(''); "
+                         "require_once( \"$dir/maintenance/Maintenance.php\" );"
+                         % self.script_path)
         else:
-            phpSetup = ("require_once( '%s/Maintenance.php' );"
-                        % self.scriptPath)
-        return "<?php\n" + phpSetup + self.fillinScriptletTemplate()
+            php_setup = ("require_once( '%s/Maintenance.php' );"
+                         % self.script_path)
+        return "<?php\n" + php_setup + self.fillin_scriptlet_template()
 
-    def fillinScriptletTemplate(self):
+    def fillin_scriptlet_template(self):
         return """
 class MaintenanceScriptlet extends Maintenance {
     public function __construct() {
@@ -63,7 +60,7 @@ class MaintenanceScriptlet extends Maintenance {
 }
 $maintClass = "MaintenanceScriptlet";
 require_once( RUN_MAINTENANCE_IF_MAIN );
-""" % self.phpBody
+""" % self.php_body
 
 
 def usage(message):
@@ -93,11 +90,12 @@ python runphpscriptletonallwikis.py enwiki
     sys.stderr.write(usagemessage)
     sys.exit(1)
 
-if __name__ == "__main__":
-    wikiListFile = None
-    scriptPath = None
+
+def do_main():
+    wiki_list_file = None
+    script_path = None
     scriptlet = None
-    scriptletFile = None
+    scriptlet_file = None
     multiversion = False
     wiki = None
 
@@ -111,51 +109,55 @@ if __name__ == "__main__":
 
     for (opt, val) in options:
         if opt == "--wikilist":
-            wikiListFile = val
+            wiki_list_file = val
         elif opt == "--multiversion":
             multiversion = True
         elif opt == "--scriptpath":
-            scriptPath = val
+            script_path = val
         elif opt == "--scriptlet":
             scriptlet = val
         elif opt == "--scriptletfile":
-            scriptletFile = val
+            scriptlet_file = val
 
     if len(remainder) > 0:
         if len(remainder) > 1 or remainder[0].startswith("--"):
             usage("Unknown option specified")
         wiki = remainder[0]
 
-    if (not wiki and not wikiListFile) or not scriptPath:
+    if (not wiki and not wiki_list_file) or not script_path:
         usage("One of wiki or wikilist must be specified")
 
-    if not scriptlet and not scriptletFile:
+    if not scriptlet and not scriptlet_file:
         usage("One of scriptlet or scriptletfile must be specified")
 
-    if scriptlet and scriptletFile:
+    if scriptlet and scriptlet_file:
         usage("Only one of scriptlet or scriptletfile may be specified")
 
     if wiki:
-        wikiList = [wiki]
+        wiki_list = [wiki]
     else:
-        if wikiListFile == "-":
-            fd = sys.stdin
+        if wiki_list_file == "-":
+            fdesc = sys.stdin
         else:
-            fd = open(wikiListFile, "r")
-        wikiList = [line.strip() for line in fd]
+            fdesc = open(wiki_list_file, "r")
+        wiki_list = [line.strip() for line in fdesc]
 
-        if fd != sys.stdin:
-            fd.close()
+        if fdesc != sys.stdin:
+            fdesc.close()
 
-    if scriptletFile:
-        fd = open(scriptletFile, "r")
-        scriptlet = fd.read()
-        fd.close()
+    if scriptlet_file:
+        fdesc = open(scriptlet_file, "r")
+        scriptlet = fdesc.read()
+        fdesc.close()
 
     fails = 0
-    for w in wikiList:
-        pr = PhpRunner(scriptPath, scriptlet, multiversion, w)
-        if not pr.runPhpScriptlet():
+    for wiki in wiki_list:
+        prunner = PhpRunner(script_path, scriptlet, multiversion, wiki)
+        if not prunner.run_php_scriptlet():
             fails += 1
     if fails:
         sys.stderr.write("%s job(s) failed, see output for details.\n" % fails)
+
+
+if __name__ == "__main__":
+    do_main()
