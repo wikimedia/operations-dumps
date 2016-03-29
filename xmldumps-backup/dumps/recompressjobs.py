@@ -4,11 +4,11 @@ from other dump jobs are defined here
 '''
 
 from os.path import exists
-
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
 from dumps.xmljobs import XmlDump
+
 
 class XmlMultiStreamDump(XmlDump):
     """Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
@@ -114,7 +114,7 @@ class XmlMultiStreamDump(XmlDump):
         elif self._parts_enabled and not self._partnum_todo:
             # must set up each parallel job separately, they may have checkpoint files that
             # need to be processed in series, it's a special case
-            for partnum in range(1, len(self._parts)+1):
+            for partnum in range(1, len(self._parts) + 1):
                 output_files = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
                 series = self.build_command(runner, output_files)
                 commands.append(series)
@@ -279,7 +279,7 @@ class XmlRecompressDump(Dump):
         elif self._parts_enabled and not self._partnum_todo:
             # must set up each parallel job separately, they may have checkpoint files that
             # need to be processed in series, it's a special case
-            for partnum in range(1, len(self._parts)+1):
+            for partnum in range(1, len(self._parts) + 1):
                 output_files = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
                 series = self.build_command(runner, output_files)
                 commands.append(series)

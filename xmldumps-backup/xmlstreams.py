@@ -40,7 +40,7 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
 
     if interval is None:
         # hope this is not too awful a guess
-        interval = (int(end) - int(start))/12
+        interval = (int(end) - int(start)) / 12
         if interval > max_interval:
             interval = max_interval
 

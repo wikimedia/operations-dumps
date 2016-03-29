@@ -24,7 +24,8 @@ def dologsbackup(wikidb, outfile,
     '''
     outfiles = {'logs': {'name': outfile}}
     for filetype in outfiles:
-        outfiles[filetype]['temp'] = os.path.join(wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
+        outfiles[filetype]['temp'] = os.path.join(
+            wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:

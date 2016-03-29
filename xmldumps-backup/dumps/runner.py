@@ -11,7 +11,8 @@ from dumps.exceptions import BackupError
 from dumps.fileutils import DumpDir, DumpFilename
 
 from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
-from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump, RecombineXmlStub, RecombineXmlRecompressDump
+from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
+from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
 from dumps.xmljobs import XmlDump, XmlLogging, XmlStub, BigXmlDump, AbstractDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 
@@ -346,15 +347,15 @@ class DumpItemList(object):
             elif job.name().startswith("wbc_"):
                 if self._is_wikidata_client:
                     self.dump_items.append(job)
-                
+
     def append_job(self, jobname, job):
         if jobname not in self.skip_jobs:
             self.dump_items.append(job)
 
     def all_possible_jobs_done(self):
         for item in self.dump_items:
-            if (item.status() != "done" and item.status() != "failed"
-                    and item.status() != "skipped"):
+            if (item.status() != "done" and item.status() != "failed" and
+                    item.status() != "skipped"):
                 return False
         return True
 
@@ -466,7 +467,8 @@ class Runner(object):
             # we should get file partnum if any
             if self._partnum_todo is None and fname.partnum_int:
                 self._partnum_todo = fname.partnum_int
-            elif self._partnum_todo is not None and fname.partnum_int and self._partnum_todo != fname.partnum_int:
+            elif (self._partnum_todo is not None and fname.partnum_int and
+                    self._partnum_todo != fname.partnum_int):
                 raise BackupError("specifed partnum to do does not match part number "
                                   "of checkpoint file %s to redo", self.checkpoint_file)
             self.checkpoint_file = fname
@@ -555,7 +557,6 @@ class Runner(object):
                                    self.dumpjobdata, self.enabled,
                                    self.failurehandler,
                                    self.log_and_print, self.verbose)
-
 
     def log_queue_reader(self, log):
         if not log:
@@ -817,4 +818,3 @@ class Runner(object):
             else:
                 self.debug("Creating %s ..." % dirname)
                 os.makedirs(dirname)
-

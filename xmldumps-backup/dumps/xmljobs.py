@@ -100,7 +100,7 @@ class XmlStub(Dump):
         if outf.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, outf.partnum_int-1)]) + 1
+            start = sum([self._parts[i] for i in range(0, outf.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
@@ -421,7 +421,8 @@ class XmlDump(Dump):
                     self.item_for_stubs.get_filetype(),
                     self.item_for_stubs.get_file_ext(),
                     fileobj.partnum,
-                    DumpFilename.make_checkpoint_string(fileobj.first_page_id, fileobj.last_page_id), temp=True)
+                    DumpFilename.make_checkpoint_string(
+                        fileobj.first_page_id, fileobj.last_page_id), temp=True)
 
                 self.write_partial_stub(stub_for_file, stub_output_file, runner)
                 if not self.has_no_entries(stub_output_file, runner):
@@ -513,7 +514,7 @@ class XmlDump(Dump):
             return None
 
         dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
-                        fileobj, self.verbose)
+                            fileobj, self.verbose)
         pipeline = dumpfile.setup_uncompression_command()
 
         tail = self.wiki.config.tail
@@ -716,7 +717,7 @@ class XmlDump(Dump):
     def _find_previous_dump(self, runner, partnum=None):
         """The previously-linked previous successful dump."""
         if partnum:
-            start_page_id = sum([self._parts[i] for i in range(0, int(partnum)-1)]) + 1
+            start_page_id = sum([self._parts[i] for i in range(0, int(partnum) - 1)]) + 1
             if len(self._parts) > int(partnum):
                 end_page_id = sum([self._parts[i] for i in range(0, int(partnum))])
             else:
@@ -861,7 +862,7 @@ class AbstractDump(Dump):
         if fname.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, fname.partnum_int-1)]) + 1
+            start = sum([self._parts[i] for i in range(0, fname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
