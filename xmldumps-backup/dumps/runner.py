@@ -15,6 +15,7 @@ from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
 from dumps.xmljobs import XmlDump, XmlLogging, XmlStub, BigXmlDump, AbstractDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
+from dumps.flowjob import FlowDump
 
 from dumps.runnerutils import RunSettings, SymLinks, Feeds, NoticeFile
 from dumps.runnerutils import Checksummer, IndexHtml, StatusHtml, FailureHandler
@@ -69,6 +70,7 @@ class DumpItemList(object):
         self._has_wikidata = self.wiki.has_wikidata()
         self._has_global_usage = self.wiki.has_global_usage()
         self._is_wikidata_client = self.wiki.is_wikidata_client()
+        self._has_flow = self.wiki.has_flow()
         self._prefetch = prefetch
         self._spawn = spawn
         self.filepart = filepart
@@ -262,6 +264,9 @@ class DumpItemList(object):
                         "Tracks which pages use which Wikidata items or properties " +
                         "and what aspect (e.g. item label) is used."))
 
+        self.append_job_if_needed(
+            FlowDump("xmlflowdump", "content of flow pages in xml format"))
+
         self.dump_items.append(
             BigXmlDump(
                 "meta-history",
@@ -337,18 +342,21 @@ class DumpItemList(object):
             if self.filepart.parts_enabled():
                 if 'metahistory' not in job.name() or self.filepart.recombine_history():
                     self.dump_items.append(job)
-            elif job.name().startswith("wb_") or job.name() == "sitestable":
-                if self._has_wikidata:
-                    self.dump_items.append(job)
-            elif job.name().startswith("flagged"):
-                if self._has_flagged_revs:
-                    self.dump_items.append(job)
-            elif job.name().startswith("global"):
-                if self._has_global_usage:
-                    self.dump_items.append(job)
-            elif job.name().startswith("wbc_"):
-                if self._is_wikidata_client:
-                    self.dump_items.append(job)
+        elif job.name().startswith("wb_") or job.name() == "sitestable":
+            if self._has_wikidata:
+                self.dump_items.append(job)
+        elif job.name().startswith("flagged"):
+            if self._has_flagged_revs:
+                self.dump_items.append(job)
+        elif job.name().startswith("global"):
+            if self._has_global_usage:
+                self.dump_items.append(job)
+        elif job.name().startswith("wbc_"):
+            if self._is_wikidata_client:
+                self.dump_items.append(job)
+        elif 'flow' in job.name():
+            if self._has_flow:
+                self.dump_items.append(job)
 
     def append_job(self, jobname, job):
         if jobname not in self.skip_jobs:
