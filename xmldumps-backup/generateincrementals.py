@@ -82,7 +82,7 @@ class Index(object):
                 log(self.verbose, "result for wiki %s is %s"
                     % (wiki, result))
                 text = text + "<li>" + result + "</li>\n"
-        index_text = (self._config.readTemplate("incrs-index.html")
+        index_text = (self._config.read_template("incrs-index.html")
                       % {"items": text})
         FileUtils.write_file_in_place(self.indexfile.get_path(),
                                       index_text, self._config.fileperms)
@@ -330,9 +330,10 @@ class IncrDump(object):
         if self.dryrun:
             print "would run command for stubs dump:", command
         else:
-            error = RunSimpleCommand.run_with_no_output(command, shell=False)
-            if error:
-                log(self.verbose, "error producing stub files for wiki"
+            success = RunSimpleCommand.run_with_no_output(
+                command, shell=False, verbose=self.verbose)
+            if not success:
+                log(self.verbose, "error producing stub files for wiki %s"
                     % self.wikiname)
                 return False
         return True
@@ -350,8 +351,8 @@ class IncrDump(object):
         if self.dryrun:
             print "would run command for revs dump:", command
         else:
-            error = RunSimpleCommand.run_with_no_output(command, shell=False)
-            if error:
+            success = RunSimpleCommand.run_with_no_output(command, shell=False)
+            if not success:
                 log(self.verbose, "error producing revision text files"
                     " for wiki" % self.wikiname)
                 return False
