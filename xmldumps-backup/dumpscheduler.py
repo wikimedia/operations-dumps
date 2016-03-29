@@ -31,7 +31,7 @@ def line_to_entry(line, total_slots):
     if count == 'max':
         # figure out how many jobs can run at once given the
         # total slots available
-        count = str(total_slots/int(slots))
+        count = str(total_slots / int(slots))
 
     return {'slots': int(slots),
             'count': int(count),
@@ -385,6 +385,7 @@ class Scheduler(object):
             entry['processes'] = []
             self.commands.append(entry)
 
+
 def usage(message=None):
     '''
     display a helpful usage message with
@@ -446,11 +447,13 @@ Lines starting with space or # are skipped.
 
 Example entry:
 
-4 2 continue none bash ./worker --config confs/wikidump.conf.bigwikis --job articlesdump --date last > /var/log/dumps/junk
+4 2 continue none bash ./worker --config confs/wikidump.conf.bigwikis \
+      --job articlesdump --date last > /var/log/dumps/junk
 
 This says that each process takes 4 slots, we want two of these to run (at most) at
 once, and the full command to run is
-  bash ./worker --config confs/wikidump.conf.bigwikis --job articlesdump --date last > /var/log/dumps/junk
+  bash ./worker --config confs/wikidump.conf.bigwikis \
+      --job articlesdump --date last > /var/log/dumps/junk
 
 """
     sys.stderr.write(usage_message)

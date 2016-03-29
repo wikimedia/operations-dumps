@@ -17,6 +17,7 @@ from dumps.runner import Runner
 from dumps.WikiDump import Wiki, Config, Locker
 from dumps.utils import TimeUtils
 
+
 def command_has_wiki(pid, wikiname):
     '''
     see if the process with the given pid is operating on the

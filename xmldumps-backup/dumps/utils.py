@@ -4,9 +4,7 @@ misc utils for dumps
 
 import os
 import re
-import sys
 import time
-import traceback
 import socket
 
 from os.path import exists
@@ -109,7 +107,8 @@ class DbServerInfo(object):
             command_list[i] = MiscUtils.shell_escape(command_list[i])
         command = " ".join(command_list)
         command = "%s -q %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
-        results = RunSimpleCommand.run_with_output(command, shell=True, log_callback=self.error_callback).strip()
+        results = RunSimpleCommand.run_with_output(
+            command, shell=True, log_callback=self.error_callback).strip()
         if not results:
             raise BackupError("Failed to get database connection " +
                               "information for %s, bailing." % self.wiki.config.php)
@@ -343,7 +342,7 @@ class FilePartInfo(object,):
                 raise BackupError("Failed to get DB stats, exiting")
             if self.wiki.config.numparts_for_abstract:
                 # we add 200 padding to cover new pages that may be added
-                pages_per_filepart = 200 + self.stats.total_pages/int(
+                pages_per_filepart = 200 + self.stats.total_pages / int(
                     self.wiki.config.numparts_for_abstract)
                 self._pages_per_filepart_abstract = [pages_per_filepart for i in range(
                     0, int(self.wiki.config.numparts_for_abstract))]
@@ -367,7 +366,7 @@ class FilePartInfo(object,):
                     self._num_parts_history = self.get_num_parts_for_xml_dumps(
                         self.stats.total_edits, self._pages_per_filepart_history[0])
                     self._revs_per_filepart_history = [self._revs_per_filepart_history[0]
-                                                    for i in range(self._num_parts_history)]
+                                                       for i in range(self._num_parts_history)]
                 else:
                     self._num_parts_history = len(self._revs_per_filepart_history)
                 # here we should generate the number of pages per filepart based on number of revs.
@@ -378,7 +377,7 @@ class FilePartInfo(object,):
                     self._num_parts_history = self.get_num_parts_for_xml_dumps(
                         self.stats.total_pages, self._pages_per_filepart_history[0])
                     self._pages_per_filepart_history = [self._pages_per_filepart_history[0]
-                                                     for i in range(self._num_parts_history)]
+                                                        for i in range(self._num_parts_history)]
                 else:
                     self._num_parts_history = len(self._pages_per_filepart_history)
             else:
@@ -389,7 +388,7 @@ class FilePartInfo(object,):
                     self._num_parts_abstract = self.get_num_parts_for_xml_dumps(
                         self.stats.total_pages, self._pages_per_filepart_abstract[0])
                     self._pages_per_filepart_abstract = [self._pages_per_filepart_abstract[0]
-                                                      for i in range(self._num_parts_abstract)]
+                                                         for i in range(self._num_parts_abstract)]
                 else:
                     self._num_parts_abstract = len(self._pages_per_filepart_abstract)
             else:
@@ -429,7 +428,7 @@ class FilePartInfo(object,):
             # default: no file parts.
             return 0
         else:
-            parts = int(total/per_filepart)
+            parts = int(total / per_filepart)
             # more smaller parts are better, we want speed
             if (total - (parts * per_filepart)) > 0:
                 parts = parts + 1

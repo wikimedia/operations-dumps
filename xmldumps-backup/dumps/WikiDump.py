@@ -21,7 +21,7 @@ class Config(object):
         self.files = [
             os.path.join(home, config_file),
             "/etc/wikidump.conf"
-            ]
+        ]
         home = os.getenv("HOME")
         if home is not None:
             self.files.append(os.path.join(os.getenv("HOME"),
@@ -100,9 +100,9 @@ class Config(object):
             "checkpointTime": "0",
             # "otherformats": {
             "multistream": "0",
-            #"query":{
+            # "query":{
             "queryfile": "wikiquery.sql"
-            }
+        }
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
 
@@ -426,7 +426,7 @@ class Wiki(object):
         web_root_rel = self.web_dir()
         i = web_root_rel.find("://")
         if i >= 0:
-            web_root_rel = web_root_rel[i+3:]
+            web_root_rel = web_root_rel[i + 3:]
         i = web_root_rel.find("/")
         if i >= 0:
             web_root_rel = web_root_rel[i:]

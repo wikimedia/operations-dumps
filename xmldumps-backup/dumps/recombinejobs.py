@@ -4,10 +4,10 @@ dump jobs are defined here
 '''
 
 from os.path import exists
-
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
 from dumps.xmljobs import XmlDump
+
 
 class RecombineXmlStub(Dump):
     def __init__(self, name, desc, item_for_xml_stubs):

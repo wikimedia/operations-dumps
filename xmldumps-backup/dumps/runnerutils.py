@@ -13,6 +13,7 @@ from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFile, DumpFilename, FileUtils
 from dumps.utils import TimeUtils
 
+
 def xml_escape(text):
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -192,7 +193,7 @@ class IndexHtml(object):
             me_index = dumps_in_order.index(self.wiki.date)
             # don't wrap around to the newest dump in the list!
             if me_index > 0:
-                raw_date = dumps_in_order[me_index-1]
+                raw_date = dumps_in_order[me_index - 1]
             elif me_index == 0:
                 # We are the first item in the list. This is not an error, but there is no
                 # previous dump
@@ -261,6 +262,7 @@ class IndexHtml(object):
                     self.error_callback(message)
                 else:
                     sys.stderr.write("%s\n" % message)
+
 
 class FailureHandler(object):
     '''
@@ -926,7 +928,7 @@ class RunInfoFile(object):
 
     # find desc in there, look for "class='done'"
     def _get_status_from_html_line(self, line, desc):
-        if ">"+desc+"<" not in line:
+        if ">" + desc + "<" not in line:
             return None
         if "<li class='done'>" in line:
             return "done"
@@ -952,5 +954,3 @@ class RunInfoFile(object):
                 sys.stderr.write(repr(traceback.format_exception(
                     exc_type, exc_value, exc_traceback)))
             return None
-
-

@@ -313,7 +313,7 @@ class Dump(object):
             if self._partnum_todo:
                 return [self._partnum_todo]
             else:
-                return range(1, len(self._parts)+1)
+                return range(1, len(self._parts) + 1)
         else:
             return False
 
