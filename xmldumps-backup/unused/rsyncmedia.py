@@ -96,7 +96,8 @@ class Rsyncer(object):
             if error:
                 sys.stderr.write("%s\n" % error)
         return proc.returncode, output
-    
+
+
 class RsyncProject(object):
     def __init__(self, rsyncer, wiki, wtype, wikidir):
         self.rsyncer = rsyncer
@@ -152,7 +153,7 @@ class RsyncProject(object):
             filesFrom = self.getFilesFrom(d)
             localPath = self.getLocalPath(d)
             self.rsyncer.doRsync(filesFrom, localPath)
-        
+
     def doNormalRsync(self):
         # for anything not big or huge, get list of media dirs that the wiki has, this will be the list of dirs we want
         if self.rsyncer.verbose or self.rsyncer.dryrun:
@@ -213,7 +214,7 @@ def usage(message = None):
         sys.stderr.write("wiki             name of wikidb for rsync; if specified, this will override\n")
         sys.stderr.write("                 any file given for 'wikilist'.\n")
         sys.exit(1)
-                         
+
 def getCommaSepList(text):
     if text:
         if ',' in text:
