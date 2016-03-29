@@ -134,10 +134,12 @@ class Index(object):
                 log(self.verbose, "revs for %s %s %s"
                     % (wiki, safe(revs_date), safe(revs_size)))
                 if revs_date:
-                    revs_text = ("revs: %s (size %s)"
-                                 % (Link.make_link(os.path.join(
-                                     wiki, incr_date, revs.get_filename()),
-                                                   revs_date), revs_size))
+                    revs_text = (
+                        "revs: %s (size %s)" % (
+                            Link.make_link(
+                                os.path.join(
+                                    wiki, incr_date, revs.get_filename()),
+                                revs_date), revs_size))
                 else:
                     revs_text = None
 
@@ -437,10 +439,9 @@ class IncrDumpLoop(object):
 
 
 def cutoff_from_date(date, config):
-    return time.strftime("%Y%m%d%H%M%S",
-                         time.gmtime(calendar.timegm(time.strptime(
-                             date + "235900UTC", "%Y%m%d%H%M%S%Z"))
-                                     - config.delay))
+    return time.strftime(
+        "%Y%m%d%H%M%S", time.gmtime(calendar.timegm(
+            time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
 
 
 def usage(message=None):

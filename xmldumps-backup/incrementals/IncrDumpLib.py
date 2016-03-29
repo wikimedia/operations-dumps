@@ -204,7 +204,7 @@ class Config(dumps.WikiDump.Config):
             "multiversion": "",
             # "cleanup": {
             "keep": "3",
-            }
+        }
 
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
