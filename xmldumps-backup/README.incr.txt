@@ -25,10 +25,10 @@ and which will sit around on your website for some days or potentially be archiv
 elsewhere.  This field is configurable in the configuration file; see README.config
 for information on that.
 
-Installation: 
+Installation:
 
 Seriously?  You want to install this already?  This is version 0.0.1.  Know
-what that means? It's buggy, risky, and could eat your data.  
+what that means? It's buggy, risky, and could eat your data.
 
 However, if you just want to play around with it on your laptop, fine.
 * Put the files generateincrementals.py and IncrDumpLib.py together with
@@ -43,7 +43,7 @@ However, if you just want to play around with it on your laptop, fine.
   for each wiki, along with links to the stub and revisions files, will be
   included as a list item in that spot in the file.
 * See README.config for information on the various options in the config file.
-* Create the top level directory underneath which there will be a directory 
+* Create the top level directory underneath which there will be a directory
   for each project you want to generate additions/changes. You needn't create
   the subdirectories, this will be done for you at run time.
 * Do a test run.  Then look in the top level directory you created earlier.
@@ -53,8 +53,8 @@ However, if you just want to play around with it on your laptop, fine.
   integer, a stubs files and a pages file, and a status file containing the
   text 'done'?  The file listing should look like the following:
     maxrevid.txt
-    mywiki-yyyymmdd-md5sums.txt                   
-    mywiki-yyyymmdd-pages-meta-hist-incr.xml.bz2  
+    mywiki-yyyymmdd-md5sums.txt
+    mywiki-yyyymmdd-pages-meta-hist-incr.xml.bz2
     mywiki-yyyymmdd-stubs-meta-hist-incr.xml.gz
     maxrevid.txt
     status.txt

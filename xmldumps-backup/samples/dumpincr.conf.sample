@@ -13,7 +13,7 @@ templatedir=/home/backups/incrementals
 temp=/dumps/temp
 webroot=http://localhost/mydumps
 fileperms=0644
-# minimum number of seconds from revision creation 
+# minimum number of seconds from revision creation
 # til it can be dumped
 delay=43200
 
