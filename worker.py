@@ -4,7 +4,6 @@ import getopt
 import md5
 import os
 import popen2
-import re
 import sys
 import time
 import WikiDump
@@ -382,7 +381,7 @@ class Runner(object):
 		if dir:
 			status = join(self.publicBase(db), db, dir, "status.html")
 			try:
-				return readFile(status)
+				return WikiDump.readFile(status)
 			except:
 				return "<li>%s missing status record</li>" % db
 		else:
@@ -516,7 +515,7 @@ class Runner(object):
 	def prepareChecksums(self):
 		"""Create the md5 checksum file at the start of the run.
 		This will overwrite a previous run's output, if any."""
-		output = file(self.publicPath("md5sums.txt"), "w")
+		file(self.publicPath("md5sums.txt"), "w")
 
 	def checksum(self, filename):
 		"""Run checksum for an output file, and append to the list."""
@@ -897,7 +896,7 @@ class XmlRecompressDump(Dump):
 			xmlbz2,
 			runner.config.sevenzip,
 			xml7z,
-			xml7z));
+			xml7z))
 
 		return runner.runCommand(command, callback=self.progressCallback)
 
@@ -921,12 +920,12 @@ class AbstractDump(Dump):
 	%s \
 	--server=%s \
 """ % shellEscape((
-				runner.config.php,
-				runner.config.wikiDir,
-				runner.dbName,
-				runner.config.wikiDir,
-				runner.forceNormalOption(),
-				runner.dbServer))
+			runner.config.php,
+			runner.config.wikiDir,
+			runner.dbName,
+			runner.config.wikiDir,
+			runner.forceNormalOption(),
+			runner.dbServer))
 		for variant in self._variants(runner):
 			command = command + """  --output=file:%s \
 	--filter=namespace:NS_MAIN \

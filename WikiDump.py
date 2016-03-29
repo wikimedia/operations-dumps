@@ -127,7 +127,7 @@ class Config(object):
 			"mysql": "mysql",
 			#"cleanup": {
 			"keep": "3",
-			}
+		}
 		conf = ConfigParser.SafeConfigParser(defaults)
 		conf.read(files)
 
@@ -201,7 +201,7 @@ class Config(object):
 			dumpFailed = (status == '') or ('dump aborted' in status)
 			available.append((dumpFailed, age, db))
 		available.sort()
-		return [db for (failed, age, db) in available]
+		return [db for (failed, avail_age, db) in available]
 
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
