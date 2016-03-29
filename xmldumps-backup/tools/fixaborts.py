@@ -10,6 +10,7 @@ import os
 import sys
 import getopt
 
+
 def usage(message=None):
     '''
     display a helpful usage message
@@ -162,8 +163,10 @@ def update_status(wiki, dumpdir, date, new_status_date):
     file, create a new status file with that date and time and
     a status of 'done'
     '''
-    # <li>2016-02-13 02:55:36 <a href="enwiktionary/20160203">enwiktionary</a>: <span class='done'>Dump complete</span></li>
-    # <li>2016-03-03 03:12:33 <a href="avwiktionary/20160203">avwiktionary</a>: <span class="failed">dump aborted</span></li>
+    # <li>2016-02-13 02:55:36 <a href="enwiktionary/20160203">enwiktionary</a>: \
+    #    <span class='done'>Dump complete</span></li>
+    # <li>2016-03-03 03:12:33 <a href="avwiktionary/20160203">avwiktionary</a>: \
+    #    <span class="failed">dump aborted</span></li>
     statusfile = get_status_filepath(wiki, dumpdir, date)
     new_content_format = ('<li>{0} <a href="{1}/{2}">{1}</a>: '
                           '<span class="done">Dump complete</span></li>\n')

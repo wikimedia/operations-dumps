@@ -1,17 +1,19 @@
 # this script reads from stdin a sql file created by mysqldump, grabs the requested columns from
-# the requested table from each tuple, and writes them out one tuple per line 
+# the requested table from each tuple, and writes them out one tuple per line
 # with a comma between columns, keeping the original escaping of values as done by mysql.
 
 import getopt
-import os
 import re
 import sys
+
 
 class ConverterError(Exception):
     pass
 
+
 class MysqlFile:
-    def __init__(self, f, tableRequested, columnsRequested, valuesRequestedCols, valuesRequestedVals, fieldSeparator):
+    def __init__(self, f, tableRequested, columnsRequested, valuesRequestedCols,
+                 valuesRequestedVals, fieldSeparator):
         self.file = f
         self.tableRequested = tableRequested
         self.columnsRequested = columnsRequested
@@ -43,7 +45,7 @@ class MysqlFile:
         if not tableFound:
             raise ConverterError("create statement for requested table not found in file")
 
-    def getLine(self, maxbytes = 0):
+    def getLine(self, maxbytes=0):
         """returns line including the \n, up to maxbytes"""
         line = ""
         length = 0
@@ -52,7 +54,7 @@ class MysqlFile:
         while self.buffer[self.bufferInd] != '\n':
                 line = line + self.buffer[self.bufferInd]
                 if not self.incrementBufferPtr():
-                   return False
+                    return False
                 length = length + 1
                 if maxbytes and length == maxbytes:
                     return line
@@ -65,10 +67,10 @@ class MysqlFile:
         # skip up to the newline...
         while self.buffer[self.bufferInd] != '\n':
                 if not self.incrementBufferPtr():
-                   return False
+                    return False
         # and now the newline.
         return self.incrementBufferPtr()
-        
+
     def findInsertStatement(self):
         """leave the file contents at the line immediately following
         an INSERT statement"""
@@ -90,14 +92,14 @@ class MysqlFile:
         self.columnsInTable = []
         columnNameExpr = re.compile('\s+`([^`]+)`')
         line = self.getLine()
-        while (line and not self.eof and line[0] != ')' ):
+        while (line and not self.eof and line[0] != ')'):
             columnNameMatch = columnNameExpr.match(line)
             if (columnNameMatch):
                 self.columnsInTable.append(columnNameMatch.group(1))
             line = self.getLine()
 
         for c in self.columnsRequested:
-            if not c in self.columnsInTable:
+            if c not in self.columnsInTable:
                 raise ConverterError("requested column %s not found in table" % c)
 
 #        print "columns in table: ", self.columnsInTable
@@ -110,16 +112,16 @@ class MysqlFile:
                 v = v | self.GET
             if c in self.valuesRequestedCols:
                 v = v | self.CHECK
-            self.columnsToGet.append( v )
+            self.columnsToGet.append(v)
 
 #        print "columns to get: ", self.columnsToGet
 
         self.columnOrder = []
         # we want here a list which tells us to
         # write the ith column we read from tuple first,
-        # the jth one second, the kth one third etc. 
+        # the jth one second, the kth one third etc.
         columnsToGetTrue = []
-        for i in range(0,len(self.columnsToGet)):
+        for i in range(0, len(self.columnsToGet)):
             if self.columnsToGet[i] & self.GET:
                 columnsToGetTrue.append(self.columnsInTable[i])
         for c in self.columnsRequested:
@@ -127,19 +129,19 @@ class MysqlFile:
 
 #        print "column order: ", self.columnOrder
 
-    def whine(self, message = None):
+    def whine(self, message=None):
         if (message):
-            raise ConverterError("whine whine whine: " + message )
+            raise ConverterError("whine whine whine: " + message)
         else:
             raise ConverterError("whine whine whine. failed to parse a row.")
 
     def getColumnsFromRow(self):
         """returns a list of column values extracted from a row.
-        f is an open input file positioned at the beginning of a 
+        f is an open input file positioned at the beginning of a
         tuple representing a row in mysql output format,
         colsToGet is a list of True/False correspnding to which
         elements in the tuple we want to retrieve and return"""
-    
+
 #        print "buffer is ", self.buffer[self.bufferInd:self.bufferInd+80], "..."
         if not self.skipStartOfRow():
             self.whine("couldn't find start of row")
@@ -177,7 +179,7 @@ class MysqlFile:
         return True
 
     def skipEndOfRow(self):
-        # expect... what do we expect? ); or ), 
+        # expect... what do we expect? ); or ),
         # the first means end of row with no more rows after, the second means end of
         # specific row only
         if not self.skipChar(')'):
@@ -190,12 +192,12 @@ class MysqlFile:
             self.skipChar('\n')
 
     def getColValue(self):
-        #expect: a string of digits 
-        # or: '  some stuff, ' 
-        value=""
+        # expect: a string of digits
+        # or: '  some stuff, '
+        value = ""
         if (self.buffer[self.bufferInd].isdigit()):
             while self.buffer[self.bufferInd].isdigit():
-                value=value + self.buffer[self.bufferInd]
+                value = value + self.buffer[self.bufferInd]
                 if not self.incrementBufferPtr():
                     return False
             # there will be a comma before the next
@@ -208,20 +210,20 @@ class MysqlFile:
             escaped = False
             while not done:
                 if self.buffer[self.bufferInd] != "'" and self.buffer[self.bufferInd] != '\\':
-                    value=value + self.buffer[self.bufferInd]
+                    value = value + self.buffer[self.bufferInd]
                     if not self.incrementBufferPtr():
                         return False
                     escaped = False
                 elif self.buffer[self.bufferInd] == "'":
-                    value=value + self.buffer[self.bufferInd]
+                    value = value + self.buffer[self.bufferInd]
                     if not self.incrementBufferPtr():
                         return False
                     if not escaped:
                         done = True
                     else:
                         escaped = False
-                else: # escape char \ found
-                    value=value + self.buffer[self.bufferInd]
+                else:  # escape char \ found
+                    value = value + self.buffer[self.bufferInd]
                     if not self.incrementBufferPtr():
                         return False
                     if escaped:
@@ -237,11 +239,14 @@ class MysqlFile:
             self.whine()
 
     def skipColValue(self):
-        #expect: a string of digits with possibly a . in there
-        # or: '  some stuff, ' 
+        # expect: a string of digits with possibly a . in there
+        # or: '  some stuff, '
         if (self.buffer[self.bufferInd].isdigit()):
             # might have a float so... crudely...
-            while self.buffer[self.bufferInd].isdigit() or self.buffer[self.bufferInd] == '.' or self.buffer[self.bufferInd] == 'e' or self.buffer[self.bufferInd] == '-':
+            while (self.buffer[self.bufferInd].isdigit() or
+                   self.buffer[self.bufferInd] == '.' or
+                   self.buffer[self.bufferInd] == 'e' or
+                   self.buffer[self.bufferInd] == '-'):
                 if not self.incrementBufferPtr():
                     return False
             # there will be a comma before the next
@@ -262,7 +267,7 @@ class MysqlFile:
                         done = True
                     else:
                         escaped = False
-                else: # escape char \ found
+                else:  # escape char \ found
                     if not self.incrementBufferPtr():
                         return False
                     if escaped:
@@ -274,7 +279,7 @@ class MysqlFile:
                 # column if we aren't at the end of the row.
                 self.skipChar(',')
         else:
-#            print "buffer is ", self.buffer[self.bufferInd:self.bufferInd+80], "..."
+            # print "buffer is ", self.buffer[self.bufferInd:self.bufferInd+80], "..."
             self.whine("failed to parse a value, found start character " + self.buffer[self.bufferInd])
 
     def skipChar(self, c):
@@ -288,12 +293,12 @@ class MysqlFile:
     def incrementBufferPtr(self):
         self.bufferInd = self.bufferInd + 1
         if self.bufferInd == len(self.buffer):
-            return self.fillBuffer() # this will move the index accordingly
+            return self.fillBuffer()  # this will move the index accordingly
         return True
 
     def fillBuffer(self):
         if self.bufferInd == len(self.buffer) and not self.rowsDone:
-            # we are out of data in the buffer, and there's more 
+            # we are out of data in the buffer, and there's more
             # rows to be gotten
 
             # fixme this should be a constant someplace configurable
@@ -311,20 +316,21 @@ class MysqlFile:
         return column
 
     def writeColumns(self, columns, outFile):
-        """takes a list of column values without names. 
-        must find the names these correspond to, figure out the right 
+        """takes a list of column values without names.
+        must find the names these correspond to, figure out the right
         order (or alternatively maybe we have a map that tells us the order)
         and write the values out in the new order."""
         if columns:
             ind = 0
             for i in self.columnOrder:
-                outFile.write(self.formatColumn(columns[i])) 
-                if ind < len(self.columnOrder)-1:
+                outFile.write(self.formatColumn(columns[i]))
+                if ind < len(self.columnOrder) - 1:
                     outFile.write(self.fieldSeparator)
                 ind = ind + 1
             outFile.write('\n')
 
-def usage(message = None):
+
+def usage(message=None):
     if message:
         print message
         print "Usage: python mysql2txt.py --table=tablename --columns=col1,col2... "
@@ -356,7 +362,8 @@ if __name__ == "__main__":
     fieldSeparator = ' '
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "", ['table=', 'columns=', 'values=', 'separator=' ])
+        (options, remainder) = getopt.gnu_getopt(
+            sys.argv[1:], "", ['table=', 'columns=', 'values=', 'separator='])
     except:
         usage("Unknown option specified")
 
@@ -367,14 +374,14 @@ if __name__ == "__main__":
             if ',' in val:
                 columnsRequested = val.split(',')
             else:
-                columnsRequested = [ val ]
+                columnsRequested = [val]
         elif opt == "--values":
             if ',' in val:
                 vlist = val.split(',')
             else:
-                vlist = [ val ]
-            valuesRequestedCols = [ v.split('=')[0] for v in vlist ]
-            valuesRequestedVals = [ v.split('=')[1] for v in vlist ]
+                vlist = [val]
+            valuesRequestedCols = [v.split('=')[0] for v in vlist]
+            valuesRequestedVals = [v.split('=')[1] for v in vlist]
         elif opt == "--separator":
             fieldSeparator = val
 
@@ -384,7 +391,8 @@ if __name__ == "__main__":
     if (not tableRequested or not columnsRequested):
         usage("Missing required option")
 
-    m = MysqlFile(sys.stdin, tableRequested, columnsRequested, valuesRequestedCols, valuesRequestedVals, fieldSeparator)
+    m = MysqlFile(sys.stdin, tableRequested, columnsRequested,
+                  valuesRequestedCols, valuesRequestedVals, fieldSeparator)
     m.fillBuffer()
 
     m.findCreateStatement()
@@ -401,5 +409,4 @@ if __name__ == "__main__":
             m.rowsDone = False
             m.findInsertStatement()
 
-    exit(0);
-
+    exit(0)

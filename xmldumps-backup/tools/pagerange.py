@@ -67,7 +67,7 @@ class PageRange(object):
 
         ranges = []
         page_start = 1
-        numrevs = self.total_revs/numjobs + 1
+        numrevs = self.total_revs / numjobs + 1
         prevguess = 0
         for jobnum in range(1, int(numjobs) + 1):
             if jobnum == numjobs:
@@ -75,7 +75,7 @@ class PageRange(object):
                 ranges.append((page_start, self.total_pages))
                 break
             numjobs_left = numjobs - jobnum + 1
-            interval = ((self.total_pages - page_start)/numjobs_left) + 1
+            interval = ((self.total_pages - page_start) / numjobs_left) + 1
             (start, end) = self.get_page_range(page_start, numrevs,
                                                page_start + interval, prevguess)
             page_start = end + 1
@@ -117,8 +117,8 @@ class PageRange(object):
         total = 0
         maxtodo = 1000000
 
-        runstodo = estimate/maxtodo + 1
-        step = (guess - page_start)/runstodo
+        runstodo = estimate / maxtodo + 1
+        step = (guess - page_start) / runstodo
         ends = range(page_start, guess, step)
 
         if ends[-1] != guess:
