@@ -162,8 +162,8 @@ class Index(object):
 
                 wiki_info = (" ".join(filter(None,
                                              [wikiname_text,
-                                              lock_text, stat_text]))
-                             + "<br />")
+                                              lock_text, stat_text])) +
+                             "<br />")
                 wiki_info = (wiki_info + " &nbsp;&nbsp; " +
                              " |  ".join(filter(None,
                                                 [stub_text, revs_text,
