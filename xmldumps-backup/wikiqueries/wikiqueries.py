@@ -11,7 +11,8 @@ import subprocess
 import socket
 import time
 from subprocess import Popen, PIPE
-from dumps.utils import RunSimpleCommand, DbServerInfo
+from dumps.utils import TimeUtils, RunSimpleCommand, DbServerInfo
+from dumps.fileutils import FileUtils
 from os.path import exists
 import hashlib
 import traceback
@@ -41,48 +42,6 @@ class OutputFile(ContentFile):
 
     def getFileName(self):
         return self.fileNameFormat.format(w=self.wikiName, d=self.date)
-
-
-class MiscUtils(object):
-    def dbList(filename):
-        """Read database list from a file"""
-        if not filename:
-            return []
-        infile = open(filename)
-        dbs = []
-        for line in infile:
-            line = line.strip()
-            if line != "":
-                dbs.append(line)
-        infile.close()
-        dbs.sort()
-        return dbs
-
-    def shellEscape(param):
-        """Escape a string parameter, or set of strings, for the shell."""
-        if isinstance(param, basestring):
-            return "'" + param.replace("'", "'\\''") + "'"
-        elif param is None:
-            # A blank string might actually be needed; None means
-            # we can leave it out
-            return ""
-        else:
-            return tuple([MiscUtils.shellEscape(x) for x in param])
-
-    def today():
-        return time.strftime("%Y%m%d", time.gmtime())
-
-    def readFile(filename):
-        """Read text from a file in one fell swoop."""
-        file = open(filename, "r")
-        text = file.read()
-        file.close()
-        return text
-
-    dbList = staticmethod(dbList)
-    shellEscape = staticmethod(shellEscape)
-    today = staticmethod(today)
-    readFile = staticmethod(readFile)
 
 
 class WQDbServerInfo(DbServerInfo):
@@ -121,11 +80,11 @@ class WikiQuery(object):
         self.query = query
         self.queryDir = QueryDir(self._config)
         if not self.query:
-            query = MiscUtils.readFile(self._config.queryFile)
+            query = FileUtils.read_file(self._config.queryFile)
         self.fileNameFormat = fileNameFormat
         self.date = date
         if not self.date:
-            self.date = MiscUtils.today()
+            self.date = TimeUtils.today()
         self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
@@ -175,7 +134,7 @@ class WikiQueryLoop(object):
         self.query = query
         self.date = date
         if not self.date:
-            self.date = MiscUtils.today()
+            self.date = TimeUtils.today()
         self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
