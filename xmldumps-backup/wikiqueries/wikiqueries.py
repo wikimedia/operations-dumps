@@ -39,21 +39,12 @@ class WikiQueriesError(Exception):
     pass
 
 
-class QueryDir(object):
-    def __init__(self, config):
-        self._config = config
-
-    def getQueryDir(self, wiki, date):
-        return self._config.wiki_queries_dir.format(w=wiki, d=date)
-
-
 class WikiQuery(object):
     def __init__(self, config, query, wikiName, fileNameFormat, date,
                  overwrite, dryrun, verbose):
         self._config = config
         self.wikiName = wikiName
         self.query = query
-        self.queryDir = QueryDir(self._config)
         if not self.query:
             query = FileUtils.read_file(self._config.queryFile)
         self.fileNameFormat = fileNameFormat
@@ -66,12 +57,12 @@ class WikiQuery(object):
 
     def doOneWiki(self):
         """returns true on success"""
+        queryDir = self._config.wiki_queries_dir.format(w=self.wikiName, d=self.date)
         if (self.wikiName not in self._config.privateWikisList and
                 self.wikiName not in self._config.closedWikisList and
                 self.wikiName not in self._config.skipWikisList):
-            if not exists(self.queryDir.getQueryDir(self.wikiName, self.date)):
-                os.makedirs(self.queryDir.getQueryDir(self.wikiName,
-                                                      self.date))
+            if not exists(queryDir):
+                os.makedirs(queryDir)
             try:
                 if self.verbose:
                     print "Doing run for wiki: ", self.wikiName
