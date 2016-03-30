@@ -11,6 +11,7 @@ import subprocess
 import socket
 import time
 from subprocess import Popen, PIPE
+from dumps.utils import RunSimpleCommand
 from os.path import exists
 import hashlib
 import traceback
@@ -39,7 +40,7 @@ class OutputFile(ContentFile):
         self.fileNameFormat = fileNameFormat
 
     def getFileName(self):
-        return fileNameFormat.format(w=self.wikiName, d=self.date)
+        return self.fileNameFormat.format(w=self.wikiName, d=self.date)
 
 
 class MultiVersion(object):
@@ -100,67 +101,6 @@ class MiscUtils(object):
     readFile = staticmethod(readFile)
 
 
-class RunSimpleCommand(object):
-    def runWithOutput(command, maxtries=3, shell=False, verbose=False):
-        """Run a command and return the output as a string.
-        Raises WikiQueriesError on non-zero return code."""
-
-        if type(command).__name__ == 'list':
-            commandString = " ".join(["'" + c + "'" for c in command])
-        else:
-            commandString = command
-        if verbose:
-            print "command to be run: ", commandString
-        success = False
-        tries = 0
-        while not success and tries < maxtries:
-            proc = Popen(command, shell=shell, stdout=PIPE, stderr=PIPE)
-            output, error = proc.communicate()
-            if not proc.returncode:
-                success = True
-            tries = tries + 1
-        if not success:
-            if proc:
-                raise WikiQueriesError("command '" + commandString +
-                                       ("' failed with return code %s "
-                                        % proc.returncode) +
-                                       " and error '" + error + "'")
-            else:
-                raise WikiQueriesError("command '" + commandString +
-                                       ("' failed") + " and error '" +
-                                       error + "'")
-        return output
-
-    def runWithNoOutput(command, maxtries=3, shell=False, verbose=False):
-        """Run a command, expecting no output.
-        Raises WikiQueriesError on non-zero return code."""
-
-        if type(command).__name__ == 'list':
-            commandString = " ".join(["'" + c + "'" for c in command])
-        else:
-            commandString = command
-        if verbose:
-            print "command to be run with no output: ", commandString
-        success = False
-        tries = 0
-        while (not success) and tries < maxtries:
-            proc = Popen(command, shell=shell, stderr=PIPE)
-            # output will be None, we can ignore it
-            output, error = proc.communicate()
-            if not proc.returncode:
-                success = True
-            tries = tries + 1
-        if not success:
-            raise WikiQueriesError("command '" + commandString +
-                                   ("' failed with return code %s "
-                                    % proc.returncode) + " and error '" +
-                                   error + "'")
-        return success
-
-    runWithOutput = staticmethod(runWithOutput)
-    runWithNoOutput = staticmethod(runWithNoOutput)
-
-
 class DBServer(object):
     def __init__(self, config, wikiName):
         self.config = config
@@ -175,7 +115,7 @@ class DBServer(object):
         command = [self.config.php, "-q"]
         command.extend(commandList)
         command.extend(["--wiki=%s" % self.wikiName, "--group=dump"])
-        return RunSimpleCommand.runWithOutput(command, shell=False).rstrip()
+        return RunSimpleCommand.run_with_output(command, shell=False).rstrip()
 
     def buildSqlCommand(self, query, outFile):
         """Put together a command to execute an sql query
@@ -232,7 +172,7 @@ class WikiQuery(object):
             try:
                 if self.verbose:
                     print "Doing run for wiki: ", self.wikiName
-                if not dryrun:
+                if not self.dryrun:
                     if not self.runWikiQuery():
                         return False
             except:
@@ -253,7 +193,7 @@ class WikiQuery(object):
                        % (self.wikiName, outFile.getPath()))
             return True
         db = DBServer(self._config, self.wikiName)
-        return RunSimpleCommand.runWithNoOutput(db.buildSqlCommand(
+        return RunSimpleCommand.run_with_no_output(db.buildSqlCommand(
             self.query, outFile.getPath()), maxtries=1, shell=True,
             verbose=self.verbose)
 
