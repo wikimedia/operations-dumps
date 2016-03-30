@@ -43,22 +43,6 @@ class OutputFile(ContentFile):
         return self.fileNameFormat.format(w=self.wikiName, d=self.date)
 
 
-class MultiVersion(object):
-    def MWScriptAsString(config, maintenanceScript):
-        return(" ".join(MultiVersion.MWScriptAsArray(config,
-                                                     maintenanceScript)))
-
-    def MWScriptAsArray(config, maintenanceScript):
-        if config.multiversion != "":
-            if exists(config.multiversion):
-                return [config.multiversion, maintenanceScript]
-        return ["%s/maintenance/%s" % (config.mediawiki,
-                                       maintenanceScript)]
-
-    MWScriptAsString = staticmethod(MWScriptAsString)
-    MWScriptAsArray = staticmethod(MWScriptAsArray)
-
-
 class MiscUtils(object):
     def dbList(filename):
         """Read database list from a file"""
