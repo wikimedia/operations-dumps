@@ -19,31 +19,6 @@ import traceback
 import shutil
 
 
-class ContentFile(object):
-    def __init__(self, config, date, wikiName):
-        self._config = config
-        self.date = date
-        self.queryDir = QueryDir(self._config)
-        self.wikiName = wikiName
-
-    # override this.
-    def getFileName(self):
-        return "content.txt"
-
-    def getPath(self):
-        return os.path.join(self.queryDir.getQueryDir(
-            self.wikiName, self.date), self.getFileName())
-
-
-class OutputFile(ContentFile):
-    def __init__(self, config, date, wikiName, fileNameFormat):
-        super(OutputFile, self).__init__(config, date, wikiName)
-        self.fileNameFormat = fileNameFormat
-
-    def getFileName(self):
-        return self.fileNameFormat.format(w=self.wikiName, d=self.date)
-
-
 class WQDbServerInfo(DbServerInfo):
     def buildSqlCommand(self, query, out_file):
         """Put together a command to execute an sql query
@@ -112,18 +87,19 @@ class WikiQuery(object):
         return True
 
     def runWikiQuery(self):
-        outFile = OutputFile(self._config, self.date, self.wikiName,
-                             self.fileNameFormat)
-        if not self.overwrite and exists(outFile.getPath()):
+        outFile = self.fileNameFormat.format(w=self.wikiName, d=self.date)
+        queryDir = self._config.wiki_queries_dir.format(w=self.wikiName, d=self.date)
+        fullPath = os.path.join(queryDir, outFile)
+        if not self.overwrite and exists(fullPath):
             # don't overwrite existing file, just return a happy value
             if self.verbose:
                 print ("Skipping wiki %s, file %s exists already"
-                       % (self.wikiName, outFile.getPath()))
+                       % (self.wikiName, fullPath))
             return True
         wiki = dumps.WikiDump.Wiki(self._config, self.wikiName)
         db = WQDbServerInfo(wiki, self.wikiName)
         return RunSimpleCommand.run_with_no_output(db.buildSqlCommand(
-            self.query, outFile.getPath()), maxtries=1, shell=True,
+            self.query, fullPath), maxtries=1, shell=True,
             verbose=self.verbose)
 
 
