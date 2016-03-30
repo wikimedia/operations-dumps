@@ -5,22 +5,17 @@ import getopt
 import os
 import re
 import sys
-import ConfigParser
 import dumps.WikiDump
-import subprocess
-import socket
 import time
-from subprocess import Popen, PIPE
+from os.path import exists
+import traceback
+from dumps.exceptions import BackupError
 from dumps.utils import TimeUtils, RunSimpleCommand, DbServerInfo
 from dumps.fileutils import FileUtils
-from os.path import exists
-import hashlib
-import traceback
-import shutil
 
 
 class WQDbServerInfo(DbServerInfo):
-    def buildSqlCommand(self, query, out_file):
+    def build_sql_command_tofile(self, query, out_file):
         """Put together a command to execute an sql query
         to the server for this DB."""
         if not exists(self.wiki.config.mysql):
@@ -35,19 +30,15 @@ class WQDbServerInfo(DbServerInfo):
         return command
 
 
-class WikiQueriesError(Exception):
-    pass
-
-
 class WikiQuery(object):
-    def __init__(self, config, query, wikiName, fileNameFormat, date,
+    def __init__(self, config, query, wiki_name, file_name_format, date,
                  overwrite, dryrun, verbose):
         self._config = config
-        self.wikiName = wikiName
+        self.wiki_name = wiki_name
         self.query = query
         if not self.query:
-            query = FileUtils.read_file(self._config.queryFile)
-        self.fileNameFormat = fileNameFormat
+            query = FileUtils.read_file(self._config.query_file)
+        self.file_name_format = file_name_format
         self.date = date
         if not self.date:
             self.date = TimeUtils.today()
@@ -55,47 +46,50 @@ class WikiQuery(object):
         self.dryrun = dryrun
         self.verbose = verbose
 
-    def doOneWiki(self):
+    def do_one_wiki(self):
         """returns true on success"""
-        queryDir = self._config.wiki_queries_dir.format(w=self.wikiName, d=self.date)
-        if (self.wikiName not in self._config.privateWikisList and
-                self.wikiName not in self._config.closedWikisList and
-                self.wikiName not in self._config.skipWikisList):
-            if not exists(queryDir):
-                os.makedirs(queryDir)
+
+        query_dir = self._config.wiki_queries_dir.format(w=self.wiki_name, d=self.date)
+        if (self.wiki_name not in self._config.private_list and
+                self.wiki_name not in self._config.closed_list and
+                self.wiki_name not in self._config.skip_db_list):
+            if not exists(query_dir):
+                os.makedirs(query_dir)
             try:
                 if self.verbose:
-                    print "Doing run for wiki: ", self.wikiName
+                    print "Doing run for wiki: ", self.wiki_name
                 if not self.dryrun:
-                    if not self.runWikiQuery():
+                    if not self.run_wiki_query():
                         return False
             except:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 return False
         if self.verbose:
-            print "Success!  Wiki", self.wikiName, "query complete."
+            print "Success!  Wiki", self.wiki_name, "query complete."
         return True
 
-    def runWikiQuery(self):
-        outFile = self.fileNameFormat.format(w=self.wikiName, d=self.date)
-        queryDir = self._config.wiki_queries_dir.format(w=self.wikiName, d=self.date)
-        fullPath = os.path.join(queryDir, outFile)
-        if not self.overwrite and exists(fullPath):
+    def run_wiki_query(self):
+
+        out_file = self.file_name_format.format(w=self.wiki_name, d=self.date)
+        query_dir = self._config.wiki_queries_dir.format(w=self.wiki_name, d=self.date)
+        full_path = os.path.join(query_dir, out_file)
+
+        if not self.overwrite and exists(full_path):
             # don't overwrite existing file, just return a happy value
             if self.verbose:
                 print ("Skipping wiki %s, file %s exists already"
-                       % (self.wikiName, fullPath))
+                       % (self.wiki_name, full_path))
             return True
-        wiki = dumps.WikiDump.Wiki(self._config, self.wikiName)
-        db = WQDbServerInfo(wiki, self.wikiName)
-        return RunSimpleCommand.run_with_no_output(db.buildSqlCommand(
-            self.query, fullPath), maxtries=1, shell=True,
+        wiki = dumps.WikiDump.Wiki(self._config, self.wiki_name)
+        server = WQDbServerInfo(wiki, self.wiki_name)
+        return RunSimpleCommand.run_with_no_output(server.build_sql_command_tofile(
+            self.query, full_path), maxtries=1, shell=True,
             verbose=self.verbose)
 
 
 class WikiQueryLoop(object):
-    def __init__(self, config, query, fileNameFormat, date, overwrite,
+    def __init__(self, config, query, file_name_format, date, overwrite,
                  dryrun, verbose):
         self._config = config
         self.query = query
@@ -105,29 +99,28 @@ class WikiQueryLoop(object):
         self.overwrite = overwrite
         self.dryrun = dryrun
         self.verbose = verbose
-        self.fileNameFormat = fileNameFormat
-        self.wikisToDo = self._config.allWikisList
+        self.file_name_format = file_name_format
+        self.wikis_to_do = self._config.db_list
 
-    def doRunOnAllWikis(self):
-        failures = 0
-        for w in self.wikisToDo[:]:
-            query = WikiQuery(self._config, self.query, w,
-                              self.fileNameFormat, self.date,
+    def do_run_on_all_wikis(self):
+        for wiki in self.wikis_to_do[:]:
+            query = WikiQuery(self._config, self.query, wiki,
+                              self.file_name_format, self.date,
                               self.overwrite, self.dryrun, self.verbose)
-            if query.doOneWiki():
-                self.wikisToDo.remove(w)
+            if query.do_one_wiki():
+                self.wikis_to_do.remove(wiki)
 
-    def doAllWikisTilDone(self, numFails):
-        """Run through all wikis, retrying up to numFails
+    def do_all_wikis_til_done(self, num_fails):
+        """Run through all wikis, retrying up to num_fails
         times in case of error"""
         fails = 0
         while 1:
-            self.doRunOnAllWikis()
-            if not len(self.wikisToDo):
+            self.do_run_on_all_wikis()
+            if not len(self.wikis_to_do):
                 break
             fails = fails + 1
-            if fails > numFails:
-                raise WikiQueriesError("Too many failures, giving up")
+            if fails > num_fails:
+                raise BackupError("Too many failures, giving up")
             # wait 5 minutes and try another loop
             time.sleep(300)
 
@@ -164,17 +157,17 @@ wikiname:         Run the query only for the specific wiki
     sys.stderr.write(usage_message)
     sys.exit(1)
 
+
 def do_main():
-    configFile = False
-    result = False
+    config_file = False
     dryrun = False
     date = None
-    outputDir = None
+    output_dir = None
     overwrite = True
     query = None
-    retries = 3
+    retries = "3"
     verbose = False
-    fileNameFormat = "{w}-{d}-wikiquery.gz"
+    file_name_format = "{w}-{d}-wikiquery.gz"
     try:
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "", ['configfile=', "date=", 'filenameformat=',
@@ -185,15 +178,15 @@ def do_main():
 
     for (opt, val) in options:
         if opt == "--configfile":
-            configFile = val
+            config_file = val
         elif opt == "--date":
             date = val
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--filenameformat":
-            fileNameFormat = val
+            file_name_format = val
         elif opt == "--outdir":
-            outputDir = val
+            output_dir = val
         elif opt == "--nooverwrite":
             overwrite = False
         elif opt == "--query":
@@ -201,7 +194,7 @@ def do_main():
         elif opt == "--retries":
             if not retries.isdigit():
                 usage("A positive number must be specified for retries.")
-            retries = int(val)
+            retries = val
         elif opt == "--verbose":
             verbose = True
 
@@ -209,22 +202,25 @@ def do_main():
         usage("Date must be in the format YYYYMMDD"
               " (four digit year, two digit month, two digit date)")
 
-    if configFile:
-        config = dumps.WikiDump.Config(configFile)
+    retries = int(retries)
+
+    if config_file:
+        config = dumps.WikiDump.Config(config_file)
     else:
         config = dumps.WikiDump.Config()
 
-    if outputDir:
-        config.wiki_queries_dir = outputDir
+    if output_dir:
+        config.wiki_queries_dir = output_dir
 
     if len(remainder) > 0:
-        query = WikiQuery(config, query, remainder[0], fileNameFormat,
+        query = WikiQuery(config, query, remainder[0], file_name_format,
                           date, overwrite, dryrun, verbose)
-        query.doOneWiki()
+        query.do_one_wiki()
     else:
-        queries = WikiQueryLoop(config, query, fileNameFormat, date,
+        queries = WikiQueryLoop(config, query, file_name_format, date,
                                 overwrite, dryrun, verbose)
-        queries.doAllWikisTilDone(retries)
+        queries.do_all_wikis_til_done(retries)
+
 
 if __name__ == "__main__":
     do_main()
