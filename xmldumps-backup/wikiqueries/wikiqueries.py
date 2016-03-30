@@ -11,7 +11,7 @@ import subprocess
 import socket
 import time
 from subprocess import Popen, PIPE
-from dumps.utils import RunSimpleCommand
+from dumps.utils import RunSimpleCommand, DbServerInfo
 from os.path import exists
 import hashlib
 import traceback
@@ -101,34 +101,19 @@ class MiscUtils(object):
     readFile = staticmethod(readFile)
 
 
-class DBServer(object):
-    def __init__(self, config, wikiName):
-        self.config = config
-        self.wikiName = wikiName
-        self.dbServer = self.defaultServer()
-
-    def defaultServer(self):
-        if not exists(self.config.php):
-            raise BackupError("php command %s not found" % self.config.php)
-        commandList = MultiVersion.MWScriptAsArray(self.config,
-                                                   "getSlaveServer.php")
-        command = [self.config.php, "-q"]
-        command.extend(commandList)
-        command.extend(["--wiki=%s" % self.wikiName, "--group=dump"])
-        return RunSimpleCommand.run_with_output(command, shell=False).rstrip()
-
-    def buildSqlCommand(self, query, outFile):
+class WQDbServerInfo(DbServerInfo):
+    def buildSqlCommand(self, query, out_file):
         """Put together a command to execute an sql query
         to the server for this DB."""
-        if not exists(self.config.mysql):
-            raise BackupError("mysql command %s not found" % self.config.mysql)
+        if not exists(self.wiki.config.mysql):
+            raise BackupError("mysql command %s not found" % self.wiki.config.mysql)
         command = ("/bin/echo '%s' | %s -h %s -u %s "
-                   % (query, self.config.mysql, self.dbServer,
-                      self.config.dbUser))
-        if self.config.dbPassword != "":
-            command = command + "-p" + self.config.dbPassword
-        command = command + " -r --silent " + self.wikiName
-        command = command + "| %s > %s" % (self.config.gzip, outFile)
+                   % (query, self.wiki.config.mysql, self.db_server,
+                      self.wiki.config.db_user))
+        if self.wiki.config.db_password != "":
+            command = command + "-p" + self.wiki.config.db_password
+        command = command + " -r --silent " + self.db_name
+        command = command + "| %s > %s" % (self.wiki.config.gzip, out_file)
         return command
 
 
@@ -192,7 +177,8 @@ class WikiQuery(object):
                 print ("Skipping wiki %s, file %s exists already"
                        % (self.wikiName, outFile.getPath()))
             return True
-        db = DBServer(self._config, self.wikiName)
+        wiki = dumps.WikiDump.Wiki(self._config, self.wikiName)
+        db = WQDbServerInfo(wiki, self.wikiName)
         return RunSimpleCommand.run_with_no_output(db.buildSqlCommand(
             self.query, outFile.getPath()), maxtries=1, shell=True,
             verbose=self.verbose)
