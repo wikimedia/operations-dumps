@@ -4,13 +4,13 @@ import getopt
 import md5
 import os
 import popen2
+import re
 import sys
 import time
 import WikiDump
 
 from os.path import dirname, exists, getsize, join, realpath
 from WikiDump import prettyTime, prettySize, shellEscape
-
 
 def splitPath(path):
 	# For some reason, os.path.split only does one level.
@@ -24,7 +24,6 @@ def splitPath(path):
 		(path, file) = os.path.split(path)
 	return parts
 
-
 def relativePath(path, base):
 	"""Return a relative path to 'path' from the directory 'base'."""
 	path = splitPath(path)
@@ -35,7 +34,6 @@ def relativePath(path, base):
 	for prefix in base:
 		path.insert(0, "..")
 	return os.path.join(*path)
-
 
 def md5File(filename):
 	summer = md5.new()
@@ -48,18 +46,14 @@ def md5File(filename):
 	infile.close()
 	return summer.hexdigest()
 
-
 def md5FileLine(filename):
 	return "%s  %s\n" % (md5File(filename), os.path.basename(filename))
-
 
 def xmlEscape(text):
 	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-
 class BackupError(Exception):
 	pass
-
 
 class Runner(object):
 
@@ -69,7 +63,7 @@ class Runner(object):
 		self.dbName = wiki.dbName
 		self.prefetch = prefetch
 		self.spawn = spawn
-
+		
 		if date:
 			# Override, continuing a past dump?
 			self.date = date
@@ -248,7 +242,6 @@ class Runner(object):
 			#PublicTable("revision", "Base per-revision data (does not include text)."), // safe?
 			#PrivateTable("text", "Text blob storage. May be compressed, etc."), // ?
 			PublicTable("redirect", "Redirect list"),
-			PublicTable("iwlinks", "Interwiki link tracking records"),
 
 			TitleDump("List of page titles"),
 
@@ -264,9 +257,9 @@ class Runner(object):
 			XmlLogging("Pull out all logging data")]
 		if self.wiki.hasFlaggedRevs():
 			self.items.append(
-				PublicTable("flaggedpages", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending."))
+				PublicTable( "flaggedpages", "This contains a row for each flagged article, containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending." ))
 			self.items.append(
-				PublicTable("flaggedrevs", "This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under."))
+				PublicTable( "flaggedrevs", "This contains a row for each flagged revision, containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under." ))
 
 		if not self.wiki.isBig():
 			self.items.append(
@@ -381,7 +374,7 @@ class Runner(object):
 		if dir:
 			status = join(self.publicBase(db), db, dir, "status.html")
 			try:
-				return WikiDump.readFile(status)
+				return readFile(status)
 			except:
 				return "<li>%s missing status record</li>" % db
 		else:
@@ -464,7 +457,7 @@ class Runner(object):
 	# Report on the file size & status of the current output and output a link if were done
 	def reportFile(self, file, status):
 		filepath = self.publicPath(file)
-		if status == "in-progress" and exists(filepath):
+		if status == "in-progress" and exists (filepath):
 			size = prettySize(getsize(filepath))
 			return "<li class='file'>%s %s (written) </li>" % (file, size)
 		elif status == "done" and exists(filepath):
@@ -515,7 +508,7 @@ class Runner(object):
 	def prepareChecksums(self):
 		"""Create the md5 checksum file at the start of the run.
 		This will overwrite a previous run's output, if any."""
-		file(self.publicPath("md5sums.txt"), "w")
+		output = file(self.publicPath("md5sums.txt"), "w")
 
 	def checksum(self, filename):
 		"""Run checksum for an output file, and append to the list."""
@@ -564,7 +557,6 @@ class Runner(object):
 			"date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())}
 		rssPath = self.latestPath(file + "-rss.xml")
 		WikiDump.dumpFile(rssPath, rssText)
-
 
 class Dump(object):
 	def __init__(self, desc):
@@ -615,7 +607,6 @@ class Dump(object):
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__
 
-
 class PublicTable(Dump):
 	"""Dump of a table using MySQL's mysqldump utility."""
 
@@ -637,7 +628,6 @@ class PublicTable(Dump):
 
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__ + "." + self._table
-
 
 class PrivateTable(PublicTable):
 	"""Hidden table dumps for private data."""
@@ -667,7 +657,7 @@ class XmlStub(Dump):
 	def listFiles(self, runner):
 		return ["stub-meta-history.xml.gz",
 			"stub-meta-current.xml.gz",
-			"stub-articles.xml.gz", ]
+			"stub-articles.xml.gz",]
 
 	def run(self, runner):
 		history = runner.publicPath("stub-meta-history.xml.gz")
@@ -678,16 +668,16 @@ class XmlStub(Dump):
 				os.remove(filename)
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
-	--wiki=%s \
-	--full \
-	--stub \
-	--report=10000 \
-	%s \
-	--server=%s \
-	--output=gzip:%s \
-	--output=gzip:%s \
+  --wiki=%s \
+  --full \
+  --stub \
+  --report=10000 \
+  %s \
+  --server=%s \
+  --output=gzip:%s \
+  --output=gzip:%s \
 	--filter=latest \
-	--output=gzip:%s \
+  --output=gzip:%s \
 	--filter=latest \
 	--filter=notalk \
 	--filter=namespace:\!NS_USER \
@@ -701,7 +691,6 @@ class XmlStub(Dump):
 			current,
 			articles))
 		runner.runCommand(command, callback=self.progressCallback)
-
 
 class XmlLogging(Dump):
 	""" Create a logging dump of all page activity """
@@ -721,12 +710,12 @@ class XmlLogging(Dump):
 			os.remove(logging)
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
-	--wiki=%s \
-	--logs \
-	--report=10000 \
-	%s \
-	--server=%s \
-	--output=gzip:%s \
+  --wiki=%s \
+  --logs \
+  --report=10000 \
+  %s \
+  --server=%s \
+  --output=gzip:%s \
 """ % shellEscape((
 			runner.config.php,
 			runner.config.wikiDir,
@@ -735,7 +724,6 @@ class XmlLogging(Dump):
 			runner.dbServer,
 			logging))
 		runner.runCommand(command, callback=self.progressCallback)
-
 
 class XmlDump(Dump):
 	"""Primary XML dumps, one section at a time."""
@@ -803,13 +791,13 @@ class XmlDump(Dump):
 
 		dumpCommand = """
 %s -q %s/maintenance/dumpTextPass.php \
-	--wiki=%s \
-	%s \
-	%s \
-	%s \
-	--report=1000 \
-	--server=%s \
-	%s""" % shellEscape((
+  --wiki=%s \
+  %s \
+  %s \
+  %s \
+  --report=1000 \
+  --server=%s \
+  %s""" % shellEscape((
 			runner.config.php,
 			runner.config.wikiDir,
 			runner.dbName,
@@ -851,7 +839,6 @@ class XmlDump(Dump):
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__ + "." + self._subset
 
-
 class BigXmlDump(XmlDump):
 	"""XML page dump for something larger, where a 7-Zip compressed copy
 	could save 75% of download time for some users."""
@@ -859,7 +846,6 @@ class BigXmlDump(XmlDump):
 	def buildEta(self, runner):
 		"""Tell the dumper script whether to make ETA estimate on page or revision count."""
 		return "--full"
-
 
 class XmlRecompressDump(Dump):
 	"""Take a .bz2 and recompress it as 7-Zip."""
@@ -896,7 +882,7 @@ class XmlRecompressDump(Dump):
 			xmlbz2,
 			runner.config.sevenzip,
 			xml7z,
-			xml7z))
+			xml7z));
 
 		return runner.runCommand(command, callback=self.progressCallback)
 
@@ -906,31 +892,30 @@ class XmlRecompressDump(Dump):
 	def matchCheckpoint(self, checkpoint):
 		return checkpoint == self.__class__.__name__ + "." + self._subset
 
-
 class AbstractDump(Dump):
 	"""XML dump for Yahoo!'s Active Abstracts thingy"""
 
 	def run(self, runner):
 		command = """
 %s -q %s/maintenance/dumpBackup.php \
-	--wiki=%s \
-	--plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
-	--current \
-	--report=1000 \
-	%s \
-	--server=%s \
+  --wiki=%s \
+  --plugin=AbstractFilter:%s/extensions/ActiveAbstract/AbstractFilter.php \
+  --current \
+  --report=1000 \
+  %s \
+  --server=%s \
 """ % shellEscape((
-			runner.config.php,
-			runner.config.wikiDir,
-			runner.dbName,
-			runner.config.wikiDir,
-			runner.forceNormalOption(),
-			runner.dbServer))
+				runner.config.php,
+				runner.config.wikiDir,
+				runner.dbName,
+				runner.config.wikiDir,
+				runner.forceNormalOption(),
+				runner.dbServer))
 		for variant in self._variants(runner):
 			command = command + """  --output=file:%s \
-	--filter=namespace:NS_MAIN \
-	--filter=noredirect \
-	--filter=abstract%s \
+    --filter=namespace:NS_MAIN \
+    --filter=noredirect \
+    --filter=abstract%s \
 """ % shellEscape((
 				runner.publicPath(self._variantFile(variant)),
 				self._variantOption(variant)))
@@ -960,7 +945,6 @@ class AbstractDump(Dump):
 
 	def listFiles(self, runner):
 		return [self._variantFile(x) for x in self._variants(runner)]
-
 
 class TitleDump(Dump):
 	"""This is used by "wikiproxy", a program to add Wikipedia links to BBC news online"""

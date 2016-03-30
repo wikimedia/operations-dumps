@@ -8,16 +8,13 @@ import sys
 import threading
 import time
 
-
 def fileAge(filename):
 	return time.time() - os.stat(filename).st_mtime
-
 
 def atomicCreate(filename, mode='w'):
 	"""Create a file, aborting if it already exists..."""
 	fd = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
 	return os.fdopen(fd, mode)
-
 
 def shellEscape(param):
 	"""Escape a string parameter, or set of strings, for the shell."""
@@ -29,12 +26,10 @@ def shellEscape(param):
 	else:
 		return tuple([shellEscape(x) for x in param])
 
-
 def prettySize(size):
 	"""Return a string with an attractively formatted file size."""
 	quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
 	return _prettySize(size, quanta)
-
 
 def _prettySize(size, quanta):
 	if size < 1024 or len(quanta) == 1:
@@ -42,41 +37,35 @@ def _prettySize(size, quanta):
 	else:
 		return _prettySize(size / 1024.0, quanta[1:])
 
-
 def today():
 	return time.strftime("%Y%m%d", time.gmtime())
 
-
 def prettyTime():
 	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-
 
 def prettyDate(key):
 	"Prettify a MediaWiki date key"
 	return "-".join((key[0:4], key[4:6], key[6:8]))
 
-
 def dumpFile(filename, text):
 	"""Dump a string to a file, as atomically as possible, via a temporary file in the same directory."""
-
+	
 	# I'd use os.tempnam() here but it whines about symlinks attacks.
 	tempFilename = filename + ".tmp"
-
+	
 	file = open(tempFilename, "wt")
 	file.write(text)
 	file.close()
-
+	
 	# This may fail across filesystems or on Windows.
 	# Of course nothing else will work on Windows. ;)
 	os.rename(tempFilename, filename)
-
 
 def readFile(filename):
 	file = open(filename, "r")
 	text = file.read()
 	file.close()
 	return text
-
 
 def dbList(filename):
 	"""Read database list from a file"""
@@ -89,7 +78,6 @@ def dbList(filename):
 	infile.close()
 	dbs.sort()
 	return dbs
-
 
 class Config(object):
 	def __init__(self):
@@ -127,10 +115,10 @@ class Config(object):
 			"mysql": "mysql",
 			#"cleanup": {
 			"keep": "3",
-		}
+			}
 		conf = ConfigParser.SafeConfigParser(defaults)
 		conf.read(files)
-
+		
 		self.dbList = dbList(conf.get("wiki", "dblist"))
 		self.privateList = dbList(conf.get("wiki", "privatelist"))
 		biglistFile = conf.get("wiki", "biglist")
@@ -143,32 +131,32 @@ class Config(object):
 			self.flaggedRevsList = dbList(flaggedRevsFile)
 		else:
 			self.flaggedRevsList = []
-
+		
 		self.wikiDir = conf.get("wiki", "dir")
 		self.forceNormal = conf.getint("wiki", "forceNormal")
 		self.halt = conf.getint("wiki", "halt")
-
+		
 		self.publicDir = conf.get("output", "public")
 		self.privateDir = conf.get("output", "private")
 		self.webRoot = conf.get("output", "webroot")
 		self.index = conf.get("output", "index")
 		self.templateDir = conf.get("output", "templateDir")
-
+		
 		self.adminMail = conf.get("reporting", "adminmail")
 		self.mailFrom = conf.get("reporting", "mailfrom")
 		self.smtpServer = conf.get("reporting", "smtpserver")
 		self.staleAge = conf.getint("reporting", "staleAge")
-
+		
 		self.dbUser = conf.get("database", "user")
 		self.dbPassword = conf.get("database", "password")
-
+		
 		self.php = conf.get("tools", "php")
 		self.bzip2 = conf.get("tools", "bzip2")
 		self.sevenzip = conf.get("tools", "sevenzip")
 		self.mysql = conf.get("tools", "mysql")
-
+		
 		self.keep = conf.getint("cleanup", "keep")
-
+	
 	def dbListByAge(self):
 		"""
 			Sort wikis in reverse order of last successful dump :
@@ -201,12 +189,12 @@ class Config(object):
 			dumpFailed = (status == '') or ('dump aborted' in status)
 			available.append((dumpFailed, age, db))
 		available.sort()
-		return [db for (failed, avail_age, db) in available]
-
+		return [db for (failed, age, db) in available]
+	
 	def readTemplate(self, name):
 		template = os.path.join(self.templateDir, name)
 		return readFile(template)
-
+	
 	def mail(self, subject, body):
 		"""Send out a quickie email."""
 		message = email.MIMEText.MIMEText(body)
@@ -229,19 +217,19 @@ class Wiki(object):
 		self.dbName = dbName
 		self.date = None
 		self.watchdog = None
-
+	
 	def isPrivate(self):
 		return self.dbName in self.config.privateList
-
+	
 	def isBig(self):
 		return self.dbName in self.config.bigList
 
 	def hasFlaggedRevs(self):
 		return self.dbName in self.config.flaggedRevsList
-
+	
 	def isLocked(self):
 		return os.path.exists(self.lockFile())
-
+	
 	def isStale(self):
 		if not self.isLocked():
 			return False
@@ -253,21 +241,21 @@ class Wiki(object):
 			return False
 
 	# Paths and directories...
-
+	
 	def publicDir(self):
 		if self.isPrivate():
 			return self.privateDir()
 		else:
 			return os.path.join(self.config.publicDir, self.dbName)
-
+	
 	def privateDir(self):
 		return os.path.join(self.config.privateDir, self.dbName)
-
+	
 	def webDir(self):
 		return "/".join((self.config.webRoot, self.dbName))
-
+	
 	# Actions!
-
+	
 	def lock(self):
 		if not os.path.isdir(self.privateDir()):
 			try:
@@ -279,20 +267,20 @@ class Wiki(object):
 		f = atomicCreate(self.lockFile(), "w")
 		f.write("%s %d" % (socket.getfqdn(), os.getpid()))
 		f.close()
-
+		
 		self.watchdog = LockWatchdog(self.lockFile())
 		self.watchdog.start()
 		return True
-
+	
 	def unlock(self):
 		if self.watchdog:
 			self.watchdog.stopWatching()
 			self.watchdog = None
 		os.remove(self.lockFile())
-
+	
 	def setDate(self, date):
 		self.date = date
-
+	
 	def cleanupStaleLock(self):
 		date = self.latestDump()
 		if date:
@@ -300,15 +288,15 @@ class Wiki(object):
 			self.writeStatus(self.reportStatusLine(
 				"<span class=\"failed\">dump aborted</span>"))
 		self.unlock()
-
+	
 	def writeIndex(self, html):
 		index = os.path.join(self.publicDir(), self.date, "index.html")
 		dumpFile(index, html)
-
+	
 	def writeStatus(self, message):
 		index = os.path.join(self.publicDir(), self.date, "status.html")
 		dumpFile(index, message)
-
+	
 	def statusLine(self):
 		date = self.latestDump()
 		if date:
@@ -319,7 +307,7 @@ class Wiki(object):
 				return self.reportStatusLine("missing status record")
 		else:
 			return self.reportStatusLine("has not yet been dumped")
-
+	
 	def reportStatusLine(self, status, error=False):
 		if error:
 			# No state information, hide the timestamp
@@ -356,39 +344,38 @@ class Wiki(object):
 			return []
 		dates.sort()
 		return dates
-
+	
 	# private....
-
+	
 	def lockFile(self):
 		return os.path.join(self.privateDir(), "lock")
-
+	
 	def lockAge(self):
 		return fileAge(self.lockFile())
 
-
 class LockWatchdog(threading.Thread):
 	"""Touch the given file every 10 seconds until asked to stop."""
-
+	
 	# For emergency aborts
 	threads = []
-
+	
 	def __init__(self, lockfile):
 		threading.Thread.__init__(self)
 		self.lockfile = lockfile
 		self.trigger = threading.Event()
 		self.finished = threading.Event()
-
+	
 	def stopWatching(self):
 		"""Run me outside..."""
 		# Ask the thread to stop...
 		self.trigger.set()
-
+		
 		# Then wait for it, to ensure that the lock file
 		# doesn't get touched again after we delete it on
 		# the main thread.
 		self.finished.wait(10)
 		self.finished.clear()
-
+	
 	def run(self):
 		LockWatchdog.threads.append(self)
 		while not self.trigger.isSet():
@@ -397,11 +384,10 @@ class LockWatchdog(threading.Thread):
 		self.trigger.clear()
 		self.finished.set()
 		LockWatchdog.threads.remove(self)
-
+	
 	def touchLock(self):
 		"""Run me inside..."""
 		os.utime(self.lockfile, None)
-
 
 def cleanup():
 	"""Call cleanup handlers for any background threads..."""
