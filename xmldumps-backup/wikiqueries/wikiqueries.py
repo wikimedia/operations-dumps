@@ -6,7 +6,7 @@ import os
 import re
 import sys
 import ConfigParser
-import WikiDump
+import dumps.WikiDump
 import subprocess
 import socket
 import time
@@ -40,100 +40,6 @@ class OutputFile(ContentFile):
 
     def getFileName(self):
         return fileNameFormat.format(w=self.wikiName, d=self.date)
-
-
-class Config(WikiDump.Config):
-    def __init__(self, configFile=False):
-        self.projectName = False
-
-        home = os.path.dirname(sys.argv[0])
-        if not configFile:
-            configFile = "wikiqueries.conf"
-        self.files = [
-            os.path.join(home, configFile),
-            "/etc/wikqueries.conf",
-            os.path.join(os.getenv("HOME"), ".wikiqueries.conf")]
-        defaults = {
-            #"wiki": {
-            "allwikislist": "",
-            "privatewikislist": "",
-            "closedwikislist": "",
-            "skipwikislist": "",
-            #"output": {
-            "wikiqueriesdir": "/wikiqueries",
-            "temp": "/wikiqueries/temp",
-            "fileperms": "0640",
-            #"database": {
-            # these are now set in getDbUserAndPassword() if needed
-            #"tools": {
-            "php": "/bin/php",
-            "gzip": "/usr/bin/gzip",
-            "bzip2": "/usr/bin/bzip2",
-            "mysql": "/usr/bin/mysql",
-            "multiversion": "",
-            #"query":{
-            "queryfile": "wikiquery.sql"
-            }
-
-        self.conf = ConfigParser.SafeConfigParser(defaults)
-        self.conf.read(self.files)
-
-        if not self.conf.has_section("wiki"):
-            print "The mandatory configuration section 'wiki' was not defined."
-            raise ConfigParser.NoSectionError('wiki')
-
-        if not self.conf.has_option("wiki", "mediawiki"):
-            print ("The mandatory setting 'mediawiki' "
-                   "in the section 'wiki' was not defined.")
-            raise ConfigParser.NoOptionError('wiki', 'mediawiki')
-
-        self.parseConfFile()
-        # get from MW adminsettings file if not set in conf file
-        self.getDbUserAndPassword()
-
-    def parseConfFile(self):
-        self.mediawiki = self.conf.get("wiki", "mediawiki")
-        self.allWikisList = MiscUtils.dbList(self.conf.get(
-            "wiki", "allwikislist"))
-        self.privateWikisList = MiscUtils.dbList(self.conf.get(
-            "wiki", "privatewikislist"))
-        self.closedWikisList = MiscUtils.dbList(self.conf.get(
-            "wiki", "closedwikislist"))
-        self.skipWikisList = MiscUtils.dbList(self.conf.get(
-            "wiki", "skipwikislist"))
-
-        if not self.conf.has_section('output'):
-            self.conf.add_section('output')
-        self.wikiQueriesDir = self.conf.get("output", "wikiqueriesdir")
-        self.tempDir = self.conf.get("output", "temp")
-        self.fileperms = self.conf.get("output", "fileperms")
-        self.fileperms = int(self.fileperms, 0)
-
-        # the parent class methods want this
-        self.wikiDir = self.mediawiki
-
-        self.dbUser = None
-        self.dbPassword = None
-        if not self.conf.has_section('database'):
-            self.conf.add_section('database')
-        if self.conf.has_option('database', 'user'):
-            self.dbUser = self.conf.get("database", "user")
-        if self.conf.has_option('database', 'password'):
-            self.dbPassword = self.conf.get("database", "password")
-        # get from MW adminsettings file if not set in conf file
-        self.getDbUserAndPassword()
-
-        if not self.conf.has_section('tools'):
-            self.conf.add_section('tools')
-        self.php = self.conf.get("tools", "php")
-        self.gzip = self.conf.get("tools", "gzip")
-        self.bzip2 = self.conf.get("tools", "bzip2")
-        self.mysql = self.conf.get("tools", "mysql")
-        self.multiversion = self.conf.get("tools", "multiversion")
-
-        if not self.conf.has_section('query'):
-            self.conf.add_section('query')
-        self.queryFile = self.conf.get("query", "queryfile")
 
 
 class MultiVersion(object):
@@ -295,7 +201,7 @@ class QueryDir(object):
         self._config = config
 
     def getQueryDir(self, wiki, date):
-        return self._config.wikiQueriesDir.format(w=wiki, d=date)
+        return self._config.wiki_queries_dir.format(w=wiki, d=date)
 
 
 class WikiQuery(object):
@@ -422,7 +328,7 @@ wikiname:         Run the query only for the specific wiki
     sys.stderr.write(usage_message)
     sys.exit(1)
 
-if __name__ == "__main__":
+def do_main():
     configFile = False
     result = False
     dryrun = False
@@ -465,12 +371,12 @@ if __name__ == "__main__":
               " (four digit year, two digit month, two digit date)")
 
     if configFile:
-        config = Config(configFile)
+        config = dumps.WikiDump.Config(configFile)
     else:
-        config = Config()
+        config = dumps.WikiDump.Config()
 
     if outputDir:
-        config.wikiQueriesDir = outputDir
+        config.wiki_queries_dir = outputDir
 
     if len(remainder) > 0:
         query = WikiQuery(config, query, remainder[0], fileNameFormat,
@@ -480,3 +386,6 @@ if __name__ == "__main__":
         queries = WikiQueryLoop(config, query, fileNameFormat, date,
                                 overwrite, dryrun, verbose)
         queries.doAllWikisTilDone(retries)
+
+if __name__ == "__main__":
+    do_main()
