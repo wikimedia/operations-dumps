@@ -549,6 +549,13 @@ class ActionHandler(object):
                     break
             else:
                 print "True"
+        elif (self.show in ["failed", "aborted", "missing", "progress",
+                            "partial", "complete", "not yet"]):
+            dbinfo = self.conf.db_latest_status()
+            # skip cases where there is no status file. maybe we will revisit this later
+            dbs_to_show = [dbname for (dbname, status, date) in dbinfo if status == self.show]
+            if dbs_to_show:
+                print dbs_to_show
         else:
             print "No such known element for 'show'"
 
@@ -760,6 +767,11 @@ Usage: dumpadmin.py --<action> [--<action>...]
                        alldone -- "True" if all wikis have complete dumps
                                   without failure (ignoring wikis
                                   that have never been dumped), else ""
+                       <status>   -- list of wikis with most recent dump
+                                  run having the given status (whether or
+                                  not run is complete); known statuses are
+                                  'missing', 'not yet', 'failed', 'aborted',
+                                  'progress', 'partial', 'complete'
 
     OR
 
@@ -842,6 +854,7 @@ def main():
     verbose = False
     message = None
     status = None
+    show = None
     undo = None
     wiki = None
 
