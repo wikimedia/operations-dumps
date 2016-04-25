@@ -360,6 +360,8 @@ class StatusHtml(object):
                 link = "<a href=\"%s/%s\">%s</a>" % (wiki.db_name, wiki.date, wiki.db_name)
             else:
                 link = "%s (new)" % wiki.db_name
+            if wiki.is_closed():
+                link = link + " (closed)"
         return "<li>%s %s: %s</li>\n" % (stamp, link, status)
 
     report_statusline = staticmethod(report_statusline)
