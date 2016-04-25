@@ -198,9 +198,10 @@ class XmlDump(Dump):
             self._checkpoints_enabled = True
         self.checkpoint_file = checkpoint_file
         self.page_id_range = page_id_range
+        self.verbose = verbose
         self._prerequisite_items = [self.item_for_stubs]
         self._check_truncation = True
-        Dump.__init__(self, name, desc)
+        Dump.__init__(self, name, desc, self.verbose)
 
     def get_dumpname_base(self):
         return 'pages-'

@@ -62,7 +62,8 @@ class Logger(object):
 
 class DumpItemList(object):
     def __init__(self, wiki, prefetch, spawn, partnum_todo, checkpoint_file,
-                 singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir):
+                 singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir,
+                 verbose):
         self.wiki = wiki
         self._has_flagged_revs = self.wiki.has_flagged_revs()
         self._has_wikidata = self.wiki.has_wikidata()
@@ -78,6 +79,7 @@ class DumpItemList(object):
         self.dumpjobdata = dumpjobdata
         self.dump_dir = dump_dir
         self.page_id_range = page_id_range
+        self.verbose = verbose
 
         if self.wiki.config.checkpoint_time:
             checkpoints = True
@@ -183,7 +185,7 @@ class DumpItemList(object):
                     self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn,
                     self.wiki, self._get_partnum_todo("articlesdump"),
                     self.filepart.get_pages_per_filepart_history(), checkpoints,
-                    self.checkpoint_file, self.page_id_range))
+                    self.checkpoint_file, self.page_id_range, self.verbose))
 
         self.append_job_if_needed(
             RecombineXmlDump(
@@ -203,7 +205,7 @@ class DumpItemList(object):
                     self.find_item_by_name('xmlstubsdump'), self._prefetch,
                     self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
                     self.filepart.get_pages_per_filepart_history(), checkpoints,
-                    self.checkpoint_file, self.page_id_range))
+                    self.checkpoint_file, self.page_id_range, self.verbose))
 
         self.append_job_if_needed(
             RecombineXmlDump(
@@ -272,7 +274,7 @@ class DumpItemList(object):
                 self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn,
                 self.wiki, self._get_partnum_todo("metahistorybz2dump"),
                 self.filepart.get_pages_per_filepart_history(),
-                checkpoints, self.checkpoint_file, self.page_id_range))
+                checkpoints, self.checkpoint_file, self.page_id_range, self.verbose))
         self.append_job_if_needed(
             RecombineXmlDump(
                 "metahistorybz2dumprecombine",
@@ -540,7 +542,7 @@ class Runner(object):
                                            self._partnum_todo, self.checkpoint_file,
                                            self.job_requested, self.skip_jobs,
                                            self.filepart_info, self.page_id_range,
-                                           self.dumpjobdata, self.dump_dir)
+                                           self.dumpjobdata, self.dump_dir, self.verbose)
         # only send email failure notices for full runs
         if self.job_requested:
             email = False
