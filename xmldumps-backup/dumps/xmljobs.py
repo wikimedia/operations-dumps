@@ -216,17 +216,21 @@ class XmlDump(Dump):
         return "bz2"
 
     def get_stub_files(self, runner, partnum=None):
-        # just get the files pertaining to our dumpname, which is *one* of
-        # articles, pages-current, pages-history.
-        # stubs include all of them together.
+        '''
+        get the stub files pertaining to our dumpname, which is *one* of
+        articles, pages-current, pages-history.
+        stubs include all of these together.
+        we will either return the one full stubs file that exists
+        or the one stub file part, if we are (re)running a specific
+        file part (subjob), or all file parts if we are (re)running
+        the entire job which is configured for subjobs.
 
+        arguments:
+           runner        - Runner object
+           partnum (int) - number of file part (subjob) if any
+        '''
         if partnum is None:
             partnum = self._partnum_todo
-
-        # we will either return the one full stubs file that exists
-        # or the one stub file part, if we are (re)running a specific
-        # file part (subjob), or all file parts if we are (re)running
-        # the entire job which is configured for subjobs.
         if not self.dumpname.startswith(self.get_dumpname_base()):
             raise BackupError("dumpname %s of unknown form for this job" % self.dumpname)
 
@@ -239,7 +243,7 @@ class XmlDump(Dump):
         if self._parts_enabled:
             if partnum is not None:
                 for inp_file in input_files:
-                    if inp_file.partnum == partnum:
+                    if inp_file.partnum_int == partnum:
                         input_files = [inp_file]
                         break
         return input_files
@@ -412,7 +416,7 @@ class XmlDump(Dump):
             print "todo is", [to.filename for to in todo]
         for fileobj in todo:
 
-            stub_for_file = self.get_stub_files(runner, fileobj.partnum)[0]
+            stub_for_file = self.get_stub_files(runner, fileobj.partnum_int)[0]
 
             if fileobj.first_page_id is None:
                 partial_stubs.append(stub_for_file)
