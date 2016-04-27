@@ -392,7 +392,7 @@ class DumpItemList(object):
         sys.stderr.write("tables (includes all items below that end in 'table')\n")
         for item in self.dump_items:
             sys.stderr.write("%s\n" % item.name())
-            return False
+        return False
 
     def mark_following_jobs_to_run(self, skipgood=False):
         # find the first one marked to run, mark the following ones
