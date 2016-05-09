@@ -20,7 +20,7 @@ usage() {
     echo "--wiki         name of specific wiki db to dump; otherwise all wikis in list referenced by"
     echo "               config file will be dumped"
     echo "--onepass      if there are no wikis to dump (--skipdone option) then exit"
-    echo "--sleep        time to sleep between jobs, default 30 seconds"
+    echo "--sleep        time to sleep between jobs, default 60 seconds"
     echo
     echo "If the file maintenance.txt is present, no more jobs will be run, and"
     echo "this script will check the status again in 5 minutes."
@@ -52,7 +52,7 @@ set_defaults() {
     # if no wikis are left to run, exit
     ONEPASS=""
     # time to sleep between wikis, in seconds
-    SLEEP=30
+    SLEEP=60
 }
 
 process_opts() {
@@ -188,7 +188,8 @@ dump_wiki() {
 	fi
     fi
     echo "sleeping"
-    sleep "$SLEEP"
+    SLEEPRAND=$(( ( RANDOM % $SLEEP )  + 1 ))
+    sleep "$SLEEPRAND"
 }
 
 main_loop() {
