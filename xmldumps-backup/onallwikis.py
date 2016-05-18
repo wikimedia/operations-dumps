@@ -94,6 +94,7 @@ class ScriptRunner(Runner):
         if self.dryrun:
             print "Would run:",
             print command
+            return True
         else:
             return RunSimpleCommand.run_with_output(
                 command, maxtries=1, shell=False, verbose=self.verbose)
@@ -148,6 +149,7 @@ class QueryRunner(Runner):
         if self.dryrun:
             print "Would run:",
             print command
+            return True
         else:
             return RunSimpleCommand.run_with_no_output(
                 command, maxtries=1, shell=True, verbose=self.verbose)
