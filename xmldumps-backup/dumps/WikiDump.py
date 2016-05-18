@@ -181,7 +181,20 @@ class Config(object):
 
     def parse_conffile_globally(self):
         self.db_list = MiscUtils.db_list(self.conf.get("wiki", "dblist"))
-        self.skip_db_list = MiscUtils.db_list(self.conf.get("wiki", "skipdblist"))
+
+        # permit comma-separated list of files so that eg some script
+        # can skip all private and/or closed wikis in addition to some
+        # other exclusion list
+        to_skip = self.conf.get("wiki", "skipdblist")
+        if ',' in to_skip:
+            skipfiles = to_skip.split(',')
+        else:
+            skipfiles = [to_skip]
+        self.skip_db_list = []
+        for skipfile in skipfiles:
+            self.skip_db_list.extend(MiscUtils.db_list(skipfile))
+        self.skip_db_list = list(set(self.skip_db_list))
+
         self.private_list = MiscUtils.db_list(self.conf.get("wiki", "privatelist"))
         self.closed_list = MiscUtils.db_list(self.conf.get("wiki", "closedlist"))
         self.flagged_revs_list = MiscUtils.db_list(self.conf.get("wiki", "flaggedrevslist"))
