@@ -70,10 +70,13 @@ class ScriptRunner(Runner):
         '''
         if base is None:
             base = wiki
-        script_command = MultiVersion.mw_script_as_array(
-            base.config, self.scriptname)
-        script_command = [base.config.php, "-q"] + script_command
-        script_command.extend(["--wiki", base.db_name])
+        if self.scriptname.endswith('.php'):
+            script_command = MultiVersion.mw_script_as_array(
+                base.config, self.scriptname)
+            script_command = [base.config.php, "-q"] + script_command
+            script_command.extend(["--wiki", base.db_name])
+        else:
+            script_command = [self.scriptname]
         if self.args is not None:
             script_command.extend(self.args)
         script_command = [field.format(DIR=output_dir, FILE=outfile_base, w=wiki.db_name)
@@ -265,8 +268,18 @@ def usage(message=None):
         sys.stderr.write(message + "\n")
     usage_message = """Usage: python onallwikis.py [options] [script-args]
 
-This script runs a mysql query or a php maintenance script across all
-wikis, stashing the outputs in files in the directory(ies) specified.
+This script runs a mysql query or a php maintenance script or any
+other specified script across all wikis, stashing the outputs in files
+in the directory(ies) specified.
+
+Scripts ending in '.php' will be treated as MediaWiki maintenance scripts
+and will be run via MW multiversion lookups. The --wiki argument to
+those scripts will be handled automatically, as will the invocation of
+php itself.
+
+For all other scripts, the full command line must be given. It's best
+to specify -s /path/to/interpreter /path/to/script -- --all --other --args...
+at the end of the argument list to onallwikis.
 
 Args following the options will be treated as arguments to the script if
 a script is to be run rather than a query, and they will be passed on.
