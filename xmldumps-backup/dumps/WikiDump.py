@@ -181,7 +181,7 @@ class Config(object):
         self.wikidata_list = MiscUtils.db_list(self.conf.get("wiki", "wikidatalist"))
         self.global_usage_list = MiscUtils.db_list(self.conf.get("wiki", "globalusagelist"))
         self.wikidata_client_list = MiscUtils.db_list(self.conf.get("wiki", "wikidataclientlist"))
-        self.nonflow_list = MiscUtils.db_list(self.conf.get("wiki", "nonflowlist"))
+        self.flow_list = MiscUtils.db_list(self.conf.get("wiki", "flowlist"))
         self.halt = self.conf.getint("wiki", "halt")
 
         self.db_list = list(set(self.db_list) - set(self.skip_db_list))
@@ -407,7 +407,7 @@ class Wiki(object):
         return self.db_name in self.config.wikidata_client_list
 
     def has_flow(self):
-        return self.db_name not in self.config.nonflow_list
+        return self.db_name in self.config.flow_list
 
     # Paths and directories...
 
