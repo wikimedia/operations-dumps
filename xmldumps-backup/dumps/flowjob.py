@@ -11,7 +11,8 @@ from dumps.jobs import Dump
 class FlowDump(Dump):
     """Dump the flow pages."""
 
-    def __init__(self, name, desc):
+    def __init__(self, name, desc, history=False):
+        self.history = history
         Dump.__init__(self, name, desc)
 
     def detail(self):
@@ -24,7 +25,10 @@ class FlowDump(Dump):
         return "bz2"
 
     def get_dumpname(self):
-        return 'flow'
+        if self.history:
+            return 'flowhistory'
+        else:
+            return 'flow'
 
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
@@ -44,6 +48,8 @@ class FlowDump(Dump):
         command.extend(["--wiki=%s" % runner.db_name,
                         "--current", "--report=1000",
                         "--output=bzip2:%s" % flow_output_file])
+        if self.history:
+            command.append("--full")
 
         pipeline = [command]
         series = [pipeline]

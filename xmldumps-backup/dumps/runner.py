@@ -266,6 +266,8 @@ class DumpItemList(object):
 
         self.append_job_if_needed(
             FlowDump("xmlflowdump", "content of flow pages in xml format"))
+        self.append_job_if_needed(
+            FlowDump("xmlflowhistorydump", "history content of flow pages in xml format"), True)
 
         self.dump_items.append(
             BigXmlDump(
