@@ -21,7 +21,8 @@ from subprocess import Popen, PIPE
 
 def do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, id_field, table,
-                  small_interval, max_interval, ends_with):
+                  small_interval, max_interval, ends_with,
+                  callback=None):
     '''
     do an xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -44,13 +45,20 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
         if interval > max_interval:
             interval = max_interval
 
+    interval_save = interval
     # get just the header
     piece_command = [field for field in command]
     piece_command.extend(["--skip-footer", "--start=1", "--end=1"])
     do_xml_piece(piece_command, outfiles, dryrun=dryrun)
 
+    if callback is not None:
+        wiki = Wiki(wikiconf, wikidb)
+        db_info = DbServerInfo(wiki, wikidb)
+
     upto = start
     while upto <= end:
+        if callback is not None:
+            interval = callback(upto, interval_save, wiki, db_info)
         piece_command = [field for field in command]
         piece_command.append("--skip-header")
         piece_command.extend(["--start=%s" % str(upto)])
@@ -150,7 +158,8 @@ def get_max_id(wikiconf, wikidb, id_field, table):
     wiki = Wiki(wikiconf, wikidb)
 
     db_info = DbServerInfo(wiki, wikidb)
-    query = "select MAX(%s) from %s%s;" % (id_field, db_info.db_table_prefix, table)
+    query = "select MAX(%s) from %s%s;" % (
+        id_field, db_info.db_table_prefix, table)
     results = None
     retries = 0
     maxretries = 5

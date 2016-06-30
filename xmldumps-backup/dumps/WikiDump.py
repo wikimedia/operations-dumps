@@ -101,7 +101,11 @@ class Config(object):
             # "otherformats": {
             "multistream": "0",
             # "query":{
-            "queryfile": "wikiquery.sql"
+            "queryfile": "wikiquery.sql",
+            # "stubs": {
+            "orderrevs": "0",
+            "minpages": "1",
+            "maxrevs": "50000"
         }
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -270,6 +274,15 @@ class Config(object):
             self.conf.add_section('otherformats')
         self.multistream_enabled = self.get_opt_for_proj_or_default(
             conf, 'otherformats', 'multistream', 1)
+
+        if not self.conf.has_section('stubs'):
+            self.conf.add_section('stubs')
+        self.stubs_orderrevs = self.get_opt_for_proj_or_default(
+            conf, 'stubs', 'orderrevs', 1)
+        self.stubs_minpages = self.get_opt_for_proj_or_default(
+            conf, 'stubs', 'minpages', 1)
+        self.stubs_maxrevs = self.get_opt_for_proj_or_default(
+            conf, 'stubs', 'maxrevs', 1)
 
         if not self.conf.has_section('wiki'):
             self.conf.add_section('wiki')

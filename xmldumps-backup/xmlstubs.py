@@ -9,10 +9,92 @@ the run.
 
 import os
 import sys
+import time
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
+from dumps.utils import DbServerInfo
 import getopt
 from xmlstreams import gzippit, do_xml_stream
+
+
+def get_revs_per_page_interval(page_id_start, interval, wiki, db_info):
+    '''
+    given page id start and the number of pages, get
+    and return total number of revisions these pages have
+
+    wiki is a Wiki object for the specific wiki
+    db_info is a DbServerInfo object for the specific wiki
+    '''
+
+    query = ("select COUNT(rev_id) from revision where "
+             "rev_page >= %s and rev_page < %s;" % (
+                 page_id_start, page_id_start + interval))
+    results = None
+    retries = 0
+    maxretries = 5
+    end = 0
+    results = db_info.run_sql_and_get_output(query)
+    if results:
+        lines = results.splitlines()
+        if lines and lines[1]:
+            if not lines[1].isdigit():
+                return 0   # probably NULL or missing table
+            end = int(lines[1])
+            return end
+
+    while results is None and retries < maxretries:
+        retries = retries + 1
+        time.sleep(5)
+        # maybe the server was depooled. if so we will get another one
+        db_info = DbServerInfo(wiki, wiki.db_name)
+        results = db_info.run_sql_and_get_output(query)
+        if not results:
+            continue
+        lines = results.splitlines()
+        if lines and lines[1]:
+            end = int(lines[1])
+            break
+
+    if not end:
+        sys.stderr.write("failed to get revision count for page range from db, exiting\n")
+        sys.exit(1)
+    else:
+        return end
+
+
+def get_page_interval(page_id_start, interval_guess, wiki, db_info):
+    '''
+    given a starting page id, estimate page range ('interval') such that
+    the following query will not take a ridiculously long time:
+
+      SELECT * FROM revision JOIN page ON rev_page=page_id WHERE
+      rev_page >= page_id_start and rev_page < page_id_start + interval
+      ORDER BY rev_page, rev_id
+
+    then return this interval.
+
+    see phabricator bug T29112 for more on this horrible thing
+    '''
+    current_interval = interval_guess
+    min_interval = wiki.config.stubs_minpages
+    max_revs = wiki.config.stubs_maxrevs
+
+    while current_interval > min_interval:
+        now = time.time()
+        num_revs_for_interval = get_revs_per_page_interval(
+            page_id_start, current_interval, wiki, db_info)
+        now2 = time.time()
+        # if getting the rev count takes too long, cut back
+        if now2 - now > 60:
+            current_interval = current_interval / 2
+        # if we get more than some abs number of revs, scale back accordingly
+        elif num_revs_for_interval > max_revs:
+            current_interval = current_interval / ((num_revs_for_interval / max_revs) + 1)
+        else:
+            break
+    if current_interval < min_interval:
+        current_interval = min_interval
+    return current_interval
 
 
 def dostubsbackup(wikidb, history_file, current_file, articles_file,
@@ -37,18 +119,23 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
     command = [wikiconf.php, "-q"] + script_command
 
     command.extend(["--wiki=%s" % wikidb,
-                    "--full", "--stub", "--report=10000",
+                    "--full", "--stub", "--report=1000",
                     "--output=file:%s" % outfiles['history']['temp'],
                     "--output=file:%s" % outfiles['current']['temp'],
                     "--filter=latest",
                     "--output=file:%s" % outfiles['articles']['temp'],
                     "--filter=latest", "--filter=notalk",
-                    "--filter=namespace:!NS_USER"
-                    ])
+                    "--filter=namespace:!NS_USER"])
+
+    if wikiconf.stubs_orderrevs:
+        command.append("--orderrevs")
+        callback = get_page_interval
+    else:
+        callback = None
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
-                  100000, 500000, '</page>\n')
+                  5000, 100000, '</page>\n', callback)
 
 
 def usage(message=None):
