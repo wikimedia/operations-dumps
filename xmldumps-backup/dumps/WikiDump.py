@@ -77,6 +77,9 @@ class Config(object):
             # "chunks": {
             # set this to 1 to enable runing the various xml dump stages as subjobs in parallel
             "chunksEnabled": "0",
+            # do subjobs for named job in batches of specified size
+            # example: "xmlstubsdump=3,abstractsdump=5"
+            "jobsperbatch": "",
             # for page history runs, number of pages for each file part, specified separately
             # e.g. "1000,10000,100000,2000000,2000000,2000000,2000000,2000000,2000000,2000000"
             # would define 10 subjobs with 10 file parts and the specified number of pages in
@@ -257,6 +260,8 @@ class Config(object):
             self.conf.add_section('chunks')
         self.parts_enabled = self.get_opt_for_proj_or_default(
             conf, "chunks", "chunksEnabled", 1)
+        self.jobsperbatch = self.get_opt_for_proj_or_default(
+            conf, "chunks", "jobsperbatch", 0)
         self.pages_per_filepart_history = self.get_opt_for_proj_or_default(
             conf, "chunks", "pagesPerChunkHistory", 0)
         self.revs_per_filepart_history = self.get_opt_for_proj_or_default(

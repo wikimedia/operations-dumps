@@ -14,13 +14,26 @@ from dumps.utils import MultiVersion, MiscUtils
 from dumps.jobs import Dump
 
 
+def batcher(items, batchsize):
+    '''
+    given a list of items and a batchsize, return
+    list of batches (lists) of these items, each
+    batch with batchsize items and the last batch
+    with however many items are left over
+    '''
+    if batchsize == 0:
+        return [items]
+    return (items[pos:pos + batchsize] for pos in xrange(0, len(items), batchsize))
+
+
 class XmlStub(Dump):
     """Create lightweight skeleton dumps, minus bulk text.
     A second pass will import text from prior dumps or the database to make
     full files for the public."""
 
-    def __init__(self, name, desc, partnum_todo, parts=False, checkpoints=False):
+    def __init__(self, name, desc, partnum_todo, jobsperbatch=None, parts=False, checkpoints=False):
         self._partnum_todo = partnum_todo
+        self.jobsperbatch = jobsperbatch
         self._parts = parts
         if self._parts:
             self._parts_enabled = True
@@ -115,19 +128,25 @@ class XmlStub(Dump):
         return series
 
     def run(self, runner):
-        commands = []
         self.cleanup_old_files(runner.dump_dir, runner)
         files = self.list_outfiles_for_build_command(runner.dump_dir)
-        for fname in files:
-            # choose arbitrarily one of the dump_names we do (= articles_dump_name)
-            # buildcommand will figure out the files for the rest
-            if fname.dumpname == self.articles_dump_name:
+        # pick out the articles_dump files, setting up the stubs command for these
+        # will cover all the other cases, as we generate all three stub file types
+        # (article, meta-current, meta-history) at once
+        files = [fileinfo for fileinfo in files if fileinfo.dumpname == self.articles_dump_name]
+        if self.jobsperbatch is not None:
+            maxjobs = self.jobsperbatch
+        else:
+            maxjobs = len(files)
+        for batch in batcher(files, maxjobs):
+            commands = []
+            for fname in batch:
                 series = self.build_command(runner, fname)
                 commands.append(series)
-        error = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                   callback_stderr_arg=runner)
-        if error:
-            raise BackupError("error producing stub files")
+            error = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                       callback_stderr_arg=runner)
+            if error:
+                raise BackupError("error producing stub files")
 
 
 class XmlLogging(Dump):
@@ -518,7 +537,8 @@ class XmlDump(Dump):
         if not fileobj.filename or not exists(runner.dump_dir.filename_public_path(fileobj)):
             return None
 
-        dumpfile = DumpFile(self.wiki, runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
+        dumpfile = DumpFile(self.wiki,
+                            runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
                             fileobj, self.verbose)
         pipeline = dumpfile.setup_uncompression_command()
 

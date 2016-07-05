@@ -61,6 +61,37 @@ class Logger(object):
         self.queue.put_nowait(self.jobs_done)
 
 
+def get_setting(settings, setting_name):
+    '''
+    given a string of settings like "xmlstubsdump=this,xmldump=that",
+    return the value in the string for the specified setting name
+    or None if not present
+    '''
+    if '=' not in settings:
+        return None
+    if ',' in settings:
+        pairs = settings.split(',')
+    else:
+        pairs = [settings]
+    for pair in pairs:
+        if pair.startswith(setting_name + "="):
+            return pair.split('=')[1]
+    return None
+
+
+def get_int_setting(settings, setting_name):
+    '''
+    given a string of settings like "xmlstubsdump=num,xmldump=num",
+    return the int value in the string for the specified setting name
+    or None if not present
+    '''
+    value = get_setting(settings, setting_name)
+    if value is not None and value.isdigit():
+        return int(value)
+    else:
+        return None
+
+
 class DumpItemList(object):
     def __init__(self, wiki, prefetch, spawn, partnum_todo, checkpoint_file,
                  singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir,
@@ -80,6 +111,7 @@ class DumpItemList(object):
         self.skip_jobs = skip_jobs
         self.dumpjobdata = dumpjobdata
         self.dump_dir = dump_dir
+        self.jobsperbatch = self.wiki.config.jobsperbatch
         self.page_id_range = page_id_range
         self.verbose = verbose
 
@@ -169,6 +201,7 @@ class DumpItemList(object):
 
         self.dump_items.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                                        self._get_partnum_todo("xmlstubsdump"),
+                                       get_int_setting(self.jobsperbatch, "xmlstubsdump"),
                                        self.filepart.get_pages_per_filepart_history()))
 
         self.append_job_if_needed(RecombineXmlStub(
