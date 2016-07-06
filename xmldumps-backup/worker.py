@@ -170,7 +170,7 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
                the given wiki and date.
 --job:         Run just the specified step or set of steps; for the list,
                give the option --job help
-               This option requires specifiying a wikidbname on which to run.
+               More than one job can be specified as a comma-separated list
                This option cannot be specified with --force.
 --skipjobs:    Comma separated list of jobs not to run on the wiki(s)
                give the option --job help
@@ -211,7 +211,7 @@ def main():
         prefetch = True
         spawn = True
         restart = False
-        job_requested = None
+        jobs_requested = None
         skip_jobs = None
         enable_logging = False
         html_notice = ""
@@ -259,7 +259,7 @@ def main():
             elif opt == "--dryrun":
                 dryrun = True
             elif opt == "--job":
-                job_requested = val
+                jobs_requested = val
             elif opt == "--skipjobs":
                 skip_jobs = val
             elif opt == "--restartfrom":
@@ -285,22 +285,32 @@ def main():
             elif opt == "--verbose":
                 verbose = True
 
+        if jobs_requested is not None:
+            if ',' in jobs_requested:
+                jobs_todo = jobs_requested.split(',')
+            else:
+                jobs_todo = [jobs_requested]
+        else:
+            jobs_todo = []
+
         if dryrun and (len(remainder) == 0):
             usage("--dryrun requires the name of a wikidb to be specified")
-        if job_requested and force_lock:
+        if jobs_requested and force_lock:
             usage("--force cannot be used with --job option")
-        if restart and not job_requested:
+        if restart and not jobs_requested:
             usage("--restartfrom requires --job and the job from which to restart")
-        if partnum_todo is not None and not job_requested:
-            usage("--partnum option requires a specific job for which to rerun that part")
+        if restart and len(jobs_todo) > 1:
+            usage("--restartfrom requires --job and exactly one job from which to restart")
+        if partnum_todo is not None and not jobs_requested:
+            usage("--partnum option requires specific job(s) for which to rerun that part")
         if partnum_todo is not None and restart:
-            usage("--partnum option can be specified only for one specific job")
+            usage("--partnum option can be specified only for a specific list of jobs")
         if checkpoint_file is not None and (len(remainder) == 0):
             usage("--checkpoint option requires the name of a wikidb to be specified")
-        if checkpoint_file is not None and not job_requested:
-            usage("--checkpoint option requires --job and the job from which to restart")
-        if page_id_range and not job_requested:
-            usage("--pageidrange option requires --job and the job from which to restart")
+        if checkpoint_file is not None and not jobs_requested:
+            usage("--checkpoint option requires --job")
+        if page_id_range and not jobs_requested:
+            usage("--pageidrange option requires --job")
         if page_id_range and checkpoint_file is not None:
             usage("--pageidrange option cannot be used with --checkpoint option")
 
@@ -339,7 +349,8 @@ def main():
             sys.stderr.write("Exiting.\n")
             sys.exit(1)
 
-        if dryrun or partnum_todo is not None or (job_requested and not restart and not do_locking):
+        if (dryrun or partnum_todo is not None or
+                (jobs_requested is not None and not restart and not do_locking)):
             locks_enabled = False
         else:
             locks_enabled = True
@@ -368,7 +379,8 @@ def main():
             # if the run is across all wikis and we are just doing one job,
             # we want the age of the wikis by the latest status update
             # and not the date the run started
-            if job_requested and job_requested == 'createdirs':
+
+            if jobs_requested is not None and jobs_requested[0] == 'createdirs':
                 check_status_time = False
                 # there won't actually be a status for this job but we want
                 # to ensure that the directory and the status file are present
@@ -376,7 +388,7 @@ def main():
                 check_job_status = True
                 check_prereq_status = False
             else:
-                if job_requested:
+                if jobs_requested is not None:
                     check_status_time = True
                 else:
                     check_status_time = False
@@ -384,14 +396,14 @@ def main():
                     check_job_status = True
                 else:
                     check_job_status = False
-                if job_requested and skipdone:
+                if jobs_requested is not None and skipdone:
                     check_prereq_status = True
                 else:
                     check_prereq_status = False
             wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn,
                                        dryrun, html_notice, check_status_time,
                                        check_job_status, check_prereq_status,
-                                       date, job_requested, skip_jobs, page_id_range,
+                                       date, jobs_todo[0], skip_jobs, page_id_range,
                                        partnum_todo, checkpoint_file, skipdone, restart, verbose)
 
         if wiki is not None and wiki:
@@ -421,29 +433,46 @@ def main():
                 checkpoint_file = None
                 after_checkpoint_jobs = ['articlesdump', 'metacurrentdump',
                                          'metahistorybz2dump']
-                if not job_requested or job_requested not in [
-                        'articlesdump', 'metacurrentdump', 'metahistorybz2dump']:
-                    usage("--aftercheckpoint option requires --job option with one of %s"
+                if (jobs_requested is None or
+                        not set(jobs_requested).issubset(set(after_checkpoint_jobs))):
+                    usage("--aftercheckpoint option requires --job option with one or more of %s"
                           % ", ".join(after_checkpoint_jobs))
 
             enabled = {}
             if enable_logging:
                 enabled = {"logging": True}
-            runner = Runner(wiki, prefetch, spawn, job_requested, skip_jobs,
-                            restart, html_notice, dryrun, enabled,
-                            partnum_todo, checkpoint_file, page_id_range, skipdone,
-                            cleanup_files, verbose)
 
             if restart:
                 sys.stderr.write("Running %s, restarting from job %s...\n" %
-                                 (wiki.db_name, job_requested))
-            elif job_requested:
-                sys.stderr.write("Running %s, job %s...\n" % (wiki.db_name, job_requested))
+                                 (wiki.db_name, jobs_todo[0]))
+            elif jobs_requested:
+                sys.stderr.write("Running %s, jobs %s...\n" % (wiki.db_name, jobs_requested))
             else:
                 sys.stderr.write("Running %s...\n" % wiki.db_name)
-            result = runner.run()
-            if result is not None and result:
-                exitcode = 0
+
+            # no specific jobs requested, runner will do them all
+            if not len(jobs_todo):
+                runner = Runner(wiki, prefetch, spawn, None, skip_jobs,
+                                restart, html_notice, dryrun, enabled,
+                                partnum_todo, checkpoint_file, page_id_range, skipdone,
+                                cleanup_files, verbose)
+
+                result = runner.run()
+                if result is not None and result:
+                    exitcode = 0
+
+            else:
+                # do each job requested one at a time
+                for job in jobs_todo:
+                    runner = Runner(wiki, prefetch, spawn, job, skip_jobs,
+                                    restart, html_notice, dryrun, enabled,
+                                    partnum_todo, checkpoint_file, page_id_range, skipdone,
+                                    cleanup_files, verbose)
+
+                    result = runner.run()
+                    if result is not None and result:
+                        exitcode = 0
+
             # if we are doing one piece only of the dump, we don't unlock either
             if locks_enabled:
                 locker = Locker(wiki)

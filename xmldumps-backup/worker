@@ -13,7 +13,7 @@ usage() {
     echo "               then exit.  format: yyyymmdd  OR  'today'"
     echo "--date         (re)do dump runs of specified date (yyyymmdd) OR 'last'"
     echo "--skipdone     skip any dump jobs that ran successfully (this makes sense only for reruns)"
-    echo "--job          do only the specified job for wiki(s)"
+    echo "--job          do only the specified job(s) for wiki(s) (comma-sep list permitted)"
     echo "--skipjobs     comma separated list of jobs not to run on the wiki(s)"
     echo "--exclusive    lock the wiki so other runners can't operate on it at the same time"
     echo "               default is true for all runs except those where --job is specified"
