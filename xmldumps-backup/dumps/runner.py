@@ -93,7 +93,7 @@ def get_int_setting(settings, setting_name):
 
 
 class DumpItemList(object):
-    def __init__(self, wiki, prefetch, spawn, partnum_todo, checkpoint_file,
+    def __init__(self, wiki, prefetch, prefetchdate, spawn, partnum_todo, checkpoint_file,
                  singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir,
                  verbose):
         self.wiki = wiki
@@ -103,6 +103,7 @@ class DumpItemList(object):
         self._is_wikidata_client = self.wiki.is_wikidata_client()
         self._has_flow = self.wiki.has_flow()
         self._prefetch = prefetch
+        self._prefetchdate = prefetchdate
         self._spawn = spawn
         self.filepart = filepart
         self.checkpoint_file = checkpoint_file
@@ -217,7 +218,8 @@ class DumpItemList(object):
                     "and primary meta-pages.</b></big>",
                     "This contains current versions of article content, " +
                     "and is the archive most mirror sites will probably want.",
-                    self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn,
+                    self.find_item_by_name('xmlstubsdump'), self._prefetch,
+                    self._prefetchdate, self._spawn,
                     self.wiki, self._get_partnum_todo("articlesdump"),
                     self.filepart.get_pages_per_filepart_history(), checkpoints,
                     self.checkpoint_file, self.page_id_range, self.verbose))
@@ -238,6 +240,7 @@ class DumpItemList(object):
                     "Discussion and user pages are included in this complete archive. " +
                     "Most mirrors won't want this extra material.",
                     self.find_item_by_name('xmlstubsdump'), self._prefetch,
+                    self._prefetchdate,
                     self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
                     self.filepart.get_pages_per_filepart_history(), checkpoints,
                     self.checkpoint_file, self.page_id_range, self.verbose))
@@ -311,7 +314,8 @@ class DumpItemList(object):
                 "20 times the archive download size. " +
                 "Suitable for archival and statistical use, " +
                 "most mirror sites won't want or need this.",
-                self.find_item_by_name('xmlstubsdump'), self._prefetch, self._spawn,
+                self.find_item_by_name('xmlstubsdump'), self._prefetch,
+                self._prefetchdate, self._spawn,
                 self.wiki, self._get_partnum_todo("metahistorybz2dump"),
                 self.filepart.get_pages_per_filepart_history(),
                 checkpoints, self.checkpoint_file, self.page_id_range, self.verbose))
@@ -485,13 +489,15 @@ class DumpItemList(object):
 
 
 class Runner(object):
-    def __init__(self, wiki, prefetch=True, spawn=True, job=None, skip_jobs=None,
+    def __init__(self, wiki, prefetch=True, prefetchdate=None, spawn=True,
+                 job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, enabled=None,
                  partnum_todo=None, checkpoint_file=None, page_id_range=None,
                  skipdone=False, cleanup=False, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.db_name
         self.prefetch = prefetch
+        self.prefetchdate = prefetchdate
         self.spawn = spawn
         self.filepart_info = FilePartInfo(wiki, self.db_name, self.log_and_print)
         self.restart = restart
@@ -581,7 +587,8 @@ class Runner(object):
                                           self.verbose)
 
         # some or all of these dump_items will be marked to run
-        self.dump_item_list = DumpItemList(self.wiki, self.prefetch, self.spawn,
+        self.dump_item_list = DumpItemList(self.wiki, self.prefetch, self.prefetchdate,
+                                           self.spawn,
                                            self._partnum_todo, self.checkpoint_file,
                                            self.job_requested, self.skip_jobs,
                                            self.filepart_info, self.page_id_range,

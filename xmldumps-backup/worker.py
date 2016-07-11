@@ -12,7 +12,7 @@ from dumps.utils import TimeUtils
 
 
 def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
-               checkpoint_file, prefetch, spawn, dryrun, skipdone, verbose,
+               checkpoint_file, prefetch, prefetchdate, spawn, dryrun, skipdone, verbose,
                html_notice, prereqs=False, restart=False):
     '''
     if prereqs is False:
@@ -40,7 +40,7 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
 
     wiki.set_date(date)
 
-    runner = Runner(wiki, prefetch=prefetch, spawn=spawn, job=job,
+    runner = Runner(wiki, prefetch=prefetch, prefetchdate=prefetchdate, spawn=spawn, job=job,
                     skip_jobs=skipjobs, restart=restart, notice=html_notice, dryrun=dryrun,
                     enabled=None, partnum_todo=partnum_todo, checkpoint_file=checkpoint_file,
                     page_id_range=page_id_range, skipdone=skipdone, verbose=verbose)
@@ -84,8 +84,8 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
         return True
 
 
-def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
-                        html_notice, bystatustime=False,
+def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
+                        spawn, dryrun, html_notice, bystatustime=False,
                         check_job_status=False, check_prereq_status=False,
                         date=None, job=None, skipjobs=None, page_id_range=None,
                         partnum_todo=None, checkpoint_file=None, skipdone=False, restart=False,
@@ -117,7 +117,8 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
         if check_job_status:
             if check_jobs(wiki, date, job, skipjobs, page_id_range,
                           partnum_todo, checkpoint_file, restart,
-                          prefetch, spawn, dryrun, skipdone, verbose, html_notice):
+                          prefetch, prefetchdate, spawn, dryrun,
+                          skipdone, verbose, html_notice):
                 continue
         try:
             if locks_enabled:
@@ -129,7 +130,8 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn, dryrun,
                 # if we skip locked wikis which are missing the prereqs for this job,
                 # there are still wikis where this job needs to run
                 if not check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
-                                  checkpoint_file, prefetch, spawn, dryrun, skipdone, verbose,
+                                  checkpoint_file, prefetch, prefetchdate,
+                                  spawn, dryrun, skipdone, verbose,
                                   html_notice, prereqs=True, restart=restart):
                     missing_prereqs = True
             sys.stderr.write("Couldn't lock %s, someone else must have got it...\n" % dbname)
@@ -146,7 +148,7 @@ def usage(message=None):
     usage_text = """Usage: python worker.py [options] [wikidbname]
 Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job,
          --skipjobs, --addnotice, --delnotice, --force, --noprefetch,
-         --nospawn, --restartfrom, --log, --cleanup, --cutoff\n")
+         --prefetchdate, --nospawn, --restartfrom, --log, --cleanup, --cutoff\n")
 --aftercheckpoint: Restart this job from the after specified checkpoint file, doing the
                rest of the job for the appropriate part number if parallel subjobs each
                doing one part are configured, or for the all the rest of the revisions
@@ -184,6 +186,10 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
                runners try to work on that wiki. Default: for single jobs, don't lock
 --noprefetch:  Do not use a previous file's contents for speeding up the dumps
                (helpful if the previous files may have corrupt contents)
+--prefetchdate:  Read page content from the dump of the specified date (YYYYMMDD)
+                 and reuse for the current page content dumps.  If not specified
+                 and prefetch is enabled (the default), the most recent good
+                 dump will be used.
 --nospawn:     Do not spawn a separate process in order to retrieve revision texts
 --restartfrom: Do all jobs after the one specified via --job, including that one
 --skipdone:    Do only jobs that are not already succefully completed
@@ -209,6 +215,7 @@ def main():
         config_file = False
         force_lock = False
         prefetch = True
+        prefetchdate = None
         spawn = True
         restart = False
         jobs_requested = None
@@ -231,8 +238,8 @@ def main():
             (options, remainder) = getopt.gnu_getopt(
                 sys.argv[1:], "",
                 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=',
-                 'delnotice', 'force', 'dryrun', 'noprefetch', 'nospawn',
-                 'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
+                 'delnotice', 'force', 'dryrun', 'noprefetch', 'prefetchdate=',
+                 'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
                  'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
                  "exclusive", "cleanup", 'verbose'])
         except:
@@ -254,6 +261,8 @@ def main():
                 checkpoint_file = val
             elif opt == "--noprefetch":
                 prefetch = False
+            elif opt == "--prefetchdate":
+                prefetchdate = val
             elif opt == "--nospawn":
                 spawn = False
             elif opt == "--dryrun":
@@ -313,7 +322,10 @@ def main():
             usage("--pageidrange option requires --job")
         if page_id_range and checkpoint_file is not None:
             usage("--pageidrange option cannot be used with --checkpoint option")
-
+        if prefetchdate is not None and not prefetch:
+            usage("prefetchdate and noprefetch options may not be specified together")
+        if prefetchdate is not None and (not prefetchdate.isdigit() or len(prefetchdate) != 8):
+            usage("prefetchdate must be of the form YYYYMMDD")
         if skip_jobs is None:
             skip_jobs = []
         else:
@@ -400,7 +412,8 @@ def main():
                     check_prereq_status = True
                 else:
                     check_prereq_status = False
-            wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, spawn,
+            wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch,
+                                       prefetchdate, spawn,
                                        dryrun, html_notice, check_status_time,
                                        check_job_status, check_prereq_status,
                                        date, jobs_todo[0], skip_jobs, page_id_range,
@@ -452,7 +465,7 @@ def main():
 
             # no specific jobs requested, runner will do them all
             if not len(jobs_todo):
-                runner = Runner(wiki, prefetch, spawn, None, skip_jobs,
+                runner = Runner(wiki, prefetch, prefetchdate, spawn, None, skip_jobs,
                                 restart, html_notice, dryrun, enabled,
                                 partnum_todo, checkpoint_file, page_id_range, skipdone,
                                 cleanup_files, verbose)
@@ -464,7 +477,7 @@ def main():
             else:
                 # do each job requested one at a time
                 for job in jobs_todo:
-                    runner = Runner(wiki, prefetch, spawn, job, skip_jobs,
+                    runner = Runner(wiki, prefetch, prefetchdate, spawn, job, skip_jobs,
                                     restart, html_notice, dryrun, enabled,
                                     partnum_todo, checkpoint_file, page_id_range, skipdone,
                                     cleanup_files, verbose)

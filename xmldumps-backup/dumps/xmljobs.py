@@ -196,13 +196,15 @@ class XmlLogging(Dump):
 
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
-    def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch, spawn,
+    def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch,
+                 prefetchdate, spawn,
                  wiki, partnum_todo, parts=False, checkpoints=False, checkpoint_file=None,
                  page_id_range=None, verbose=False):
         self._subset = subset
         self._detail = detail
         self._desc = desc
         self._prefetch = prefetch
+        self._prefetchdate = prefetchdate
         self._spawn = spawn
         self._parts = parts
         if self._parts:
@@ -751,7 +753,10 @@ class XmlDump(Dump):
             start_page_id = 1
             end_page_id = None
 
-        dumps = self.wiki.dump_dirs()
+        if self._prefetchdate:
+            dumps = [self._prefetchdate]
+        else:
+            dumps = self.wiki.dump_dirs()
         dumps.sort()
         dumps.reverse()
         for date in dumps:
