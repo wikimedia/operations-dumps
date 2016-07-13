@@ -415,8 +415,9 @@ def main():
             wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch,
                                        prefetchdate, spawn,
                                        dryrun, html_notice, check_status_time,
-                                       check_job_status, check_prereq_status,
-                                       date, jobs_todo[0], skip_jobs, page_id_range,
+                                       check_job_status, check_prereq_status, date,
+                                       jobs_todo[0] if len(jobs_todo) else None,
+                                       skip_jobs, page_id_range,
                                        partnum_todo, checkpoint_file, skipdone, restart, verbose)
 
         if wiki is not None and wiki:
