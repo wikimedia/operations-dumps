@@ -56,7 +56,7 @@ class Scheduler(object):
     '''
 
     def __init__(self, file_p, slots, cache, mailhost,
-                 email_from, restore, rerun):
+                 email_from, formatvars, restore, rerun):
         '''
         constructor
         also define a unique id that is set in the environment of every command
@@ -77,6 +77,22 @@ class Scheduler(object):
                                  self.pid, os.geteuid())
         self.my_prefix = 'PYMGR_ID'
         self.email_from = email_from
+        self.formatvars = self.format_convert(formatvars)
+
+    def format_convert(self, names_values):
+        '''
+        expect a string like name1=val1,name2=val2...
+        return a dict {'name1': 'val1', 'name2': 'val2'...}
+        suitable for use by format()
+        '''
+        if names_values is None:
+            return names_values
+        pairs = names_values.split(',')
+        converted = {}
+        for pair in pairs:
+            name, val = pair.split('=')
+            converted[name] = val
+        return converted
 
     def run(self):
         '''
@@ -119,6 +135,8 @@ class Scheduler(object):
             line = line.rstrip('\n')
             if line.startswith('#') or line.startswith(" ") or not line:
                 continue
+            if self.formatvars is not None:
+                line = line.format(**self.formatvars)
             self.commands.append(line_to_entry(line, self.total_slots))
         if self.input != sys.stdin:
             self.input.close()
@@ -397,7 +415,9 @@ def usage(message=None):
         sys.stderr.write("\n")
     usage_message = """
 Usage: dumpscheduler.py --slots number [--commands path]
-    [--directory path] [--restore] [--verbose] [--help]
+    [--cache path] [--directory path] [--mailhost hostname]
+    [--email address] [--formatvars var1=val1,var2=val2...]
+    [--restore] [--rerun] [--verbose] [--help]
 
 Options:
 
@@ -417,6 +437,8 @@ Options:
                         default: root
   --restore   (-r):     restore state from cache (for interrupted script)
   --rerun     (-R):     rerun any processes still in process (for interrupted script)
+  --formatvars(-f):     comma-separated list of var names and values to be substituted
+                        into the command list via format()
   --verbose   (-v):     display progress messages
   --debug     (-d):     display even more progress messages
   --help      (-h):     display this usage message
@@ -469,16 +491,18 @@ def main():
     working_dir = None
     mailhost = None
     email_from = "root"
+    formatvars = None
     restore = False
     rerun = False
     verbose = False
     debug = False
 
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:C:d:e:m:s:rDRvh",
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:C:d:e:m:s:f:rDRvh",
                                                  ["commands=", "cache=", "directory=",
-                                                  "email=", "slots=", "restore", "rerun",
-                                                  "mailhost", "verbose", "debug", "help"])
+                                                  "email=", "slots=", "formatvars=", "restore",
+                                                  "rerun", "mailhost", "verbose", "debug",
+                                                  "help"])
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
 
@@ -499,6 +523,8 @@ def main():
             restore = True
         elif opt in ["-R", "--rerun"]:
             rerun = True
+        elif opt in ["-f", "--formatvars"]:
+            formatvars = val
         elif opt in ["-v", "--verbose"]:
             verbose = True
         elif opt in ["-m", "--mailhost"]:
@@ -533,7 +559,7 @@ def main():
     if working_dir is not None:
         os.chdir(working_dir)
     scheduler = Scheduler(commands_in, slots, cache, mailhost,
-                          email_from, restore, rerun)
+                          email_from, formatvars, restore, rerun)
     scheduler.run()
 
 
