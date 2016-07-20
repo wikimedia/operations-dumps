@@ -558,7 +558,7 @@ class Runner(object):
                     del self.enabled[setting]
 
         if self.job_requested == "createdirs":
-            for setting in [SymLinks.NAME, Feeds.NAME, RunSettings.Name]:
+            for setting in [SymLinks.NAME, Feeds.NAME, RunSettings.NAME]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 
