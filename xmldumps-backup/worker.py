@@ -117,7 +117,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
         if check_job_status:
             if check_jobs(wiki, date, job, skipjobs, page_id_range,
                           partnum_todo, checkpoint_file, restart,
-                          prefetch, prefetchdate, spawn, dryrun,
+                          prefetch, prefetchdate, spawn, True,
                           skipdone, verbose, html_notice):
                 continue
         try:
@@ -131,7 +131,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
                 # there are still wikis where this job needs to run
                 if not check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
                                   checkpoint_file, prefetch, prefetchdate,
-                                  spawn, dryrun, skipdone, verbose,
+                                  spawn, True, skipdone, verbose,
                                   html_notice, prereqs=True, restart=restart):
                     missing_prereqs = True
             sys.stderr.write("Couldn't lock %s, someone else must have got it...\n" % dbname)
