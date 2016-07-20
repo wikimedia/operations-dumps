@@ -530,21 +530,23 @@ class Runner(object):
                         RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
                         "cleanup_old_files", "check_trunc_files"]:
-            self.enabled[setting] = True
+                self.enabled[setting] = True
 
         if not self.cleanup_old_files:
-            del self.enabled["cleanup_old_files"]
+            if "cleanup_old_files" in self.enabled:
+                del self.enabled["cleanup_old_files"]
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
                             RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
-                del self.enabled[setting]
+                if setting in self.enabled:
+                    del self.enabled[setting]
 
         if self.dryrun:
             for setting in ["check_trunc_files"]:
-                del self.enabled[setting]
-            # may not always be present
+                if setting in self.enabled:
+                    del self.enabled[setting]
             if "logging" in self.enabled:
                 del self.enabled["logging"]
 
@@ -552,20 +554,24 @@ class Runner(object):
 
         if self.job_requested == "latestlinks":
             for setting in [StatusHtml.NAME, IndexHtml.NAME, RunInfoFile.NAME]:
-                del self.enabled[setting]
+                if setting in self.enabled:
+                    del self.enabled[setting]
 
         if self.job_requested == "createdirs":
             for setting in [SymLinks.NAME, Feeds.NAME]:
-                del self.enabled[setting]
+                if setting in self.enabled:
+                    del self.enabled[setting]
 
         if self.job_requested == "latestlinks" or self.job_requested == "createdirs":
             for setting in [Checksummer.NAME, NoticeFile.NAME, "makedir",
                             "clean_old_dumps", "check_trunc_files"]:
-                del self.enabled[setting]
+                if setting in self.enabled:
+                    del self.enabled[setting]
 
         if self.job_requested == "noop":
             for setting in ["clean_old_dumps", "check_trunc_files"]:
-                del self.enabled[setting]
+                if setting in self.enabled:
+                    del self.enabled[setting]
 
         self.skip_jobs = skip_jobs
         if skip_jobs is None:
