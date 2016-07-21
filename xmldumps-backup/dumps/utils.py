@@ -238,7 +238,7 @@ class RunSimpleCommand(object):
         else:
             command_string = command
         if verbose:
-            print("command to be run with no output: ", command_string)
+            print "command to be run with no output: ", command_string
         success = False
         error = "unknown"
         tries = 0
