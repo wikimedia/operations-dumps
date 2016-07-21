@@ -176,8 +176,6 @@ class WikiRunner(object):
         self.filenameformat = filenameformat
         self.output_dir = output_dir
         self.base = base
-        if self.base is not None:
-            self.base.config.parse_conffile_per_project(base.db_name)
 
     def get_output_dir(self):
         '''
@@ -195,7 +193,7 @@ class WikiRunner(object):
             try:
                 if self.runner.verbose:
                     if self.base is not None:
-                        print "Doing run for wiki: ", self.wiki.db_name, "on", self.base.dbname
+                        print "Doing run for wiki: ", self.wiki.db_name, "on", self.base.db_name
                     else:
                         print "Doing run for wiki: ", self.wiki.db_name
                 if not self.runner.dryrun:
@@ -390,7 +388,7 @@ def get_args():
     query = None
     retries = None
     wikiname = None
-    base = None
+    basename = None
     verbose = False
     filenameformat = "{w}-{d}-{s}"
 
@@ -418,7 +416,7 @@ def get_args():
         elif opt in ["-w", "--wiki"]:
             wikiname = val
         elif opt in ["-b", "--base"]:
-            wikiname = val
+            basename = val
         elif opt in ["-s", "--script"]:
             script = val
         elif opt in ["-q", "--query"]:
@@ -436,7 +434,7 @@ def get_args():
 
     return(configfile, date, dryrun, filenameformat,
            output_dir, overwrite, wikiname, script,
-           base, query, retries, verbose, remainder)
+           basename, query, retries, verbose, remainder)
 
 
 def do_main():
@@ -446,7 +444,7 @@ def do_main():
 
     (configfile, date, dryrun, filenameformat,
      output_dir, overwrite, wikiname, script,
-     base, query, retries, verbose, remainder) = get_args()
+     basename, query, retries, verbose, remainder) = get_args()
 
     validate_args(date, output_dir, retries, script, query)
 
@@ -468,6 +466,14 @@ def do_main():
         if query is None:
             query = FileUtils.read_file(config.queryfile)
         runner = QueryRunner(query, dryrun, verbose)
+
+    if basename is not None:
+        base = Wiki(config, basename)
+        base.set_date(date)
+        if base is not None:
+            base.config.parse_conffile_per_project(base.db_name)
+    else:
+        base = None
 
     if wikiname is not None:
         wiki = Wiki(config, wikiname)
