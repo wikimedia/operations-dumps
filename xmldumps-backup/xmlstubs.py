@@ -116,7 +116,7 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
             outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
 
     script_command = MultiVersion.mw_script_as_array(wikiconf, "dumpBackup.php")
-    command = [wikiconf.php, "-q"] + script_command
+    command = [wikiconf.php] + script_command
 
     command.extend(["--wiki=%s" % wikidb,
                     "--full", "--stub", "--report=1000",

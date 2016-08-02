@@ -32,7 +32,7 @@ def dologsbackup(wikidb, outfile,
             outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
 
     script_command = MultiVersion.mw_script_as_array(wikiconf, "dumpBackup.php")
-    command = [wikiconf.php, "-q"] + script_command
+    command = [wikiconf.php] + script_command
 
     command.extend(["--wiki=%s" % wikidb,
                     "--logs", "--report=1000",

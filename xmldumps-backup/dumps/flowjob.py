@@ -43,7 +43,7 @@ class FlowDump(Dump):
         script_command = MultiVersion.mw_script_as_array(
             runner.wiki.config, "extensions/Flow/maintenance/dumpBackup.php")
 
-        command = ["%s" % runner.wiki.config.php, "-q"]
+        command = [runner.wiki.config.php]
         command.extend(script_command)
         command.extend(["--wiki=%s" % runner.db_name,
                         "--current", "--report=1000",

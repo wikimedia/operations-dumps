@@ -283,7 +283,7 @@ class DBServer(object):
         if not exists(self.config.php):
             raise BackupError("php command %s not found" % self.config.php)
         command_list = MultiVersion.mw_script_as_array(self.config, "getSlaveServer.php")
-        command = [self.config.php, "-q"]
+        command = [self.config.php]
         command.extend(command_list)
         command.extend(["--wiki=%s" % self.wikiname, "--group=dump"])
         return RunSimpleCommand.run_with_output(command, shell=False).rstrip()

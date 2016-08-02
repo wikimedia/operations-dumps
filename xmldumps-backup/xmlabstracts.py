@@ -39,7 +39,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     script_command = MultiVersion.mw_script_as_array(wikiconf,
                                                      "dumpBackup.php")
-    command = [wikiconf.php, "-q"] + script_command
+    command = [wikiconf.php] + script_command
     version = MultiVersion.mw_version(wikiconf, wikidb)
     abstract_cmd_dir = wikiconf.wiki_dir
     if version:

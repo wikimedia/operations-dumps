@@ -106,7 +106,7 @@ class DbServerInfo(object):
         for i in range(0, len(command_list)):
             command_list[i] = MiscUtils.shell_escape(command_list[i])
         command = " ".join(command_list)
-        command = "%s -q %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
+        command = "%s %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
         results = RunSimpleCommand.run_with_output(
             command, shell=True, log_callback=self.error_callback).strip()
         if not results:

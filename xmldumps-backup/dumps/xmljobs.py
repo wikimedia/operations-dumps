@@ -643,7 +643,7 @@ class XmlDump(Dump):
             checkpoint_time = ""
             checkpoint_file = ""
         script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpTextPass.php")
-        dump_command = ["%s" % self.wiki.config.php, "-q"]
+        dump_command = [self.wiki.config.php]
         dump_command.extend(script_command)
         dump_command.extend(["--wiki=%s" % runner.db_name,
                              "%s" % stub_option,

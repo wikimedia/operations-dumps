@@ -73,7 +73,7 @@ class ScriptRunner(Runner):
         if self.scriptname.endswith('.php'):
             script_command = MultiVersion.mw_script_as_array(
                 base.config, self.scriptname)
-            script_command = [base.config.php, "-q"] + script_command
+            script_command = [base.config.php] + script_command
             script_command.extend(["--wiki", base.db_name])
         else:
             script_command = [self.scriptname]

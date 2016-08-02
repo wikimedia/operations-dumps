@@ -321,7 +321,7 @@ class IncrDump(object):
     def dump_stub(self, start_revid, end_revid):
         script_command = MultiVersion.mw_script_as_array(self._config,
                                                          "dumpBackup.php")
-        command = ["%s" % self._config.php, "-q"]
+        command = [self._config.php]
         command.extend(script_command)
         command.extend(["--wiki=%s" % self.wikiname, "--stub", "--quiet",
                         "--output=gzip:%s" % self.stubfile.get_path(),
@@ -341,7 +341,7 @@ class IncrDump(object):
     def dump_revs(self):
         script_command = MultiVersion.mw_script_as_array(self._config,
                                                          "dumpTextPass.php")
-        command = ["%s" % self._config.php, "-q"]
+        command = [self._config.php]
         command.extend(script_command)
         command.extend(["--wiki=%s" % self.wikiname,
                         "--stub=gzip:%s" % self.stubfile.get_path(),
