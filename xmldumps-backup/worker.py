@@ -200,6 +200,8 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
                and exit, or if there are no such wikis, just exit
 --cleanup:     Remove all files that may already exist for the spefici wiki and
                run, for the specified job or all jobs
+--prereqs:     If a job fails because the prereq is not done, try to do the prereq,
+               a chain of up to 5 such dependencies is permitted.
 --verbose:     Print lots of stuff (includes printing full backtraces for any exception)
                This is used primarily for debugging
 """
@@ -233,6 +235,7 @@ def main():
         do_locking = False
         verbose = False
         cleanup_files = False
+        do_prereqs = False
 
         try:
             (options, remainder) = getopt.gnu_getopt(
@@ -241,7 +244,7 @@ def main():
                  'delnotice', 'force', 'dryrun', 'noprefetch', 'prefetchdate=',
                  'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
                  'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
-                 "exclusive", "cleanup", 'verbose'])
+                 "exclusive", "prereqs", "cleanup", 'verbose'])
         except:
             usage("Unknown option specified")
 
@@ -293,6 +296,8 @@ def main():
                 do_locking = True
             elif opt == "--verbose":
                 verbose = True
+            elif opt == "--prereqs":
+                do_prereqs = True
 
         if jobs_requested is not None:
             if ',' in jobs_requested:
@@ -470,7 +475,7 @@ def main():
                 runner = Runner(wiki, prefetch, prefetchdate, spawn, None, skip_jobs,
                                 restart, html_notice, dryrun, enabled,
                                 partnum_todo, checkpoint_file, page_id_range, skipdone,
-                                cleanup_files, verbose)
+                                cleanup_files, do_prereqs, verbose)
 
                 result = runner.run()
                 if result is not None and result:
@@ -482,7 +487,7 @@ def main():
                     runner = Runner(wiki, prefetch, prefetchdate, spawn, job, skip_jobs,
                                     restart, html_notice, dryrun, enabled,
                                     partnum_todo, checkpoint_file, page_id_range, skipdone,
-                                    cleanup_files, verbose)
+                                    cleanup_files, do_prereqs, verbose)
 
                     result = runner.run()
                     if result is not None and result:

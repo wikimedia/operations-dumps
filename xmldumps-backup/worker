@@ -4,7 +4,7 @@ usage() {
     echo "$0: Unknown option $1"
     echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
     echo "          [--cutoff date] [--date date] [--job job] [--skipjobs joblist] [--skipdone]"
-    echo "          [--exclusive] [--onepass] [--sleep]"
+    echo "          [--exclusive] [--onepass] [--sleep] [--prereqs]"
     echo "--configfile   use specified file for config file (default: wikidump.conf)"
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
@@ -21,6 +21,7 @@ usage() {
     echo "               config file will be dumped"
     echo "--onepass      if there are no wikis to dump (--skipdone option) then exit"
     echo "--sleep        time to sleep between jobs, default 60 seconds"
+    echo "--prereqs      do prereqs missing for a job rather than failing out"
     echo
     echo "If the file maintenance.txt is present, no more jobs will be run, and"
     echo "this script will check the status again in 5 minutes."
@@ -53,6 +54,8 @@ set_defaults() {
     ONEPASS=""
     # time to sleep between wikis, in seconds
     SLEEP=60
+    # default: don't do missing prereqs for a job
+    PREREQS=""
 }
 
 process_opts() {
@@ -96,6 +99,9 @@ process_opts() {
 	elif [ $1 == "--exclusive" ]; then
 	    EXCLUSIVE=true
 	    shift
+	elif [ $1 == "--prereqs" ]; then
+	    PREREQS=true
+	    shift
 	else
 	    usage
 	fi
@@ -122,6 +128,9 @@ setup_python_args() {
     fi
     if [ ! -z "$EXCLUSIVE" ]; then
 	pythonargs=( "${pythonargs[@]}" "--exclusive" )
+    fi
+    if [ ! -z "$PREREQS" ]; then
+	pythonargs=( "${pythonargs[@]}" "--prereqs" )
     fi
     if [ ! -z "$DATE" ]; then
 	if [ "$DATE" == "today" ]; then

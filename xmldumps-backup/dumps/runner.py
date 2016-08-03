@@ -493,7 +493,7 @@ class Runner(object):
                  job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, enabled=None,
                  partnum_todo=None, checkpoint_file=None, page_id_range=None,
-                 skipdone=False, cleanup=False, verbose=False):
+                 skipdone=False, cleanup=False, do_prereqs=False, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.db_name
         self.prefetch = prefetch
@@ -511,6 +511,7 @@ class Runner(object):
         self.verbose = verbose
         self.enabled = enabled
         self.cleanup_old_files = cleanup
+        self.do_prereqs = do_prereqs
 
         if self.checkpoint_file is not None:
             fname = DumpFilename(self.wiki)
@@ -703,6 +704,47 @@ class Runner(object):
             self.failurehandler.report_failure()
         self.failurehandler.failure_count += 1
 
+    def do_run_item(self, item):
+        prereq_job = None
+
+        Maintenance.exit_if_in_maintenance_mode(
+            "In maintenance mode, exiting dump of %s at step %s"
+            % (self.db_name, item.name()))
+        if item.to_run():
+            item.start()
+            self.indexhtml.update_index_html()
+            self.statushtml.update_status_file()
+
+            self.dumpjobdata.do_before_job(self.dump_item_list.dump_items)
+
+            try:
+                item.dump(self)
+            except Exception, ex:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                if self.verbose:
+                    sys.stderr.write(repr(traceback.format_exception(
+                        exc_type, exc_value, exc_traceback)))
+                if exc_type.__name__ == 'BackupPrereqError':
+                    error_message = str(ex)
+                    self.debug(error_message)
+                    if error_message.startswith("Required job "):
+                        prereq_job = error_message.split(" ")[2]
+                else:
+                    self.debug("*** exception! " + str(ex))
+                    item.set_status("failed")
+
+        if item.status() == "done":
+            self.dumpjobdata.do_after_job(item)
+        elif item.status() == "waiting" or item.status() == "skipped":
+            # don't update the checksum files for this item.
+            pass
+        else:
+            # Here for example status is "failed". But maybe also
+            # "in-progress", if an item chooses to override dump(...) and
+            # forgets to set the status. This is a failure as well.
+            self.run_handle_failure()
+        return prereq_job
+
     def run(self):
         if self.job_requested:
             if not self.dump_item_list.old_runinfo_retrieved and self.wiki.exists_perdump_index():
@@ -753,41 +795,26 @@ class Runner(object):
         self.dumpjobdata.do_before_dump()
 
         for item in self.dump_item_list.dump_items:
-            Maintenance.exit_if_in_maintenance_mode(
-                "In maintenance mode, exiting dump of %s at step %s"
-                % (self.db_name, item.name()))
-            if item.to_run():
-                item.start()
-                self.indexhtml.update_index_html()
-                self.statushtml.update_status_file()
-
-                self.dumpjobdata.do_before_job(self.dump_item_list.dump_items)
-
-                try:
-                    item.dump(self)
-                except Exception, ex:
-                    exc_type, exc_value, exc_traceback = sys.exc_info()
-                    if self.verbose:
-                        sys.stderr.write(repr(traceback.format_exception(
-                            exc_type, exc_value, exc_traceback)))
-                    else:
-                        if exc_type.__name__ == 'BackupPrereqError':
-                            self.debug(str(ex))
-                        else:
-                            self.debug("*** exception! " + str(ex))
-                        if exc_type.__name__ != 'BackupPrereqError':
-                            item.set_status("failed")
-
-            if item.status() == "done":
-                self.dumpjobdata.do_after_job(item)
-            elif item.status() == "waiting" or item.status() == "skipped":
-                # don't update the checksum files for this item.
-                continue
-            else:
-                # Here for example status is "failed". But maybe also
-                # "in-progress", if an item chooses to override dump(...) and
-                # forgets to set the status. This is a failure as well.
-                self.run_handle_failure()
+            prereq_job = self.do_run_item(item)
+            if self.do_prereqs and prereq_job is not None:
+                doing = []
+                doing.append(item)
+                # we have the lock so we might as well run the prereq job now.
+                # there may be a string of prereqs not met,
+                # i.e. articlesrecombine -> articles -> stubs
+                # so we're willing to walk back up the list up to five items,
+                # assume there's something really broken if it takes more than that
+                while prereq_job is not None and len(doing) < 5:
+                    new_item = self.dump_item_list.find_item_by_name(prereq_job)
+                    new_item.set_to_run(True)
+                    prereq_job = self.do_run_item(new_item)
+                    if prereq_job is not None:
+                        # this job has a dependency too, add to the todo stack
+                        doing.insert(0, new_item)
+                # back up the stack and do the dependents if stack isn't too long.
+                if len(doing) < 5:
+                    for item in doing:
+                        self.do_run_item(item)
 
         # special case
         if self.job_requested == "createdirs":
