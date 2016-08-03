@@ -557,6 +557,8 @@ class CommandsInParallel(object):
                                   self._callback_stderr, self._callback_stdout,
                                   self._callback_timed, self._callback_stderr_arg,
                                   self._callback_stdout_arg, self._callback_timed_arg)
+            # when the main script dies this thread must too.
+            thrd.daemon = True
             thrd.start()
 
     def all_commands_completed(self):

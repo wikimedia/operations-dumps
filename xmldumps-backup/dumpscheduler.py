@@ -14,6 +14,8 @@ import smtplib
 import email.mime.text
 import json
 import traceback
+import signal
+
 
 LOG = logging.getLogger(__name__)
 
@@ -64,6 +66,8 @@ class Scheduler(object):
         with the same pid and environment variable is still running
         '''
 
+        signal.signal(signal.SIGHUP, self.handle_hup)
+
         self.input = file_p
         self.total_slots = slots
         self.commands = []
@@ -78,6 +82,28 @@ class Scheduler(object):
         self.my_prefix = 'PYMGR_ID'
         self.email_from = email_from
         self.formatvars = self.format_convert(formatvars)
+
+    def handle_hup(self, signo_unused, frame_unused):
+        """
+        ignore any more hups
+        shoot all children
+        close all the fds except the big three
+        re-exec ourselves
+        """
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+
+        for command in self.commands:
+            if 'processids' in command:
+                for pid in command['processids']:
+                    os.killpg(os.getpgid(int(pid)), signal.SIGTERM)
+
+        for filedesc in reversed(range(os.sysconf('SC_OPEN_MAX'))):
+            if filedesc not in [sys.__stdin__, sys.__stdout__, sys.__stderr__]:
+                try:
+                    filedesc.close()
+                except Exception:
+                    pass
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def format_convert(self, names_values):
         '''
@@ -348,8 +374,10 @@ class Scheduler(object):
         if entry['slots'] <= self.free_slots:
             LOG.info("using %s slot(s), starting command %s",
                      str(entry['slots']), entry['command'])
+            # we need setpgrp here so that kills to our children will
+            # propagate through to any subprocesses that might be forked
             process = Popen(entry['command'],
-                            shell=True, bufsize=-1)
+                            shell=True, bufsize=-1, preexec_fn=os.setpgrp)
             entry['processes'].append(process)
             entry['processids'].append(process.pid)
             self.free_slots = self.free_slots - entry['slots']
@@ -418,6 +446,9 @@ Usage: dumpscheduler.py --slots number [--commands path]
     [--cache path] [--directory path] [--mailhost hostname]
     [--email address] [--formatvars var1=val1,var2=val2...]
     [--restore] [--rerun] [--verbose] [--help]
+
+Send a SIGHUP to this script to shoot all children and restart the script
+from where it was interrupted, using the cache file.
 
 Options:
 
@@ -558,6 +589,7 @@ def main():
 
     if working_dir is not None:
         os.chdir(working_dir)
+
     scheduler = Scheduler(commands_in, slots, cache, mailhost,
                           email_from, formatvars, restore, rerun)
     scheduler.run()

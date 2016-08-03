@@ -603,6 +603,8 @@ class Locker(object):
         lockf.close()
 
         self.watchdog = LockWatchdog(self.get_lock_file_path())
+        # when the main script dies this thread must die too, horribly if needed.
+        self.watchdog.daemon = True
         self.watchdog.start()
         return True
 

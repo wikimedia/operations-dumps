@@ -1,7 +1,7 @@
 import os
 import sys
 import shutil
-import thread
+import threading
 import traceback
 import Queue
 
@@ -24,8 +24,10 @@ from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
 from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils
 
 
-class Logger(object):
+class Logger(threading.Thread):
     def __init__(self, log_filename=None):
+        threading.Thread.__init__(self)
+
         if log_filename:
             self.log_file = open(log_filename, "a")
         else:
@@ -34,12 +36,12 @@ class Logger(object):
         self.jobs_done = "JOBSDONE"
 
     def log_write(self, line=None):
-        if self.log_file:
+        if self.log_file is not None:
             self.log_file.write(line)
             self.log_file.flush()
 
     def log_close(self):
-        if self.log_file:
+        if self.log_file is not None:
             self.log_file.close()
             # return 1 if logging terminated, 0 otherwise
 
@@ -59,6 +61,13 @@ class Logger(object):
     # set in order to have logging thread clean up and exit
     def indicate_jobs_done(self):
         self.queue.put_nowait(self.jobs_done)
+
+    def run(self):
+        if self.log_file is None:
+            return
+        done = False
+        while not done:
+            done = self.do_job_on_log_queue()
 
 
 def get_setting(settings, setting_name):
@@ -588,7 +597,10 @@ class Runner(object):
             self.log_filename = self.dump_dir.filename_private_path(file_obj)
             self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
             self.log = Logger(self.log_filename)
-            thread.start_new_thread(self.log_queue_reader, (self.log,))
+            # thread should die horribly when main script dies. no exceptions.
+            self.log.daemon = True
+            self.log.start()
+
         self.dumpjobdata = DumpRunJobData(self.wiki, self.dump_dir, notice,
                                           self.log_and_print, self.debug, self.enabled,
                                           self.verbose)
