@@ -22,6 +22,8 @@ usage() {
     echo "--onepass      if there are no wikis to dump (--skipdone option) then exit"
     echo "--sleep        time to sleep between jobs, default 60 seconds"
     echo "--prereqs      do prereqs missing for a job rather than failing out"
+    echo "--force        steal the lock for the specified wiki if necessary -- dangerous!"
+    echo "               requires the --wiki argument"
     echo
     echo "If the file maintenance.txt is present, no more jobs will be run, and"
     echo "this script will check the status again in 5 minutes."
@@ -56,6 +58,8 @@ set_defaults() {
     SLEEP=60
     # default: don't do missing prereqs for a job
     PREREQS=""
+    # default: don't steal locks
+    FORCE=""
 }
 
 process_opts() {
@@ -101,6 +105,8 @@ process_opts() {
 	    shift
 	elif [ $1 == "--prereqs" ]; then
 	    PREREQS=true
+	elif [ $1 == "--force" ]; then
+	    FORCE=true
 	    shift
 	else
 	    usage
@@ -131,6 +137,13 @@ setup_python_args() {
     fi
     if [ ! -z "$PREREQS" ]; then
 	pythonargs=( "${pythonargs[@]}" "--prereqs" )
+    fi
+    if [ ! -z "$FORCE" ]; then
+        if [ -z "$WIKI" ]; then
+           echo "--force requires --wiki"
+           exit 1
+	fi
+	pythonargs=( "${pythonargs[@]}" "--force" )
     fi
     if [ ! -z "$DATE" ]; then
 	if [ "$DATE" == "today" ]; then

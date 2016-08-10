@@ -178,10 +178,8 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
                give the option --job help
 --dryrun:      Don't really run the job, just print what would be done (must be used
                with a specified wikidbname on which to run
---force:       remove a lock file for the specified wiki (dangerous, if there is
-               another process running, useful if you want to start a second later
-               run while the first dump from a previous date is still going)
-               This option cannot be specified with --job.
+--force:       steal the lock for the specified wiki; dangerous, if there is
+               another process doing a dump run for that wiki and that date.
 --exclusive    Even if rerunning just one job of a wiki, get a lock to make sure no other
                runners try to work on that wiki. Default: for single jobs, don't lock
 --noprefetch:  Do not use a previous file's contents for speeding up the dumps
@@ -309,8 +307,6 @@ def main():
 
         if dryrun and (len(remainder) == 0):
             usage("--dryrun requires the name of a wikidb to be specified")
-        if jobs_requested and force_lock:
-            usage("--force cannot be used with --job option")
         if restart and not jobs_requested:
             usage("--restartfrom requires --job and the job from which to restart")
         if restart and len(jobs_todo) > 1:
@@ -367,7 +363,10 @@ def main():
             sys.exit(1)
 
         if (dryrun or partnum_todo is not None or
-                (jobs_requested is not None and not restart and not do_locking)):
+                (jobs_requested is not None and
+                 not restart and
+                 not do_locking and
+                 not force_lock)):
             locks_enabled = False
         else:
             locks_enabled = True
@@ -387,9 +386,9 @@ def main():
                     wiki = None
             if wiki is not None and locks_enabled:
                 locker = Locker(wiki, date)
-                if force_lock:
+                if force_lock and locks_enabled:
                     lockfiles = locker.is_locked()
-                    locker.unlock(lockfiles)
+                    locker.unlock(lockfiles, owner=False)
                 if locks_enabled:
                     locker.lock()
 
@@ -497,7 +496,7 @@ def main():
             if locks_enabled:
                 locker = Locker(wiki, date)
                 lockfiles = locker.is_locked()
-                locker.unlock(lockfiles)
+                locker.unlock(lockfiles, owner=True)
         elif wiki is not None:
             sys.stderr.write("Wikis available to run but prereqs not complete.\n")
             exitcode = 0

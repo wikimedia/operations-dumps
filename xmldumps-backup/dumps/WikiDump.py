@@ -606,18 +606,49 @@ class Locker(object):
         self.watchdog.start()
         return True
 
-    def unlock(self, lockfiles):
+    def check_owner(self, lockfile, pid):
         '''
-        Note:
+        check if the specified pid created the lockfile
+        (it would be recorded in the lockfile)
+        '''
+        if pid is None:
+            return True
+
+        try:
+            with open(lockfile, "r") as fdesc:
+                lines = fdesc.read().splitlines()
+                # if there's more than one line it's garbage or wrong file,
+                # don't touch
+                if len(lines) == 1:
+                    lockpid = lines[0].split(" ", 1)[1]
+                    if pid == lockpid:
+                        return True
+        except:
+            # don't care what the error is, file is off limits for us
+            pass
+        return False
+
+    def unlock(self, lockfiles, owner=False):
+        '''
+        remove all specified lockfiles.
+        if 'owner' is True, check contents of each lockfile
+        and only remove it if this process is the owner
+        (its pid is recorded in lockfile)
+
         if more than one lockfile is to be removed, they had better be
         'stale' (no longer being updated by a watchdog) or this will fail
         '''
         if self.watchdog is not None:
             self.watchdog.stop_watching()
             self.watchdog = None
+        if owner:
+            pid = str(os.getpid())
+        else:
+            pid = None
         for lockfile in lockfiles:
             try:
-                os.remove(lockfile)
+                if self.check_owner(lockfile, pid):
+                    os.remove(lockfile)
             except:
                 # someone else removed it?
                 pass
