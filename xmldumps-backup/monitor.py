@@ -1,8 +1,8 @@
 # Wiki dump-generation monitor
 
 import os
-import sys
 from os.path import exists
+import sys
 from dumps.WikiDump import Wiki, Config, Locker
 from dumps.fileutils import FileUtils
 from dumps.runnerutils import StatusHtml

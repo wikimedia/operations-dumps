@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+from os.path import exists
 import re
 import sys
 import time
@@ -10,7 +11,6 @@ import traceback
 import tempfile
 import shutil
 
-from os.path import exists
 from dumps.utils import MiscUtils
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
@@ -18,14 +18,17 @@ from dumps.exceptions import BackupError
 
 class FileUtils(object):
 
+    @staticmethod
     def file_age(filename):
         return time.time() - os.stat(filename).st_mtime
 
+    @staticmethod
     def atomic_create(filename, mode='w'):
         """Create a file, aborting if it already exists..."""
         fhandle = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
         return os.fdopen(fhandle, mode)
 
+    @staticmethod
     def write_file(dirname, filename, text, perms=0):
         """Write text to a file, as atomically as possible,
         via a temporary file in a specified directory.
@@ -49,6 +52,7 @@ class FileUtils(object):
         # Of course nothing else will work on Windows. ;)
         shutil.move(temp_filename, filename)
 
+    @staticmethod
     def write_file_in_place(filename, text, perms=0):
         """Write text to a file, after opening it for write with truncation.
         This assumes that only one process or thread accesses the given file at a time.
@@ -62,6 +66,7 @@ class FileUtils(object):
         if perms:
             os.chmod(filename, perms)
 
+    @staticmethod
     def read_file(filename):
         """Read text from a file in one fell swoop."""
         filehdl = open(filename, "r")
@@ -69,6 +74,7 @@ class FileUtils(object):
         filehdl.close()
         return text
 
+    @staticmethod
     def split_path(path):
         # For some reason, os.path.split only does one level.
         parts = []
@@ -81,6 +87,7 @@ class FileUtils(object):
             (path, filename) = os.path.split(path)
         return parts
 
+    @staticmethod
     def relative_path(path, base):
         """Return a relative path to 'path' from the directory 'base'."""
         path = FileUtils.split_path(path)
@@ -92,17 +99,20 @@ class FileUtils(object):
             path.insert(0, "..")
         return os.path.join(*path)
 
+    @staticmethod
     def pretty_size(size):
         """Return a string with an attractively formatted file size."""
         quanta = ("%d bytes", "%d KB", "%0.1f MB", "%0.1f GB", "%0.1f TB")
         return FileUtils._pretty_size(size, quanta)
 
+    @staticmethod
     def _pretty_size(size, quanta):
         if size < 1024 or len(quanta) == 1:
             return quanta[0] % size
         else:
             return FileUtils._pretty_size(size / 1024.0, quanta[1:])
 
+    @staticmethod
     def file_info(path):
         """Return a tuple of date/time and size of a file, or None, None"""
         try:
@@ -112,17 +122,6 @@ class FileUtils(object):
             return (timestamp, size)
         except:
             return(None, None)
-
-    file_age = staticmethod(file_age)
-    atomic_create = staticmethod(atomic_create)
-    write_file = staticmethod(write_file)
-    write_file_in_place = staticmethod(write_file_in_place)
-    read_file = staticmethod(read_file)
-    split_path = staticmethod(split_path)
-    relative_path = staticmethod(relative_path)
-    pretty_size = staticmethod(pretty_size)
-    _pretty_size = staticmethod(_pretty_size)
-    file_info = staticmethod(file_info)
 
 
 class DumpFilename(object):
@@ -165,13 +164,12 @@ class DumpFilename(object):
     partnum_int       part number as int
     """
 
+    @staticmethod
     def make_checkpoint_string(first_page_id, last_page_id):
         if first_page_id is not None and last_page_id is not None:
             return "p" + first_page_id + "p" + last_page_id
         else:
             return None
-
-    make_checkpoint_string = staticmethod(make_checkpoint_string)
 
     def __init__(self, wiki, date=None, dump_name=None, filetype=None,
                  ext=None, partnum=None, checkpoint=None, temp=False):
@@ -188,10 +186,7 @@ class DumpFilename(object):
             self.new_from_filename(filename)
 
     def is_ext(self, ext):
-        if ext == "gz" or ext == "bz2" or ext == "7z" or ext == "html" or ext == "txt":
-            return True
-        else:
-            return False
+        return bool(ext == "gz" or ext == "bz2" or ext == "7z" or ext == "html" or ext == "txt")
 
     def new_from_filename(self, filename):
         '''
@@ -573,10 +568,7 @@ class DumpDir(object):
         directory = os.path.join(self._wiki.public_dir(), date)
         if exists(directory):
             dir_time_stamp = os.stat(directory).st_mtime
-            if date not in self._dir_cache or dir_time_stamp > self._dir_cache_time[date]:
-                return True
-            else:
-                return False
+            return bool(date not in self._dir_cache or dir_time_stamp > self._dir_cache_time[date])
         else:
             return True
 

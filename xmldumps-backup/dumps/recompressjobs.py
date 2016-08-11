@@ -129,7 +129,10 @@ class XmlMultiStreamDump(XmlDump):
             raise BackupError("error recompressing bz2 file(s)")
 
     def list_outfiles_to_publish(self, dump_dir):
-        '''shows all files possible if we don't have checkpoint files. without temp files of course'''
+        '''
+        shows all files possible if we don't have checkpoint files.
+        without temp files of course
+        '''
         files = []
         input_files = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_file in input_files:

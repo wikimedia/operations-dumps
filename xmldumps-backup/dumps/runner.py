@@ -1,11 +1,11 @@
 import os
+from os.path import exists
 import sys
 import shutil
 import threading
 import traceback
 import Queue
 
-from os.path import exists
 from dumps.CommandManagement import CommandsInParallel
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpDir, DumpFilename
@@ -125,10 +125,7 @@ class DumpItemList(object):
         self.page_id_range = page_id_range
         self.verbose = verbose
 
-        if self.wiki.config.checkpoint_time:
-            checkpoints = True
-        else:
-            checkpoints = False
+        checkpoints = bool(self.wiki.config.checkpoint_time)
 
         if self._single_job and self._partnum_todo is not None:
             if (self._single_job[-5:] == 'table' or

@@ -9,9 +9,9 @@ the run.
 
 import os
 import sys
+import getopt
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
-import getopt
 from xmlstreams import do_xml_stream, catit
 
 

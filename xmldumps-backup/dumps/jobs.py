@@ -3,11 +3,11 @@ base class dump job is defined here
 '''
 
 import os
+from os.path import exists
 import sys
 import signal
 import traceback
 
-from os.path import exists
 from dumps.CommandManagement import CommandPipeline
 
 from dumps.exceptions import BackupError, BackupPrereqError

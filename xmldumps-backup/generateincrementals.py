@@ -5,8 +5,12 @@
 
 import getopt
 import os
+from os.path import exists
 import sys
 import time
+import hashlib
+import traceback
+import calendar
 from IncrDumpLib import Config
 from IncrDumpLib import DBServer, IncrementDir
 from IncrDumpLib import MaxRevIDFile, StatusFile, IndexFile
@@ -15,10 +19,6 @@ from IncrDumpLib import IncrDumpLock, StatusInfo
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
 from dumps.utils import RunSimpleCommand, MultiVersion
-from os.path import exists
-import hashlib
-import traceback
-import calendar
 
 
 class MaxRevID(object):

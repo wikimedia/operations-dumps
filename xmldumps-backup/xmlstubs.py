@@ -10,10 +10,10 @@ the run.
 import os
 import sys
 import time
+import getopt
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
 from dumps.utils import DbServerInfo
-import getopt
 from xmlstreams import gzippit, do_xml_stream
 
 

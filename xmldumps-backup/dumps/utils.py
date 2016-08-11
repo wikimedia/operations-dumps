@@ -3,17 +3,18 @@ misc utils for dumps
 '''
 
 import os
+from os.path import exists
 import re
 import time
 import socket
 
-from os.path import exists
 from subprocess import Popen, PIPE
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
 
 
 class MiscUtils(object):
+    @staticmethod
     def db_list(filename):
         """Read database list from a file"""
         if not filename:
@@ -28,6 +29,7 @@ class MiscUtils(object):
         dbs.sort()
         return dbs
 
+    @staticmethod
     def shell_escape(param):
         """Escape a string parameter, or set of strings, for the shell."""
         if isinstance(param, basestring):
@@ -38,30 +40,28 @@ class MiscUtils(object):
         else:
             return tuple([MiscUtils.shell_escape(x) for x in param])
 
-    db_list = staticmethod(db_list)
-    shell_escape = staticmethod(shell_escape)
-
 
 class TimeUtils(object):
+    @staticmethod
     def today():
         return time.strftime("%Y%m%d", time.gmtime())
 
+    @staticmethod
     def pretty_time():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
+    @staticmethod
     def pretty_date(key):
         "Prettify a MediaWiki date key"
         return "-".join((key[0:4], key[4:6], key[6:8]))
 
-    today = staticmethod(today)
-    pretty_time = staticmethod(pretty_time)
-    pretty_date = staticmethod(pretty_date)
-
 
 class MultiVersion(object):
+    @staticmethod
     def mw_script_as_string(config, maintenance_script):
         return " ".join(MultiVersion.mw_script_as_array(config, maintenance_script))
 
+    @staticmethod
     def mw_script_as_array(config, maintenance_script):
         mw_script_location = os.path.join(config.wiki_dir, "multiversion", "MWScript.php")
         if exists(mw_script_location):
@@ -69,6 +69,7 @@ class MultiVersion(object):
         else:
             return ["%s/maintenance/%s" % (config.wiki_dir, maintenance_script)]
 
+    @staticmethod
     def mw_version(config, db_name):
         get_version_location = os.path.join(config.wiki_dir, "multiversion", "getMWVersion")
         if exists(get_version_location):
@@ -79,10 +80,6 @@ class MultiVersion(object):
                 version = version.rstrip()
                 return version
         return None
-
-    mw_script_as_string = staticmethod(mw_script_as_string)
-    mw_script_as_array = staticmethod(mw_script_as_array)
-    mw_version = staticmethod(mw_version)
 
 
 class DbServerInfo(object):
@@ -191,6 +188,7 @@ class DbServerInfo(object):
 
 
 class RunSimpleCommand(object):
+    @staticmethod
     def run_with_output(command, maxtries=3, shell=False, log_callback=None,
                         retry_delay=5, verbose=False):
         """Run a command and return the output as a string.
@@ -228,6 +226,7 @@ class RunSimpleCommand(object):
         else:
             return output
 
+    @staticmethod
     def run_with_no_output(command, maxtries=3, shell=False, log_callback=None,
                            retry_delay=5, verbose=False):
         """Run a command, expecting no output.
@@ -258,9 +257,6 @@ class RunSimpleCommand(object):
                               ("' failed with return code %s " %
                                proc.returncode) + " and error '" + error + "'")
         return success
-
-    run_with_output = staticmethod(run_with_output)
-    run_with_no_output = staticmethod(run_with_no_output)
 
 
 class PageAndEditStats(object):

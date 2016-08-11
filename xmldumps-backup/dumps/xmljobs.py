@@ -479,10 +479,7 @@ class XmlDump(Dump):
         else:
             path = runner.dump_dir.filename_public_path(xmlfile, self.wiki.date)
         fname = DumpFile(self.wiki, path, xmlfile, self.verbose)
-        if fname.find_first_page_id_in_file() is None:
-            return True
-        else:
-            return False
+        return bool(fname.find_first_page_id_in_file() is None)
 
     def build_eta(self, runner):
         """Tell the dumper script whether to make ETA estimate on page or revision count."""
@@ -579,11 +576,8 @@ class XmlDump(Dump):
     def build_command(self, runner, stub_file):
         """Build the command line for the dump, minus output and filter options"""
 
-        if self._checkpoints_enabled:
-            # we write a temp file, it will be checkpointed every so often.
-            temp = True
-        else:
-            temp = False
+        # we write a temp file, it will be checkpointed every so often.
+        temp = bool(self._checkpoints_enabled)
 
         output_file = DumpFilename(self.wiki, stub_file.date, self.dumpname,
                                    self.get_filetype(), self.file_ext, stub_file.partnum,

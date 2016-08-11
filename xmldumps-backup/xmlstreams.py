@@ -10,10 +10,10 @@ the run.
 import os
 import sys
 import time
+from subprocess import Popen, PIPE
 from dumps.utils import DbServerInfo
 from dumps.WikiDump import Wiki
 
-from subprocess import Popen, PIPE
 
 # fix all the error returns and make subroutines out of stuff
 # current code puts together a command with a bunch of crap in it

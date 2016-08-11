@@ -405,18 +405,9 @@ def main():
                 check_job_status = True
                 check_prereq_status = False
             else:
-                if jobs_requested is not None:
-                    check_status_time = True
-                else:
-                    check_status_time = False
-                if skipdone:
-                    check_job_status = True
-                else:
-                    check_job_status = False
-                if jobs_requested is not None and skipdone:
-                    check_prereq_status = True
-                else:
-                    check_prereq_status = False
+                check_status_time = bool(jobs_requested is not None)
+                check_job_status = bool(skipdone)
+                check_prereq_status = bool(jobs_requested is not None and skipdone)
             wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch,
                                        prefetchdate, spawn,
                                        dryrun, html_notice, check_status_time,
