@@ -179,7 +179,10 @@ class Dump(object):
 
             file_truncated = True
             if exists(dfile.filename):
-                if dfile.check_if_truncated():
+                if dfile.check_if_empty():
+                    # file exists and is empty, move it out of the way
+                    dfile.rename(dfile.filename + ".empty")
+                elif dfile.check_if_truncated():
                     # The file exists and is truncated, we move it out of the way
                     dfile.rename(dfile.filename + ".truncated")
 

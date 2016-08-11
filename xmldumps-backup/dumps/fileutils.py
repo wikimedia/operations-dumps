@@ -346,6 +346,7 @@ class DumpFile(object):
         self.filename = filename
         self.first_lines = None
         self.is_truncated = None
+        self.is_empty = None
         self.first_page_id = None
         self.dirname = os.path.dirname(filename)
         if file_obj:
@@ -496,6 +497,28 @@ class DumpFile(object):
         self.is_truncated = not proc.exited_successfully()
 
         return self.is_truncated
+
+    def check_if_empty(self):
+        if self.is_empty:
+            return self.is_empty
+        if self.file_obj.file_ext == "bz2":
+            pipeline = [[self._wiki.config.bzip2, "-dc", self.filename, "|",
+                         "head", "-5"]]
+        elif self.file_obj.file_ext == "bz2":
+            pipeline = [[self._wiki.config.gzip, "-dc", self.filename, "|",
+                         "head", "-5"]]
+        elif self.file_obj.file_ext == '7z':
+            pipeline = [[self._wiki.config.sevenzip, "e", "-so", self.filename, "|",
+                         "head", "-5"]]
+        else:
+            # we do't know how to handle this type of file.
+            return self.is_empty
+
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.run_pipeline_get_output()
+        self.is_empty = bool(not len(proc.output()))
+
+        return self.is_empty
 
     def get_size(self):
         if exists(self.filename):
