@@ -60,10 +60,9 @@ class MaxRevID(object):
 
 class Link(object):
 
+    @staticmethod
     def make_link(path, link_text):
         return '<a href = "' + path + '">' + link_text + "</a>"
-
-    make_link = staticmethod(make_link)
 
 
 class Index(object):
@@ -160,14 +159,11 @@ class Index(object):
             try:
                 wikiname_text = "<strong>%s</strong>" % wiki
 
-                wiki_info = (" ".join(filter(None,
-                                             [wikiname_text,
-                                              lock_text, stat_text])) +
-                             "<br />")
+                wiki_info = (" ".join([entry for entry in [wikiname_text, lock_text, stat_text]
+                                       if entry is not None]) + "<br />")
                 wiki_info = (wiki_info + " &nbsp;&nbsp; " +
-                             " |  ".join(filter(None,
-                                                [stub_text, revs_text,
-                                                 other_runs_text])))
+                             " |  ".join([entry for entry in [stub_text, revs_text, other_runs_text]
+                                          if entry is not None]))
             except:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)

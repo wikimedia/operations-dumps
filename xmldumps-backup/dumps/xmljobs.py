@@ -647,7 +647,7 @@ class XmlDump(Dump):
                              "--report=1000",
                              "%s" % spawn])
 
-        dump_command = filter(None, dump_command)
+        dump_command = [entry for entry in dump_command if entry is not None]
         command = dump_command
         filters = self.build_filters(runner, output_file)
         eta = self.build_eta(runner)
