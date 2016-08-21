@@ -105,6 +105,7 @@ process_opts() {
 	    shift
 	elif [ $1 == "--prereqs" ]; then
 	    PREREQS=true
+	    shift
 	elif [ $1 == "--force" ]; then
 	    FORCE=true
 	    shift
