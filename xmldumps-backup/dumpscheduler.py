@@ -198,6 +198,50 @@ class Mailer(object):
             LOG.error(message.as_string())
 
 
+class ResourceAllocator(object):
+    '''
+    manage resources (for now, cpus available)
+    '''
+    def __init__(self, slots):
+        '''
+        slots: total (eg max cpus) (integer)
+        start with all slots available
+        '''
+        self.total_slots = slots
+        self.free_slots = slots
+
+    def available(self, slots_needed):
+        '''
+        are enough slots available?
+        '''
+        return bool(slots_needed <= self.free_slots)
+
+    def free(self, slots, pid):
+        '''
+        mark specified slots as freed, log which pid released them
+        '''
+        LOG.info("freeing up %s slot(s)s for completed process %s",
+                 str(slots), str(pid))
+        self.free_slots += slots
+        if self.free_slots > self.total_slots:
+            self.free_slots = self.total_slots
+
+    def allocate(self, slots):
+        '''
+        mark specified number of slots as allocated
+        '''
+        self.free_slots = self.free_slots - slots
+
+    def log_status(self, slots_wanted=None):
+        '''
+        display a status line showing free, max and wanted slots
+        '''
+        if slots_wanted is None:
+            slots_wanted = "(none)"
+        LOG.debug("slots wanted is %s, free are %s of total %s", str(slots_wanted),
+                  str(self.free_slots), str(self.total_slots))
+
+
 class Scheduler(object):
     '''
     handle running a sequence of commands, each command possibly to
@@ -217,9 +261,7 @@ class Scheduler(object):
         signal.signal(signal.SIGHUP, self.handle_hup)
 
         self.input = file_p
-        self.total_slots = slots
         self.commands = []
-        self.free_slots = slots
         self.pid = os.getpid()
         self.my_id = "%s%d%s" % (time.strftime("%Y%m%d%H%M%S", time.gmtime()),
                                  self.pid, os.geteuid())
@@ -227,6 +269,7 @@ class Scheduler(object):
         self.formatvars = format_convert(formatvars)
         self.cacher = Cacher(cache, self.my_id, restore, rerun)
         self.mailer = Mailer(mailhost, email_from)
+        self.allocator = ResourceAllocator(slots)
 
     def handle_hup(self, signo, dummy_frame):
         """
@@ -297,7 +340,7 @@ class Scheduler(object):
                 continue
             if self.formatvars is not None:
                 line = line.format(**self.formatvars)
-            commands.append(line_to_entry(line, self.total_slots))
+            commands.append(line_to_entry(line, self.allocator.total_slots))
         if self.input != sys.stdin:
             self.input.close()
         return commands
@@ -353,16 +396,11 @@ class Scheduler(object):
         remove process from list of running processes for this command set
         and add it to the done count for this command set
         '''
-
-        LOG.info("freeing up %s slot(s)s for completed process %s",
-                 str(entry['slots']), str(pid))
         if process is not None:
             entry['processes'].remove(process)
         entry['processids'].remove(pid)
         entry['done'] += 1
-        self.free_slots += entry['slots']
-        if self.free_slots > self.total_slots:
-            self.free_slots = self.total_slots
+        self.allocator.free(entry['slots'], pid)
 
     def handle_nonzero_retcode(self, process, pid, entry):
         '''
@@ -466,9 +504,8 @@ class Scheduler(object):
             # no more commands left to run, all completed
             return None
 
-        LOG.debug("entry slots is %s and free is %s", str(entry['slots']),
-                  str(self.free_slots))
-        if entry['slots'] <= self.free_slots:
+        self.allocator.log_status(entry['slots'])
+        if self.allocator.available(entry['slots']):
             LOG.info("using %s slot(s), starting command %s",
                      str(entry['slots']), entry['command'])
             # we need setpgrp here so that kills to our children will
@@ -477,7 +514,7 @@ class Scheduler(object):
                             shell=True, bufsize=-1, preexec_fn=os.setpgrp)
             entry['processes'].append(process)
             entry['processids'].append(process.pid)
-            self.free_slots = self.free_slots - entry['slots']
+            self.allocator.allocate(entry['slots'])
             entry['count'] -= 1
             self.cacher.save_to_cache(self.commands)
         return True
