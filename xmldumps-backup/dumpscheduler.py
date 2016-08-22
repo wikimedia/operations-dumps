@@ -449,6 +449,47 @@ class Scheduler(object):
                     entry['onfailure'] = "continue"
                     # next failure there will be no more retries
 
+    def check_running_by_proc(self, entry):
+        '''
+        given procs (Popen objects), check to see if they are running,
+        if not, mark them as done.
+        if there are failures and we are requested to exit for the
+        given process, return True, else False
+        '''
+        exit_wanted = False
+        processes_to_check = entry['processes'][:]
+        for process in processes_to_check:
+            done, retcode = self.check_process_done(process, process.pid)
+            if done:
+                if retcode != 0:
+                    self.handle_nonzero_retcode(process, process.pid, entry)
+                    if entry['onfailure'] == 'exit':
+                        exit_wanted = True
+                else:
+                    self.mark_process_done(process, process.pid, entry)
+        return exit_wanted
+
+    def check_running_by_pid(self, entry):
+        '''
+        given pids only, check to see if they are running,
+        if not, mark them as done.
+        if there are failures and we are requested to exit for the
+        given process, return True, else False
+        '''
+        exit_wanted = False
+        pids_to_check = entry['processids'][:]
+        for pid in pids_to_check:
+            done, retcode = self.check_process_done(None, pid)
+            if done:
+                if retcode != 0:
+                    if 'rerun' in entry and pid in entry['procidsfromcache']:
+                        self.handle_nonzero_retcode(None, pid, entry)
+                        if entry['onfailure'] == 'exit':
+                            exit_wanted = True
+                else:
+                    self.mark_process_done(None, pid, entry)
+        return exit_wanted
+
     def check_running(self):
         '''
         check every command in the series and see if any that have
@@ -462,26 +503,12 @@ class Scheduler(object):
         will_exit = False
         for entry in self.commands:
             if entry['processes']:
-                processes_to_check = entry['processes'][:]
-                for process in processes_to_check:
-                    done, retcode = self.check_process_done(process, process.pid)
-                    if done:
-                        if retcode != 0:
-                            self.handle_nonzero_retcode(process, process.pid, entry)
-                            if entry['onfailure'] == 'exit':
-                                will_exit = True
-                        else:
-                            self.mark_process_done(process, process.pid, entry)
+                result = self.check_running_by_proc(entry)
+                will_exit = will_exit or result
             else:
-                pids_to_check = entry['processids'][:]
-                for pid in pids_to_check:
-                    done, retcode = self.check_process_done(None, pid)
-                    if 'rerun' in entry and pid in entry['procidsfromcache']:
-                        self.handle_nonzero_retcode(None, pid, entry)
-                        if entry['onfailure'] == 'exit':
-                            will_exit = True
-                    else:
-                        self.mark_process_done(None, pid, entry)
+                result = self.check_running_by_pid(entry)
+                will_exit = will_exit or result
+
         if will_exit:
             self.cacher.save_to_cache(self.commands)
             LOG.error("exiting after command failure")
