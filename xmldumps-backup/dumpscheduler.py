@@ -136,6 +136,68 @@ class Cacher(object):
         return commands
 
 
+def get_email_templ():
+    '''
+    return the email text template
+    '''
+
+    return '''
+    Notification from dumpstager:
+
+    Command failed: {0}
+    process id: {1} return code: {1}
+'''
+
+
+class Mailer(object):
+    '''
+    send email about command results as required
+    '''
+    def __init__(self, mailhost, email_from):
+        self.mailhost = mailhost
+        self.email_from = email_from
+
+    def get_email_message(self, entry, pid, retcode):
+        '''
+        given email text template, the command entry, its pid and return code,
+        set up the email message params and return them
+        '''
+        email_templ = get_email_templ()
+        text_formatted = email_templ.format(
+            entry['command'], pid, retcode if retcode is not None else "Unknown")
+        message = email.mime.text.MIMEText(text_formatted)
+        message["Subject"] = "Failure of command from dumpscheduler"
+        message["From"] = self.email_from
+        message["To"] = entry['notify']
+        return message
+
+    def notify_failure_email(self, entry, pid, retcode):
+        '''
+        send email if a command fails, if email host
+        is set and email notification is requested for
+        the command set
+        '''
+
+        if entry['errornotify'] == 'none':
+            return
+        if self.mailhost is None:
+            return
+
+        message = self.get_email_message(entry, pid, retcode)
+        try:
+            server = smtplib.SMTP(self.mailhost)
+            server.sendmail(message['From'], self.email_from,
+                            message.as_string())
+            server.close()
+        except smtplib.SMTPException:
+            LOG.error('problem sending mail to %s', entry['notify'])
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            except_message = repr(traceback.format_exception(
+                exc_type, exc_value, exc_traceback))
+            LOG.error(except_message)
+            LOG.error(message.as_string())
+
+
 class Scheduler(object):
     '''
     handle running a sequence of commands, each command possibly to
@@ -158,14 +220,13 @@ class Scheduler(object):
         self.total_slots = slots
         self.commands = []
         self.free_slots = slots
-        self.mailhost = mailhost
         self.pid = os.getpid()
         self.my_id = "%s%d%s" % (time.strftime("%Y%m%d%H%M%S", time.gmtime()),
                                  self.pid, os.geteuid())
         self.my_prefix = 'PYMGR_ID'
-        self.email_from = email_from
         self.formatvars = format_convert(formatvars)
         self.cacher = Cacher(cache, self.my_id, restore, rerun)
+        self.mailer = Mailer(mailhost, email_from)
 
     def handle_hup(self, signo_unused, frame_unused):
         """
@@ -302,44 +363,6 @@ class Scheduler(object):
         if self.free_slots > self.total_slots:
             self.free_slots = self.total_slots
 
-    def notify_failure_email(self, entry, pid, retcode):
-        '''
-        send email if a command fails, if email host
-        is set and email notification is requested for
-        the command set
-        '''
-
-        if entry['errornotify'] == 'none':
-            return
-        if self.mailhost is None:
-            return
-
-        address = entry['errornotify']
-        email_text = '''
-        Notification from dumpstager:
-
-        Command failed: {0}
-        process id: {1} return code: {1}
-'''
-        text_formatted = email_text.format(
-            entry['command'], pid, retcode if retcode is not None else "Unknown")
-        message = email.mime.text.MIMEText(text_formatted)
-        message["Subject"] = "Failure of command from dumpscheduler"
-        message["From"] = self.email_from
-        message["To"] = address
-        try:
-            server = smtplib.SMTP(self.mailhost)
-            server.sendmail(message['From'], self.email_from,
-                            message.as_string())
-            server.close()
-        except smtplib.SMTPException:
-            LOG.error('problem sending mail to %s', address)
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            except_message = repr(traceback.format_exception(
-                exc_type, exc_value, exc_traceback))
-            LOG.error(except_message)
-            LOG.error(message.as_string())
-
     def handle_nonzero_retcode(self, process, pid, entry):
         '''
         a command has failed. email notification if needed,
@@ -349,7 +372,7 @@ class Scheduler(object):
         '''
 
         if entry['errornotify']:
-            self.notify_failure_email(
+            self.mailer.notify_failure_email(
                 entry, pid,
                 process.returncode if process is not None else None)
 
