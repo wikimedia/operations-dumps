@@ -113,7 +113,7 @@ class Scheduler(object):
             if filedesc not in [sys.__stdin__, sys.__stdout__, sys.__stderr__]:
                 try:
                     filedesc.close()
-                except Exception:
+                except IOError:
                     pass
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
@@ -271,7 +271,7 @@ class Scheduler(object):
             server.sendmail(message['From'], self.email_from,
                             message.as_string())
             server.close()
-        except:
+        except smtplib.SMTPException:
             LOG.error('problem sending mail to %s', address)
             exc_type, exc_value, exc_traceback = sys.exc_info()
             except_message = repr(traceback.format_exception(
