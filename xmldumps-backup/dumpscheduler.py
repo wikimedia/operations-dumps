@@ -242,6 +242,14 @@ class ResourceAllocator(object):
                   str(self.free_slots), str(self.total_slots))
 
 
+def get_my_id():
+    '''
+    return an id string associated with this pid
+    '''
+    return "%s%d%s" % (time.strftime("%Y%m%d%H%M%S", time.gmtime()),
+                       os.getpid(), os.geteuid())
+
+
 class Scheduler(object):
     '''
     handle running a sequence of commands, each command possibly to
@@ -263,8 +271,7 @@ class Scheduler(object):
         self.input = file_p
         self.commands = []
         self.pid = os.getpid()
-        self.my_id = "%s%d%s" % (time.strftime("%Y%m%d%H%M%S", time.gmtime()),
-                                 self.pid, os.geteuid())
+        self.my_id = get_my_id()
         self.my_prefix = 'PYMGR_ID'
         self.formatvars = format_convert(formatvars)
         self.cacher = Cacher(cache, self.my_id, restore, rerun)
@@ -293,7 +300,8 @@ class Scheduler(object):
                         pass
 
         for filedesc in reversed(range(os.sysconf('SC_OPEN_MAX'))):
-            if filedesc not in [sys.__stdin__, sys.__stdout__, sys.__stderr__]:
+            if filedesc not in [sys.__stdin__.fileno(), sys.__stdout__.fileno(),
+                                sys.__stderr__.fileno()]:
                 try:
                     os.close(filedesc)
                 except (IOError, OSError):
