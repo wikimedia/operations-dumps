@@ -242,6 +242,67 @@ class ResourceAllocator(object):
                   str(self.free_slots), str(self.total_slots))
 
 
+class CommandChecker(object):
+    '''
+    deal with results from one command
+    '''
+    def __init__(self, my_id):
+        self.my_id = my_id
+
+    def check_process_done(self, process, pid):
+        '''
+        will return True, plus the process returncode if it is available
+        or if process not done, will return False, None
+        '''
+
+        if process is not None:
+            process.poll()
+            if process.returncode is not None:
+                return (True, process.returncode)
+            else:
+                return (False, None)
+        else:
+            return (self.check_pid(pid), None)
+
+    def check_pid(self, pid):
+        '''
+        see if process with given pid is running
+        and if we started it. if the process was running
+        when this script was interrupted and we restored
+        from cache, we check that the special environment
+        variable is set for the process, to ensure the pid
+        didn't get reused
+        '''
+
+        id_string = get_my_prefix() + "=" + self.my_id
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        # it exists, is it the same command?
+        try:
+            process_environ = open("/proc/%s/environ" % pid, "r")
+        except IOError:
+            # permission or gone, anyways not us
+            return False
+        for line in process_environ:
+            if line:
+                fields = line.split("\x00")
+                for field in fields:
+                    if field == id_string:
+                        process_environ.close()
+                        return True
+        process_environ.close()
+        return False
+
+
+def get_my_prefix():
+    '''
+    return an prefix string associated with this script
+    '''
+    return 'PYMGR_ID'
+
+
 def get_my_id():
     '''
     return an id string associated with this pid
@@ -272,11 +333,12 @@ class Scheduler(object):
         self.commands = []
         self.pid = os.getpid()
         self.my_id = get_my_id()
-        self.my_prefix = 'PYMGR_ID'
+        os.environ[get_my_prefix()] = self.my_id
         self.formatvars = format_convert(formatvars)
         self.cacher = Cacher(cache, self.my_id, restore, rerun)
         self.mailer = Mailer(mailhost, email_from)
         self.allocator = ResourceAllocator(slots)
+        self.checker = CommandChecker(self.my_id)
 
     def handle_hup(self, signo, dummy_frame):
         """
@@ -325,7 +387,6 @@ class Scheduler(object):
         self.commands = self.cacher.restore_from_cache()
         if not self.commands:
             self.commands = self.read_commands()
-        os.environ[self.my_prefix] = self.my_id
 
         while True:
             if self.start_command() is None:
@@ -352,52 +413,6 @@ class Scheduler(object):
         if self.input != sys.stdin:
             self.input.close()
         return commands
-
-    def check_pid(self, pid):
-        '''
-        see if process with given pid is running
-        and if we started it. if the process was running
-        when this script was interrupted and we restored
-        from cache, we check that the special environment
-        variable is set for the process, to ensure the pid
-        didn't get reused
-        '''
-
-        id_string = self.my_prefix + "=" + self.my_id
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        # it exists, is it the same command?
-        try:
-            process_environ = open("/proc/%s/environ" % pid, "r")
-        except IOError:
-            # permission or gone, anyways not us
-            return False
-        for line in process_environ:
-            if line:
-                fields = line.split("\x00")
-                for field in fields:
-                    if field == id_string:
-                        process_environ.close()
-                        return True
-        process_environ.close()
-        return False
-
-    def check_process_done(self, process, pid):
-        '''
-        will return True, plus the process returncode if it is available
-        or if process not done, will return False, None
-        '''
-
-        if process is not None:
-            process.poll()
-            if process.returncode is not None:
-                return (True, process.returncode)
-            else:
-                return (False, None)
-        else:
-            return (self.check_pid(pid), None)
 
     def mark_process_done(self, process, pid, entry):
         '''
@@ -459,7 +474,7 @@ class Scheduler(object):
         exit_wanted = False
         processes_to_check = entry['processes'][:]
         for process in processes_to_check:
-            done, retcode = self.check_process_done(process, process.pid)
+            done, retcode = self.checker.check_process_done(process, process.pid)
             if done:
                 if retcode != 0:
                     self.handle_nonzero_retcode(process, process.pid, entry)
@@ -479,7 +494,7 @@ class Scheduler(object):
         exit_wanted = False
         pids_to_check = entry['processids'][:]
         for pid in pids_to_check:
-            done, retcode = self.check_process_done(None, pid)
+            done, retcode = self.checker.check_process_done(None, pid)
             if done:
                 if retcode != 0:
                     if 'rerun' in entry and pid in entry['procidsfromcache']:
