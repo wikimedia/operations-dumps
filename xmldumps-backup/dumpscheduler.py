@@ -96,6 +96,12 @@ class Scheduler(object):
             if 'processids' in command:
                 for pid in command['processids']:
                     os.killpg(os.getpgid(int(pid)), signal.SIGTERM)
+                for pid in command['processids']:
+                    # no zombie apocalypse here
+                    try:
+                        os.waitpid(int(pid), 0)
+                    except OSError:
+                        pass
 
         for filedesc in reversed(range(os.sysconf('SC_OPEN_MAX'))):
             if filedesc not in [sys.__stdin__, sys.__stdout__, sys.__stderr__]:
