@@ -228,7 +228,7 @@ class Scheduler(object):
         self.cacher = Cacher(cache, self.my_id, restore, rerun)
         self.mailer = Mailer(mailhost, email_from)
 
-    def handle_hup(self, signo_unused, frame_unused):
+    def handle_hup(self, signo, dummy_frame):
         """
         ignore any more hups
         shoot all children
@@ -236,6 +236,7 @@ class Scheduler(object):
         re-exec ourselves
         """
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        LOG.info('handling hup, signal %s received', signo)
 
         for command in self.commands:
             if 'processids' in command:
@@ -251,8 +252,8 @@ class Scheduler(object):
         for filedesc in reversed(range(os.sysconf('SC_OPEN_MAX'))):
             if filedesc not in [sys.__stdin__, sys.__stdout__, sys.__stderr__]:
                 try:
-                    filedesc.close()
-                except IOError:
+                    os.close(filedesc)
+                except (IOError, OSError):
                     pass
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
