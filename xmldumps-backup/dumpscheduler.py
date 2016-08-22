@@ -56,6 +56,22 @@ def json_obj_dump(obj):
         return obj.__dict__
 
 
+def format_convert(names_values):
+    '''
+    expect a string like name1=val1,name2=val2...
+    return a dict {'name1': 'val1', 'name2': 'val2'...}
+    suitable for use by format()
+    '''
+    if names_values is None:
+        return names_values
+    pairs = names_values.split(',')
+    converted = {}
+    for pair in pairs:
+        name, val = pair.split('=')
+        converted[name] = val
+    return converted
+
+
 class Scheduler(object):
     '''
     handle running a sequence of commands, each command possibly to
@@ -87,7 +103,7 @@ class Scheduler(object):
                                  self.pid, os.geteuid())
         self.my_prefix = 'PYMGR_ID'
         self.email_from = email_from
-        self.formatvars = self.format_convert(formatvars)
+        self.formatvars = format_convert(formatvars)
 
     def handle_hup(self, signo_unused, frame_unused):
         """
@@ -116,21 +132,6 @@ class Scheduler(object):
                 except IOError:
                     pass
         os.execv(sys.executable, [sys.executable] + sys.argv)
-
-    def format_convert(self, names_values):
-        '''
-        expect a string like name1=val1,name2=val2...
-        return a dict {'name1': 'val1', 'name2': 'val2'...}
-        suitable for use by format()
-        '''
-        if names_values is None:
-            return names_values
-        pairs = names_values.split(',')
-        converted = {}
-        for pair in pairs:
-            name, val = pair.split('=')
-            converted[name] = val
-        return converted
 
     def run(self):
         '''
