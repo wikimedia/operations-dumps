@@ -47,7 +47,13 @@ def line_to_entry(line, total_slots):
 
 
 def json_obj_dump(obj):
-    return
+    '''
+    catch-all json encoder for any objects that don't have a default method
+    '''
+    try:
+        return obj.toJSON()
+    except AttributeError:
+        return obj.__dict__
 
 
 class Scheduler(object):
@@ -288,7 +294,7 @@ class Scheduler(object):
 
         LOG.error("Command failed: %s", entry['command'])
         LOG.error("process id: %s, return code: %s", pid,
-                  process.returncode if process.returncode is not None else "Unknown")
+                  process.returncode if process is not None else "Unknown")
 
         if entry['onfailure'] == 'continue':
             self.mark_process_done(process, pid, entry)
