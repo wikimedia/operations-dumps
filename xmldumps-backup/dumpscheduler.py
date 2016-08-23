@@ -311,6 +311,19 @@ def get_my_id():
                        os.getpid(), os.geteuid())
 
 
+def scheduler_setup():
+    '''
+    before anything else, set up identifiers and environment
+    for any children that might be spawned.
+    call before instantiating Scheduler.
+    returns: unique id for the current run of this script
+    '''
+    my_id = get_my_id()
+    my_prefix = get_my_prefix()
+    os.environ[my_prefix] = my_id
+    return my_id
+
+
 class Scheduler(object):
     '''
     handle running a sequence of commands, each command possibly to
@@ -726,10 +739,7 @@ def main():
     if working_dir is not None:
         os.chdir(working_dir)
 
-    # fixme do this in a setup method
-    my_id = get_my_id()
-    my_prefix = get_my_prefix()
-    os.environ[my_prefix] = my_id
+    my_id = scheduler_setup()
 
     plugables = {}
     plugables['allocator'] = ResourceAllocator(slots)
