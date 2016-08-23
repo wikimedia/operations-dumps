@@ -662,18 +662,30 @@ once, and the full command to run is
     sys.exit(1)
 
 
+def get_defaults():
+    '''
+    set up and return defaults for options
+    '''
+    opts = {}
+
+    opts['cache'] = "running_cache.txt"
+    opts['email_from'] = "root"
+
+    for flag in ['restore', 'rerun']:
+        opts[flag] = False
+
+    for option in ['slots', 'mailhost', 'formatvars']:
+        opts[option] = None
+
+    return opts
+
+
 def main():
     'main entry point, does all the work'
 
     command_file = None
-    cache = "running_cache.txt"
-    slots = None
+    opts = get_defaults()
     working_dir = None
-    mailhost = None
-    email_from = "root"
-    formatvars = None
-    restore = False
-    rerun = False
     verbose = False
     debug = False
 
@@ -690,25 +702,25 @@ def main():
         if opt in ["-c", "--commands"]:
             command_file = val
         elif opt in ["-C", "--cache"]:
-            cache = val
+            opts['cache'] = val
         elif opt in ["-d", "--directory"]:
             working_dir = val
         elif opt in ["-e", "--email"]:
-            email_from = val
+            opts['email_from'] = val
         elif opt in ["-s", "--slots"]:
             if not val.isdigit():
                 usage("slots option requires a number")
-            slots = int(val)
+            opts['slots'] = int(val)
         elif opt in ["-r", "--restore"]:
-            restore = True
+            opts['restore'] = True
         elif opt in ["-R", "--rerun"]:
-            rerun = True
+            opts['rerun'] = True
         elif opt in ["-f", "--formatvars"]:
-            formatvars = val
+            opts['formatvars'] = val
         elif opt in ["-v", "--verbose"]:
             verbose = True
         elif opt in ["-m", "--mailhost"]:
-            mailhost = val
+            opts['mailhost'] = val
         elif opt in ["-d", "--debug"]:
             debug = val
         elif opt in ["-h", "--help"]:
@@ -719,7 +731,7 @@ def main():
     if len(remainder) > 0:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
-    if slots is None:
+    if opts['slots'] is None:
         usage("The mandatory slots option was not specified")
 
     if command_file is not None:
@@ -742,11 +754,11 @@ def main():
     my_id = scheduler_setup()
 
     plugables = {}
-    plugables['allocator'] = ResourceAllocator(slots)
-    plugables['cacher'] = Cacher(cache, my_id, restore, rerun)
+    plugables['allocator'] = ResourceAllocator(opts['slots'])
+    plugables['cacher'] = Cacher(opts['cache'], my_id, opts['restore'], opts['rerun'])
     plugables['checker'] = CommandChecker(my_id)
-    plugables['mailer'] = Mailer(mailhost, email_from)
-    scheduler = Scheduler(plugables, formatvars, my_id)
+    plugables['mailer'] = Mailer(opts['mailhost'], opts['email_from'])
+    scheduler = Scheduler(plugables, opts['formatvars'], my_id)
     scheduler.run(commands_in)
 
 
