@@ -342,7 +342,6 @@ class Scheduler(object):
         signal.signal(signal.SIGHUP, self.handle_hup)
 
         self.commands = []
-        self.pid = os.getpid()
         self.my_id = my_id
         os.environ[get_my_prefix()] = self.my_id
         self.allocator = plugables['allocator']
@@ -720,6 +719,31 @@ def setup_logging(debug, verbose):
         logging.basicConfig(level=logging.ERROR)
 
 
+def set_opt(opts, optname, val):
+    '''
+    if the optname is recognized, set it in the opts dict
+    to the value (or to True); otherwise whine
+    '''
+    if optname in ["-C", "--cache"]:
+        opts['cache'] = val
+    elif optname in ["-e", "--email"]:
+        opts['email_from'] = val
+    elif optname in ["-m", "--mailhost"]:
+        opts['mailhost'] = val
+    elif optname in ["-s", "--slots"]:
+        if not val.isdigit():
+            usage("slots option requires a number")
+        opts['slots'] = int(val)
+    elif optname in ["-f", "--formatvars"]:
+        opts['formatvars'] = val
+    elif optname in ["-r", "--restore"]:
+        opts['restore'] = True
+    elif optname in ["-R", "--rerun"]:
+        opts['rerun'] = True
+    else:
+        usage("Unknown option specified: <%s>" % optname)
+
+
 def main():
     'main entry point, does all the work'
 
@@ -741,32 +765,16 @@ def main():
     for (opt, val) in options:
         if opt in ["-c", "--commands"]:
             command_file = val
-        elif opt in ["-C", "--cache"]:
-            opts['cache'] = val
         elif opt in ["-d", "--directory"]:
             working_dir = val
-        elif opt in ["-e", "--email"]:
-            opts['email_from'] = val
-        elif opt in ["-s", "--slots"]:
-            if not val.isdigit():
-                usage("slots option requires a number")
-            opts['slots'] = int(val)
-        elif opt in ["-r", "--restore"]:
-            opts['restore'] = True
-        elif opt in ["-R", "--rerun"]:
-            opts['rerun'] = True
-        elif opt in ["-f", "--formatvars"]:
-            opts['formatvars'] = val
         elif opt in ["-v", "--verbose"]:
             verbose = True
-        elif opt in ["-m", "--mailhost"]:
-            opts['mailhost'] = val
         elif opt in ["-d", "--debug"]:
             debug = val
         elif opt in ["-h", "--help"]:
             usage('Help for this script\n')
         else:
-            usage("Unknown option specified: <%s>" % opt)
+            set_opt(opts, opt, val)
 
     if len(remainder) > 0:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
