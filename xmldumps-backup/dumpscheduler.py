@@ -693,6 +693,20 @@ def get_defaults():
     return opts
 
 
+def setup_command_input(command_file):
+    '''
+    set up input file descriptor for
+    reading commands
+    '''
+    if command_file is not None:
+        if not os.path.exists(command_file):
+            usage("no such file found: " + command_file)
+        commands_in = open(command_file, "r")
+    else:
+        commands_in = sys.stdin
+    return commands_in
+
+
 def setup_logging(debug, verbose):
     '''
     set up logging level, based on whether
@@ -760,12 +774,7 @@ def main():
     if opts['slots'] is None:
         usage("The mandatory slots option was not specified")
 
-    if command_file is not None:
-        if not os.path.exists(command_file):
-            usage("no such file found: " + command_file)
-        commands_in = open(command_file, "r")
-    else:
-        commands_in = sys.stdin
+    commands_in = setup_command_input(command_file)
 
     setup_logging(debug, verbose)
 
