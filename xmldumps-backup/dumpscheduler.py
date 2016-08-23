@@ -318,8 +318,7 @@ class Scheduler(object):
     one 'slot' of resources (think cpu)
     '''
 
-    def __init__(self, file_p, slots, cache, mailhost,
-                 email_from, formatvars, restore, rerun):
+    def __init__(self, plugables, formatvars, my_id):
         '''
         constructor
         also define a unique id that is set in the environment of every command
@@ -329,16 +328,15 @@ class Scheduler(object):
 
         signal.signal(signal.SIGHUP, self.handle_hup)
 
-        self.input = file_p
         self.commands = []
         self.pid = os.getpid()
-        self.my_id = get_my_id()
+        self.my_id = my_id
         os.environ[get_my_prefix()] = self.my_id
+        self.allocator = plugables['allocator']
+        self.cacher = plugables['cacher']
+        self.checker = plugables['checker']
+        self.mailer = plugables['mailer']
         self.formatvars = format_convert(formatvars)
-        self.cacher = Cacher(cache, self.my_id, restore, rerun)
-        self.mailer = Mailer(mailhost, email_from)
-        self.allocator = ResourceAllocator(slots)
-        self.checker = CommandChecker(self.my_id)
 
     def handle_hup(self, signo, dummy_frame):
         """
@@ -370,7 +368,7 @@ class Scheduler(object):
                     pass
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
-    def run(self):
+    def run(self, inputfile):
         '''
         run all commands in order.
         if this script died and was restarted with the option to
@@ -386,7 +384,7 @@ class Scheduler(object):
 
         self.commands = self.cacher.restore_from_cache()
         if not self.commands:
-            self.commands = self.read_commands()
+            self.commands = self.read_commands(inputfile)
 
         while True:
             if self.start_command() is None:
@@ -397,21 +395,21 @@ class Scheduler(object):
             # 30 seconds is fine, we're dealing with long running commands here
             time.sleep(30)
 
-    def read_commands(self):
+    def read_commands(self, inputfile):
         '''
         read text entries describing each set of commands to be run
         '''
 
         commands = []
-        for line in self.input:
+        for line in inputfile:
             line = line.rstrip('\n')
             if line.startswith('#') or line.startswith(" ") or not line:
                 continue
             if self.formatvars is not None:
                 line = line.format(**self.formatvars)
             commands.append(line_to_entry(line, self.allocator.total_slots))
-        if self.input != sys.stdin:
-            self.input.close()
+        if inputfile != sys.stdin:
+            inputfile.close()
         return commands
 
     def mark_process_done(self, process, pid, entry):
@@ -728,9 +726,18 @@ def main():
     if working_dir is not None:
         os.chdir(working_dir)
 
-    scheduler = Scheduler(commands_in, slots, cache, mailhost,
-                          email_from, formatvars, restore, rerun)
-    scheduler.run()
+    # fixme do this in a setup method
+    my_id = get_my_id()
+    my_prefix = get_my_prefix()
+    os.environ[my_prefix] = my_id
+
+    plugables = {}
+    plugables['allocator'] = ResourceAllocator(slots)
+    plugables['cacher'] = Cacher(cache, my_id, restore, rerun)
+    plugables['checker'] = CommandChecker(my_id)
+    plugables['mailer'] = Mailer(mailhost, email_from)
+    scheduler = Scheduler(plugables, formatvars, my_id)
+    scheduler.run(commands_in)
 
 
 if __name__ == '__main__':
