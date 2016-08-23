@@ -324,6 +324,31 @@ def scheduler_setup():
     return my_id
 
 
+def update_retries(process, pid, entry):
+    '''
+    update the number of retries left for
+    a command
+    '''
+    retries = entry['onfailure'].split("=", 1)[1]
+    if not retries.isdigit():
+        LOG.error("number of retries must be an integer but "
+                  "found '%s', continuing", retries)
+        entry['onfailure'] = 'continue'
+    else:
+        if process is not None:
+            entry['processes'].remove(process)
+        entry['processids'].remove(pid)
+        if pid in entry['procidsfromcache']:
+            entry['procidsfromcache'].remove(pid)
+        entry['count'] = entry['count'] + 1
+        LOG.info("after failure, retry for %s scheduled", entry['command'])
+        if retries != "0":
+            entry['onfailure'] = "retry=%d" % (int(retries) - 1)
+        else:
+            entry['onfailure'] = "continue"
+            # next failure there will be no more retries
+
+
 class Scheduler(object):
     '''
     handle running a sequence of commands, each command possibly to
@@ -455,24 +480,7 @@ class Scheduler(object):
         if entry['onfailure'] == 'continue':
             self.mark_process_done(process, pid, entry)
         elif entry['onfailure'].startswith('retry='):
-            retries = entry['onfailure'].split("=", 1)[1]
-            if not retries.isdigit():
-                LOG.error("number of retries must be an integer but "
-                          "found '%s', continuing", retries)
-                entry['onfailure'] = 'continue'
-            else:
-                if process is not None:
-                    entry['processes'].remove(process)
-                entry['processids'].remove(pid)
-                if pid in entry['procidsfromcache']:
-                    entry['procidsfromcache'].remove(pid)
-                entry['count'] = entry['count'] + 1
-                LOG.info("after failure, retry for %s scheduled", entry['command'])
-                if retries != "0":
-                    entry['onfailure'] = "retry=%d" % (int(retries) - 1)
-                else:
-                    entry['onfailure'] = "continue"
-                    # next failure there will be no more retries
+            update_retries(process, pid, entry)
 
     def check_running_by_proc(self, entry):
         '''
