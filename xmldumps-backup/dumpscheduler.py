@@ -662,6 +662,19 @@ once, and the full command to run is
     sys.exit(1)
 
 
+def get_scheduler_plugables(opts, my_id):
+    '''
+    set up and return plugables for scheduler, i.e. all objects
+    needed, with proper initialization
+    '''
+    plugables = {}
+    plugables['allocator'] = ResourceAllocator(opts['slots'])
+    plugables['cacher'] = Cacher(opts['cache'], my_id, opts['restore'], opts['rerun'])
+    plugables['checker'] = CommandChecker(my_id)
+    plugables['mailer'] = Mailer(opts['mailhost'], opts['email_from'])
+    return plugables
+
+
 def get_defaults():
     '''
     set up and return defaults for options
@@ -752,12 +765,7 @@ def main():
         os.chdir(working_dir)
 
     my_id = scheduler_setup()
-
-    plugables = {}
-    plugables['allocator'] = ResourceAllocator(opts['slots'])
-    plugables['cacher'] = Cacher(opts['cache'], my_id, opts['restore'], opts['rerun'])
-    plugables['checker'] = CommandChecker(my_id)
-    plugables['mailer'] = Mailer(opts['mailhost'], opts['email_from'])
+    plugables = get_scheduler_plugables(opts, my_id)
     scheduler = Scheduler(plugables, opts['formatvars'], my_id)
     scheduler.run(commands_in)
 
