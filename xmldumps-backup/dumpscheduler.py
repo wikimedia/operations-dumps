@@ -693,6 +693,19 @@ def get_defaults():
     return opts
 
 
+def setup_logging(debug, verbose):
+    '''
+    set up logging level, based on whether
+    debug or verbose options are set
+    '''
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    elif verbose:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.ERROR)
+
+
 def main():
     'main entry point, does all the work'
 
@@ -754,12 +767,7 @@ def main():
     else:
         commands_in = sys.stdin
 
-    if debug:
-        logging.basicConfig(level=logging.DEBUG)
-    elif verbose:
-        logging.basicConfig(level=logging.INFO)
-    else:
-        logging.basicConfig(level=logging.ERROR)
+    setup_logging(debug, verbose)
 
     if working_dir is not None:
         os.chdir(working_dir)
