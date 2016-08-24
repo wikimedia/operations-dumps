@@ -733,12 +733,14 @@ class Runner(object):
                 if self.verbose:
                     sys.stderr.write(repr(traceback.format_exception(
                         exc_type, exc_value, exc_traceback)))
-                if exc_type.__name__ == 'BackupPrereqError':
+                if (exc_type.__name__ == 'BackupPrereqError' or
+                        exc_type.__name__ == 'BackupError'):
                     error_message = str(ex)
-                    self.debug(error_message)
                     if error_message.startswith("Required job "):
                         prereq_job = error_message.split(" ")[2]
-                else:
+                        self.debug(error_message)
+                if prereq_job is None:
+                    # exception that doesn't have to do with missing prereqs.
                     self.debug("*** exception! " + str(ex))
                     item.set_status("failed")
 
