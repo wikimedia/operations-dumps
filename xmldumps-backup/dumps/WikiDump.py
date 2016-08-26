@@ -58,6 +58,9 @@ class Config(object):
             # these are now set in get_db_user_and_password() if needed
             "user": "",
             "password": "",
+            # mysqldump option. should match whatever your
+            # mysql servers have set
+            "max_allowed_packet": "16M",
             # "tools": {
             "php": "/bin/php",
             "gzip": "/usr/bin/gzip",
@@ -206,6 +209,10 @@ class Config(object):
 
         self.db_list = list(set(self.db_list) - set(self.skip_db_list))
 
+        if not self.conf.has_section('database'):
+            self.conf.add_section('database')
+        self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
+
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
         self.public_dir = self.conf.get("output", "public")
@@ -268,6 +275,10 @@ class Config(object):
         dbpassword = self.get_opt_for_proj_or_default(conf, "database", "password", 0)
         if dbpassword:
             self.db_password = dbpassword
+        max_allowed_packet = self.get_opt_for_proj_or_default(
+            conf, "database", "max_allowed_packet", 0)
+        if max_allowed_packet:
+            self.max_allowed_packet = max_allowed_packet
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')

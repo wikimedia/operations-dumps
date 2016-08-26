@@ -162,6 +162,7 @@ class DbServerInfo(object):
         command = [["%s" % self.wiki.config.mysqldump] + self.mysql_standard_parameters() + [
             "--opt", "--quick",
             "--skip-add-locks", "--skip-lock-tables",
+            "--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet,
             "%s" % self.db_name,
             "%s" % self.db_table_prefix + table]]
         if pipeto:
