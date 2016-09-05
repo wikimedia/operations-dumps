@@ -502,19 +502,16 @@ class DumpFile(object):
         if self.is_empty:
             return self.is_empty
         if self.file_obj.file_ext == "bz2":
-            pipeline = [[self._wiki.config.bzip2, "-dc", self.filename, "|",
-                         "head", "-5"]]
-        elif self.file_obj.file_ext == "bz2":
-            pipeline = [[self._wiki.config.gzip, "-dc", self.filename, "|",
-                         "head", "-5"]]
+            pipeline = [["%s -dc  %s | head -5" % (self._wiki.config.bzip2, self.filename)]]
+        elif self.file_obj.file_ext == "gz":
+            pipeline = [["%s -dc %s | head -5" % (self._wiki.config.gzip, self.filename)]]
         elif self.file_obj.file_ext == '7z':
-            pipeline = [[self._wiki.config.sevenzip, "e", "-so", self.filename, "|",
-                         "head", "-5"]]
+            pipeline = [["%s e -so %s | head -5" % (self._wiki.config.sevenzip, self.filename)]]
         else:
             # we do't know how to handle this type of file.
             return self.is_empty
 
-        proc = CommandPipeline(pipeline, quiet=True)
+        proc = CommandPipeline(pipeline, quiet=True, shell=True)
         proc.run_pipeline_get_output()
         self.is_empty = bool(not len(proc.output()))
 
