@@ -507,6 +507,9 @@ class DumpFile(object):
             pipeline = [["%s -dc %s | head -5" % (self._wiki.config.gzip, self.filename)]]
         elif self.file_obj.file_ext == '7z':
             pipeline = [["%s e -so %s | head -5" % (self._wiki.config.sevenzip, self.filename)]]
+        elif (self.file_obj.file_ext == '' or self.file_obj.file_ext == 'txt' or
+              self.file_obj.file_ext == 'html'):
+            pipeline = [["head -5 %s" % self.filename]]
         else:
             # we do't know how to handle this type of file.
             return self.is_empty
