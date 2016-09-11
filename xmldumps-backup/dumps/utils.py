@@ -137,9 +137,9 @@ class DbServerInfo(object):
 
         params = ["-h", "%s" % host]  # Host
         if self.db_port:
-            params += ["--port", "%s" % self.db_port]  # Port
-        params += ["-u", "%s" % self.wiki.config.db_user]  # Username
-        params += ["%s" % self.password_option()]  # Password
+            params += ["--port", self.db_port]
+        params += ["-u", self.wiki.config.db_user, self.password_option()]
+        params += ["--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet]
         return params
 
     def build_sql_command(self, query, pipeto=None):
@@ -162,7 +162,6 @@ class DbServerInfo(object):
         command = [["%s" % self.wiki.config.mysqldump] + self.mysql_standard_parameters() + [
             "--opt", "--quick",
             "--skip-add-locks", "--skip-lock-tables",
-            "--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet,
             "%s" % self.db_name,
             "%s" % self.db_table_prefix + table]]
         if pipeto:
