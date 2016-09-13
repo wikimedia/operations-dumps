@@ -532,7 +532,7 @@ class XmlDump(Dump):
         if error:
             raise BackupError("failed to write partial stub file %s" % output_file.filename)
 
-    def get_last_500_lines(self, fileobj, runner):
+    def get_last_lines_from_n(self, fileobj, runner, count):
         if not fileobj.filename or not exists(runner.dump_dir.filename_public_path(fileobj)):
             return None
 
@@ -545,7 +545,7 @@ class XmlDump(Dump):
         if not exists(tail):
             raise BackupError("tail command %s not found" % tail)
         tail_esc = MiscUtils.shell_escape(tail)
-        pipeline.append([tail, "-500"])
+        pipeline.append([tail, "-n", "+%s" % count])
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
@@ -557,8 +557,40 @@ class XmlDump(Dump):
             last_lines = proc.output()
         return last_lines
 
+    def get_lineno_last_page(self, fileobj, runner):
+        if not fileobj.filename or not exists(runner.dump_dir.filename_public_path(fileobj)):
+            return None
+        dumpfile = DumpFile(self.wiki,
+                            runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
+                            fileobj, self.verbose)
+        pipeline = dumpfile.setup_uncompression_command()
+        grep = self.wiki.config.grep
+        if not exists(grep):
+            raise BackupError("grep command %s not found" % grep)
+        pipeline.append([grep, "-n", "<page>"])
+        tail = self.wiki.config.tail
+        if not exists(tail):
+            raise BackupError("tail command %s not found" % tail)
+        pipeline.append([tail, "-1"])
+        # without shell
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.run_pipeline_get_output()
+        if (proc.exited_successfully() or
+            (proc.get_failed_cmds_with_retcode() ==
+             [[-signal.SIGPIPE, pipeline[0]]]) or
+            (proc.get_failed_cmds_with_retcode() ==
+             [[signal.SIGPIPE + 128, pipeline[0]]])):
+            output = proc.output()
+            # 339915646:  <page>
+            if ':' in output:
+                linecount = output.split(':')[0]
+                if linecount.isdigit():
+                    return linecount
+        return None
+
     def find_last_page_id(self, fileobj, runner):
-        lastlines = self.get_last_500_lines(fileobj, runner)
+        count = self.get_lineno_last_page(fileobj, runner)
+        lastlines = self.get_last_lines_from_n(fileobj, runner, count)
         # now look for the last page id in here. eww
         if not lastlines:
             return None
