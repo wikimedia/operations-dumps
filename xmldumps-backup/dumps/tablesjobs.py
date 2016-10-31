@@ -137,7 +137,7 @@ class AllTitleDump(TitleDump):
     def run(self, runner):
         retries = 0
         maxretries = 3
-        query = "select page_title from page;"
+        query = "select page_namespace, page_title from page;"
         files = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(files) > 1:
             raise BackupError("all titles dump trying to produce more than one output file")
