@@ -373,7 +373,7 @@ class Config(object):
           * age of status file if any,
           * wiki name
 
-        Order is (DumpFailed, Age), and False < True :
+        Order is (DumpFailed, Age), and False < True:
         First, wikis whose latest dump was successful, most recent dump first
         Then, wikis whose latest dump failed, most recent dump first.
         Finally, wikis which have never been dumped.
