@@ -197,7 +197,7 @@ class IndexHtml(object):
                 return "No prior dumps of this database stored."
             else:
                 raise ValueError
-        except:
+        except Exception as ex:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(
@@ -249,7 +249,7 @@ class IndexHtml(object):
                 index = os.path.join(self.wiki.public_dir(), self.wiki.date,
                                      self.wiki.config.perdump_index)
                 FileUtils.write_file_in_place(index, text, self.wiki.config.fileperms)
-            except:
+            except Exception as ex:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value,
@@ -293,7 +293,7 @@ class FailureHandler(object):
             server.sendmail(self.wiki.config.mail_from, self.wiki.config.admin_mail,
                             message.as_string())
             server.close()
-        except:
+        except Exception as ex:
             print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
             print message
 
@@ -336,7 +336,7 @@ class StatusHtml(object):
             status = StatusHtml.get_statusfile_path(wiki, date)
             try:
                 return FileUtils.read_file(status)
-            except:
+            except Exception as ex:
                 return StatusHtml.report_statusline(wiki, "missing status record")
         else:
             return StatusHtml.report_statusline(wiki, "has not yet been dumped")
@@ -385,7 +385,7 @@ class StatusHtml(object):
             try:
                 # Short line for report extraction goes here
                 StatusHtml.write_status(self.wiki, self._report_dump_status_html(done))
-            except:
+            except Exception as ex:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value,
@@ -803,7 +803,7 @@ class RunInfoFile(object):
         if RunInfoFile.NAME in self._enabled:
             try:
                 self._write_dump_runinfo_file(text)
-            except:
+            except Exception as ex:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     sys.stderr.write(repr(traceback.format_exception(
@@ -843,7 +843,7 @@ class RunInfoFile(object):
                 results.append(self._get_old_runinfo_from_line(line))
             infile.close()
             return results
-        except:
+        except Exception as ex:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(
@@ -913,7 +913,7 @@ class RunInfoFile(object):
                     return result
             infile.close()
             return None
-        except:
+        except Exception as ex:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(
@@ -942,7 +942,7 @@ class RunInfoFile(object):
                     return result
             infile.close()
             return None
-        except:
+        except Exception as ex:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(

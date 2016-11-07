@@ -759,7 +759,7 @@ class XmlDump(Dump):
                          (end_page_id is None or
                           first_page_id_in_file <= int(end_page_id)))):
                         possibles.append(file_obj)
-                except:
+                except Exception as ex:
                     runner.debug(
                         "Couldn't process %s for prefetch. Format update? Corrupt file?"
                         % file_obj.filename)

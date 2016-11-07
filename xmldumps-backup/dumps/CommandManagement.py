@@ -591,7 +591,7 @@ class CommandsInParallel(object):
             output = None
             try:
                 output = self._output_queue.get(True, 1)
-            except:
+            except Exception as ex:
                 pass
             if output:
                 if output.channel == OutputQueueItem.get_stdout_channel():

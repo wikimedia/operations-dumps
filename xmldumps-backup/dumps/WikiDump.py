@@ -344,7 +344,7 @@ class Config(object):
                 dump_status = StatusHtml.get_statusfile_path(wiki, last)
                 try:
                     status = FileUtils.read_file(dump_status)
-                except:
+                except Exception as ex:
                     status = 'failed'
                 for value in ['missing', 'not yet', 'failed', 'aborted',
                               'progress', 'partial', 'complete']:
@@ -411,7 +411,7 @@ class Config(object):
                     # dumped on the same day, they get ordered properly
                     age = FileUtils.file_age(dump_status)
                     status = FileUtils.read_file(dump_status)
-                except:
+                except Exception as ex:
                     print "dump dir missing status file %s?" % dump_status
             dump_failed = (status == '') or ('dump aborted' in status)
             available.append((dump_failed, date, age, dbname))
@@ -505,7 +505,7 @@ class Wiki(object):
             dump_status = StatusHtml.get_statusfile_path(self, last)
             try:
                 mtime = os.stat(dump_status).st_mtime
-            except:
+            except Exception as ex:
                 pass
         return time.strftime("%Y%m%d", time.gmtime(mtime))
 
@@ -521,7 +521,7 @@ class Wiki(object):
             for dirname in os.listdir(base):
                 if digits.match(dirname):
                     dates.append(dirname)
-        except OSError:
+        except OSError as ex:
             return []
         dates.sort()
         return dates
@@ -591,7 +591,7 @@ class Locker(object):
                 age = self.lock_age(lockfile)
                 if age > self.wiki.config.stale_age:
                     stale_locks.append(lockfile)
-            except:
+            except Exception as ex:
                 # Lock file vanished while we were looking
                 continue
         return stale_locks
@@ -605,7 +605,7 @@ class Locker(object):
         if not os.path.isdir(self.wiki.private_dir()):
             try:
                 os.makedirs(self.wiki.private_dir())
-            except:
+            except Exception as ex:
                 # Maybe it was just created (race condition)?
                 if not os.path.isdir(self.wiki.private_dir()):
                     raise
@@ -636,7 +636,7 @@ class Locker(object):
                     lockpid = lines[0].split(" ", 1)[1]
                     if pid == lockpid:
                         return True
-        except:
+        except Exception as ex:
             # don't care what the error is, file is off limits for us
             pass
         return False
@@ -662,7 +662,7 @@ class Locker(object):
             try:
                 if self.check_owner(lockfile, pid):
                     os.remove(lockfile)
-            except:
+            except Exception as ex:
                 # someone else removed it?
                 pass
 
@@ -677,7 +677,7 @@ class Locker(object):
                 try:
                     StatusHtml.write_status(self.wiki, StatusHtml.status_line(
                         self.wiki, aborted=True))
-                except:
+                except Exception as ex:
                     # may be no directory to write into, if
                     # the dump failed early enough
                     pass

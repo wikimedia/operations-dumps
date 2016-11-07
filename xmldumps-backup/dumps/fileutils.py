@@ -39,7 +39,7 @@ class FileUtils(object):
         if not os.path.isdir(dirname):
             try:
                 os.makedirs(dirname)
-            except:
+            except Exception as ex:
                 raise IOError("The given directory '%s' is neither "
                               "a directory nor can it be created" % dirname)
 
@@ -120,7 +120,7 @@ class FileUtils(object):
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
             size = os.path.getsize(path)
             return (timestamp, size)
-        except:
+        except Exception as ex:
             return(None, None)
 
 
@@ -529,7 +529,7 @@ class DumpFile(object):
     def rename(self, newname):
         try:
             os.rename(self.filename, os.path.join(self.dirname, newname))
-        except:
+        except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             raise BackupError("failed to rename file %s" % self.filename)

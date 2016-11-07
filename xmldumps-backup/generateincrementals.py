@@ -49,7 +49,7 @@ class MaxRevID(object):
         try:
             file_obj = MaxRevIDFile(self._config, date, wikiname)
             return FileUtils.read_file(file_obj.get_path().rstrip())
-        except:
+        except Exception as ex:
             return None
 
     def exists(self, wikiname, date=None):
@@ -106,7 +106,7 @@ class Index(object):
             try:
                 lock = IncrDumpLock(self._config, incr_date, wiki)
                 lock_date = lock.get_lockinfo()
-            except:
+            except Exception as ex:
                 lock_date = None
             if lock_date is not None:
                 lock_text = "run started on %s." % lock_date
@@ -150,7 +150,7 @@ class Index(object):
                 else:
                     stat_text = None
 
-            except:
+            except Exception as ex:
                 log(self.verbose, "Error encountered, no information available"
                     " for wiki %s" % wiki)
                 return ("<strong>%s</strong> Error encountered,"
@@ -164,7 +164,7 @@ class Index(object):
                 wiki_info = (wiki_info + " &nbsp;&nbsp; " +
                              " |  ".join([entry for entry in [stub_text, revs_text, other_runs_text]
                                           if entry is not None]))
-            except:
+            except Exception as ex:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 log(self.verbose, "Error encountered formatting information"
@@ -253,7 +253,7 @@ class IncrDump(object):
                 if self.do_index_update:
                     index = Index(self._config, self.date, self.verbose)
                     index.do_all_wikis()
-            except:
+            except Exception as ex:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 if not self.dryrun:
@@ -379,7 +379,7 @@ class IncrDump(object):
                 FileUtils.write_file_in_place(md5file.get_path(),
                                               text, self._config.fileperms)
             return True
-        except:
+        except Exception as ex:
             return False
 
 
@@ -480,7 +480,7 @@ def main():
             sys.argv[1:], "",
             ['date=', 'configfile=', 'stubsonly', 'revsonly',
              'indexonly', 'dryrun', 'verbose', 'forcerun'])
-    except:
+    except Exception as ex:
         usage("Unknown option specified")
 
     for (opt, val) in options:

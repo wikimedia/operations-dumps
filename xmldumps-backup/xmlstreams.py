@@ -212,7 +212,7 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
     while retries < maxretries:
         try:
             result = run_script(command, outfiles, ends_with)
-        except:
+        except Exception as ex:
             result = False
         if result:
             break
@@ -231,7 +231,7 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
                 # don't remove the temp files either, might be useful
                 # for checking the problem later
                 # os.unlink(outfiles[filetype]['temp'])
-            except:
+            except Exception as ex:
                 pass
         sys.exit(1)
 
@@ -243,5 +243,5 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
     for filetype in outfiles:
         try:
             os.unlink(outfiles[filetype]['temp'])
-        except:
+        except Exception as ex:
             pass

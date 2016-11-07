@@ -124,7 +124,7 @@ class Lock(object):
             fhandle.write("%s %d" % (socket.getfqdn(), os.getpid()))
             fhandle.close()
             return True
-        except:
+        except Exception as ex:
             return False
 
     def is_stale_lock(self):
@@ -132,7 +132,7 @@ class Lock(object):
             return False
         try:
             timestamp = os.stat(self.lockfile.get_path()).st_mtime
-        except:
+        except Exception as ex:
             return False
         if (time.time() - timestamp) > self._config.stale_interval:
             return True
@@ -146,7 +146,7 @@ class Lock(object):
         try:
             timestamp = os.stat(self.lockfile.get_path()).st_mtime
             return time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
-        except:
+        except Exception as ex:
             return None
 
 

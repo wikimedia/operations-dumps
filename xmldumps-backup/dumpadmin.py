@@ -30,7 +30,7 @@ def command_has_wiki(pid, wikiname):
 
     try:
         process_command = open("/proc/%s/cmdline" % pid, "r")
-    except IOError:
+    except IOError as ex:
         # permission or gone, anyways not us
         return False
     for line in process_command:
@@ -66,12 +66,12 @@ def check_process_running(pid):
     '''
     try:
         os.kill(int(pid), 0)
-    except OSError:
+    except OSError as ex:
         return False
 
     try:
         process_environ = open("/proc/%s/environ" % pid, "r")
-    except IOError:
+    except IOError as ex:
         # permission or gone, anyways not us
         return False
     for line in process_environ:
@@ -114,7 +114,7 @@ def remove_file(filename):
     '''
     try:
         os.unlink(filename)
-    except:
+    except Exception as ex:
         pass
 
 
@@ -253,7 +253,7 @@ class ActionHandler(object):
                     # has DUMPS environ var
                     try:
                         process_environ = open("/proc/%s/environ" % process_id, "r")
-                    except IOError:
+                    except IOError as ex:
                         # permission or gone, anyways not us
                         continue
                     for line in process_environ:
@@ -365,7 +365,7 @@ class ActionHandler(object):
                 locker = Locker(wiki, date)
                 try:
                     locker.lock()
-                except:
+                except Exception as ex:
                     sys.stderr.write("Couldn't lock %s, can't do cleanup\n" % wikiname)
                     continue
                 self.cleanup_dump(wiki, failed_dumps[wikiname][date], rerun=rerun)
@@ -406,7 +406,7 @@ class ActionHandler(object):
                 else:
                     try:
                         os.unlink(filename)
-                    except:
+                    except Exception as ex:
                         continue
 
         if not self.dryrun:
@@ -454,7 +454,7 @@ class ActionHandler(object):
                 runner.dumpjobdata.do_before_job(runner.dump_item_list.dump_items)
                 try:
                     item.dump(runner)
-                except Exception, ex:
+                except Exception as ex:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     if self.verbose:
                         sys.stderr.write(repr(traceback.format_exception(

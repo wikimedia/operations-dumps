@@ -139,7 +139,7 @@ class Dump(object):
 
             self.run(runner)
             self.post_run(runner)
-        except Exception:
+        except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             if self.verbose:
                 sys.stderr.write(repr(traceback.format_exception(

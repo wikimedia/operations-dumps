@@ -728,7 +728,7 @@ class Runner(object):
 
             try:
                 item.dump(self)
-            except Exception, ex:
+            except Exception as ex:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 if self.verbose:
                     sys.stderr.write(repr(traceback.format_exception(

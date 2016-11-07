@@ -125,7 +125,7 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
                 locker = Locker(wiki, date)
                 locker.lock()
             return wiki
-        except:
+        except Exception as ex:
             if check_prereq_status:
                 # if we skip locked wikis which are missing the prereqs for this job,
                 # there are still wikis where this job needs to run
@@ -243,7 +243,7 @@ def main():
                  'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
                  'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
                  "exclusive", "prereqs", "cleanup", 'verbose'])
-        except:
+        except Exception as ex:
             usage("Unknown option specified")
 
         for (opt, val) in options:
@@ -347,7 +347,7 @@ def main():
         for external in externals:
             try:
                 ext = getattr(config, external)
-            except AttributeError:
+            except AttributeError as ex:
                 unknowns.append(external)
                 failed = True
             else:

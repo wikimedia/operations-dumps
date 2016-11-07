@@ -204,7 +204,7 @@ class WikiRunner(object):
                         self.get_output_dir(), overwrite,
                         self.base):
                     return False
-            except Exception:
+            except Exception as ex:
                 if self.runner.verbose:
                     traceback.print_exc(file=sys.stdout)
                 return False

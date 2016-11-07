@@ -52,7 +52,7 @@ def json_obj_dump(obj):
     '''
     try:
         return obj.toJSON()
-    except AttributeError:
+    except AttributeError as ex:
         return obj.__dict__
 
 
@@ -189,7 +189,7 @@ class Mailer(object):
             server.sendmail(message['From'], self.email_from,
                             message.as_string())
             server.close()
-        except smtplib.SMTPException:
+        except smtplib.SMTPException as ex:
             LOG.error('problem sending mail to %s', entry['notify'])
             exc_type, exc_value, exc_traceback = sys.exc_info()
             except_message = repr(traceback.format_exception(
@@ -277,12 +277,12 @@ class CommandChecker(object):
         id_string = get_my_prefix() + "=" + self.my_id
         try:
             os.kill(pid, 0)
-        except OSError:
+        except OSError as ex:
             return False
         # it exists, is it the same command?
         try:
             process_environ = open("/proc/%s/environ" % pid, "r")
-        except IOError:
+        except IOError as ex:
             # permission or gone, anyways not us
             return False
         for line in process_environ:
@@ -393,7 +393,7 @@ class Scheduler(object):
                     # no zombie apocalypse here
                     try:
                         os.waitpid(int(pid), 0)
-                    except OSError:
+                    except OSError as ex:
                         pass
 
         for filedesc in reversed(range(os.sysconf('SC_OPEN_MAX'))):
@@ -401,7 +401,7 @@ class Scheduler(object):
                                 sys.__stderr__.fileno()]:
                 try:
                     os.close(filedesc)
-                except (IOError, OSError):
+                except (IOError, OSError) as ex:
                     pass
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
