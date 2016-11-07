@@ -415,7 +415,7 @@ class Config(object):
                     print "dump dir missing status file %s?" % dump_status
             dump_failed = (status == '') or ('dump aborted' in status)
             available.append((dump_failed, date, age, dbname))
-        available.sort()
+        available = sorted(available)
         return available
 
     def read_template(self, name):
@@ -523,7 +523,7 @@ class Wiki(object):
                     dates.append(dirname)
         except OSError as ex:
             return []
-        dates.sort()
+        dates = sorted(dates)
         return dates
 
 

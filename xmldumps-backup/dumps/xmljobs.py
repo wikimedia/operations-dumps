@@ -383,7 +383,7 @@ class XmlDump(Dump):
 
                 # get the stub list that would be used for the current run
                 stubs = self.get_stub_files(runner)
-                stubs.sort(key=lambda thing: thing.filename)
+                stubs = sorted(stubs, key=lambda thing: thing.filename)
 
                 # get the page ranges covered by stubs
                 stub_ranges = []
@@ -397,7 +397,7 @@ class XmlDump(Dump):
                 # get list of existing checkpoint files
                 chkpt_files = self.list_checkpt_files(
                     runner.dump_dir, [self.dumpname], runner.wiki.date, parts=None)
-                chkpt_files.sort(key=lambda thing: thing.filename)
+                chkpt_files = sorted(chkpt_files, key=lambda thing: thing.filename)
                 # get the page ranges covered by existing checkpoint files
                 checkpoint_ranges = [(chkptfile.first_page_id, chkptfile.last_page_id,
                                       chkptfile.partnum)
@@ -694,7 +694,7 @@ class XmlDump(Dump):
         """
         convert = lambda text: int(text) if text.isdigit() else text
         alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-        mylist.sort(key=alphanum_key)
+        mylist = sorted(mylist, key=alphanum_key)
 
     def get_relevant_prefetch_files(self, file_list, start_page_id, end_page_id, date, runner):
         possibles = []
@@ -783,8 +783,7 @@ class XmlDump(Dump):
             dumps = [self._prefetchdate]
         else:
             dumps = self.wiki.dump_dirs()
-        dumps.sort()
-        dumps.reverse()
+        dumps = sorted(dumps, reverse=True)
         for date in dumps:
             if date == self.wiki.date:
                 runner.debug("skipping current dump for prefetch of job %s, date %s" %

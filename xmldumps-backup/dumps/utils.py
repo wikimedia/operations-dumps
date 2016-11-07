@@ -26,7 +26,7 @@ class MiscUtils(object):
             if line != "":
                 dbs.append(line)
         infile.close()
-        dbs.sort()
+        dbs = sorted(dbs)
         return dbs
 
     @staticmethod

@@ -334,7 +334,7 @@ class IncDumpDirs(object):
                     dates.append(dirname)
         except OSError:
             return []
-        dates.sort()
+        dates = sorted(dates)
         return dates
 
     def cleanup_old_incrdumps(self, date):

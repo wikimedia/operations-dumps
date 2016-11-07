@@ -535,7 +535,7 @@ class ActionHandler(object):
         if self.show == 'lastrun':
             dbinfo = self.conf.db_latest_status()
             dbdates = [date for (_dbname, _status, date) in dbinfo if date is not None]
-            dbdates.sort()
+            dbdates = sorted(dbdates)
             if not len(dbdates):
                 print ""
             else:
