@@ -382,7 +382,7 @@ class Config(object):
         the oldest failed dump attempt.
 
         If some error occurs checking a dump status, that dump is put last in the
-        list (sort value is (True, maxint) )
+        list (sort value is (True, maxsize) )
 
         Note that we now sort this list by the date of the dump directory, not the
         last date that a dump file in that directory may have been touched. This
@@ -395,8 +395,8 @@ class Config(object):
         for dbname in self.db_list:
             wiki = Wiki(self, dbname)
 
-            age = sys.maxint
-            date = sys.maxint
+            age = sys.maxsize
+            date = sys.maxsize
             last = wiki.latest_dump()
             status = ''
             if last:
