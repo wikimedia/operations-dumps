@@ -11,11 +11,11 @@ import time
 import hashlib
 import traceback
 import calendar
-from IncrDumpLib import Config
-from IncrDumpLib import DBServer, IncrementDir
-from IncrDumpLib import MaxRevIDFile, StatusFile, IndexFile
-from IncrDumpLib import StubFile, RevsFile, MD5File, IncDumpDirs
-from IncrDumpLib import IncrDumpLock, StatusInfo
+from miscdumplib import Config
+from miscdumplib import DBServer, MiscDir
+from miscdumplib import MaxRevIDFile, StatusFile, IndexFile
+from miscdumplib import StubFile, RevsFile, MD5File, MiscDumpDirs
+from miscdumplib import IncrDumpLock, StatusInfo
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
 from dumps.utils import RunSimpleCommand, MultiVersion
@@ -70,7 +70,7 @@ class Index(object):
         self._config = config
         self.date = date
         self.indexfile = IndexFile(self._config)
-        self.incrdir = IncrementDir(self._config)
+        self.incrdir = MiscDir(self._config)
         self.verbose = verbose
 
     def do_all_wikis(self):
@@ -90,14 +90,14 @@ class Index(object):
         if (wiki not in self._config.private_wikis_list and
                 wiki not in self._config.closed_wikis_list and
                 wiki not in self._config.skip_wikis_list):
-            incr_dumps_dirs = IncDumpDirs(self._config, wiki)
-            if not exists(self.incrdir.get_incdir_no_date(wiki)):
+            incr_dumps_dirs = MiscDumpDirs(self._config, wiki)
+            if not exists(self.incrdir.get_dumpdir_no_date(wiki)):
                 log(self.verbose, "No dump for wiki %s" % wiki)
                 return
             if date is not None:
                 incr_date = date
             else:
-                incr_date = incr_dumps_dirs.get_latest_incr_date(True)
+                incr_date = incr_dumps_dirs.get_latest_dump_date(True)
             if not incr_date:
                 log(self.verbose, "No dump for wiki %s" % wiki)
                 return
@@ -188,7 +188,7 @@ class IncrDump(object):
         self.date = date
         self.cutoff = cutoff
         self.wikiname = wikiname
-        self.incrdir = IncrementDir(self._config, self.date)
+        self.incrdir = MiscDir(self._config, self.date)
         self.do_stubs = do_stubs
         self.do_revs = do_revs
         self.do_index_update = do_index_update
@@ -199,15 +199,15 @@ class IncrDump(object):
         self.status_info = StatusInfo(self._config, self.date, self.wikiname)
         self.stubfile = StubFile(self._config, self.date, self.wikiname)
         self.revsfile = RevsFile(self._config, self.date, self.wikiname)
-        self.incr_dumps_dirs = IncDumpDirs(self._config, self.wikiname)
+        self.incr_dumps_dirs = MiscDumpDirs(self._config, self.wikiname)
         self.verbose = verbose
 
     def do_one_wiki(self):
         if (self.wikiname not in self._config.private_wikis_list and
                 self.wikiname not in self._config.closed_wikis_list and
                 self.wikiname not in self._config.skip_wikis_list):
-            if not exists(self.incrdir.get_incdir(self.wikiname)):
-                os.makedirs(self.incrdir.get_incdir(self.wikiname))
+            if not exists(self.incrdir.get_dumpdir(self.wikiname)):
+                os.makedirs(self.incrdir.get_dumpdir(self.wikiname))
 
             status = self.status_info.get_status()
             if status == "done" and not self.forcerun:

@@ -1,4 +1,4 @@
-# shared classes for incrementals
+# shared classes for misc dumps (incrementals, html, etc)
 import os
 import sys
 import re
@@ -17,7 +17,7 @@ class ContentFile(object):
     def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.incr_dir = IncrementDir(self._config, date)
+        self.dump_dir = MiscDir(self._config, date)
         self.wikiname = wikiname
 
     # override this.
@@ -25,7 +25,7 @@ class ContentFile(object):
         return "content.txt"
 
     def get_path(self):
-        return os.path.join(self.incr_dir.get_incdir(self.wikiname), self.get_filename())
+        return os.path.join(self.dump_dir.get_dumpdir(self.wikiname), self.get_filename())
 
     def get_fileinfo(self):
         return FileUtils.file_info(self.get_path())
@@ -51,7 +51,7 @@ class StatusFile(ContentFile):
         return "status.txt"
 
     def get_path(self, date=None):
-        return os.path.join(self.incr_dir.get_incdir(self.wikiname, date), self.get_filename())
+        return os.path.join(self.dump_dir.get_dumpdir(self.wikiname, date), self.get_filename())
 
 
 class LockFile(ContentFile):
@@ -59,7 +59,7 @@ class LockFile(ContentFile):
         return "%s-%s.lock" % (self.wikiname, self.date)
 
     def get_path(self):
-        return os.path.join(self.incr_dir.get_incdir_no_date(self.wikiname), self.get_filename())
+        return os.path.join(self.dump_dir.get_dumpdir_no_date(self.wikiname), self.get_filename())
 
 
 class MaxRevIDLockFile(LockFile):
@@ -80,13 +80,13 @@ class MD5File(ContentFile):
 class IndexFile(ContentFile):
     def __init__(self, config):
         self._config = config
-        self.incr_dir = IncrementDir(self._config)
+        self.dump_dir = MiscDir(self._config)
 
     def get_filename(self):
         return "index.html"
 
     def get_path(self):
-        return os.path.join(self.incr_dir.get_incdir_base(), self.get_filename())
+        return os.path.join(self.dump_dir.get_dumpdir_base(), self.get_filename())
 
 
 class StatusInfo(object):
@@ -118,8 +118,8 @@ class Lock(object):
 
     def get_lock(self):
         try:
-            if not exists(self._config.incrementals_dir):
-                os.makedirs(self._config.incrementals_dir)
+            if not exists(self._config.dump_dir):
+                os.makedirs(self._config.dump_dir)
             fhandle = FileUtils.atomic_create(self.lockfile.get_path(), "w")
             fhandle.write("%s %d" % (socket.getfqdn(), os.getpid()))
             fhandle.close()
@@ -184,7 +184,7 @@ class Config(dumps.WikiDump.Config):
             "closedwikislist": "",
             "skipwikislist": "",
             # "output": {
-            "incrementalsdir": "/dumps/public/incr",
+            "dumpdir": "/dumps/public/incr",
             "templatedir": home,
             "temp": "/dumps/temp",
             "webroot": "http://localhost/dumps/incr",
@@ -232,7 +232,7 @@ class Config(dumps.WikiDump.Config):
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
-        self.incrementals_dir = self.conf.get("output", "incrementalsdir")
+        self.dump_dir = self.conf.get("output", "dumpdir")
         self.temp_dir = self.conf.get("output", "temp")
         self.template_dir = self.conf.get("output", "templatedir")
         self.webroot = self.conf.get("output", "webroot")
@@ -300,32 +300,32 @@ class DBServer(object):
         return command
 
 
-class IncrementDir(object):
+class MiscDir(object):
     def __init__(self, config, date=None):
         self._config = config
         self.date = date
 
-    def get_incdir_base(self):
-        return self._config.incrementals_dir
+    def get_dumpdir_base(self):
+        return self._config.dump_dir
 
-    def get_incdir_no_date(self, wikiname):
-        return os.path.join(self.get_incdir_base(), wikiname)
+    def get_dumpdir_no_date(self, wikiname):
+        return os.path.join(self.get_dumpdir_base(), wikiname)
 
-    def get_incdir(self, wikiname, date=None):
+    def get_dumpdir(self, wikiname, date=None):
         if date is None:
-            return os.path.join(self.get_incdir_base(), wikiname, self.date)
+            return os.path.join(self.get_dumpdir_base(), wikiname, self.date)
         else:
-            return os.path.join(self.get_incdir_base(), wikiname, date)
+            return os.path.join(self.get_dumpdir_base(), wikiname, date)
 
 
-class IncDumpDirs(object):
+class MiscDumpDirs(object):
     def __init__(self, config, wikiname):
         self._config = config
         self.wikiname = wikiname
-        self.incr_dir = IncrementDir(self._config)
+        self.dump_dir = MiscDir(self._config)
 
-    def get_inc_dumpdirs(self):
-        base = self.incr_dir.get_incdir_no_date(self.wikiname)
+    def get_misc_dumpdirs(self):
+        base = self.dump_dir.get_dumpdir_no_date(self.wikiname)
         digits = re.compile(r"^\d{4}\d{2}\d{2}$")
         dates = []
         try:
@@ -338,14 +338,14 @@ class IncDumpDirs(object):
         return dates
 
     def cleanup_old_incrdumps(self, date):
-        old = self.get_inc_dumpdirs()
+        old = self.get_misc_dumpdirs()
         if old:
             if old[-1] == date:
                 old = old[:-1]
             if self._config.keep > 0:
                 old = old[:-(self._config.keep)]
             for dump in old:
-                to_remove = os.path.join(self.incr_dir.get_incdir_no_date(self.wikiname), dump)
+                to_remove = os.path.join(self.dump_dir.get_dumpdir_no_date(self.wikiname), dump)
                 shutil.rmtree("%s" % to_remove)
 
     def get_prev_incrdate(self, date, dumpok=False, revidok=False):
@@ -354,7 +354,7 @@ class IncDumpDirs(object):
         # if "dumpok" is True, find most recent dump that completed successfully
         # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
         previous = None
-        old = self.get_inc_dumpdirs()
+        old = self.get_misc_dumpdirs()
         if old:
             for dump in old:
                 if dump == date:
@@ -374,9 +374,9 @@ class IncDumpDirs(object):
                         previous = dump
         return previous
 
-    def get_latest_incr_date(self, dumpok=False):
+    def get_latest_dump_date(self, dumpok=False):
         # find the most recent incr dump
-        dirs = self.get_inc_dumpdirs()
+        dirs = self.get_misc_dumpdirs()
         if dirs:
             if dumpok:
                 for dump in reversed(dirs):
