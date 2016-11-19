@@ -5,8 +5,6 @@ import re
 import ConfigParser
 import dumps.WikiDump
 from dumps.WikiDump import FileUtils, MiscUtils
-from dumps.exceptions import BackupError
-from dumps.utils import MultiVersion, RunSimpleCommand
 from os.path import exists
 import socket
 import shutil
@@ -234,37 +232,11 @@ class Config(dumps.WikiDump.Config):
         if self.conf.has_option('database', 'password'):
             self.db_password = self.conf.get("database", "password")
         self.get_db_user_and_password()  # get from MW adminsettings file if not set in conf file
+        self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
 
     def read_template(self, name):
         template = os.path.join(self.template_dir, name)
         return FileUtils.read_file(template)
-
-
-class DBServer(object):
-    def __init__(self, config, wikiname):
-        self.config = config
-        self.wikiname = wikiname
-        self.db_server = self.default_server()
-
-    def default_server(self):
-        if not exists(self.config.php):
-            raise BackupError("php command %s not found" % self.config.php)
-        command_list = MultiVersion.mw_script_as_array(self.config, "getSlaveServer.php")
-        command = [self.config.php]
-        command.extend(command_list)
-        command.extend(["--wiki=%s" % self.wikiname, "--group=dump"])
-        return RunSimpleCommand.run_with_output(command, shell=False).rstrip()
-
-    def build_sql_command(self, query):
-        """Put together a command to execute an sql query to the server for this DB."""
-        if not exists(self.config.mysql):
-            raise BackupError("mysql command %s not found" % self.config.mysql)
-        command = ("/bin/echo '%s' | %s -h %s -u %s " %
-                   (query, self.config.mysql, self.db_server, self.config.db_user))
-        if self.config.db_password != "":
-            command = command + "-p" + self.config.db_password
-        command = command + " -r --silent " + self.wikiname
-        return command
 
 
 class MiscDir(object):
@@ -346,6 +318,7 @@ def get_config_defaults():
         "maxrevidstaleinterval": "3600",
         # "database": {
         # moved defaults to get_db_user_and_password
+        "max_allowed_packet": "16M",
         # "tools": {
         "mediawiki": "",
         "php": "/bin/php",

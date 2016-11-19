@@ -11,67 +11,20 @@ import time
 import hashlib
 import traceback
 import calendar
-from miscdumplib import Config, ContentFile
-from miscdumplib import DBServer, MiscDir
+from miscdumplib import Config
+from miscdumplib import MiscDir
 from miscdumplib import StatusFile, IndexFile
 from miscdumplib import MD5File, MiscDumpDirs
 from miscdumplib import IncrDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
+from incr_dumps import MaxRevID
+from incr_dumps import MaxRevIDFile
+from incr_dumps import StubFile
+from incr_dumps import RevsFile
+from dumps.WikiDump import Wiki
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
 from dumps.utils import RunSimpleCommand, MultiVersion
-
-
-class MaxRevIDFile(ContentFile):
-    def get_filename(self):
-        return "maxrevid.txt"
-
-
-class StubFile(ContentFile):
-    def get_filename(self):
-        return "%s-%s-stubs-meta-hist-incr.xml.gz" % (self.wikiname, self.date)
-
-
-class RevsFile(ContentFile):
-    def get_filename(self):
-        return "%s-%s-pages-meta-hist-incr.xml.bz2" % (self.wikiname, self.date)
-
-
-class MaxRevID(object):
-    def __init__(self, config, date, cutoff, dryrun):
-        self._config = config
-        self.date = date
-        self.cutoff = cutoff
-        self.dryrun = dryrun
-        self.max_id = None
-
-    def get_max_revid(self, wikiname):
-        query = ("select rev_id from revision where rev_timestamp < \"%s\" "
-                 "order by rev_timestamp desc limit 1" % self.cutoff)
-        db_info = DBServer(self._config, wikiname)
-        self.max_id = RunSimpleCommand.run_with_output(db_info.build_sql_command(query),
-                                                       shell=True)
-
-    def record_max_revid(self, wikiname):
-        self.get_max_revid(wikiname)
-        if not self.dryrun:
-            file_obj = MaxRevIDFile(self._config, self.date, wikiname)
-            FileUtils.write_file_in_place(file_obj.get_path(), self.max_id,
-                                          self._config.fileperms)
-
-    def read_max_revid_from_file(self, wikiname, date=None):
-        if date is None:
-            date = self.date
-        try:
-            file_obj = MaxRevIDFile(self._config, date, wikiname)
-            return FileUtils.read_file(file_obj.get_path().rstrip())
-        except Exception as ex:
-            return None
-
-    def exists(self, wikiname, date=None):
-        if date is None:
-            date = self.date
-        return exists(MaxRevIDFile(self._config, date, wikiname).get_path())
 
 
 class Index(object):
@@ -184,7 +137,9 @@ class IncrDump(object):
     def __init__(self, config, date, cutoff, wikiname, do_stubs,
                  do_revs, do_index_update, dryrun, verbose, forcerun):
         self._config = config
+        self.wiki = Wiki(self._config, wikiname)
         self.date = date
+        self.wiki.set_date(self.date)
         self.cutoff = cutoff
         self.wikiname = wikiname
         self.incrdir = MiscDir(self._config, self.date)
@@ -193,8 +148,7 @@ class IncrDump(object):
         self.do_index_update = do_index_update
         self.dryrun = dryrun
         self.forcerun = forcerun
-        self.max_revid_obj = MaxRevID(self._config, self.date, cutoff,
-                                      self.dryrun)
+        self.max_revid_obj = MaxRevID(self.wiki, cutoff, self.dryrun)
         self.status_info = StatusInfo(self._config, self.date, self.wikiname)
         self.stubfile = StubFile(self._config, self.date, self.wikiname)
         self.revsfile = RevsFile(self._config, self.date, self.wikiname)
@@ -263,14 +217,13 @@ class IncrDump(object):
         return DumpResults.GOOD
 
     def dump_max_revid(self):
-        if not self.max_revid_obj.exists(self.wikiname):
+        if not self.max_revid_obj.exists(self.date):
             log(self.verbose, "Wiki %s retrieving max revid from db."
                 % self.wikiname)
-            self.max_revid_obj.record_max_revid(self.wikiname)
+            self.max_revid_obj.record_max_revid()
             max_revid = self.max_revid_obj.max_id
         else:
-            max_revid = self.max_revid_obj.read_max_revid_from_file(
-                self.wikiname)
+            max_revid = self.max_revid_obj.read_max_revid_from_file()
 
         # end rev id is not included in dump
         if max_revid is not None:
@@ -315,16 +268,15 @@ class IncrDump(object):
         prev_revid = None
 
         if prev_date:
-            prev_revid = self.max_revid_obj.read_max_revid_from_file(
-                self.wikiname, prev_date)
+            prev_revid = self.max_revid_obj.read_max_revid_from_file(prev_date)
 
             if prev_revid is None:
                 log(self.verbose, "Wiki %s retrieving prevRevId from db."
                     % self.wikiname)
-                prev_revid_obj = MaxRevID(self._config, prev_date,
+                prev_revid_obj = MaxRevID(self.wiki,
                                           cutoff_from_date(prev_date, self._config),
                                           self.dryrun)
-                prev_revid_obj.record_max_revid(self.wikiname)
+                prev_revid_obj.record_max_revid()
                 prev_revid = prev_revid_obj.max_id
         else:
             log(self.verbose, "Wiki %s no previous runs, using %s - 10 "
