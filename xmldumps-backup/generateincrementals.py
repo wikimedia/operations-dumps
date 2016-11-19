@@ -11,14 +11,30 @@ import time
 import hashlib
 import traceback
 import calendar
-from miscdumplib import Config
+from miscdumplib import Config, ContentFile
 from miscdumplib import DBServer, MiscDir
-from miscdumplib import MaxRevIDFile, StatusFile, IndexFile
-from miscdumplib import StubFile, RevsFile, MD5File, MiscDumpDirs
+from miscdumplib import StatusFile, IndexFile
+from miscdumplib import MD5File, MiscDumpDirs
 from miscdumplib import IncrDumpLock, StatusInfo
+from miscdumplib import log, safe, make_link
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
 from dumps.utils import RunSimpleCommand, MultiVersion
+
+
+class MaxRevIDFile(ContentFile):
+    def get_filename(self):
+        return "maxrevid.txt"
+
+
+class StubFile(ContentFile):
+    def get_filename(self):
+        return "%s-%s-stubs-meta-hist-incr.xml.gz" % (self.wikiname, self.date)
+
+
+class RevsFile(ContentFile):
+    def get_filename(self):
+        return "%s-%s-pages-meta-hist-incr.xml.bz2" % (self.wikiname, self.date)
 
 
 class MaxRevID(object):
@@ -58,13 +74,6 @@ class MaxRevID(object):
         return exists(MaxRevIDFile(self._config, date, wikiname).get_path())
 
 
-class Link(object):
-
-    @staticmethod
-    def make_link(path, link_text):
-        return '<a href = "' + path + '">' + link_text + "</a>"
-
-
 class Index(object):
     def __init__(self, config, date, verbose):
         self._config = config
@@ -102,8 +111,7 @@ class Index(object):
                 log(self.verbose, "No dump for wiki %s" % wiki)
                 return
 
-            other_runs_text = "other runs: %s" % Link.make_link(wiki, wiki)
-
+            other_runs_text = "other runs: %s" % make_link(wiki, wiki)
             try:
                 stub = StubFile(self._config, incr_date, wiki)
                 (stub_date, stub_size) = stub.get_fileinfo()
@@ -111,7 +119,7 @@ class Index(object):
                     % (wiki, safe(stub_date), safe(stub_size)))
                 if stub_date:
                     stub_text = ("stubs: %s (size %s)"
-                                 % (Link.make_link(
+                                 % (make_link(
                                      os.path.join(
                                          wiki, incr_date,
                                          stub.get_filename()),
@@ -126,7 +134,7 @@ class Index(object):
                 if revs_date:
                     revs_text = (
                         "revs: %s (size %s)" % (
-                            Link.make_link(
+                            make_link(
                                 os.path.join(
                                     wiki, incr_date, revs.get_filename()),
                                 revs_date), revs_size))
@@ -271,10 +279,37 @@ class IncrDump(object):
         log(self.verbose, "max_revid is %s" % safe(max_revid))
         return max_revid
 
+    def get_prev_incrdate(self, date, dumpok=False, revidok=False):
+        # find the most recent incr dump before the
+        # specified date
+        # if "dumpok" is True, find most recent dump that completed successfully
+        # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
+
+        previous = None
+        old = self.incr_dumps_dirs.get_misc_dumpdirs()
+        if old:
+            for dump in old:
+                if dump == date:
+                    return previous
+                else:
+                    if dumpok:
+                        status_info = StatusInfo(self._config, dump, self.wikiname)
+                        if status_info.get_status(dump) == "done":
+                            previous = dump
+                    elif revidok:
+                        max_revid_file = MaxRevIDFile(self._config, dump, self.wikiname)
+                        if exists(max_revid_file.get_path()):
+                            revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
+                            if int(revid) > 0:
+                                previous = dump
+                    else:
+                        previous = dump
+        return previous
+
     def get_prev_revid(self, max_revid):
         # get the previous rundate, with or without maxrevid file
         # we can populate that file if need be
-        prev_date = self.incr_dumps_dirs.get_prev_incrdate(self.date)
+        prev_date = self.get_prev_incrdate(self.date)
         log(self.verbose, "prev_date is %s" % safe(prev_date))
 
         prev_revid = None
@@ -372,18 +407,6 @@ class IncrDump(object):
             return True
         except Exception as ex:
             return False
-
-
-def log(verbose, message):
-    if verbose:
-        print message
-
-
-def safe(item):
-    if item is not None:
-        return item
-    else:
-        return "None"
 
 
 class IncrDumpLoop(object):

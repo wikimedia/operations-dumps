@@ -13,6 +13,22 @@ import shutil
 import time
 
 
+def log(verbose, message):
+    if verbose:
+        print message
+
+
+def safe(item):
+    if item is not None:
+        return item
+    else:
+        return "None"
+
+
+def make_link(path, link_text):
+    return '<a href = "' + path + '">' + link_text + "</a>"
+
+
 class ContentFile(object):
     def __init__(self, config, date, wikiname):
         self._config = config
@@ -29,21 +45,6 @@ class ContentFile(object):
 
     def get_fileinfo(self):
         return FileUtils.file_info(self.get_path())
-
-
-class MaxRevIDFile(ContentFile):
-    def get_filename(self):
-        return "maxrevid.txt"
-
-
-class StubFile(ContentFile):
-    def get_filename(self):
-        return "%s-%s-stubs-meta-hist-incr.xml.gz" % (self.wikiname, self.date)
-
-
-class RevsFile(ContentFile):
-    def get_filename(self):
-        return "%s-%s-pages-meta-hist-incr.xml.bz2" % (self.wikiname, self.date)
 
 
 class StatusFile(ContentFile):
@@ -313,32 +314,6 @@ class MiscDumpDirs(object):
             for dump in old:
                 to_remove = os.path.join(self.dump_dir.get_dumpdir_no_date(self.wikiname), dump)
                 shutil.rmtree("%s" % to_remove)
-
-    def get_prev_incrdate(self, date, dumpok=False, revidok=False):
-        # find the most recent incr dump before the
-        # specified date
-        # if "dumpok" is True, find most recent dump that completed successfully
-        # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
-        previous = None
-        old = self.get_misc_dumpdirs()
-        if old:
-            for dump in old:
-                if dump == date:
-                    return previous
-                else:
-                    if dumpok:
-                        status_info = StatusInfo(self._config, dump, self.wikiname)
-                        if status_info.get_status(dump) == "done":
-                            previous = dump
-                    elif revidok:
-                        max_revid_file = MaxRevIDFile(self._config, dump, self.wikiname)
-                        if exists(max_revid_file.get_path()):
-                            revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
-                            if int(revid) > 0:
-                                previous = dump
-                    else:
-                        previous = dump
-        return previous
 
     def get_latest_dump_date(self, dumpok=False):
         # find the most recent incr dump
