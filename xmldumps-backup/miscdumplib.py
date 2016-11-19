@@ -170,34 +170,7 @@ class Config(dumps.WikiDump.Config):
             os.path.join(home, config_file),
             "/etc/dumpincrementals.conf",
             os.path.join(os.getenv("HOME"), ".dumpincr.conf")]
-        defaults = {
-            # "wiki": {
-            "allwikislist": "",
-            "privatewikislist": "",
-            "closedwikislist": "",
-            "skipwikislist": "",
-            # "output": {
-            "dumpdir": "/dumps/public/incr",
-            "templatedir": home,
-            "temp": "/dumps/temp",
-            "webroot": "http://localhost/dumps/incr",
-            "fileperms": "0640",
-            "delay": "43200",
-            "maxrevidstaleinterval": "3600",
-            # "database": {
-            # moved defaults to get_db_user_and_password
-            # "tools": {
-            "mediawiki": "",
-            "php": "/bin/php",
-            "gzip": "/usr/bin/gzip",
-            "bzip2": "/usr/bin/bzip2",
-            "mysql": "/usr/bin/mysql",
-            "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
-            "writeuptopageid": "/usr/local/bin/writeuptopageid",
-            "multiversion": "",
-            # "cleanup": {
-            "keep": "3",
-        }
+        defaults = get_config_defaults()
 
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -380,3 +353,33 @@ class MiscDumpDirs(object):
                 return dirs[-1]
         else:
             return None
+
+
+def get_config_defaults():
+    return {
+        # "wiki": {
+        "allwikislist": "",
+        "privatewikislist": "",
+        "closedwikislist": "",
+        "skipwikislist": "",
+        # "output": {
+        "dumpsdir": "/dumps/public/incr",
+        "templatedir": "/dumps/templates",
+        "temp": "/dumps/temp",
+        "webroot": "http://localhost/dumps/incr",
+        "fileperms": "0640",
+        "maxrevidstaleinterval": "3600",
+        # "database": {
+        # moved defaults to get_db_user_and_password
+        # "tools": {
+        "mediawiki": "",
+        "php": "/bin/php",
+        "gzip": "/usr/bin/gzip",
+        "bzip2": "/usr/bin/bzip2",
+        "mysql": "/usr/bin/mysql",
+        "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
+        "writeuptopageid": "/usr/local/bin/writeuptopageid",
+        "multiversion": "",
+        # "cleanup": {
+        "keep": "3",
+    }
