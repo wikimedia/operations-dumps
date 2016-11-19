@@ -173,5 +173,6 @@ def main():
     do_abstractsbackup(wiki, output_files, variants, wikiconf,
                        start, end, dryrun)
 
+
 if __name__ == '__main__':
     main()

@@ -736,6 +736,7 @@ def cleanup():
     for watchdog in LockWatchdog.threads:
         watchdog.stop_watching()
 
+
 if __name__ == "__main__":
     config_unused = Config()
     print "Config load ok!"

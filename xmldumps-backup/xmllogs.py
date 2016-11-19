@@ -136,5 +136,6 @@ def main():
     wikiconf.parse_conffile_per_project(wiki)
     dologsbackup(wiki, output_file, wikiconf, start, end, dryrun)
 
+
 if __name__ == '__main__':
     main()

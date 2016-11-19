@@ -242,5 +242,6 @@ def main():
     wikiconf.parse_conffile_per_project(wiki)
     dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf, start, end, dryrun)
 
+
 if __name__ == '__main__':
     main()
