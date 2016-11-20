@@ -12,9 +12,8 @@ import hashlib
 import traceback
 import calendar
 from miscdumplib import Config
-from miscdumplib import MiscDir
 from miscdumplib import StatusFile, IndexFile
-from miscdumplib import MD5File, MiscDumpDirs
+from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import IncrDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
 from incr_dumps import MaxRevID
@@ -32,7 +31,7 @@ class Index(object):
         self._config = config
         self.date = date
         self.indexfile = IndexFile(self._config)
-        self.incrdir = MiscDir(self._config)
+        self.incrdir = MiscDumpDir(self._config)
         self.verbose = verbose
 
     def do_all_wikis(self):
@@ -142,7 +141,7 @@ class IncrDump(object):
         self.wiki.set_date(self.date)
         self.cutoff = cutoff
         self.wikiname = wikiname
-        self.incrdir = MiscDir(self._config, self.date)
+        self.incrdir = MiscDumpDir(self._config, self.date)
         self.do_stubs = do_stubs
         self.do_revs = do_revs
         self.do_index_update = do_index_update

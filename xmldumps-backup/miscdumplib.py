@@ -31,7 +31,7 @@ class ContentFile(object):
     def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
-        self.dump_dir = MiscDir(self._config, date)
+        self.dump_dir = MiscDumpDir(self._config, date)
         self.wikiname = wikiname
 
     # override this.
@@ -79,7 +79,7 @@ class MD5File(ContentFile):
 class IndexFile(ContentFile):
     def __init__(self, config):
         self._config = config
-        self.dump_dir = MiscDir(self._config)
+        self.dump_dir = MiscDumpDir(self._config)
 
     def get_filename(self):
         return "index.html"
@@ -239,7 +239,7 @@ class Config(dumps.WikiDump.Config):
         return FileUtils.read_file(template)
 
 
-class MiscDir(object):
+class MiscDumpDir(object):
     def __init__(self, config, date=None):
         self._config = config
         self.date = date
@@ -261,7 +261,7 @@ class MiscDumpDirs(object):
     def __init__(self, config, wikiname):
         self._config = config
         self.wikiname = wikiname
-        self.dump_dir = MiscDir(self._config)
+        self.dump_dir = MiscDumpDir(self._config)
 
     def get_misc_dumpdirs(self):
         base = self.dump_dir.get_dumpdir_no_date(self.wikiname)
