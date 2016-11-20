@@ -248,4 +248,30 @@ class IncrDump(object):
                 log(self.verbose, "error producing revision text files"
                     " for wiki" % self.wiki.db_name)
                 return False
+
+    def run(self):
+        try:
+            log(self.verbose, "retrieving max rev id for wiki %s"
+                % self.wiki.db_name)
+            max_revid = self.dump_max_revid()
+            if not max_revid:
+                return False
+
+            log(self.verbose, "retrieving prev max rev id for wiki %s"
+                % self.wiki.db_name)
+            prev_revid = self.get_prev_revid(max_revid)
+            if not prev_revid:
+                return False
+
+            log(self.verbose, "producing stub file for wiki %s"
+                % self.wiki.db_name)
+            if not self.dump_stub(prev_revid, max_revid):
+                return False
+
+            log(self.verbose, "producing content file for wiki %s"
+                % self.wiki.db_name)
+            if not self.dump_revs():
+                return False
+        except:
+            return False
         return True

@@ -180,21 +180,9 @@ class IncrDumpOne(object):
             log(self.verbose, "Doing run for wiki: %s" % self.wikiname)
 
             try:
-                max_revid = self.incr.dump_max_revid()
-                if not max_revid:
+                result = self.incr.run()
+                if not result:
                     return DumpResults.FAILED
-
-                prev_revid = self.incr.get_prev_revid(max_revid)
-                if not prev_revid:
-                    return DumpResults.FAILED
-
-                if self.do_stubs:
-                    if not self.incr.dump_stub(prev_revid, max_revid):
-                        return DumpResults.FAILED
-
-                if self.do_revs:
-                    if not self.incr.dump_revs():
-                        return DumpResults.FAILED
 
                 if not self.dryrun:
                     if not self.md5sums():
