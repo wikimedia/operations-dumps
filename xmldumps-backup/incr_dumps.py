@@ -3,11 +3,19 @@
 # from the previous adds changes dump, dump stubs, dump history file
 # based on stubs.
 
+import time
+import calendar
 from os.path import exists
-from miscdumplib import ContentFile
 from dumps.WikiDump import FileUtils
 from dumps.utils import RunSimpleCommand
 from dumps.utils import DbServerInfo
+from miscdumplib import ContentFile
+from miscdumplib import StatusInfo
+from miscdumplib import Config
+from miscdumplib import MiscDumpDirs
+from miscdumplib import get_config_defaults
+from miscdumplib import log
+from miscdumplib import safe
 
 
 class MaxRevID(object):
@@ -67,3 +75,92 @@ class StubFile(ContentFile):
 class RevsFile(ContentFile):
     def get_filename(self):
         return "%s-%s-pages-meta-hist-incr.xml.bz2" % (self.wikiname, self.date)
+
+
+def cutoff_from_date(date, config):
+    return time.strftime(
+        "%Y%m%d%H%M%S", time.gmtime(calendar.timegm(
+            time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
+
+
+class DumpConfig(Config):
+    '''
+    additional config settings for incremental dumps
+    '''
+    def __init__(self, config_file=None):
+        defaults = get_config_defaults()
+        defaults['delay'] = "43200"
+        super(DumpConfig, self).__init__(defaults, config_file)
+        delay = self.conf.get("output", "delay")
+        self.delay = int(delay, 0)
+
+
+class IncrDump(object):
+    '''
+    given a wiki object with date, config all set up,
+    provide some methods for adds changes dumps for this one wiki
+    '''
+    def __init__(self, wiki, dryrun=False, verbose=False):
+        self.wiki = wiki
+        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
+        self.dryrun = dryrun
+        self.verbose = verbose
+        self.cutoff = cutoff_from_date(self.wiki.date, self.wiki.config)
+
+    def get_prev_incrdate(self, date, dumpok=False, revidok=False):
+        # find the most recent incr dump before the
+        # specified date
+        # if "dumpok" is True, find most recent dump that completed successfully
+        # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
+        previous = None
+        old = self.dirs.get_misc_dumpdirs()
+        if old:
+            for dump in old:
+                if dump == date:
+                    return previous
+                else:
+                    if dumpok:
+                        status_info = StatusInfo(self.wiki.config, dump, self.wiki.db_name)
+                        if status_info.get_status(dump) == "done":
+                            previous = dump
+                    elif revidok:
+                        max_revid_file = MaxRevIDFile(self.wiki.config, dump, self.wiki.db_name)
+                        if exists(max_revid_file.get_path()):
+                            revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
+                            if int(revid) > 0:
+                                previous = dump
+                    else:
+                        previous = dump
+        return previous
+
+    def get_prev_revid(self, max_revid):
+        # get the previous rundate, with or without maxrevid file
+        # we can populate that file if need be
+        prev_date = self.get_prev_incrdate(self.wiki.date)
+        log(self.verbose, "prev_date is %s" % safe(prev_date))
+
+        prev_revid = None
+
+        if prev_date:
+            cutoff = cutoff_from_date(prev_date, self.wiki.config)
+            id_reader = MaxRevID(self.wiki, cutoff, self.dryrun)
+            prev_revid = id_reader.read_max_revid_from_file(prev_date)
+
+            if prev_revid is None:
+                log(self.verbose, "Wiki %s retrieving prevRevId from db."
+                    % self.wiki.db_name)
+                id_reader.record_max_revid()
+                prev_revid = id_reader.max_id
+        else:
+            log(self.verbose, "Wiki %s no previous runs, using %s - 10 "
+                % (self.wiki.db_name, max_revid))
+            prev_revid = str(int(max_revid) - 10)
+            if int(prev_revid) < 1:
+                prev_revid = str(1)
+
+        # this incr will cover every revision from the last
+        # incremental through the maxid we wrote out already.
+        if prev_revid is not None:
+            prev_revid = str(int(prev_revid) + 1)
+        log(self.verbose, "prev_revid is %s" % safe(prev_revid))
+        return prev_revid

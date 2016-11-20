@@ -159,7 +159,7 @@ class MaxRevIDLock(Lock):
 
 
 class Config(dumps.WikiDump.Config):
-    def __init__(self, config_file=None):
+    def __init__(self, defaults=None, config_file=None):
         self.project_name = False
 
         home = os.path.dirname(sys.argv[0])
@@ -169,7 +169,6 @@ class Config(dumps.WikiDump.Config):
             os.path.join(home, config_file),
             "/etc/dumpincrementals.conf",
             os.path.join(os.getenv("HOME"), ".dumpincr.conf")]
-        defaults = get_config_defaults()
 
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -203,8 +202,6 @@ class Config(dumps.WikiDump.Config):
         self.webroot = self.conf.get("output", "webroot")
         self.fileperms = self.conf.get("output", "fileperms")
         self.fileperms = int(self.fileperms, 0)
-        self.delay = self.conf.get("output", "delay")
-        self.delay = int(self.delay, 0)
         self.stale_interval = self.conf.get("output", "maxrevidstaleinterval")
         self.stale_interval = int(self.stale_interval, 0)
 

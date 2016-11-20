@@ -11,15 +11,15 @@ import time
 import hashlib
 import traceback
 import calendar
-from miscdumplib import Config
 from miscdumplib import StatusFile, IndexFile
 from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import IncrDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
+from incr_dumps import IncrDump
 from incr_dumps import MaxRevID
-from incr_dumps import MaxRevIDFile
 from incr_dumps import StubFile
 from incr_dumps import RevsFile
+from incr_dumps import DumpConfig
 from dumps.WikiDump import Wiki
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
@@ -132,7 +132,7 @@ class DumpResults(object):
     GOOD = 0
 
 
-class IncrDump(object):
+class IncrDumpOne(object):
     def __init__(self, config, date, cutoff, wikiname, do_stubs,
                  do_revs, do_index_update, dryrun, verbose, forcerun):
         self._config = config
@@ -153,6 +153,7 @@ class IncrDump(object):
         self.revsfile = RevsFile(self._config, self.date, self.wikiname)
         self.incr_dumps_dirs = MiscDumpDirs(self._config, self.wikiname)
         self.verbose = verbose
+        self.incr = IncrDump(self.wiki, self.dryrun, self.verbose)
 
     def do_one_wiki(self):
         if (self.wikiname not in self._config.private_wikis_list and
@@ -184,7 +185,7 @@ class IncrDump(object):
                 if not max_revid:
                     return DumpResults.FAILED
 
-                prev_revid = self.get_prev_revid(max_revid)
+                prev_revid = self.incr.get_prev_revid(max_revid)
                 if not prev_revid:
                     return DumpResults.FAILED
 
@@ -230,66 +231,6 @@ class IncrDump(object):
 
         log(self.verbose, "max_revid is %s" % safe(max_revid))
         return max_revid
-
-    def get_prev_incrdate(self, date, dumpok=False, revidok=False):
-        # find the most recent incr dump before the
-        # specified date
-        # if "dumpok" is True, find most recent dump that completed successfully
-        # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
-
-        previous = None
-        old = self.incr_dumps_dirs.get_misc_dumpdirs()
-        if old:
-            for dump in old:
-                if dump == date:
-                    return previous
-                else:
-                    if dumpok:
-                        status_info = StatusInfo(self._config, dump, self.wikiname)
-                        if status_info.get_status(dump) == "done":
-                            previous = dump
-                    elif revidok:
-                        max_revid_file = MaxRevIDFile(self._config, dump, self.wikiname)
-                        if exists(max_revid_file.get_path()):
-                            revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
-                            if int(revid) > 0:
-                                previous = dump
-                    else:
-                        previous = dump
-        return previous
-
-    def get_prev_revid(self, max_revid):
-        # get the previous rundate, with or without maxrevid file
-        # we can populate that file if need be
-        prev_date = self.get_prev_incrdate(self.date)
-        log(self.verbose, "prev_date is %s" % safe(prev_date))
-
-        prev_revid = None
-
-        if prev_date:
-            prev_revid = self.max_revid_obj.read_max_revid_from_file(prev_date)
-
-            if prev_revid is None:
-                log(self.verbose, "Wiki %s retrieving prevRevId from db."
-                    % self.wikiname)
-                prev_revid_obj = MaxRevID(self.wiki,
-                                          cutoff_from_date(prev_date, self._config),
-                                          self.dryrun)
-                prev_revid_obj.record_max_revid()
-                prev_revid = prev_revid_obj.max_id
-        else:
-            log(self.verbose, "Wiki %s no previous runs, using %s - 10 "
-                % (self.wikiname, max_revid))
-            prev_revid = str(int(max_revid) - 10)
-            if int(prev_revid) < 1:
-                prev_revid = str(1)
-
-        # this incr will cover every revision from the last
-        # incremental through the maxid we wrote out already.
-        if prev_revid is not None:
-            prev_revid = str(int(prev_revid) + 1)
-        log(self.verbose, "prev_revid is %s" % safe(prev_revid))
-        return prev_revid
 
     def dump_stub(self, start_revid, end_revid):
         script_command = MultiVersion.mw_script_as_array(self._config,
@@ -377,9 +318,9 @@ class IncrDumpLoop(object):
         failures = 0
         todos = 0
         for wiki in self._config.all_wikis_list:
-            dump = IncrDump(self._config, self.date, self.cutoff, wiki,
-                            self.do_stubs, self.do_revs, self.do_index_update,
-                            self.dryrun, self.verbose, self.forcerun)
+            dump = IncrDumpOne(self._config, self.date, self.cutoff, wiki,
+                               self.do_stubs, self.do_revs, self.do_index_update,
+                               self.dryrun, self.verbose, self.forcerun)
             result = dump.do_one_wiki()
             if result == DumpResults.FAILED:
                 failures = failures + 1
@@ -474,9 +415,9 @@ def main():
               "revsonly and indexonly together.")
 
     if config_file:
-        config = Config(config_file)
+        config = DumpConfig(config_file)
     else:
-        config = Config()
+        config = DumpConfig()
 
     if not date:
         date = TimeUtils.today()
@@ -486,8 +427,8 @@ def main():
         cutoff = cutoff_from_date(date, config)
 
     if len(remainder) > 0:
-        dump = IncrDump(config, date, cutoff, remainder[0], do_stubs,
-                        do_revs, do_index_update, dryrun, verbose, forcerun)
+        dump = IncrDumpOne(config, date, cutoff, remainder[0], do_stubs,
+                           do_revs, do_index_update, dryrun, verbose, forcerun)
         dump.do_one_wiki()
     else:
         dump = IncrDumpLoop(config, date, cutoff, do_stubs, do_revs,
