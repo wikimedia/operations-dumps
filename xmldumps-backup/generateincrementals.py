@@ -40,7 +40,7 @@ class Index(object):
                 log(self.verbose, "result for wiki %s is %s"
                     % (wiki, result))
                 text = text + "<li>" + result + "</li>\n"
-        index_text = (self._config.read_template("incrs-index.html")
+        index_text = (self._config.read_template(self._config.indextmpl)
                       % {"items": text})
         FileUtils.write_file_in_place(self.indexfile.get_path(),
                                       index_text, self._config.fileperms)
@@ -178,7 +178,7 @@ class MiscDumpOne(object):
                         % self.wikiname)
                     return DumpResults.TODO
 
-                self.dumps_dirs.cleanup_old_incrdumps(self.date)
+                self.dumps_dirs.cleanup_old_dumps(self.date)
 
             log(self.verbose, "Doing run for wiki: %s" % self.wikiname)
 

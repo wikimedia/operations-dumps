@@ -164,11 +164,11 @@ class Config(dumps.WikiDump.Config):
 
         home = os.path.dirname(sys.argv[0])
         if config_file is None:
-            config_file = "dumpincr.conf"
+            config_file = "miscdumps.conf"
         self.files = [
             os.path.join(home, config_file),
-            "/etc/dumpincrementals.conf",
-            os.path.join(os.getenv("HOME"), ".dumpincr.conf")]
+            "/etc/miscdumps.conf",
+            os.path.join(os.getenv("HOME"), ".miscdumps.conf")]
 
         self.conf = ConfigParser.SafeConfigParser(defaults)
         self.conf.read(self.files)
@@ -198,6 +198,7 @@ class Config(dumps.WikiDump.Config):
             self.conf.add_section('output')
         self.dump_dir = self.conf.get("output", "dumpdir")
         self.temp_dir = self.conf.get("output", "temp")
+        self.indextmpl = self.conf.get("output", "indextmpl")
         self.template_dir = self.conf.get("output", "templatedir")
         self.webroot = self.conf.get("output", "webroot")
         self.fileperms = self.conf.get("output", "fileperms")
@@ -273,7 +274,7 @@ class MiscDumpDirs(object):
         dates = sorted(dates)
         return dates
 
-    def cleanup_old_incrdumps(self, date):
+    def cleanup_old_dumps(self, date):
         old = self.get_misc_dumpdirs()
         if old:
             if old[-1] == date:
@@ -285,7 +286,7 @@ class MiscDumpDirs(object):
                 shutil.rmtree("%s" % to_remove)
 
     def get_latest_dump_date(self, dumpok=False):
-        # find the most recent incr dump
+        # find the most recent dump
         dirs = self.get_misc_dumpdirs()
         if dirs:
             if dumpok:
@@ -307,10 +308,11 @@ def get_config_defaults():
         "closedwikislist": "",
         "skipwikislist": "",
         # "output": {
-        "dumpsdir": "/dumps/public/incr",
+        "dumpsdir": "/dumps/public/misc",
         "templatedir": "/dumps/templates",
+        "indextmpl": "miscdumps-index.tmpl",
         "temp": "/dumps/temp",
-        "webroot": "http://localhost/dumps/incr",
+        "webroot": "http://localhost/dumps/misc",
         "fileperms": "0640",
         "maxrevidstaleinterval": "3600",
         # "database": {
