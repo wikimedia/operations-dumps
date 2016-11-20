@@ -66,9 +66,9 @@ class MaxRevIDLockFile(LockFile):
         return "%s-%s-maxrevid.lock" % (self.wikiname, self.date)
 
 
-class IncrDumpLockFile(LockFile):
+class MiscDumpLockFile(LockFile):
     def get_filename(self):
-        return "%s-%s-incrdump.lock" % (self.wikiname, self.date)
+        return "%s-%s-miscdump.lock" % (self.wikiname, self.date)
 
 
 class MD5File(ContentFile):
@@ -142,12 +142,12 @@ class Lock(object):
         os.remove(self.lockfile.get_path())
 
 
-class IncrDumpLock(Lock):
+class MiscDumpLock(Lock):
     def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
         self.wikiname = wikiname
-        self.lockfile = IncrDumpLockFile(self._config, self.date, self.wikiname)
+        self.lockfile = MiscDumpLockFile(self._config, self.date, self.wikiname)
 
 
 class MaxRevIDLock(Lock):

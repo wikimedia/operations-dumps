@@ -7,6 +7,8 @@ import os
 from os.path import exists
 import time
 import calendar
+import traceback
+import sys
 from dumps.WikiDump import FileUtils
 from dumps.utils import RunSimpleCommand
 from dumps.utils import DbServerInfo
@@ -103,12 +105,14 @@ class IncrDump(object):
     given a wiki object with date, config all set up,
     provide some methods for adds changes dumps for this one wiki
     '''
-    def __init__(self, wiki, dryrun=False, verbose=False):
+    def __init__(self, wiki, dryrun=False, verbose=False, args=None):
         self.wiki = wiki
         self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
         self.dryrun = dryrun
         self.verbose = verbose
-        self.cutoff = cutoff_from_date(self.wiki.date, self.wiki.config)
+        self.args = args
+        if not self.args['cutoff']:
+            self.args['cutoff'] = cutoff_from_date(self.wiki.date, self.wiki.config)
 
     def get_prev_incrdate(self, date, dumpok=False, revidok=False):
         # find the most recent incr dump before the
@@ -177,7 +181,7 @@ class IncrDump(object):
             log(self.verbose, "Wiki %s retrieving max revid from db."
                 % self.wiki.db_name)
             query = ("select rev_id from revision where rev_timestamp < \"%s\" "
-                     "order by rev_timestamp desc limit 1" % self.cutoff)
+                     "order by rev_timestamp desc limit 1" % self.args['cutoff'])
             db_info = DbServerInfo(self.wiki, self.wiki.db_name)
             results = db_info.run_sql_and_get_output(query)
             if results:
@@ -200,6 +204,9 @@ class IncrDump(object):
         return max_revid
 
     def dump_stub(self, start_revid, end_revid):
+        if 'do_stubs' not in self.args:
+            return True
+
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
         stubfile = StubFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
@@ -224,6 +231,8 @@ class IncrDump(object):
         return True
 
     def dump_revs(self):
+        if 'do_revs' not in self.args:
+            return True
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
         revsfile = RevsFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
@@ -248,6 +257,7 @@ class IncrDump(object):
                 log(self.verbose, "error producing revision text files"
                     " for wiki" % self.wiki.db_name)
                 return False
+        return True
 
     def run(self):
         try:
@@ -273,5 +283,7 @@ class IncrDump(object):
             if not self.dump_revs():
                 return False
         except:
+            if (self.verbose):
+                traceback.print_exc(file=sys.stdout)
             return False
         return True
