@@ -1,14 +1,14 @@
 # shared classes for misc dumps (incrementals, html, etc)
 import os
+from os.path import exists
 import sys
 import re
-import ConfigParser
-import dumps.WikiDump
-from dumps.WikiDump import FileUtils, MiscUtils
-from os.path import exists
 import socket
 import shutil
 import time
+import ConfigParser
+import dumps.WikiDump
+from dumps.WikiDump import FileUtils, MiscUtils
 
 
 def log(verbose, message):
@@ -133,10 +133,7 @@ class Lock(object):
             timestamp = os.stat(self.lockfile.get_path()).st_mtime
         except Exception as ex:
             return False
-        if (time.time() - timestamp) > self._config.stale_interval:
-            return True
-        else:
-            return False
+        return (time.time() - timestamp) > self._config.stale_interval
 
     def unlock(self):
         os.remove(self.lockfile.get_path())
@@ -201,10 +198,10 @@ class Config(dumps.WikiDump.Config):
         self.indextmpl = self.conf.get("output", "indextmpl")
         self.template_dir = self.conf.get("output", "templatedir")
         self.webroot = self.conf.get("output", "webroot")
-        self.fileperms = self.conf.get("output", "fileperms")
-        self.fileperms = int(self.fileperms, 0)
-        self.stale_interval = self.conf.get("output", "maxrevidstaleinterval")
-        self.stale_interval = int(self.stale_interval, 0)
+        fileperms = self.conf.get("output", "fileperms")
+        self.fileperms = int(fileperms, 0)
+        stale_interval = self.conf.get("output", "maxrevidstaleinterval")
+        self.stale_interval = int(stale_interval, 0)
 
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')

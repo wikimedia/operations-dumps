@@ -283,7 +283,7 @@ class IncrDump(object):
             if not self.dump_revs():
                 return False
         except:
-            if (self.verbose):
+            if self.verbose:
                 traceback.print_exc(file=sys.stdout)
             return False
         return True
