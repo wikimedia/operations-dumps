@@ -3,14 +3,17 @@
 # from the previous adds changes dump, dump stubs, dump history file
 # based on stubs.
 
+import os
+from os.path import exists
 import time
 import calendar
-from os.path import exists
 from dumps.WikiDump import FileUtils
 from dumps.utils import RunSimpleCommand
 from dumps.utils import DbServerInfo
+from dumps.utils import MultiVersion
 from miscdumplib import ContentFile
 from miscdumplib import StatusInfo
+from miscdumplib import MiscDumpDir
 from miscdumplib import Config
 from miscdumplib import MiscDumpDirs
 from miscdumplib import get_config_defaults
@@ -164,3 +167,85 @@ class IncrDump(object):
             prev_revid = str(int(prev_revid) + 1)
         log(self.verbose, "prev_revid is %s" % safe(prev_revid))
         return prev_revid
+
+    def dump_max_revid(self):
+        max_id = None
+        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
+        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
+        revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        if not exists(revidfile.get_path()):
+            log(self.verbose, "Wiki %s retrieving max revid from db."
+                % self.wiki.db_name)
+            query = ("select rev_id from revision where rev_timestamp < \"%s\" "
+                     "order by rev_timestamp desc limit 1" % self.cutoff)
+            db_info = DbServerInfo(self.wiki, self.wiki.db_name)
+            results = db_info.run_sql_and_get_output(query)
+            if results:
+                lines = results.splitlines()
+                if lines and lines[1] and lines[1].isdigit():
+                    max_id = lines[1]
+                    FileUtils.write_file_in_place(revidfile.get_path(),
+                                                  max_id, self.wiki.config.fileperms)
+        try:
+            file_obj = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+            max_revid = FileUtils.read_file(file_obj.get_path().rstrip())
+        except:
+            max_revid = None
+
+        # end rev id is not included in dump
+        if max_revid is not None:
+            max_revid = str(int(max_revid) + 1)
+
+        log(self.verbose, "max_revid is %s" % safe(max_revid))
+        return max_revid
+
+    def dump_stub(self, start_revid, end_revid):
+        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
+        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
+        stubfile = StubFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        outputfile = stubfile.get_filename()
+        script_command = MultiVersion.mw_script_as_array(self.wiki.config,
+                                                         "dumpBackup.php")
+        command = [self.wiki.config.php]
+        command.extend(script_command)
+        command.extend(["--wiki=%s" % self.wiki.db_name, "--stub", "--quiet",
+                        "--output=gzip:%s" % os.path.join(outputdir, outputfile),
+                        "--revrange", "--revstart=%s" % start_revid,
+                        "--revend=%s" % end_revid])
+        if self.dryrun:
+            print "would run command for stubs dump:", command
+        else:
+            success = RunSimpleCommand.run_with_no_output(
+                command, shell=False, verbose=self.verbose)
+            if not success:
+                log(self.verbose, "error producing stub files for wiki %s"
+                    % self.wiki.db_name)
+                return False
+        return True
+
+    def dump_revs(self):
+        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
+        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
+        revsfile = RevsFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        outputfile = revsfile.get_filename()
+        script_command = MultiVersion.mw_script_as_array(self.wiki.config,
+                                                         "dumpTextPass.php")
+        command = [self.wiki.config.php]
+        command.extend(script_command)
+        stubfile = StubFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        stuboutputfile = stubfile.get_filename()
+        command.extend(["--wiki=%s" % self.wiki.db_name,
+                        "--stub=gzip:%s" % os.path.join(outputdir, stuboutputfile),
+                        "--quiet",
+                        "--spawn=%s" % self.wiki.config.php,
+                        "--output=bzip2:%s" % os.path.join(outputdir, outputfile)])
+        if self.dryrun:
+            print "would run command for revs dump:", command
+        else:
+            success = RunSimpleCommand.run_with_no_output(command, shell=False,
+                                                          verbose=self.verbose)
+            if not success:
+                log(self.verbose, "error producing revision text files"
+                    " for wiki" % self.wiki.db_name)
+                return False
+        return True

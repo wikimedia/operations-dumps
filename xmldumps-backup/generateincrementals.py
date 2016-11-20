@@ -10,7 +10,6 @@ import sys
 import time
 import hashlib
 import traceback
-import calendar
 from miscdumplib import StatusFile, IndexFile
 from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import IncrDumpLock, StatusInfo
@@ -20,10 +19,10 @@ from incr_dumps import MaxRevID
 from incr_dumps import StubFile
 from incr_dumps import RevsFile
 from incr_dumps import DumpConfig
+from incr_dumps import cutoff_from_date
 from dumps.WikiDump import Wiki
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
-from dumps.utils import RunSimpleCommand, MultiVersion
 
 
 class Index(object):
@@ -181,7 +180,7 @@ class IncrDumpOne(object):
             log(self.verbose, "Doing run for wiki: %s" % self.wikiname)
 
             try:
-                max_revid = self.dump_max_revid()
+                max_revid = self.incr.dump_max_revid()
                 if not max_revid:
                     return DumpResults.FAILED
 
@@ -190,11 +189,11 @@ class IncrDumpOne(object):
                     return DumpResults.FAILED
 
                 if self.do_stubs:
-                    if not self.dump_stub(prev_revid, max_revid):
+                    if not self.incr.dump_stub(prev_revid, max_revid):
                         return DumpResults.FAILED
 
                 if self.do_revs:
-                    if not self.dump_revs():
+                    if not self.incr.dump_revs():
                         return DumpResults.FAILED
 
                 if not self.dryrun:
@@ -215,62 +214,6 @@ class IncrDumpOne(object):
         log(self.verbose, "Success!  Wiki %s incremental dump complete."
             % self.wikiname)
         return DumpResults.GOOD
-
-    def dump_max_revid(self):
-        if not self.max_revid_obj.exists(self.date):
-            log(self.verbose, "Wiki %s retrieving max revid from db."
-                % self.wikiname)
-            self.max_revid_obj.record_max_revid()
-            max_revid = self.max_revid_obj.max_id
-        else:
-            max_revid = self.max_revid_obj.read_max_revid_from_file()
-
-        # end rev id is not included in dump
-        if max_revid is not None:
-            max_revid = str(int(max_revid) + 1)
-
-        log(self.verbose, "max_revid is %s" % safe(max_revid))
-        return max_revid
-
-    def dump_stub(self, start_revid, end_revid):
-        script_command = MultiVersion.mw_script_as_array(self._config,
-                                                         "dumpBackup.php")
-        command = [self._config.php]
-        command.extend(script_command)
-        command.extend(["--wiki=%s" % self.wikiname, "--stub", "--quiet",
-                        "--output=gzip:%s" % self.stubfile.get_path(),
-                        "--revrange", "--revstart=%s" % start_revid,
-                        "--revend=%s" % end_revid])
-        if self.dryrun:
-            print "would run command for stubs dump:", command
-        else:
-            success = RunSimpleCommand.run_with_no_output(
-                command, shell=False, verbose=self.verbose)
-            if not success:
-                log(self.verbose, "error producing stub files for wiki %s"
-                    % self.wikiname)
-                return False
-        return True
-
-    def dump_revs(self):
-        script_command = MultiVersion.mw_script_as_array(self._config,
-                                                         "dumpTextPass.php")
-        command = [self._config.php]
-        command.extend(script_command)
-        command.extend(["--wiki=%s" % self.wikiname,
-                        "--stub=gzip:%s" % self.stubfile.get_path(),
-                        "--quiet",
-                        "--spawn=%s" % self._config.php,
-                        "--output=bzip2:%s" % self.revsfile.get_path()])
-        if self.dryrun:
-            print "would run command for revs dump:", command
-        else:
-            success = RunSimpleCommand.run_with_no_output(command, shell=False)
-            if not success:
-                log(self.verbose, "error producing revision text files"
-                    " for wiki" % self.wikiname)
-                return False
-        return True
 
     def md5sum_one_file(self, filename):
         summer = hashlib.md5()
@@ -339,12 +282,6 @@ class IncrDumpLoop(object):
                 raise BackupError("Too many consecutive failures,"
                                   "giving up")
             time.sleep(300)
-
-
-def cutoff_from_date(date, config):
-    return time.strftime(
-        "%Y%m%d%H%M%S", time.gmtime(calendar.timegm(
-            time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
 
 
 def usage(message=None):
