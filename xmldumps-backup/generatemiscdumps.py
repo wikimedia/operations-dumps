@@ -266,7 +266,7 @@ def usage(message=None):
     if message:
         print message
     usage_message = (
-        """Usage: python generateincrementals.py --dumptype <type> [options] [args] [wikidbname]
+        """Usage: python generatemiscdumps.py --dumptype <type> [options] [args] [wikidbname]
 
 Options: --configfile, --date, --dumponly, --indexonly,
          --dryrun, --forcerun, --verbose
