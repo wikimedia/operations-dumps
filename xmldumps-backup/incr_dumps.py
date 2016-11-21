@@ -88,14 +88,14 @@ def cutoff_from_date(date, config):
             time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
 
 
-class DumpConfig(Config):
+class IncrDumpConfig(Config):
     '''
     additional config settings for incremental dumps
     '''
     def __init__(self, config_file=None):
         defaults = get_config_defaults()
         defaults['delay'] = "43200"
-        super(DumpConfig, self).__init__(defaults, config_file)
+        super(IncrDumpConfig, self).__init__(defaults, config_file)
         delay = self.conf.get("output", "delay")
         self.delay = int(delay, 0)
 
@@ -321,8 +321,8 @@ class IncrDump(object):
         return [os.path.join(outputdir, filename) for filename in filenames], expected
 
 
-def get_usage():
-    return """Specific args:
+def get_incrdump_usage():
+    return """Specific args for incremental dumps:
 
 stubsonly        -- dump stubs but not revs
 revsonly         -- dump revs but not stubs (requires that

@@ -31,10 +31,10 @@ Seriously?  You want to install this already?  This is version 0.0.1.  Know
 what that means? It's buggy, risky, and could eat your data.
 
 However, if you just want to play around with it on your laptop, fine.
-* Put the files generateincrementals.py and miscdumplib.py together with
-  the sample configuration file dumpincr.conf into a directory from which the
-  job will run.
-  Make sure you have a copy or a symlink of WikiDump.py from the regular XML
+* Put the files generateincrementals.py, miscdumpfactory.py, incr_dumps.py and
+  miscdumplib.py together with the sample configuration file dumpincr.conf
+  into a directory from which the job will run.
+  Make sure you have a copy or a symlink of the dumps subdir from the regular XML
   dumps in this same directory.
   Also make sure you have a template for the top level index.html file, called
   "incrs-index.html" in the same directory with these scripts.  See the existing

@@ -15,9 +15,8 @@ from miscdumplib import StatusFile, IndexFile
 from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
-import incr_dumps
-from incr_dumps import IncrDump
-from incr_dumps import DumpConfig
+from miscdumpfactory import MiscDumpFactory
+
 from dumps.WikiDump import Wiki
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
@@ -124,7 +123,7 @@ class Index(object):
 
 
 class MiscDumpOne(object):
-    def __init__(self, config, date, wikiname, do_dumps,
+    def __init__(self, config, date, wikiname, dumptype, do_dumps,
                  do_index, dryrun, verbose, forcerun, args):
         self._config = config
         self.wiki = Wiki(self._config, wikiname)
@@ -139,7 +138,9 @@ class MiscDumpOne(object):
         self.status_info = StatusInfo(self._config, self.date, self.wikiname)
         self.dumps_dirs = MiscDumpDirs(self._config, self.wikiname)
         self.verbose = verbose
-        self.incr = IncrDump(self.wiki, self.dryrun, self.verbose, args)
+        self.dumptype = dumptype
+        dump_class = MiscDumpFactory.get_dumper(self.dumptype)
+        self.dumper = dump_class(self.wiki, self.dryrun, self.verbose, args)
 
     def do_one_wiki(self):
         if (self.wikiname not in self._config.private_wikis_list and
@@ -166,20 +167,20 @@ class MiscDumpOne(object):
             log(self.verbose, "Doing run for wiki: %s" % self.wikiname)
 
             try:
-                result = self.incr.run()
+                result = self.dumper.run()
                 if not result:
                     return STATUS_FAILED
 
                 if not self.dryrun:
-                    output_files, expected = self.incr.get_output_files()
+                    output_files, expected = self.dumper.get_output_files()
                     if not md5sums(self.wiki, self.wiki.config.fileperms,
                                    output_files, expected):
                         return STATUS_FAILED
-                    self.status_info.set_status("done:" + self.incr.get_stages_done())
+                    self.status_info.set_status("done:" + self.dumper.get_stages_done())
                     lock.unlock()
 
                 if self.do_index:
-                    index = Index(self._config, self.date, self.incr, self.verbose)
+                    index = Index(self._config, self.date, self.dumper, self.verbose)
                     index.do_all_wikis()
             except Exception as ex:
                 if self.verbose:
@@ -187,8 +188,8 @@ class MiscDumpOne(object):
                 if not self.dryrun:
                     lock.unlock()
                 return STATUS_FAILED
-        log(self.verbose, "Success!  Wiki %s incremental dump complete."
-            % self.wikiname)
+        log(self.verbose, "Success!  Wiki %s %s dump complete."
+            % (self.wikiname, self.dumptype))
         return STATUS_GOOD
 
 
@@ -221,10 +222,11 @@ def md5sums(wiki, fileperms, files, mandatory):
 
 
 class MiscDumpLoop(object):
-    def __init__(self, config, date, do_dump,
+    def __init__(self, config, date, dumptype, do_dump,
                  do_index, dryrun, verbose, forcerun, args):
         self._config = config
         self.date = date
+        self.dumptype = dumptype
         self.do_dump = do_dump
         self.do_index = do_index
         self.dryrun = dryrun
@@ -237,7 +239,7 @@ class MiscDumpLoop(object):
         todos = 0
         for wikiname in self._config.all_wikis_list:
             dump = MiscDumpOne(self._config, self.date, wikiname,
-                               self.do_dump, self.do_index,
+                               self.dumptype, self.do_dump, self.do_index,
                                self.dryrun, self.verbose, self.forcerun,
                                self.args)
             result = dump.do_one_wiki()
@@ -264,11 +266,13 @@ def usage(message=None):
     if message:
         print message
     usage_message = (
-        """Usage: python generateincrementals.py [options] [args] [wikidbname]
+        """Usage: python generateincrementals.py --dumptype <type> [options] [args] [wikidbname]
 
 Options: --configfile, --date, --dumponly, --indexonly,
          --dryrun, --forcerun, --verbose
 
+ --dumptype:    type of dump to be run.  Known types include:
+                {0}
  --configfile:  Specify an alternate config file to read. Default
                 file is 'miscdump.conf' in the current directory.
  --date:        (Re)run dump of a given date (use with care).
@@ -286,16 +290,17 @@ Args:  If your dump needs specific arguments passed to the class that
        before the final wikidbname argument.  Arguments with values should
        be passed as argname:value, and arguments without values (flags that
        will be set as True) should be passed simply as argname.
-""")
+""").format(", ".join(MiscDumpFactory.get_known_dumptypes()))
     sys.stderr.write(usage_message)
-    secondary_message = incr_dumps.get_usage()
-    sys.stderr.write(secondary_message)
+    secondary_message = MiscDumpFactory.get_secondary_usage_all()
+    sys.stderr.write("\n" + secondary_message)
     sys.exit(1)
 
 
 def main():
     config_file = False
     date = None
+    dumptype = None
     do_dump = True
     do_index = True
     dryrun = False
@@ -306,7 +311,7 @@ def main():
     try:
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "",
-            ['date=', 'configfile=', 'wiki=', 'dumpsonly',
+            ['date=', 'dumptype=', 'configfile=', 'wiki=', 'dumpsonly',
              'indexonly', 'dryrun', 'verbose', 'forcerun'])
     except Exception as ex:
         usage("Unknown option specified")
@@ -318,6 +323,8 @@ def main():
             config_file = val
         elif opt == "--wiki":
             wikiname = val
+        elif opt == "--dumptype":
+            dumptype = val
         elif opt == "--dumpsonly":
             do_index = False
         elif opt == "--indexonly":
@@ -333,10 +340,16 @@ def main():
         usage("You may not specify more than one of dumpsonly "
               "and indexonly together.")
 
+    if dumptype is None:
+        usage("Mandatory dumptype argument not specified")
+    elif dumptype not in MiscDumpFactory.get_known_dumptypes():
+        usage("No such known dump " + dumptype)
+
+    configurator = MiscDumpFactory.get_configurator(dumptype)
     if config_file:
-        config = DumpConfig(config_file)
+        config = configurator(config_file)
     else:
-        config = DumpConfig()
+        config = configurator()
 
     args = {}
     if not date:
@@ -351,11 +364,12 @@ def main():
                 args[opt] = True
 
     if wikiname is not None:
-        dump_one = MiscDumpOne(config, date, wikiname, do_dump, do_index,
+        dump_one = MiscDumpOne(config, date, wikiname, dumptype, do_dump, do_index,
                                dryrun, verbose, forcerun, args)
         dump_one.do_one_wiki()
     else:
-        dump_all = MiscDumpLoop(config, date, do_dump, do_index, dryrun, verbose, forcerun, args)
+        dump_all = MiscDumpLoop(config, date, dumptype, do_dump, do_index, dryrun,
+                                verbose, forcerun, args)
         dump_all.do_all_wikis_til_done(3)
 
 
