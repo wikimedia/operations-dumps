@@ -231,7 +231,7 @@ class MiscDumpOne(object):
                     if not md5sums(self.wiki, self.wiki.config.fileperms,
                                    output_files, expected):
                         return STATUS_FAILED
-                    status_info.set_status("done:" + self.dumper.get_stages_done())
+                    status_info.set_status("done:" + self.dumper.get_steps_done())
                     lock.unlock()
 
                 if self.flags['do_index']:

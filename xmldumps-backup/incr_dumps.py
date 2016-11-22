@@ -16,7 +16,7 @@ from miscdumplib import ContentFile
 from miscdumplib import StatusInfo
 from miscdumplib import MiscDumpDir
 from miscdumplib import MiscDumpConfig
-from miscdumplib import MiscDumpDirs
+from miscdumplib import MiscDumpBase
 from miscdumplib import get_config_defaults
 from miscdumplib import log
 from miscdumplib import safe
@@ -125,6 +125,7 @@ def cutoff_from_date(date, config):
             time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
 
 
+# required for misc dump factory
 class IncrDumpConfig(MiscDumpConfig):
     '''
     additional config settings for incremental dumps
@@ -137,32 +138,73 @@ class IncrDumpConfig(MiscDumpConfig):
         self.delay = int(delay, 0)
 
 
-class IncrDump(object):
+# required for misc dump factory
+class IncrDump(MiscDumpBase):
     '''
     given a wiki object with date, config all set up,
     provide some methods for adds changes dumps for this one wiki
     '''
+    # overrides base class
     def __init__(self, wiki, dryrun=False, args=None):
         '''
         wiki:     WikiDump object with date set
         dryrun:   whether or not to run commands or display what would have been done
-        args:     dict of additional args 'do_revs' and/or 'do_stubs'
+        args:     dict of additional args 'revsonly' and/or 'stubsonly'
                   indicating whether or not to dump rev content and/or stubs
         '''
-        self.wiki = wiki
-        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
-        self.dryrun = dryrun
-        self.args = args
+        super(IncrDump, self).__init__(wiki, dryrun, args)
         self.cutoff = cutoff_from_date(self.wiki.date, self.wiki.config)
 
         if 'revsonly' in args:
-            self.dostubs = False
-        else:
-            self.dostubs = True
+            self.steps['stubs']['run'] = False
         if 'stubsonly' in args:
-            self.dorevs = False
-        else:
-            self.dorevs = True
+            self.steps['revs']['run'] = False
+
+    # overrides base class
+    def get_steps(self):
+        revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        revid_filename = revidfile.get_filename()
+
+        stubfile = StubFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        stub_filename = stubfile.get_filename()
+
+        revsfile = RevsFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        revs_filename = revsfile.get_filename()
+
+        steps = {'maxrevid': {'file': revid_filename, 'run': True},
+                 'stubs': {'file': stub_filename, 'run': True},
+                 'revs': {'file': revs_filename, 'run': True}}
+        return steps
+
+    # overrides base class
+    def run(self):
+        '''
+        dump maxrevid, stubs for revs from previous maxrevid to current one,
+        revision content for these stubs, for given wiki and date
+        '''
+        try:
+            log.info("retrieving max rev id for wiki %s", self.wiki.db_name)
+            max_revid = self.dump_max_revid()
+            if not max_revid:
+                return False
+
+            log.info("retrieving prev max rev id for wiki %s", self.wiki.db_name)
+            prev_revid = self.get_prev_revid(max_revid)
+            if not prev_revid:
+                return False
+
+            log.info("producing stub file for wiki %s", self.wiki.db_name)
+            if not self.dump_stub(prev_revid, max_revid):
+                return False
+
+            log.info("producing content file for wiki %s", self.wiki.db_name)
+            if not self.dump_revs():
+                return False
+        except Exception as ex:
+            log.info("Error encountered runing dump for %s ", self.wiki.db_name,
+                     exc_info=ex)
+            return False
+        return True
 
     def get_prev_incrdate(self, date, dumpok=False, revidok=False):
         '''
@@ -238,8 +280,6 @@ class IncrDump(object):
         a cutoff of some hours is reasonable.
         '''
         max_id = None
-        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
-        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
         revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
         if not exists(revidfile.get_path()):
             log.info("Wiki %s retrieving max revid from db.",
@@ -274,7 +314,7 @@ class IncrDump(object):
         dump stubs (metadata) for revs from start_revid
         up to but not including end_revid
         '''
-        if not self.dostubs:
+        if not self.steps['stubs']['run']:
             return True
 
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
@@ -305,7 +345,7 @@ class IncrDump(object):
         dump revision content corresponding to previously-dumped
         stubs (revision metadata)
         '''
-        if not self.dorevs:
+        if not self.steps['revs']['run']:
             return True
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
@@ -333,65 +373,8 @@ class IncrDump(object):
                 return False
         return True
 
-    def run(self):
-        '''
-        dump maxrevid, stubs for revs from previous maxrevid to current one,
-        revision content for these stubs, for given wiki and date
-        '''
-        try:
-            log.info("retrieving max rev id for wiki %s", self.wiki.db_name)
-            max_revid = self.dump_max_revid()
-            if not max_revid:
-                return False
 
-            log.info("retrieving prev max rev id for wiki %s", self.wiki.db_name)
-            prev_revid = self.get_prev_revid(max_revid)
-            if not prev_revid:
-                return False
-
-            log.info("producing stub file for wiki %s", self.wiki.db_name)
-            if not self.dump_stub(prev_revid, max_revid):
-                return False
-
-            log.info("producing content file for wiki %s", self.wiki.db_name)
-            if not self.dump_revs():
-                return False
-        except Exception as ex:
-            log.info("Error encountered runing dump for %s ", self.wiki.db_name,
-                     exc_info=ex)
-            return False
-        return True
-
-    def get_stages_done(self):
-        """
-        return comma-sep list of stages that are complete, in case not all are.
-        if all are complete, return 'all'
-        """
-        if 'stubsonly' in self.args:
-            return 'stubs'
-        else:
-            return 'all'
-
-    def get_output_files(self):
-        '''
-        return list of files that a full dump (maxrevid, stubs, rev content)
-        will produce, and a list of files that are expected to be generated
-        by the current run or pre-existing as conditions for the current run
-        '''
-        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
-        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
-        revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
-        stubfile = StubFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
-        revsfile = RevsFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
-        filenames = [revidfile.get_filename(), stubfile.get_filename(), revsfile.get_filename()]
-        expected = []
-        if self.dorevs:
-            expected.append(revsfile)
-        if self.dostubs:
-            expected.append(stubfile)
-        return [os.path.join(outputdir, filename) for filename in filenames], expected
-
-
+# required for misc dump factory
 def get_incrdump_usage():
     '''
     return usage message for args specific to the incremental dumps

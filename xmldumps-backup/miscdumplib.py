@@ -491,3 +491,73 @@ def skip_wiki(wikiname, config):
     return (wikiname in config.private_wikis_list or
             wikiname in config.closed_wikis_list or
             wikiname in config.skip_wikis_list)
+
+
+class MiscDumpBase(object):
+    '''
+    base class for misc dumps to inherit from
+    override the methods marked 'override this'
+    '''
+    def __init__(self, wiki, dryrun=False, args=None):
+        '''
+        wiki:     WikiDump object with date set
+        dryrun:   whether or not to run commands or display what would have been done
+        args:     dict of additional args 'revsonly' and/or 'stubsonly'
+                  indicating whether or not to dump rev content and/or stubs
+        '''
+        self.wiki = wiki
+        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
+        self.dryrun = dryrun
+        self.args = args
+        self.steps = self.get_steps()
+
+    def get_steps(self):
+        '''
+        return dict of steps the dump may run and files that each step generates
+        note that this assumes each step generates only one file. for now.
+        override this
+        '''
+        steps = {'sample': {'file': 'full_path_to_file', 'run': True}}
+        return steps
+
+    def run(self):
+        '''
+        dump all steps marked as 'run': True
+        return True if all requested steps of dump complete, False otherwise
+        override this
+        '''
+        return True
+
+    def get_steps_done(self):
+        '''
+        return comma-sep list of steps that are complete, in case not all are.
+        if all are complete, return 'all'
+        'complete' for the purposes of our check means the relevant output
+        file exists.  we don't do checks on the content itself
+        '''
+        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
+        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
+
+        steps_done = []
+        for dump_step in self.steps:
+            if exists(os.path.join(outputdir, self.steps[dump_step]['file'])):
+                steps_done.append(dump_step)
+        if len(steps_done) == len(self.steps):
+            return 'all'
+        elif len(steps_done):
+            return ','.join(steps_done)
+        else:
+            return ''
+
+    def get_output_files(self):
+        '''
+        return list of files that a full dump will produce, and a list of
+        files that are expected to be generated
+        by the current run or pre-existing as conditions for the current run
+        '''
+        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
+        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
+        filenames = [self.steps[dump_step]['file'] for dump_step in self.steps]
+        expected = [self.steps[dump_step]['file'] for dump_step in self.steps
+                    if self.steps[dump_step]['run']]
+        return [os.path.join(outputdir, filename) for filename in filenames], expected
