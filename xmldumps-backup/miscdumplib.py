@@ -15,12 +15,15 @@ import logging.config
 from dumps.WikiDump import FileUtils, MiscUtils, Config
 
 
+# pylint: disable=broad-except
+
+
 STATUS_TODO = 1
 STATUS_FAILED = -1
 STATUS_GOOD = 0
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(__name__)    # pylint: disable=invalid-name
 logging.config.dictConfig({
     'version': 1,
     'disable_existing_loggers': False,

@@ -22,6 +22,9 @@ from miscdumplib import log
 from miscdumplib import safe
 
 
+# pylint: disable=broad-except
+
+
 class MaxRevID(object):
     '''
     retrieve, read, write max revid from database/file

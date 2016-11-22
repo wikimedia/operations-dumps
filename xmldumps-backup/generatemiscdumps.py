@@ -22,6 +22,9 @@ from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
 
 
+# pylint: disable=broad-except
+
+
 class Index(object):
     '''
     generate index.html page containing information for the dump
