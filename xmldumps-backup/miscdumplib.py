@@ -78,9 +78,13 @@ class ContentFile(object):
 
     def get_filename(self):
         '''
-        this should be overrided by subclasses.
-        '''
+        override this
+
+        must return basename of the file. example:
+
         return "content.txt"
+        '''
+        raise NotImplementedError
 
     def get_path(self, date=None):
         '''
@@ -130,12 +134,13 @@ class IndexFile(object):
     def __init__(self, config):
         self._config = config
         self.dump_dir = MiscDumpDir(self._config)
+        self.basename = "index.html"
 
     def get_filename(self):
         '''
         return basename of index.html file
         '''
-        return "index.html"
+        return self.basename
 
     def get_path(self):
         '''
@@ -513,20 +518,26 @@ class MiscDumpBase(object):
 
     def get_steps(self):
         '''
+        override this
+
         return dict of steps the dump may run and files that each step generates
         note that this assumes each step generates only one file. for now.
-        override this
-        '''
+
+        example:
+
         steps = {'sample': {'file': 'full_path_to_file', 'run': True}}
         return steps
+        '''
+        raise NotImplementedError
 
     def run(self):
         '''
+        override this
+
         dump all steps marked as 'run': True
         return True if all requested steps of dump complete, False otherwise
-        override this
         '''
-        return True
+        raise NotImplementedError
 
     def get_steps_done(self):
         '''
