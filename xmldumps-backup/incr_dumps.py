@@ -1,8 +1,9 @@
-# for every wiki, generate the max rev id if it isn't already
-# present from a previous attempt at a run, read the max rev id
-# from the previous adds changes dump, dump stubs, dump history file
-# based on stubs.
-
+'''
+for every wiki, generate the max rev id if it isn't already
+present from a previous attempt at a run, read the max rev id
+from the previous adds changes dump, dump stubs, dump history file
+based on stubs.
+'''
 import os
 from os.path import exists
 import time
@@ -32,6 +33,9 @@ class MaxRevID(object):
         self.max_id = None
 
     def get_max_revid(self):
+        '''
+        get max rev id from wiki db
+        '''
         query = ("'select rev_id from revision where rev_timestamp < \"%s\" "
                  "order by rev_timestamp desc limit 1'" % self.cutoff)
         db_info = DbServerInfo(self.wiki, self.wiki.db_name)
@@ -45,6 +49,9 @@ class MaxRevID(object):
         self.max_id = RunSimpleCommand.run_with_output(to_run, shell=True)
 
     def record_max_revid(self):
+        '''
+        get max rev id for wiki from db, save it to file
+        '''
         self.get_max_revid()
         if not self.dryrun:
             file_obj = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
@@ -52,6 +59,9 @@ class MaxRevID(object):
                                           self.wiki.config.fileperms)
 
     def read_max_revid_from_file(self, date=None):
+        '''
+        read and return max rev id for wiki from file
+        '''
         if date is None:
             date = self.wiki.date
         try:
@@ -63,27 +73,50 @@ class MaxRevID(object):
             return None
 
     def exists(self, date=None):
+        '''
+        check if the max rev id file exists for given wiki and date of dump run
+        '''
         if date is None:
             date = self.wiki.date
         return exists(MaxRevIDFile(self.wiki.config, date, self.wiki.db_name).get_path())
 
 
 class MaxRevIDFile(ContentFile):
+    '''
+    file containing max revision id for wiki at time of run
+    '''
     def get_filename(self):
         return "maxrevid.txt"
 
 
 class StubFile(ContentFile):
+    '''
+    file containing metadata for revisions greater than last
+    run's maxrevid and less than current maxrevid
+    '''
     def get_filename(self):
         return "%s-%s-stubs-meta-hist-incr.xml.gz" % (self.wikiname, self.date)
 
 
 class RevsFile(ContentFile):
+    '''
+    file containing revision content corresponding to the revision
+    metadata (stubs) dumped for this wiki and date
+    '''
     def get_filename(self):
         return "%s-%s-pages-meta-hist-incr.xml.bz2" % (self.wikiname, self.date)
 
 
 def cutoff_from_date(date, config):
+    '''
+    given the date of the run and how much older in seconds
+    we expect the cutoff to be, generate and return the
+    age cutoff in yymmddhhmmss format
+
+    this format is used for revision timestamps in the db
+    so we need it when selecting revisions older than
+    the desired cutoff
+    '''
     return time.strftime(
         "%Y%m%d%H%M%S", time.gmtime(calendar.timegm(
             time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
@@ -107,6 +140,12 @@ class IncrDump(object):
     provide some methods for adds changes dumps for this one wiki
     '''
     def __init__(self, wiki, dryrun=False, args=None):
+        '''
+        wiki:     WikiDump object with date set
+        dryrun:   whether or not to run commands or display what would have been done
+        args:     dict of additional args 'do_revs' and/or 'do_stubs'
+                  indicating whether or not to dump rev content and/or stubs
+        '''
         self.wiki = wiki
         self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
         self.dryrun = dryrun
@@ -123,10 +162,12 @@ class IncrDump(object):
             self.dorevs = True
 
     def get_prev_incrdate(self, date, dumpok=False, revidok=False):
-        # find the most recent incr dump before the
-        # specified date
-        # if "dumpok" is True, find most recent dump that completed successfully
-        # if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
+        '''
+        find the most recent incr dump before the
+        specified date
+        if "dumpok" is True, find most recent dump that completed successfully
+        if "revidok" is True, find most recent dump that has a populated maxrevid.txt file
+        '''
         previous = None
         old = self.dirs.get_misc_dumpdirs()
         if old:
@@ -149,8 +190,10 @@ class IncrDump(object):
         return previous
 
     def get_prev_revid(self, max_revid):
-        # get the previous rundate, with or without maxrevid file
-        # we can populate that file if need be
+        '''
+        get the previous rundate, with or without maxrevid file
+        we can populate that file if need be
+        '''
         prev_date = self.get_prev_incrdate(self.wiki.date)
         log.info("prev_date is %s", safe(prev_date))
 
@@ -181,6 +224,16 @@ class IncrDump(object):
         return prev_revid
 
     def dump_max_revid(self):
+        '''
+        dump maximum rev id from wiki that's older than
+        the configured number of seconds (cutoff)
+
+        we have this cutoff so that content really new
+        is not dumped; we want to give curators the chance to
+        remove problematic entries first.
+
+        a cutoff of some hours is reasonable.
+        '''
         max_id = None
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
@@ -214,6 +267,10 @@ class IncrDump(object):
         return max_revid
 
     def dump_stub(self, start_revid, end_revid):
+        '''
+        dump stubs (metadata) for revs from start_revid
+        up to but not including end_revid
+        '''
         if not self.dostubs:
             return True
 
@@ -241,6 +298,10 @@ class IncrDump(object):
         return True
 
     def dump_revs(self):
+        '''
+        dump revision content corresponding to previously-dumped
+        stubs (revision metadata)
+        '''
         if not self.dorevs:
             return True
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
@@ -270,6 +331,10 @@ class IncrDump(object):
         return True
 
     def run(self):
+        '''
+        dump maxrevid, stubs for revs from previous maxrevid to current one,
+        revision content for these stubs, for given wiki and date
+        '''
         try:
             log.info("retrieving max rev id for wiki %s", self.wiki.db_name)
             max_revid = self.dump_max_revid()
@@ -305,6 +370,11 @@ class IncrDump(object):
             return 'all'
 
     def get_output_files(self):
+        '''
+        return list of files that a full dump (maxrevid, stubs, rev content)
+        will produce, and a list of files that are expected to be generated
+        by the current run or pre-existing as conditions for the current run
+        '''
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
         revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
@@ -320,6 +390,10 @@ class IncrDump(object):
 
 
 def get_incrdump_usage():
+    '''
+    return usage message for args specific to the incremental dumps
+    (used for general usage message for misc dumps)
+    '''
     return """Specific args for incremental dumps:
 
 stubsonly        -- dump stubs but not revs

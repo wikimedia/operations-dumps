@@ -1,4 +1,6 @@
-# shared classes for misc dumps (incrementals, html, etc)
+'''
+shared classes for misc dumps (incrementals, html, etc)
+'''
 import os
 from os.path import exists
 import sys

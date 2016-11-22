@@ -1,8 +1,7 @@
-# for every wiki, generate the max rev id if it isn't already
-# present from a previous attempt at a run, read the max rev id
-# from the previous adds changes dump, dump stubs, dump history file
-# based on stubs.
-
+'''
+for every wiki, run the specific dump type for today
+or the given date
+'''
 import getopt
 import os
 from os.path import exists
