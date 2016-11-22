@@ -1,10 +1,10 @@
 from incr_dumps import IncrDump, IncrDumpConfig, get_incrdump_usage
-# from sample_dumps import SampleDump, SampleDumpConfig, get_sampledump_usage
+from sample_dumps import SampleDump, SampleDumpConfig, get_sampledump_usage
 
 
 NAMES_CLASSES = {
     # "htmldumps": [HTMLDump, HTMLDumpConfig, get_htmldump_usage],
-    # "sampledumps": [SampleDump, SampleDumpConfig, get_sampledump_usage],
+    "sampledumps": [SampleDump, SampleDumpConfig, get_sampledump_usage],
     "incrdumps": [IncrDump, IncrDumpConfig, get_incrdump_usage],
 }
 
