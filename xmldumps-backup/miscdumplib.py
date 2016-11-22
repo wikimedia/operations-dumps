@@ -13,6 +13,7 @@ import ConfigParser
 import logging
 import logging.config
 from dumps.WikiDump import FileUtils, MiscUtils, Config
+from dumps.utils import DbServerInfo, RunSimpleCommand
 
 
 # pylint: disable=broad-except
@@ -496,6 +497,21 @@ def skip_wiki(wikiname, config):
     return (wikiname in config.private_wikis_list or
             wikiname in config.closed_wikis_list or
             wikiname in config.skip_wikis_list)
+
+
+def run_simple_query(query, wiki):
+    '''
+    run a mysql query which returns only one field from
+    one row.
+    return the value of that one field (as a string)
+    '''
+    db_info = DbServerInfo(wiki, wiki.db_name)
+    commands = db_info.build_sql_command(query)
+    echocmd = commands[0]
+    mysqlcmd = commands[1]
+    to_run = " ".join(echocmd) + " | " + " ".join(mysqlcmd) + " --silent"
+    log.info("running with no output: " + to_run)
+    return RunSimpleCommand.run_with_output(to_run, shell=True)
 
 
 class MiscDumpBase(object):

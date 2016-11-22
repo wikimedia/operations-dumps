@@ -142,6 +142,7 @@ class Index(object):
                 return
 
             other_runs_text = "other runs: %s<br />" % make_link(wikiname, wikiname)
+
             try:
                 wiki = Wiki(self.args['config'], wikiname)
                 wiki.set_date(dump_date)

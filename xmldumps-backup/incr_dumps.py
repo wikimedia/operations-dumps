@@ -18,8 +18,7 @@ from miscdumplib import MiscDumpDir
 from miscdumplib import MiscDumpConfig
 from miscdumplib import MiscDumpBase
 from miscdumplib import get_config_defaults
-from miscdumplib import log
-from miscdumplib import safe
+from miscdumplib import log, safe, run_simple_query
 
 
 # pylint: disable=broad-except
@@ -41,15 +40,7 @@ class MaxRevID(object):
         '''
         query = ("'select rev_id from revision where rev_timestamp < \"%s\" "
                  "order by rev_timestamp desc limit 1'" % self.cutoff)
-        db_info = DbServerInfo(self.wiki, self.wiki.db_name)
-        command = db_info.build_sql_command(query)
-        # we get back: [[echo, some, args, and, stuff] [mysql, some, more, args]]
-        # because it's formatted for the fancy command runner. we don't need that.
-        # Turn into a flat list with pipe in between. Also we need the --silent
-        # argument so we just get the value back and nothing else
-        to_run = " ".join(command[0]) + " | " + " ".join(command[1]) + " --silent"
-        log.info("running with no output: " + to_run)
-        self.max_id = RunSimpleCommand.run_with_output(to_run, shell=True)
+        self.max_id = run_simple_query(query, self.wiki)
 
     def record_max_revid(self):
         '''
