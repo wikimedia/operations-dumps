@@ -18,7 +18,6 @@ from miscdumplib import log, safe, make_link
 import incr_dumps
 from incr_dumps import IncrDump
 from incr_dumps import DumpConfig
-from incr_dumps import cutoff_from_date
 from dumps.WikiDump import Wiki
 from dumps.exceptions import BackupError
 from dumps.WikiDump import FileUtils, TimeUtils
@@ -131,7 +130,6 @@ class MiscDumpOne(object):
         self.wiki = Wiki(self._config, wikiname)
         self.date = date
         self.wiki.set_date(self.date)
-        self.cutoff = args['cutoff']
         self.wikiname = wikiname
         self.dumpdir = MiscDumpDir(self._config, self.date)
         self.do_dumps = do_dumps
@@ -343,10 +341,6 @@ def main():
     args = {}
     if not date:
         date = TimeUtils.today()
-        args['cutoff'] = time.strftime("%Y%m%d%H%M%S",
-                                       time.gmtime(time.time() - config.delay))
-    else:
-        args['cutoff'] = cutoff_from_date(date, config)
 
     if len(remainder) > 0:
         for opt in remainder:

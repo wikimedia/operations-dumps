@@ -111,8 +111,8 @@ class IncrDump(object):
         self.dryrun = dryrun
         self.verbose = verbose
         self.args = args
-        if not self.args['cutoff']:
-            self.args['cutoff'] = cutoff_from_date(self.wiki.date, self.wiki.config)
+        self.cutoff = cutoff_from_date(self.wiki.date, self.wiki.config)
+
         if 'revsonly' in args:
             self.dostubs = False
         else:
