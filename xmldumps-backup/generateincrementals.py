@@ -103,15 +103,6 @@ class Index(object):
                 return
 
             other_runs_text = "other runs: %s" % Link.make_link(wiki, wiki)
-            try:
-                lock = IncrDumpLock(self._config, incr_date, wiki)
-                lock_date = lock.get_lockinfo()
-            except Exception as ex:
-                lock_date = None
-            if lock_date is not None:
-                lock_text = "run started on %s." % lock_date
-            else:
-                lock_text = None
 
             try:
                 stub = StubFile(self._config, incr_date, wiki)
@@ -159,7 +150,7 @@ class Index(object):
             try:
                 wikiname_text = "<strong>%s</strong>" % wiki
 
-                wiki_info = (" ".join([entry for entry in [wikiname_text, lock_text, stat_text]
+                wiki_info = (" ".join([entry for entry in [wikiname_text, stat_text]
                                        if entry is not None]) + "<br />")
                 wiki_info = (wiki_info + " &nbsp;&nbsp; " +
                              " |  ".join([entry for entry in [stub_text, revs_text, other_runs_text]

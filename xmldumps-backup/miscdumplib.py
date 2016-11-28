@@ -142,13 +142,6 @@ class Lock(object):
     def unlock(self):
         os.remove(self.lockfile.get_path())
 
-    def get_lockinfo(self):
-        try:
-            timestamp = os.stat(self.lockfile.get_path()).st_mtime
-            return time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
-        except Exception as ex:
-            return None
-
 
 class IncrDumpLock(Lock):
     def __init__(self, config, date, wikiname):
