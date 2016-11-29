@@ -103,25 +103,15 @@ class StatusFile(ContentFile):
         return os.path.join(self.dump_dir.get_dumpdir(self.wikiname, date), self.get_filename())
 
 
-class LockFile(ContentFile):
+class MiscDumpLockFile(ContentFile):
     '''
     for dump lockfile for the given wiki and date
     '''
     def get_filename(self):
-        return "%s-%s.lock" % (self.wikiname, self.date)
+        return "%s-%s-miscdump.lock" % (self.wikiname, self.date)
 
     def get_path(self):
         return os.path.join(self.dump_dir.get_dumpdir_no_date(self.wikiname), self.get_filename())
-
-
-class MaxRevIDLockFile(LockFile):
-    def get_filename(self):
-        return "%s-%s-maxrevid.lock" % (self.wikiname, self.date)
-
-
-class MiscDumpLockFile(LockFile):
-    def get_filename(self):
-        return "%s-%s-miscdump.lock" % (self.wikiname, self.date)
 
 
 class MD5File(ContentFile):
@@ -215,7 +205,7 @@ class StatusInfo(object):
         FileUtils.write_file_in_place(self.status_file.get_path(), status, self._config.fileperms)
 
 
-class Lock(object):
+class MiscDumpLock(object):
     '''
     lock handling for the dump runs, in case more than one process on one
     or more servers runs dump at the same time
@@ -224,7 +214,7 @@ class Lock(object):
         self._config = config
         self.date = date
         self.wikiname = wikiname
-        self.lockfile = LockFile(self._config, self.date, self.wikiname)
+        self.lockfile = MiscDumpLockFile(self._config, self.date, self.wikiname)
 
     def is_locked(self):
         '''
@@ -245,6 +235,7 @@ class Lock(object):
             fhandle.close()
             return True
         except Exception as ex:
+            log.info("Error encountered getting lock", exc_info=ex)
             return False
 
     def is_stale_lock(self):
@@ -257,6 +248,7 @@ class Lock(object):
         try:
             timestamp = os.stat(self.lockfile.get_path()).st_mtime
         except Exception as ex:
+            log.info("Error encountered statting lock", exc_info=ex)
             return False
         return (time.time() - timestamp) > self._config.stale_interval
 
@@ -264,23 +256,12 @@ class Lock(object):
         '''
         remove the lock for the wiki. Returns True on success, False otherwise
         '''
-        os.remove(self.lockfile.get_path())
-
-
-class MiscDumpLock(Lock):
-    def __init__(self, config, date, wikiname):
-        self._config = config
-        self.date = date
-        self.wikiname = wikiname
-        self.lockfile = MiscDumpLockFile(self._config, self.date, self.wikiname)
-
-
-class MaxRevIDLock(Lock):
-    def __init__(self, config, date, wikiname):
-        self._config = config
-        self.date = date
-        self.wikiname = wikiname
-        self.lockfile = MaxRevIDLockFile(self._config, self.date, self.wikiname)
+        try:
+            os.remove(self.lockfile.get_path())
+        except Exception as ex:
+            log.info("Error encountered removing lock", exc_info=ex)
+            return False
+        return True
 
 
 class MiscDumpConfig(dumps.WikiDump.Config):
