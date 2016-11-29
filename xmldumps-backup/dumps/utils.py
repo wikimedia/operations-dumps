@@ -7,8 +7,10 @@ from os.path import exists
 import re
 import time
 import socket
+import select
+import errno
 
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, _eintr_retry_call
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
 
@@ -187,6 +189,151 @@ class DbServerInfo(object):
             return "-p" + self.wiki.config.db_password
 
 
+class MyPopen(Popen):
+    '''
+    add communicate call with timeout.  proper way to use this is
+    to call it repeatedly, retrieving stderr and stdout,
+    until the process' returncode is not None, at which point the process will
+    have completed and best of all an os.waitpid will have been
+    done on it.
+
+    Code here is taken from subprocess.Popen, python 2.7.12, and modified.
+    The Popen code was released under the Python Software Foundation License 2.0,
+    see https://www.python.org/download/releases/2.7/license/
+    for details.
+    '''
+    def communicate_with_timeout(self, timeout=None):
+        '''
+        do what communicate() does but wait only until timeout
+        specified, return whatever we have read from stdout/stderr
+
+        if timeout is None, then this acts like
+        the regular Popen.communicate() call
+
+        note that no input is specified or used
+
+        this is posix/poll specific. too bad.
+        '''
+        stdout, stderr, timeleft = self._communicate_with_timeout(timeout)
+        if stdout is not None:
+            stdout = ''.join(stdout)
+        if stderr is not None:
+            stderr = ''.join(stderr)
+
+        if timeout is not None:
+            if timeleft > 0:
+                # willing to wait up to the remaining time for the process
+                self.wait_with_timeout(timeleft)
+            else:
+                # no time left, so...
+                # immediate return if process not complete
+                self.wait_with_timeout(None)
+        else:
+            # standard behavior without timeout
+            # block waiting for process to finish up
+            self.wait()
+        return (stdout, stderr)
+
+    def _communicate_with_timeout(self, timeout=None):
+        '''
+        read stdout/stderr lines from process until
+        timout expires, return them
+
+        if timeout is None, read til process completes
+
+        this is posix/poll specific. too bad.
+        '''
+        stdout = None
+        stderr = None
+        fd2file = {}
+        fd2output = {}
+
+        poller = select.poll()
+
+        def register_and_append(file_obj, eventmask):
+            if file_obj.closed:
+                return
+            poller.register(file_obj.fileno(), eventmask)
+            fd2file[file_obj.fileno()] = file_obj
+
+        def close_unregister_and_remove(fdesc):
+            poller.unregister(fdesc)
+            fd2file[fdesc].close()
+            fd2file.pop(fdesc)
+
+        select_pollin_pollpri = select.POLLIN | select.POLLPRI
+        if self.stdout and not self.stdout.closed:
+            register_and_append(self.stdout, select_pollin_pollpri)
+            fd2output[self.stdout.fileno()] = stdout = []
+        if self.stderr and not self.stderr.closed:
+            register_and_append(self.stderr, select_pollin_pollpri)
+            fd2output[self.stderr.fileno()] = stderr = []
+
+        timeleft = timeout
+        while fd2file:
+            try:
+                if timeout is not None:
+                    before = time.time()
+                ready = poller.poll(timeleft)
+                if timeout is not None:
+                    after = time.time()
+                    elapsed = after - before
+                    # timeout is in milliseconds
+                    timeleft = timeleft - (elapsed * 1000)
+            except select.error, exc:
+                if exc.args[0] == errno.EINTR:
+                    continue
+                raise
+
+            for fdesc, mode in ready:
+                if mode & select_pollin_pollpri:
+                    data = os.read(fdesc, 4096)
+                    if not data:
+                        close_unregister_and_remove(fdesc)
+                        fd2output[fdesc].append(data)
+                else:
+                    # Ignore hang up or errors.
+                    close_unregister_and_remove(fdesc)
+            if timeleft is not None and timeleft < 0:
+                return(stdout, stderr, timeleft)
+
+        return (stdout, stderr, timeleft)
+
+    def wait_with_timeout(self, timeout):
+        '''
+        Wait until timeout for child process to terminate.
+        Returns returncode attribute.
+        If timeout is None, don't wait at all, check if process
+        terminated and return returncode (or None) immediately.
+        '''
+        if self.returncode is None:
+            self._wait_nohang()
+            if self.returncode is None and timeout is not None:
+                # wait around some, and try again
+                seconds = int(timeout + 1000) / 1000
+                time.sleep(seconds)
+                self._wait_nohang()
+        return self.returncode
+
+    def _wait_nohang(self):
+        pid = None
+        try:
+            pid, sts = _eintr_retry_call(os.waitpid, self.pid, os.WNOHANG)
+        except OSError as exc:
+            if exc.errno != errno.ECHILD:
+                raise
+            # This happens if SIGCLD is set to be ignored or waiting
+            # for child processes has otherwise been disabled for our
+            # process.  This child is dead, we can't get the status.
+            pid = self.pid
+            sts = 0
+            # Check the pid and loop as waitpid has been known to return
+            # 0 even without WNOHANG in odd situations.  issue14396.
+        if pid == self.pid:
+            self._handle_exitstatus(sts)  # pylint: disable=no-member
+        return self.returncode
+
+
 class RunSimpleCommand(object):
     @staticmethod
     def run_with_output(command, maxtries=3, shell=False, log_callback=None,
@@ -228,7 +375,8 @@ class RunSimpleCommand(object):
 
     @staticmethod
     def run_with_no_output(command, maxtries=3, shell=False, log_callback=None,
-                           retry_delay=5, verbose=False):
+                           retry_delay=5, verbose=False, timeout=None,
+                           timeout_callback=None):
         """Run a command, expecting no output.
         Raises BackupError on non-zero return code."""
 
@@ -242,10 +390,14 @@ class RunSimpleCommand(object):
         error = "unknown"
         tries = 0
         while (not success) and tries < maxtries:
-            proc = Popen(command, shell=shell, stderr=PIPE)
-            # output will be None, we can ignore it
-            output_unused, error = proc.communicate()
-            if not proc.returncode:
+            proc = MyPopen(command, shell=shell, stderr=PIPE)
+            returncode = None
+            while returncode is None:
+                output, error = proc.communicate_with_timeout(timeout)
+                returncode = proc.returncode
+                if timeout_callback is not None:
+                    timeout_callback(output, error)
+            if not returncode:
                 success = True
             else:
                 time.sleep(retry_delay)
@@ -255,7 +407,7 @@ class RunSimpleCommand(object):
                 log_callback("Non-zero return code from '%s' after max retries" % command_string)
             raise BackupError("command '" + command_string +
                               ("' failed with return code %s " %
-                               proc.returncode) + " and error '" + error + "'")
+                               returncode) + " and error '" + error + "'")
         return success
 
 
