@@ -473,3 +473,13 @@ def get_config_defaults():
         # "cleanup": {
         "keep": "3",
     }
+
+
+def skip_wiki(wikiname, config):
+    '''
+    return True if we should skip the given wiki instead of
+    dumping it.
+    '''
+    return (wikiname in config.private_wikis_list or
+            wikiname in config.closed_wikis_list or
+            wikiname in config.skip_wikis_list)

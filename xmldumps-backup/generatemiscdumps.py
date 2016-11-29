@@ -14,7 +14,7 @@ from miscdumplib import StatusFile, IndexFile
 from miscdumplib import md5sums, MD5File
 from miscdumplib import MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
-from miscdumplib import log, safe, make_link
+from miscdumplib import log, safe, make_link, skip_wiki
 from miscdumpfactory import MiscDumpFactory
 
 from dumps.WikiDump import Wiki
@@ -112,9 +112,7 @@ class Index(object):
         collect the text strings for one wiki to be inserted into
         the index.html file
         '''
-        if (wikiname not in self._config.private_wikis_list and
-                wikiname not in self._config.closed_wikis_list and
-                wikiname not in self._config.skip_wikis_list):
+        if not skip_wiki(wikiname, self._config):
             dumps_dirs = MiscDumpDirs(self._config, wikiname)
             if not exists(self.dumpdir.get_dumpdir_no_date(wikiname)):
                 log(self.verbose, "No dump for wiki %s" % wikiname)
@@ -208,9 +206,7 @@ class MiscDumpOne(object):
         for the date, or some other process has the lock and is
         therefore presumably already dumping it
         '''
-        if (self.wikiname not in self._config.private_wikis_list and
-                self.wikiname not in self._config.closed_wikis_list and
-                self.wikiname not in self._config.skip_wikis_list):
+        if not skip_wiki(self.wikiname, self._config):
             if not exists(self.dumpdir.get_dumpdir(self.wikiname)):
                 os.makedirs(self.dumpdir.get_dumpdir(self.wikiname))
             status = self.status_info.get_status()
