@@ -77,11 +77,11 @@ class ContentFile(object):
         '''
         return "content.txt"
 
-    def get_path(self):
+    def get_path(self, date=None):
         '''
         return full path to the file, including wikiname, date
         '''
-        return os.path.join(self.dump_dir.get_dumpdir(self.wikiname), self.get_filename())
+        return os.path.join(self.dump_dir.get_dumpdir(self.wikiname, date), self.get_filename())
 
     def get_fileinfo(self):
         '''
@@ -98,9 +98,6 @@ class StatusFile(ContentFile):
     def get_filename(self):
         return "status.txt"
 
-    def get_path(self, date=None):
-        return os.path.join(self.dump_dir.get_dumpdir(self.wikiname, date), self.get_filename())
-
 
 class MiscDumpLockFile(ContentFile):
     '''
@@ -109,7 +106,7 @@ class MiscDumpLockFile(ContentFile):
     def get_filename(self):
         return "%s-%s-miscdump.lock" % (self.wikiname, self.date)
 
-    def get_path(self):
+    def get_path(self, date=None):
         return os.path.join(self.dump_dir.get_dumpdir_no_date(self.wikiname), self.get_filename())
 
 
@@ -121,7 +118,7 @@ class MD5File(ContentFile):
         return "%s-%s-md5sums.txt" % (self.wikiname, self.date)
 
 
-class IndexFile(ContentFile):
+class IndexFile(object):
     '''
     for index.html file for dumps of all wikis for all dates
     '''
@@ -137,7 +134,7 @@ class IndexFile(ContentFile):
 
     def get_path(self):
         '''
-        return full path of index html file
+        return full path to index.html file
         '''
         return os.path.join(self.dump_dir.get_dumpdir_base(), self.get_filename())
 
@@ -171,7 +168,8 @@ def md5sums(wiki, fileperms, files, mandatory):
             text = text + "%s\n" % md5sum_one_file(fname)
             FileUtils.write_file_in_place(md5file.get_path(),
                                           text, fileperms)
-        except:
+        except Exception as ex:
+            log.info("Error encountered in md5sum for %s", fname, exc_info=ex)
             if fname in mandatory:
                 errors = True
     return not errors
@@ -298,8 +296,7 @@ class MiscDumpConfig(object):
         '''
         grab values from configuration and assign them to appropriate variables
         '''
-        self.mediawiki = self.conf.get("wiki", "mediawiki")
-        self.wiki_dir = self.mediawiki
+        self.wiki_dir = self.conf.get("wiki", "mediawiki")
         self.all_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "allwikislist"))
         self.private_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "privatewikislist"))
         self.closed_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "closedwikislist"))
@@ -331,7 +328,6 @@ class MiscDumpConfig(object):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
 
-        self.wiki_dir = self.mediawiki  # the parent class methods want this
         self.db_user = None
         self.db_password = None
         if not self.conf.has_section('database'):
@@ -406,7 +402,8 @@ class MiscDumpDirs(object):
             for dirname in os.listdir(base):
                 if digits.match(dirname):
                     dates.append(dirname)
-        except OSError:
+        except OSError as ex:
+            log.info("Error encountered listing %s", base, exc_info=ex)
             return []
         dates = sorted(dates)
         return dates
