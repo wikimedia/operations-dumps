@@ -8,11 +8,11 @@ import os
 from os.path import exists
 import sys
 import time
-import hashlib
 import traceback
 from miscdumplib import STATUS_TODO, STATUS_GOOD, STATUS_FAILED
 from miscdumplib import StatusFile, IndexFile
-from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
+from miscdumplib import md5sums
+from miscdumplib import MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
 from miscdumpfactory import MiscDumpFactory
@@ -191,34 +191,6 @@ class MiscDumpOne(object):
         log(self.verbose, "Success!  Wiki %s %s dump complete."
             % (self.wikiname, self.dumptype))
         return STATUS_GOOD
-
-
-def md5sum_one_file(filename):
-    summer = hashlib.md5()
-    infile = file(filename, "rb")
-    bufsize = 4192 * 32
-    buff = infile.read(bufsize)
-    while buff:
-        summer.update(buff)
-        buff = infile.read(bufsize)
-    infile.close()
-    return summer.hexdigest()
-
-
-def md5sums(wiki, fileperms, files, mandatory):
-    md5file = MD5File(wiki.config, wiki.db_name, wiki.date)
-    text = ""
-    files = []
-    errors = False
-    for fname in files:
-        try:
-            text = text + "%s\n" % md5sum_one_file(fname)
-            FileUtils.write_file_in_place(md5file.get_path(),
-                                          text, fileperms)
-        except:
-            if fname in mandatory:
-                errors = True
-    return not errors
 
 
 class MiscDumpLoop(object):

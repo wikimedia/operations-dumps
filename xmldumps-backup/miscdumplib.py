@@ -6,6 +6,7 @@ import re
 import socket
 import shutil
 import time
+import hashlib
 import ConfigParser
 import dumps.WikiDump
 from dumps.WikiDump import FileUtils, MiscUtils
@@ -91,6 +92,33 @@ class IndexFile(ContentFile):
 
     def get_path(self):
         return os.path.join(self.dump_dir.get_dumpdir_base(), self.get_filename())
+
+
+def md5sum_one_file(filename):
+    summer = hashlib.md5()
+    infile = file(filename, "rb")
+    bufsize = 4192 * 32
+    buff = infile.read(bufsize)
+    while buff:
+        summer.update(buff)
+        buff = infile.read(bufsize)
+    infile.close()
+    return summer.hexdigest()
+
+
+def md5sums(wiki, fileperms, files, mandatory):
+    md5file = MD5File(wiki.config, wiki.date, wiki.db_name)
+    text = ""
+    errors = False
+    for fname in files:
+        try:
+            text = text + "%s\n" % md5sum_one_file(fname)
+            FileUtils.write_file_in_place(md5file.get_path(),
+                                          text, fileperms)
+        except:
+            if fname in mandatory:
+                errors = True
+    return not errors
 
 
 class StatusInfo(object):
