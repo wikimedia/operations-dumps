@@ -11,7 +11,7 @@ import time
 import traceback
 from miscdumplib import STATUS_TODO, STATUS_GOOD, STATUS_FAILED
 from miscdumplib import StatusFile, IndexFile
-from miscdumplib import md5sums
+from miscdumplib import md5sums, MD5File
 from miscdumplib import MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
@@ -23,13 +23,16 @@ from dumps.WikiDump import FileUtils, TimeUtils
 
 
 class Index(object):
-    def __init__(self, config, date, dumper, verbose):
+    def __init__(self, config, date, dumptype, verbose, args):
+        # what does dumper have going on, is there a wikiname or anything?
+        # this is bad because we want to override it every wiki
         self._config = config
         self.date = date
-        self.dumper = dumper
+        self.dumptype = dumptype
         self.indexfile = IndexFile(self._config)
         self.dumpdir = MiscDumpDir(self._config)
         self.verbose = verbose
+        self.args = args
 
     def do_all_wikis(self):
         text = ""
@@ -43,6 +46,43 @@ class Index(object):
                       % {"items": text})
         FileUtils.write_file_in_place(self.indexfile.get_path(),
                                       index_text, self._config.fileperms)
+
+    def get_outputfile_indextxt(self, filenames_tocheck, expected, wikiname, dump_date):
+        dirinfo = MiscDumpDir(self._config, dump_date)
+        path = dirinfo.get_dumpdir(wikiname)
+        output_fileinfo = {}
+        for filename in filenames_tocheck:
+            output_fileinfo[filename] = FileUtils.file_info(os.path.join(path, filename))
+        files_text = []
+        filenames = sorted(output_fileinfo.keys())
+        for filename in filenames:
+            file_date, file_size = output_fileinfo[filename]
+            log(self.verbose, "output file %s for %s %s %s"
+                % (filename, wikiname, safe(file_date), safe(file_size)))
+            if filename in expected and file_date is None:
+                # may do more with this sort of error in the future
+                # for now, just get stats on the other files
+                continue
+            if file_date:
+                files_text.append(
+                    "%s: %s (size %s)<br />"
+                    # FIXME check that this link is correct
+                    % (make_link(
+                        os.path.join(
+                            wikiname, dump_date,
+                            filename),
+                        os.path.basename(filename)), file_date, file_size))
+        return files_text
+
+    def get_stat_text(self, dump_date, wikiname):
+        stat = StatusFile(self._config, dump_date, wikiname)
+        stat_contents = FileUtils.read_file(stat.get_path())
+        log(self.verbose, "status for %s %s" % (wikiname, safe(stat_contents)))
+        if stat_contents:
+            stat_text = "(%s)" % (stat_contents)
+        else:
+            stat_text = None
+        return stat_text
 
     def do_one_wiki(self, wikiname, date=None):
         if (wikiname not in self._config.private_wikis_list and
@@ -60,41 +100,24 @@ class Index(object):
                 log(self.verbose, "No dump for wiki %s" % wikiname)
                 return
 
-            other_runs_text = "other runs: %s" % make_link(wikiname, wikiname)
+            other_runs_text = "other runs: %s<br />" % make_link(wikiname, wikiname)
             try:
                 wiki = Wiki(self._config, wikiname)
                 wiki.set_date(dump_date)
-                output_files, expected = self.dumper.get_output_files()
-                dirinfo = MiscDumpDir(self._config, dump_date)
-                path = dirinfo.get_dumpdir(wiki.db_name)
-                output_fileinfo = {}
-                for filename in output_files:
-                    output_fileinfo[filename] = FileUtils.file_info(os.path.join(path, filename))
-                files_text = []
-                for filename in output_fileinfo:
-                    file_date, file_size = output_fileinfo[filename]
-                    log(self.verbose, "output file %s for %s %s %s"
-                        % (filename, wikiname, safe(file_date), safe(file_size)))
-                    if filename in expected and file_date is None:
-                        # may do more with this sort of error in the future
-                        # for now, just get stats on the other files
-                        continue
-                    if file_date:
-                        files_text.append(
-                            "%s: %s (size %s)"
-                            % (os.path.basename(filename), make_link(
-                                os.path.join(
-                                    wikiname, dump_date,
-                                    filename),
-                                file_date), file_size))
+                # fixme this is icky
+                dump_class = MiscDumpFactory.get_dumper(self.dumptype)
+                dumper = dump_class(wiki, False, self.verbose, self.args)
+                output_files, expected = dumper.get_output_files()
+                files_text = self.get_outputfile_indextxt(output_files, expected,
+                                                          wikiname, dump_date)
 
-                stat = StatusFile(self._config, dump_date, wikiname)
-                stat_contents = FileUtils.read_file(stat.get_path())
-                log(self.verbose, "status for %s %s" % (wikiname, safe(stat_contents)))
-                if stat_contents:
-                    stat_text = "(%s)" % (stat_contents)
-                else:
-                    stat_text = None
+                # fixme this is icky too
+                md5file = MD5File(wiki.config, wiki.date, wikiname)
+                md5file_text = self.get_outputfile_indextxt([md5file.get_filename()], [],
+                                                            wikiname, dump_date)
+                files_text.extend(md5file_text)
+
+                stat_text = self.get_stat_text(dump_date, wikiname)
 
             except Exception as ex:
                 if self.verbose:
@@ -109,8 +132,8 @@ class Index(object):
 
                 wiki_info = (" ".join([entry for entry in [wikiname_text, stat_text]
                                        if entry is not None]) + "<br />")
-                wiki_info = (wiki_info + " &nbsp;&nbsp; " + " |  ".join(files_text))
-                wiki_info = wiki_info + "|  " + other_runs_text
+                wiki_info = (wiki_info + "&nbsp;&nbsp;" + "\n&nbsp;&nbsp;".join(files_text))
+                wiki_info = wiki_info + "\n&nbsp;" + other_runs_text
             except Exception as ex:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
@@ -141,6 +164,7 @@ class MiscDumpOne(object):
         self.dumptype = dumptype
         dump_class = MiscDumpFactory.get_dumper(self.dumptype)
         self.dumper = dump_class(self.wiki, self.dryrun, self.verbose, args)
+        self.args = args
 
     def do_one_wiki(self):
         if (self.wikiname not in self._config.private_wikis_list and
@@ -180,7 +204,7 @@ class MiscDumpOne(object):
                     lock.unlock()
 
                 if self.do_index:
-                    index = Index(self._config, self.date, self.dumper, self.verbose)
+                    index = Index(self._config, self.date, self.dumptype, self.verbose, self.args)
                     index.do_all_wikis()
             except Exception as ex:
                 if self.verbose:
