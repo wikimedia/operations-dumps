@@ -23,6 +23,9 @@ def log(verbose, message):
 
 
 def safe(item):
+    '''
+    given a string or None, return a printable string
+    '''
     if item is not None:
         return item
     else:
@@ -30,28 +33,46 @@ def safe(item):
 
 
 def make_link(path, link_text):
+    '''
+    return html link for the path which displays link_text
+    '''
     return '<a href = "' + path + '">' + link_text + "</a>"
 
 
 class ContentFile(object):
+    '''
+    manage dump output file for given wiki and date
+    '''
     def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
         self.dump_dir = MiscDumpDir(self._config, date)
         self.wikiname = wikiname
 
-    # override this.
     def get_filename(self):
+        '''
+        this should be overrided by subclasses.
+        '''
         return "content.txt"
 
     def get_path(self):
+        '''
+        return full path to the file, including wikiname, date
+        '''
         return os.path.join(self.dump_dir.get_dumpdir(self.wikiname), self.get_filename())
 
     def get_fileinfo(self):
+        '''
+        return a FileInfo object corresponding to the file
+        '''
         return FileUtils.file_info(self.get_path())
 
 
 class StatusFile(ContentFile):
+    '''
+    for file containing the status (done:all etc)
+    of the dump for the wiki and date
+    '''
     def get_filename(self):
         return "status.txt"
 
@@ -60,6 +81,9 @@ class StatusFile(ContentFile):
 
 
 class LockFile(ContentFile):
+    '''
+    for dump lockfile for the given wiki and date
+    '''
     def get_filename(self):
         return "%s-%s.lock" % (self.wikiname, self.date)
 
@@ -78,23 +102,38 @@ class MiscDumpLockFile(LockFile):
 
 
 class MD5File(ContentFile):
+    '''
+    for file of md5sums of dump output files for wiki and date
+    '''
     def get_filename(self):
         return "%s-%s-md5sums.txt" % (self.wikiname, self.date)
 
 
 class IndexFile(ContentFile):
+    '''
+    for index.html file for dumps of all wikis for all dates
+    '''
     def __init__(self, config):
         self._config = config
         self.dump_dir = MiscDumpDir(self._config)
 
     def get_filename(self):
+        '''
+        return basename of index.html file
+        '''
         return "index.html"
 
     def get_path(self):
+        '''
+        return full path of index html file
+        '''
         return os.path.join(self.dump_dir.get_dumpdir_base(), self.get_filename())
 
 
 def md5sum_one_file(filename):
+    '''
+    generate and return md5 sum of specified file
+    '''
     summer = hashlib.md5()
     infile = file(filename, "rb")
     bufsize = 4192 * 32
@@ -107,6 +146,11 @@ def md5sum_one_file(filename):
 
 
 def md5sums(wiki, fileperms, files, mandatory):
+    '''
+    generate md5sums for specified files for dump of
+    given wiki and specific date, and save them to
+    output file
+    '''
     md5file = MD5File(wiki.config, wiki.date, wiki.db_name)
     text = ""
     errors = False
@@ -122,6 +166,9 @@ def md5sums(wiki, fileperms, files, mandatory):
 
 
 class StatusInfo(object):
+    '''
+    manage dump status for the given wiki and date
+    '''
     def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
@@ -129,16 +176,27 @@ class StatusInfo(object):
         self.status_file = StatusFile(self._config, self.date, self.wikiname)
 
     def get_status(self, date=None):
+        '''
+        return the status of the dump run for the given wiki and date,
+        or the empty string if there is no run or no information available
+        '''
         status = ""
         if exists(self.status_file.get_path(date)):
             status = FileUtils.read_file(self.status_file.get_path(date)).rstrip()
         return status
 
     def set_status(self, status):
+        '''
+        write out the status information supplied for the dump run
+        '''
         FileUtils.write_file_in_place(self.status_file.get_path(), status, self._config.fileperms)
 
 
 class Lock(object):
+    '''
+    lock handling for the dump runs, in case more than one process on one
+    or more servers runs dump at the same time
+    '''
     def __init__(self, config, date, wikiname):
         self._config = config
         self.date = date
@@ -146,9 +204,16 @@ class Lock(object):
         self.lockfile = LockFile(self._config, self.date, self.wikiname)
 
     def is_locked(self):
+        '''
+        return True if the wiki is locked, False otherwise
+        '''
         return exists(self.lockfile.get_path())
 
     def get_lock(self):
+        '''
+        acquire lock for wiki and return True
+        return False if lock could not be acquired
+        '''
         try:
             if not exists(self._config.dump_dir):
                 os.makedirs(self._config.dump_dir)
@@ -160,6 +225,10 @@ class Lock(object):
             return False
 
     def is_stale_lock(self):
+        '''
+        return True if lock is older than config setting for stale locks,
+        False otherwise or if no information is available
+        '''
         if not self.is_locked():
             return False
         try:
@@ -169,6 +238,9 @@ class Lock(object):
         return (time.time() - timestamp) > self._config.stale_interval
 
     def unlock(self):
+        '''
+        remove the lock for the wiki. Returns True on success, False otherwise
+        '''
         os.remove(self.lockfile.get_path())
 
 
@@ -189,6 +261,9 @@ class MaxRevIDLock(Lock):
 
 
 class Config(dumps.WikiDump.Config):
+    '''
+    configuration information for dumps
+    '''
     def __init__(self, defaults=None, config_file=None):
         self.project_name = False
 
@@ -217,6 +292,9 @@ class Config(dumps.WikiDump.Config):
         self.parse_conffile()
 
     def parse_conffile(self):
+        '''
+        grab values from configuration and assign them to appropriate variables
+        '''
         self.mediawiki = self.conf.get("wiki", "mediawiki")
         self.wiki_dir = self.mediawiki
         self.all_wikis_list = MiscUtils.db_list(self.conf.get("wiki", "allwikislist"))
@@ -263,22 +341,37 @@ class Config(dumps.WikiDump.Config):
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
 
     def read_template(self, name):
+        '''
+        read a file out of the configured template dir and return the contents
+        '''
         template = os.path.join(self.template_dir, name)
         return FileUtils.read_file(template)
 
 
 class MiscDumpDir(object):
+    '''
+    info about dump directory for a given date, wiki, and config settings
+    '''
     def __init__(self, config, date=None):
         self._config = config
         self.date = date
 
     def get_dumpdir_base(self):
+        '''
+        return path of dir tree below which dumps of all wikis are found
+        '''
         return self._config.dump_dir
 
     def get_dumpdir_no_date(self, wikiname):
+        '''
+        return path of dump dir for wiki without the date subdir
+        '''
         return os.path.join(self.get_dumpdir_base(), wikiname)
 
     def get_dumpdir(self, wikiname, date=None):
+        '''
+        return path of dump dir for wiki and date
+        '''
         if date is None:
             return os.path.join(self.get_dumpdir_base(), wikiname, self.date)
         else:
@@ -286,12 +379,20 @@ class MiscDumpDir(object):
 
 
 class MiscDumpDirs(object):
+    '''
+    info about all the directories of dumps for all dates for a given wiki
+    '''
     def __init__(self, config, wikiname):
         self._config = config
         self.wikiname = wikiname
         self.dump_dir = MiscDumpDir(self._config)
 
     def get_misc_dumpdirs(self):
+        '''
+        get and return list of basenames of wiki dump dirs;
+        these names must at least pretend to be dates (8 digits),
+        anything else will be silently skipped
+        '''
         base = self.dump_dir.get_dumpdir_no_date(self.wikiname)
         digits = re.compile(r"^\d{4}\d{2}\d{2}$")
         dates = []
@@ -305,6 +406,10 @@ class MiscDumpDirs(object):
         return dates
 
     def cleanup_old_dumps(self, date):
+        '''
+        remove 'extra' old dump directories and their contents for the wiki
+        if there are more than the configured number to keep
+        '''
         old = self.get_misc_dumpdirs()
         if old:
             if old[-1] == date:
@@ -316,6 +421,11 @@ class MiscDumpDirs(object):
                 shutil.rmtree("%s" % to_remove)
 
     def get_latest_dump_date(self, dumpok=False):
+        '''
+        get and return the subdir (yyyymmdd format) of the most recent
+        dump run.  most recent is determined by the subdir name, not by
+        actual run times.
+        '''
         # find the most recent dump
         dirs = self.get_misc_dumpdirs()
         if dirs:
@@ -331,6 +441,9 @@ class MiscDumpDirs(object):
 
 
 def get_config_defaults():
+    '''
+    get and return default configuration values for misc dumps
+    '''
     return {
         # "wiki": {
         "allwikislist": "",

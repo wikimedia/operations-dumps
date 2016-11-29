@@ -23,9 +23,15 @@ from dumps.WikiDump import FileUtils, TimeUtils
 
 
 class Index(object):
+    '''
+    generate index.html page containing information for the dump
+    run of the specified date for all wikis
+    '''
     def __init__(self, config, date, dumptype, verbose, args):
-        # what does dumper have going on, is there a wikiname or anything?
-        # this is bad because we want to override it every wiki
+        '''
+        pass a dict of the standard args
+        (config, date, dumptype, args)
+        '''
         self._config = config
         self.date = date
         self.dumptype = dumptype
@@ -35,6 +41,10 @@ class Index(object):
         self.args = args
 
     def do_all_wikis(self):
+        '''
+        generate index.html file for all wikis for the given date.
+        FIXME maybe this should be for the latest run date? Hrm.
+        '''
         text = ""
         for wikiname in self._config.all_wikis_list:
             result = self.do_one_wiki(wikiname)
@@ -48,6 +58,15 @@ class Index(object):
                                       index_text, self._config.fileperms)
 
     def get_outputfile_indextxt(self, filenames_tocheck, expected, wikiname, dump_date):
+        '''
+        generate and return a list of text strings that provide a
+        link to the given files, along with filename, size and date.
+        if the file does not exist, it will be silently excluded from
+        the list.
+        the expected list is a list of filenames that are expected to
+        be produced by the dump; currently no errors are generated
+        on this basis but this may change in the future.
+        '''
         dirinfo = MiscDumpDir(self._config, dump_date)
         path = dirinfo.get_dumpdir(wikiname)
         output_fileinfo = {}
@@ -75,6 +94,10 @@ class Index(object):
         return files_text
 
     def get_stat_text(self, dump_date, wikiname):
+        '''
+        generate and return the text string describing
+        the status of the dump of the wiki for the given date
+        '''
         stat = StatusFile(self._config, dump_date, wikiname)
         stat_contents = FileUtils.read_file(stat.get_path())
         log(self.verbose, "status for %s %s" % (wikiname, safe(stat_contents)))
@@ -85,6 +108,10 @@ class Index(object):
         return stat_text
 
     def do_one_wiki(self, wikiname, date=None):
+        '''
+        collect the text strings for one wiki to be inserted into
+        the index.html file
+        '''
         if (wikiname not in self._config.private_wikis_list and
                 wikiname not in self._config.closed_wikis_list and
                 wikiname not in self._config.skip_wikis_list):
@@ -146,6 +173,14 @@ class Index(object):
 
 
 class MiscDumpOne(object):
+    '''
+    run dump of specified name on all wikis, or if do_dump
+    is False, only generate the index.html file containing
+    information on the dump run, for all wikis.
+
+    args are keyword args converted to a dict, these get passed
+    through to the class for the specific dump you want
+    '''
     def __init__(self, config, date, wikiname, dumptype, do_dumps,
                  do_index, dryrun, verbose, forcerun, args):
         self._config = config
@@ -167,6 +202,12 @@ class MiscDumpOne(object):
         self.args = args
 
     def do_one_wiki(self):
+        '''
+        run dump of specified type for one wiki, for given date
+        unless it is among the wikis we skip, has already been run
+        for the date, or some other process has the lock and is
+        therefore presumably already dumping it
+        '''
         if (self.wikiname not in self._config.private_wikis_list and
                 self.wikiname not in self._config.closed_wikis_list and
                 self.wikiname not in self._config.skip_wikis_list):
@@ -218,6 +259,11 @@ class MiscDumpOne(object):
 
 
 class MiscDumpLoop(object):
+    '''
+    do the specified dumptype for all wikis for the given date, including
+    regeneration of the index.html file, with various dump phases optionally
+    skipped according to the supplied args
+    '''
     def __init__(self, config, date, dumptype, do_dump,
                  do_index, dryrun, verbose, forcerun, args):
         self._config = config
@@ -231,6 +277,15 @@ class MiscDumpLoop(object):
         self.args = args
 
     def do_run_on_all_wikis(self):
+        '''
+        run dump of given type on all wikis for given date; some
+        dump phases may be skipped depending on the supplied args.
+
+        no retries are performed.  wikis currently locked (i.e.
+        being handled by some other process) are skipped.
+
+        the number of failures and pending wikis are returned.
+        '''
         failures = 0
         todos = 0
         for wikiname in self._config.all_wikis_list:
@@ -246,6 +301,16 @@ class MiscDumpLoop(object):
         return (failures, todos)
 
     def do_all_wikis_til_done(self, num_fails):
+        '''
+        run dump of given type on all wikis for given date; some
+        dump phases may be skipped depending on the supplied args.
+
+        skipped wikis will be retried until they are available
+        for processing
+
+        failed wikis will be retried until they succeed or
+        until there are too many failures
+        '''
         fails = 0
         while 1:
             (failures, todos) = self.do_run_on_all_wikis()
@@ -259,6 +324,13 @@ class MiscDumpLoop(object):
 
 
 def usage(message=None):
+    '''
+    display a usage message for this script and
+    the arguments for each known dump type.
+
+    an optional message may be passed that will be
+    displayed first.
+    '''
     if message:
         print message
     usage_message = (
@@ -294,6 +366,12 @@ Args:  If your dump needs specific arguments passed to the class that
 
 
 def main():
+    '''
+    entry point:
+    get and process args, verify args,
+    run specified dumptype for one or all wikis in config file
+    for today or specified date
+    '''
     config_file = False
     date = None
     dumptype = None
