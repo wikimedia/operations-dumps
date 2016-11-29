@@ -306,32 +306,33 @@ class MiscDumpLock(object):
         '''
         given number of seconds, see if file is older than this many seconds
         and remove file if so.  we do this by opening the file exclusively first,
-        stat on the open fdesc, then remove path if it checks out.
+        stat on the open file handle, then remove path if it checks out.
         return True on removal, False for anything else including errors.
         '''
         removed = False
         try:
             # we're not going to write anything but have to open for write
             # in order to get LOCK_EX
-            fdesc = open(self.lockfile.get_path(), "a+")
+            fhandle = open(self.lockfile.get_path(), "a+")
             # try to get the lock. if we can't then we give up
             try:
-                fcntl.lockf(fdesc, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.lockf(fhandle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except Exception:
                 # fail to get lock or some other error
-                fdesc.close()
+                fhandle.close()
                 return removed
-            if self._is_stale(cutoff, fdesc.fileno()):
+            if self._is_stale(cutoff, fhandle.fileno()):
                 removed = self._unlock()
             else:
                 # if the file did not exist, our open call would have created
-                # it, and then we would have an empty file.  See if that's the
-                # case and if so, clean it up
-                contents = FileUtils.read_file(self.lockfile.get_path(self.date))
-                if not contents:
+                # it, and then we would have an empty file.  No one else would
+                # have written to it because we have the LOCK_EX here.
+                # See if that's the case and if so, clean up
+                filesize = os.fstat(fhandle.fileno()).st_size
+                if not filesize:
                     removed = self._unlock()
             # lock removed now
-            fdesc.close()
+            fhandle.close()
             return removed
         except Exception:
             pass
