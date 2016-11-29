@@ -9,6 +9,7 @@ from os.path import exists
 import sys
 import time
 import logging
+
 from miscdumplib import STATUS_TODO, STATUS_GOOD, STATUS_FAILED
 from miscdumplib import StatusFile, IndexFile
 from miscdumplib import md5sums, MD5File
@@ -27,17 +28,14 @@ class Index(object):
     generate index.html page containing information for the dump
     run of the specified date for all wikis
     '''
-    def __init__(self, config, date, dumptype, args):
+    def __init__(self, args):
         '''
         pass a dict of the standard args
         (config, date, dumptype, args)
         '''
-        self._config = config
-        self.date = date
-        self.dumptype = dumptype
-        self.indexfile = IndexFile(self._config)
-        self.dumpdir = MiscDumpDir(self._config)
         self.args = args
+        self.indexfile = IndexFile(self.args['config'])
+        self.dumpdir = MiscDumpDir(self.args['config'])
 
     def do_all_wikis(self):
         '''
@@ -45,15 +43,15 @@ class Index(object):
         FIXME maybe this should be for the latest run date? Hrm.
         '''
         text = ""
-        for wikiname in self._config.all_wikis_list:
+        for wikiname in self.args['config'].all_wikis_list:
             result = self.do_one_wiki(wikiname)
             if result:
                 log.info("result for wiki %s is %s", wikiname, result)
                 text = text + "<li>" + result + "</li>\n"
-        index_text = (self._config.read_template(self._config.indextmpl)
+        index_text = (self.args['config'].read_template(self.args['config'].indextmpl)
                       % {"items": text})
         FileUtils.write_file_in_place(self.indexfile.get_path(),
-                                      index_text, self._config.fileperms)
+                                      index_text, self.args['config'].fileperms)
 
     def get_outputfile_indextxt(self, filenames_tocheck, expected, wikiname, dump_date):
         '''
@@ -65,7 +63,7 @@ class Index(object):
         be produced by the dump; currently no errors are generated
         on this basis but this may change in the future.
         '''
-        dirinfo = MiscDumpDir(self._config, dump_date)
+        dirinfo = MiscDumpDir(self.args['config'], dump_date)
         path = dirinfo.get_dumpdir(wikiname)
         output_fileinfo = {}
         for filename in filenames_tocheck:
@@ -96,7 +94,7 @@ class Index(object):
         generate and return the text string describing
         the status of the dump of the wiki for the given date
         '''
-        stat = StatusFile(self._config, dump_date, wikiname)
+        stat = StatusFile(self.args['config'], dump_date, wikiname)
         stat_contents = FileUtils.read_file(stat.get_path())
         log.info("status for %s %s", wikiname, safe(stat_contents))
         if stat_contents:
@@ -105,13 +103,31 @@ class Index(object):
             stat_text = None
         return stat_text
 
+    def get_files_text(self, wiki):
+        '''
+        given wiki object, return the list of links and descriptions
+        for the output files for that wiki of the current dump type
+        and date
+        '''
+        dump_class = MiscDumpFactory.get_dumper(self.args['dumptype'])
+        dumper = dump_class(wiki, False, self.args['args'])
+        output_files, expected = dumper.get_output_files()
+        files_text = self.get_outputfile_indextxt(output_files, expected,
+                                                  wiki.db_name, wiki.date)
+
+        md5file = MD5File(wiki.config, wiki.date, wiki.db_name)
+        md5file_text = self.get_outputfile_indextxt(
+            [md5file.get_filename()], [], wiki.db_name, wiki.date)
+        files_text.extend(md5file_text)
+        return files_text
+
     def do_one_wiki(self, wikiname, date=None):
         '''
         collect the text strings for one wiki to be inserted into
         the index.html file
         '''
-        if not skip_wiki(wikiname, self._config):
-            dumps_dirs = MiscDumpDirs(self._config, wikiname)
+        if not skip_wiki(wikiname, self.args['config']):
+            dumps_dirs = MiscDumpDirs(self.args['config'], wikiname)
             if not exists(self.dumpdir.get_dumpdir_no_date(wikiname)):
                 log.info("No dump for wiki %s", wikiname)
                 return
@@ -125,21 +141,9 @@ class Index(object):
 
             other_runs_text = "other runs: %s<br />" % make_link(wikiname, wikiname)
             try:
-                wiki = Wiki(self._config, wikiname)
+                wiki = Wiki(self.args['config'], wikiname)
                 wiki.set_date(dump_date)
-                # fixme this is icky
-                dump_class = MiscDumpFactory.get_dumper(self.dumptype)
-                dumper = dump_class(wiki, False, self.args)
-                output_files, expected = dumper.get_output_files()
-                files_text = self.get_outputfile_indextxt(output_files, expected,
-                                                          wikiname, dump_date)
-
-                # fixme this is icky too
-                md5file = MD5File(wiki.config, wiki.date, wikiname)
-                md5file_text = self.get_outputfile_indextxt([md5file.get_filename()], [],
-                                                            wikiname, dump_date)
-                files_text.extend(md5file_text)
-
+                files_text = self.get_files_text(wiki)
                 stat_text = self.get_stat_text(dump_date, wikiname)
 
             except Exception as ex:
@@ -173,24 +177,14 @@ class MiscDumpOne(object):
     args are keyword args converted to a dict, these get passed
     through to the class for the specific dump you want
     '''
-    def __init__(self, config, date, wikiname, dumptype, do_dumps,
-                 do_index, dryrun, forcerun, args):
-        self._config = config
-        self.wiki = Wiki(self._config, wikiname)
-        self.date = date
-        self.wiki.set_date(self.date)
-        self.wikiname = wikiname
-        self.dumpdir = MiscDumpDir(self._config, self.date)
-        self.do_dumps = do_dumps
-        self.do_index = do_index
-        self.dryrun = dryrun
-        self.forcerun = forcerun
-        self.status_info = StatusInfo(self._config, self.date, self.wikiname)
-        self.dumps_dirs = MiscDumpDirs(self._config, self.wikiname)
-        self.dumptype = dumptype
-        dump_class = MiscDumpFactory.get_dumper(self.dumptype)
-        self.dumper = dump_class(self.wiki, self.dryrun, args)
+    def __init__(self, args, wikiname, flags):
         self.args = args
+        self.wiki = Wiki(self.args['config'], wikiname)
+        self.wiki.set_date(self.args['date'])
+        self.flags = flags
+        dump_class = MiscDumpFactory.get_dumper(self.args['dumptype'])
+        self.dumper = dump_class(self.wiki, flags['dryrun'],
+                                 self.args['args'])
 
     def do_one_wiki(self):
         '''
@@ -199,49 +193,56 @@ class MiscDumpOne(object):
         for the date, or some other process has the lock and is
         therefore presumably already dumping it
         '''
-        if not skip_wiki(self.wikiname, self._config):
-            if not exists(self.dumpdir.get_dumpdir(self.wikiname)):
-                os.makedirs(self.dumpdir.get_dumpdir(self.wikiname))
-            status = self.status_info.get_status()
-            if status == "done:all" and not self.forcerun:
+        if not skip_wiki(self.wiki.db_name, self.wiki.config):
+
+            dumpdir = MiscDumpDir(self.args['config'], self.args['date'])
+            if not exists(dumpdir.get_dumpdir(self.wiki.db_name)):
+                os.makedirs(dumpdir.get_dumpdir(self.wiki.db_name))
+
+            status_info = StatusInfo(self.args['config'], self.wiki.date, self.wiki.db_name)
+            status = status_info.get_status()
+            if status == "done:all" and not self.flags['forcerun']:
                 log.info("wiki %s skipped, adds/changes dump already"
-                         " complete", self.wikiname)
+                         " complete", self.wiki.db_name)
                 return STATUS_GOOD
 
-            if not self.dryrun:
-                lock = MiscDumpLock(self._config, self.date, self.wikiname)
+            if not self.flags['dryrun']:
+                lock = MiscDumpLock(self.args['config'], self.wiki.date, self.wiki.db_name)
                 if not lock.get_lock():
                     log.info("wiki %s skipped, wiki is locked,"
                              " another process should be doing the job",
-                             self.wikiname)
+                             self.wiki.db_name)
                     return STATUS_TODO
 
-                self.dumps_dirs.cleanup_old_dumps(self.date)
+                dumps_dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
+                dumps_dirs.cleanup_old_dumps(self.wiki.date)
 
-            log.info("Doing run for wiki: %s", self.wikiname)
+            log.info("Doing run for wiki: %s", self.wiki.db_name)
 
             try:
                 result = self.dumper.run()
                 if not result:
                     return STATUS_FAILED
 
-                if not self.dryrun:
+                if not self.flags['dryrun']:
                     output_files, expected = self.dumper.get_output_files()
                     if not md5sums(self.wiki, self.wiki.config.fileperms,
                                    output_files, expected):
                         return STATUS_FAILED
-                    self.status_info.set_status("done:" + self.dumper.get_stages_done())
+                    status_info.set_status("done:" + self.dumper.get_stages_done())
                     lock.unlock()
 
-                if self.do_index:
-                    index = Index(self._config, self.date, self.dumptype, self.args)
+                if self.flags['do_index']:
+                    index = Index(self.args)
                     index.do_all_wikis()
             except Exception as ex:
-                if not self.dryrun:
+                log.info("error from dump run"
+                         " for wiki %s", self.wiki.db_name, exc_info=ex)
+                if not self.flags['dryrun']:
                     lock.unlock()
                 return STATUS_FAILED
         log.info("Success!  Wiki %s %s dump complete.",
-                 self.wikiname, self.dumptype)
+                 self.wiki.db_name, self.args['dumptype'])
         return STATUS_GOOD
 
 
@@ -251,16 +252,9 @@ class MiscDumpLoop(object):
     regeneration of the index.html file, with various dump phases optionally
     skipped according to the supplied args
     '''
-    def __init__(self, config, date, dumptype, do_dump,
-                 do_index, dryrun, forcerun, args):
-        self._config = config
-        self.date = date
-        self.dumptype = dumptype
-        self.do_dump = do_dump
-        self.do_index = do_index
-        self.dryrun = dryrun
-        self.forcerun = forcerun
+    def __init__(self, args, flags):
         self.args = args
+        self.flags = flags
 
     def do_run_on_all_wikis(self):
         '''
@@ -274,11 +268,8 @@ class MiscDumpLoop(object):
         '''
         failures = 0
         todos = 0
-        for wikiname in self._config.all_wikis_list:
-            dump = MiscDumpOne(self._config, self.date, wikiname,
-                               self.dumptype, self.do_dump, self.do_index,
-                               self.dryrun, self.forcerun,
-                               self.args)
+        for wikiname in self.args['config'].all_wikis_list:
+            dump = MiscDumpOne(self.args, wikiname, self.flags)
             result = dump.do_one_wiki()
             if result == STATUS_FAILED:
                 failures = failures + 1
@@ -351,6 +342,82 @@ Args:  If your dump needs specific arguments passed to the class that
     sys.exit(1)
 
 
+def get_standard_args(options):
+    '''
+    get and return the args that get passed around
+    to the basic classes
+    '''
+    args = {'config': None, 'date': None, 'dumptype': None,
+            'args': None}
+    for (opt, val) in options:
+        if opt == "--date":
+            args['date'] = val
+        elif opt == "--dumptype":
+            args['dumptype'] = val
+    return args
+
+
+def get_secondary_args(remainder):
+    '''
+    if there are args left over from the command line,
+    turn them into name/value pairs or name/True flags
+    '''
+    args = {}
+    if len(remainder) > 0:
+        for opt in remainder:
+            if ':' in opt:
+                name, value = opt.split(':', 1)
+                args[name] = value
+            else:
+                args[opt] = True
+    return args
+
+
+def get_config(config_file, dumptype):
+    '''
+    return the config for the given dumptype
+    '''
+    configurator = MiscDumpFactory.get_configurator(dumptype)
+    if config_file:
+        config = configurator(config_file)
+    else:
+        config = configurator()
+    return config
+
+
+def check_usage(flags, standard_args):
+    '''
+    check validity of specified args
+    '''
+    if not flags['do_dump'] and not flags['do_index']:
+        usage("You may not specify more than one of dumpsonly "
+              "and indexonly together.")
+
+    if standard_args['dumptype'] is None:
+        usage("Mandatory dumptype argument not specified")
+    elif standard_args['dumptype'] not in MiscDumpFactory.get_known_dumptypes():
+        usage("No such known dump " + standard_args['dumptype'])
+
+
+def get_flags(options):
+    '''
+    get and return flags from command line options
+    '''
+    flags = {'do_dump': True, 'do_index': True,
+             'dryrun': False, 'forcerun': False}
+
+    for (opt, _) in options:
+        if opt == "--dumpsonly":
+            flags['do_index'] = False
+        elif opt == "--indexonly":
+            flags['do_dump'] = False
+        elif opt == "--dryrun":
+            flags['dryrun'] = True
+        elif opt == "--forcerun":
+            flags['forcerun'] = True
+    return flags
+
+
 def main():
     '''
     entry point:
@@ -359,12 +426,6 @@ def main():
     for today or specified date
     '''
     config_file = False
-    date = None
-    dumptype = None
-    do_dump = True
-    do_index = True
-    dryrun = False
-    forcerun = False
     wikiname = None
 
     try:
@@ -372,63 +433,35 @@ def main():
             sys.argv[1:], "",
             ['date=', 'dumptype=', 'configfile=', 'wiki=', 'dumpsonly',
              'indexonly', 'dryrun', 'verbose', 'forcerun'])
-    except Exception as ex:
+    except Exception:
         usage("Unknown option specified")
 
+    # these args get passed to all the dump classes
+    standard_args = get_standard_args(options)
+    # these flags get passed around to everything
+    flags = get_flags(options)
+
+    # the rest of the options
     for (opt, val) in options:
-        if opt == "--date":
-            date = val
-        elif opt == "--configfile":
+        if opt == "--configfile":
             config_file = val
         elif opt == "--wiki":
             wikiname = val
-        elif opt == "--dumptype":
-            dumptype = val
-        elif opt == "--dumpsonly":
-            do_index = False
-        elif opt == "--indexonly":
-            do_dump = False
-        elif opt == "--dryrun":
-            dryrun = True
         elif opt == "--verbose":
             logging.basicConfig(level=logging.INFO)
-        elif opt == "--forcerun":
-            forcerun = True
 
-    if not do_dump and not do_index:
-        usage("You may not specify more than one of dumpsonly "
-              "and indexonly together.")
+    check_usage(flags, standard_args)
 
-    if dumptype is None:
-        usage("Mandatory dumptype argument not specified")
-    elif dumptype not in MiscDumpFactory.get_known_dumptypes():
-        usage("No such known dump " + dumptype)
-
-    configurator = MiscDumpFactory.get_configurator(dumptype)
-    if config_file:
-        config = configurator(config_file)
-    else:
-        config = configurator()
-
-    args = {}
-    if not date:
-        date = TimeUtils.today()
-
-    if len(remainder) > 0:
-        for opt in remainder:
-            if ':' in opt:
-                name, value = opt.split(':', 1)
-                args[name] = value
-            else:
-                args[opt] = True
+    standard_args['config'] = get_config(config_file, standard_args['dumptype'])
+    if not standard_args['date']:
+        standard_args['date'] = TimeUtils.today()
+    standard_args['args'] = get_secondary_args(remainder)
 
     if wikiname is not None:
-        dump_one = MiscDumpOne(config, date, wikiname, dumptype, do_dump, do_index,
-                               dryrun, forcerun, args)
+        dump_one = MiscDumpOne(standard_args, wikiname, flags)
         dump_one.do_one_wiki()
     else:
-        dump_all = MiscDumpLoop(config, date, dumptype, do_dump, do_index, dryrun,
-                                forcerun, args)
+        dump_all = MiscDumpLoop(standard_args, flags)
         dump_all.do_all_wikis_til_done(3)
 
 
