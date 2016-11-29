@@ -211,12 +211,18 @@ class MiscDumpOne(object):
 
             if not self.flags['dryrun']:
                 lock = MiscDumpLock(self.args['config'], self.wiki.date, self.wiki.db_name)
+
+                # if lock is stale, remove it
+                lock.remove_if_stale(self.wiki.config.lock_stale)
+
+                # try to get the lock ourselves
                 if not lock.get_lock():
                     log.info("wiki %s skipped, wiki is locked,"
                              " another process should be doing the job",
                              self.wiki.db_name)
                     return STATUS_TODO
 
+                self.dumper.set_lockinfo(lock)
                 dumps_dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
                 dumps_dirs.cleanup_old_dumps(self.wiki.date)
 
@@ -233,7 +239,7 @@ class MiscDumpOne(object):
                                    output_files, expected):
                         return STATUS_FAILED
                     status_info.set_status("done:" + self.dumper.get_steps_done())
-                    lock.unlock()
+                    lock.unlock_if_owner()
 
                 if self.flags['do_index']:
                     index = Index(self.args)
@@ -242,7 +248,7 @@ class MiscDumpOne(object):
                 log.info("error from dump run"
                          " for wiki %s", self.wiki.db_name, exc_info=ex)
                 if not self.flags['dryrun']:
-                    lock.unlock()
+                    lock.unlock_if_owner()
                 return STATUS_FAILED
         log.info("Success!  Wiki %s %s dump complete.",
                  self.wiki.db_name, self.args['dumptype'])

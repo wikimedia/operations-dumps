@@ -9,6 +9,7 @@ import socket
 import shutil
 import time
 import hashlib
+import fcntl
 import ConfigParser
 import logging
 import logging.config
@@ -217,6 +218,14 @@ class MiscDumpLock(object):
     '''
     lock handling for the dump runs, in case more than one process on one
     or more servers runs dump at the same time
+
+    methods to:
+       get lockfile for dump run for a given wiki
+       update the mtime so the lockfile isn't stale
+       remove lockfile if created by us
+       remove lockfile if older than cutoff seconds
+
+    works with: unix (linux). nfs3 or local fs. nothing else guaranteed.
     '''
     def __init__(self, config, date, wikiname):
         self._config = config
@@ -224,21 +233,17 @@ class MiscDumpLock(object):
         self.wikiname = wikiname
         self.lockfile = MiscDumpLockFile(self._config, self.date, self.wikiname)
 
-    def is_locked(self):
-        '''
-        return True if the wiki is locked, False otherwise
-        '''
-        return exists(self.lockfile.get_path())
-
     def get_lock(self):
         '''
-        acquire lock for wiki and return True
+        acquire lock for wiki and return True.
+        if it does not exist, create it
         return False if lock could not be acquired
         '''
         try:
             if not exists(self._config.dump_dir):
                 os.makedirs(self._config.dump_dir)
             fhandle = FileUtils.atomic_create(self.lockfile.get_path(), "w")
+            fcntl.lockf(fhandle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             fhandle.write("%s %d" % (socket.getfqdn(), os.getpid()))
             fhandle.close()
             return True
@@ -246,30 +251,116 @@ class MiscDumpLock(object):
             log.info("Error encountered getting lock", exc_info=ex)
             return False
 
-    def is_stale_lock(self):
-        '''
-        return True if lock is older than config setting for stale locks,
-        False otherwise or if no information is available
-        '''
-        if not self.is_locked():
-            return False
+    def _get_lockfile_contents(self):
         try:
-            timestamp = os.stat(self.lockfile.get_path()).st_mtime
-        except Exception as ex:
-            log.info("Error encountered statting lock", exc_info=ex)
-            return False
-        return (time.time() - timestamp) > self._config.stale_interval
+            contents = FileUtils.read_file(self.lockfile.get_path(self.date))
+            return contents.split()
+        except Exception:
+            return None, None
 
-    def unlock(self):
+    def _check_lock_owner(self):
         '''
-        remove the lock for the wiki. Returns True on success, False otherwise
+        check if this process owns the lock
+        returns false if not, if no lock, or
+        if attempt to check failed
         '''
         try:
-            os.remove(self.lockfile.get_path())
-        except Exception as ex:
-            log.info("Error encountered removing lock", exc_info=ex)
-            return False
-        return True
+            myhostname = socket.getfqdn()
+            mypid = str(os.getpid())
+            lock_host, lock_pid = self._get_lockfile_contents()
+            if myhostname == lock_host and mypid == lock_pid:
+                return True
+        except Exception:
+            pass
+        return False
+
+    def unlock_if_owner(self):
+        '''
+        remove lock if we are the owner (hostname and
+        pid match up with file contents)
+        this assumes no other caller removes it by force, after
+        we checked ownership, and then creates it underneath us.
+        to avoid that happening, refresh the lock periodically
+        and only allow other callers to remove if stale.
+        '''
+        try:
+            if self._check_lock_owner():
+                self._unlock()
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _unlock(self):
+        '''
+        remove lock unconditionally
+        '''
+        try:
+            os.unlink(self.lockfile.get_path())
+            return True
+        except Exception:
+            pass
+        return False
+
+    def remove_if_stale(self, cutoff):
+        '''
+        given number of seconds, see if file is older than this many seconds
+        and remove file if so.  we do this by opening the file exclusively first,
+        stat on the open fdesc, then remove path if it checks out.
+        return True on removal, False for anything else including errors.
+        '''
+        removed = False
+        try:
+            # we're not going to write anything but have to open for write
+            # in order to get LOCK_EX
+            fdesc = open(self.lockfile.get_path(), "a+")
+            # try to get the lock. if we can't then we give up
+            try:
+                fcntl.lockf(fdesc, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except Exception:
+                # fail to get lock or some other error
+                fdesc.close()
+                return removed
+            if self._is_stale(cutoff, fdesc.fileno()):
+                removed = self._unlock()
+            else:
+                # if the file did not exist, our open call would have created
+                # it, and then we would have an empty file.  See if that's the
+                # case and if so, clean it up
+                contents = FileUtils.read_file(self.lockfile.get_path(self.date))
+                if not contents:
+                    removed = self._unlock()
+            # lock removed now
+            fdesc.close()
+            return removed
+        except Exception:
+            pass
+        return False
+
+    def _is_stale(self, cutoff, fdesc=None):
+        '''
+        given number of seconds, see if file is older than this many seconds
+        and return True if so, on any other result or error return False
+        '''
+        try:
+            if fdesc is None:
+                filetime = os.stat(self.lockfile.get_path()).st_mtime
+            else:
+                filetime = os.fstat(fdesc).st_mtime
+            now = time.time()
+            if now - filetime > cutoff:
+                return True
+        except Exception:
+            pass
+        return False
+
+    def refresh(self):
+        '''
+        update the mtime on the lockfile so that it's
+        no longer stale
+        '''
+        now = time.time()
+        os.utime(self.lockfile.get_path(), (now, now))
 
 
 class MiscDumpConfig(object):
@@ -322,9 +413,8 @@ class MiscDumpConfig(object):
         self.webroot = self.conf.get("output", "webroot")
         fileperms = self.conf.get("output", "fileperms")
         self.fileperms = int(fileperms, 0)
-        stale_interval = self.conf.get("output", "maxrevidstaleinterval")
-        self.stale_interval = int(stale_interval, 0)
-
+        lock_stale = self.conf.get("output", "lockstale")
+        self.lock_stale = int(lock_stale, 0)
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')
         self.php = self.conf.get("tools", "php")
@@ -531,6 +621,7 @@ class MiscDumpBase(object):
         self.dryrun = dryrun
         self.args = args
         self.steps = self.get_steps()
+        self.lock = None
 
     def get_steps(self):
         '''
@@ -588,3 +679,38 @@ class MiscDumpBase(object):
         expected = [self.steps[dump_step]['file'] for dump_step in self.steps
                     if self.steps[dump_step]['run']]
         return [os.path.join(outputdir, filename) for filename in filenames], expected
+
+    def set_lockinfo(self, lock):
+        '''
+        pass MiscDumpLock object; we use this for refreshing the lock
+        while dump commands run
+        '''
+        self.lock = lock
+
+    def periodic_callback(self, output=None, error=None):
+        '''
+        This is meant just to refresh the lock periodically
+        so it doesn't get stale.  But we might as well
+        log any output or error messages if there are any
+        '''
+        if output:
+            log.info(output)
+        if error:
+            log.info(error)
+        self.lock.refresh()
+
+    def get_lock_timeout_interval(self):
+        '''
+        how often in milliseconds should we try to refresh?
+        sooner than the stale interval so it doesn't expire
+
+        it would be nice if users configured the stale
+        interval greater than 1 second, but just in case
+        we try to be polite about that
+        '''
+        timeout_interval = self.wiki.config.lock_stale * 1000
+        if timeout_interval > 2000:
+            timeout_interval -= 1000
+        elif timeout_interval > 0:
+            timeout_interval -= 500
+        return timeout_interval

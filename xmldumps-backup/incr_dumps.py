@@ -325,7 +325,8 @@ class IncrDump(MiscDumpBase):
         else:
             log.info("running with no output: " + " ".join(command))
             success = RunSimpleCommand.run_with_no_output(
-                command, shell=False)
+                command, shell=False, timeout=self.get_lock_timeout_interval(),
+                timeout_callback=self.periodic_callback)
             if not success:
                 log.info("error producing stub files for wiki %s", self.wiki.db_name)
                 return False
@@ -357,7 +358,9 @@ class IncrDump(MiscDumpBase):
             print "would run command for revs dump:", command
         else:
             log.info("running with no output: " + " ".join(command))
-            success = RunSimpleCommand.run_with_no_output(command, shell=False)
+            success = RunSimpleCommand.run_with_no_output(
+                command, shell=False, timeout=self.get_lock_timeout_interval(),
+                timeout_callback=self.periodic_callback)
             if not success:
                 log.info("error producing revision text files"
                          " for wiki %s", self.wiki.db_name)
