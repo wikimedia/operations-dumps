@@ -287,3 +287,17 @@ class IncrDump(object):
                 traceback.print_exc(file=sys.stdout)
             return False
         return True
+
+    def get_output_files(self):
+        dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
+        outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
+        revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        stubfile = StubFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        revsfile = RevsFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        filenames = [revidfile.get_filename(), stubfile.get_filename(), revsfile.get_filename()]
+        expected = []
+        if 'do_revs' in self.args:
+            expected.append(revsfile)
+        if 'do_stubs' in self.args:
+            expected.append(stubfile)
+        return [os.path.join(outputdir, filename) for filename in filenames], expected

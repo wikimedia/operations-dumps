@@ -16,8 +16,6 @@ from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
 from incr_dumps import IncrDump
-from incr_dumps import StubFile
-from incr_dumps import RevsFile
 from incr_dumps import DumpConfig
 from incr_dumps import cutoff_from_date
 from dumps.WikiDump import Wiki
@@ -26,75 +24,76 @@ from dumps.WikiDump import FileUtils, TimeUtils
 
 
 class Index(object):
-    def __init__(self, config, date, verbose):
+    def __init__(self, config, date, dumper, verbose):
         self._config = config
         self.date = date
+        self.dumper = dumper
         self.indexfile = IndexFile(self._config)
         self.dumpdir = MiscDumpDir(self._config)
         self.verbose = verbose
 
     def do_all_wikis(self):
         text = ""
-        for wiki in self._config.all_wikis_list:
-            result = self.do_one_wiki(wiki)
+        for wikiname in self._config.all_wikis_list:
+            result = self.do_one_wiki(wikiname)
             if result:
                 log(self.verbose, "result for wiki %s is %s"
-                    % (wiki, result))
+                    % (wikiname, result))
                 text = text + "<li>" + result + "</li>\n"
         index_text = (self._config.read_template(self._config.indextmpl)
                       % {"items": text})
         FileUtils.write_file_in_place(self.indexfile.get_path(),
                                       index_text, self._config.fileperms)
 
-    def do_one_wiki(self, wiki, date=None):
-        if (wiki not in self._config.private_wikis_list and
-                wiki not in self._config.closed_wikis_list and
-                wiki not in self._config.skip_wikis_list):
-            dumps_dirs = MiscDumpDirs(self._config, wiki)
-            if not exists(self.dumpdir.get_dumpdir_no_date(wiki)):
-                log(self.verbose, "No dump for wiki %s" % wiki)
+    def do_one_wiki(self, wikiname, date=None):
+        if (wikiname not in self._config.private_wikis_list and
+                wikiname not in self._config.closed_wikis_list and
+                wikiname not in self._config.skip_wikis_list):
+            dumps_dirs = MiscDumpDirs(self._config, wikiname)
+            if not exists(self.dumpdir.get_dumpdir_no_date(wikiname)):
+                log(self.verbose, "No dump for wiki %s" % wikiname)
                 return
             if date is not None:
                 dump_date = date
             else:
                 dump_date = dumps_dirs.get_latest_dump_date(True)
             if not dump_date:
-                log(self.verbose, "No dump for wiki %s" % wiki)
+                log(self.verbose, "No dump for wiki %s" % wikiname)
                 return
 
-            other_runs_text = "other runs: %s" % make_link(wiki, wiki)
+            other_runs_text = "other runs: %s" % make_link(wikiname, wikiname)
+
             try:
-                stub = StubFile(self._config, dump_date, wiki)
-                (stub_date, stub_size) = stub.get_fileinfo()
-                log(self.verbose, "stub for %s %s %s"
-                    % (wiki, safe(stub_date), safe(stub_size)))
-                if stub_date:
-                    stub_text = ("stubs: %s (size %s)"
-                                 % (make_link(
-                                     os.path.join(
-                                         wiki, dump_date,
-                                         stub.get_filename()),
-                                     stub_date), stub_size))
-                else:
-                    stub_text = None
-
-                revs = RevsFile(self._config, dump_date, wiki)
-                (revs_date, revs_size) = revs.get_fileinfo()
-                log(self.verbose, "revs for %s %s %s"
-                    % (wiki, safe(revs_date), safe(revs_size)))
-                if revs_date:
-                    revs_text = (
-                        "revs: %s (size %s)" % (
-                            make_link(
+                wiki = Wiki(self._config, wikiname)
+                wiki.set_date(dump_date)
+                output_files, expected = self.dumper.get_output_files()
+                dirinfo = MiscDumpDir(self._config, dump_date)
+                path = dirinfo.get_dumpdir(wiki.db_name)
+                output_fileinfo = {}
+                for filename in output_files:
+                    output_fileinfo[filename] = FileUtils.file_info(os.path.join(path, filename))
+                files_text = []
+                errors = False
+                for filename in output_fileinfo:
+                    file_date, file_size = output_fileinfo[filename]
+                    log(self.verbose, "output file %s for %s %s %s"
+                        % (filename, wikiname, safe(file_date), safe(file_size)))
+                    if filename in expected and file_date is None:
+                        # may do more with this sort of error in the future
+                        # for now, just get stats on the other files
+                        continue
+                    if file_date:
+                        files_text.append(
+                            "%s: %s (size %s)"
+                            % (os.path.basename(filename), make_link(
                                 os.path.join(
-                                    wiki, dump_date, revs.get_filename()),
-                                revs_date), revs_size))
-                else:
-                    revs_text = None
+                                    wikiname, dump_date,
+                                    filename),
+                                file_date), file_size))
 
-                stat = StatusFile(self._config, dump_date, wiki)
+                stat = StatusFile(self._config, dump_date, wikiname)
                 stat_contents = FileUtils.read_file(stat.get_path())
-                log(self.verbose, "status for %s %s" % (wiki, safe(stat_contents)))
+                log(self.verbose, "status for %s %s" % (wikiname, safe(stat_contents)))
                 if stat_contents:
                     stat_text = "(%s)" % (stat_contents)
                 else:
@@ -104,25 +103,24 @@ class Index(object):
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 log(self.verbose, "Error encountered, no information available"
-                    " for wiki %s" % wiki)
+                    " for wiki %s" % wikiname)
                 return ("<strong>%s</strong> Error encountered,"
-                        " no information available | %s" % (wiki, other_runs_text))
+                        " no information available | %s" % (wikiname, other_runs_text))
 
             try:
-                wikiname_text = "<strong>%s</strong>" % wiki
+                wikiname_text = "<strong>%s</strong>" % wikiname
 
                 wiki_info = (" ".join([entry for entry in [wikiname_text, stat_text]
                                        if entry is not None]) + "<br />")
-                wiki_info = (wiki_info + " &nbsp;&nbsp; " +
-                             " |  ".join([entry for entry in [stub_text, revs_text, other_runs_text]
-                                          if entry is not None]))
+                wiki_info = (wiki_info + " &nbsp;&nbsp; " + " |  ".join(files_text))
+                wiki_info = wiki_info + "|  " + other_runs_text
             except Exception as ex:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 log(self.verbose, "Error encountered formatting information"
-                    " for wiki %s" % wiki)
+                    " for wiki %s" % wikiname)
                 return ("Error encountered formatting information"
-                        " for wiki %s" % wiki)
+                        " for wiki %s" % wikiname)
 
             return wiki_info
 
@@ -141,9 +139,6 @@ class MiscDumpOne(object):
 
         self.do_stubs = args['do_stubs']
         self.do_revs = args['do_revs']
-        self.stubfile = StubFile(self._config, self.date, self.wikiname)
-        self.revsfile = RevsFile(self._config, self.date, self.wikiname)
-
         self.do_index = do_index
         self.dryrun = dryrun
         self.forcerun = forcerun
@@ -158,7 +153,6 @@ class MiscDumpOne(object):
                 self.wikiname not in self._config.skip_wikis_list):
             if not exists(self.dumpdir.get_dumpdir(self.wikiname)):
                 os.makedirs(self.dumpdir.get_dumpdir(self.wikiname))
-
             status = self.status_info.get_status()
             if status == "done" and not self.forcerun:
                 log(self.verbose, "wiki %s skipped, adds/changes dump already"
@@ -183,13 +177,15 @@ class MiscDumpOne(object):
                     return STATUS_FAILED
 
                 if not self.dryrun:
-                    if not self.md5sums():
+                    output_files, expected = self.incr.get_output_files()
+                    if not md5sums(self.wiki, self.wiki.config.fileperms,
+                                   output_files, expected):
                         return STATUS_FAILED
                     self.status_info.set_status("done")
                     lock.unlock()
 
                 if self.do_index:
-                    index = Index(self._config, self.date, self.verbose)
+                    index = Index(self._config, self.date, self.incr, self.verbose)
                     index.do_all_wikis()
             except Exception as ex:
                 if self.verbose:
@@ -201,35 +197,33 @@ class MiscDumpOne(object):
             % self.wikiname)
         return STATUS_GOOD
 
-    def md5sum_one_file(self, filename):
-        summer = hashlib.md5()
-        infile = file(filename, "rb")
-        bufsize = 4192 * 32
-        buff = infile.read(bufsize)
-        while buff:
-            summer.update(buff)
-            buff = infile.read(bufsize)
-        infile.close()
-        return summer.hexdigest()
 
-    def md5sums(self):
+def md5sum_one_file(filename):
+    summer = hashlib.md5()
+    infile = file(filename, "rb")
+    bufsize = 4192 * 32
+    buff = infile.read(bufsize)
+    while buff:
+        summer.update(buff)
+        buff = infile.read(bufsize)
+    infile.close()
+    return summer.hexdigest()
+
+
+def md5sums(wiki, fileperms, files, mandatory):
+    md5file = MD5File(wiki.config, wiki.db_name, wiki.date)
+    text = ""
+    files = []
+    errors = False
+    for fname in files:
         try:
-            md5file = MD5File(self._config, self.date, self.wikiname)
-            text = ""
-            files = []
-            if self.do_stubs:
-                files.append(self.stubfile.get_path())
-            if self.do_revs:
-                files.append(self.revsfile.get_path())
-            for fname in files:
-                text = text + "%s\n" % self.md5sum_one_file(fname)
-                FileUtils.write_file_in_place(md5file.get_path(),
-                                              text, self._config.fileperms)
-            return True
-        except Exception as ex:
-            if self.verbose:
-                traceback.print_exc(file=sys.stdout)
-            return False
+            text = text + "%s\n" % md5sum_one_file(fname)
+            FileUtils.write_file_in_place(md5file.get_path(),
+                                          text, fileperms)
+        except:
+            if fname in mandatory:
+                errors = True
+    return not errors
 
 
 class MiscDumpLoop(object):
@@ -247,8 +241,8 @@ class MiscDumpLoop(object):
     def do_run_on_all_wikis(self):
         failures = 0
         todos = 0
-        for wiki in self._config.all_wikis_list:
-            dump = MiscDumpOne(self._config, self.date, wiki,
+        for wikiname in self._config.all_wikis_list:
+            dump = MiscDumpOne(self._config, self.date, wikiname,
                                self.do_dump, self.do_index,
                                self.dryrun, self.verbose, self.forcerun,
                                self.args)
