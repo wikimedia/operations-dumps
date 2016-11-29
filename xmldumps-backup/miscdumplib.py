@@ -10,8 +10,7 @@ import hashlib
 import ConfigParser
 import logging
 import logging.config
-import dumps.WikiDump
-from dumps.WikiDump import FileUtils, MiscUtils
+from dumps.WikiDump import FileUtils, MiscUtils, Config
 
 
 STATUS_TODO = 1
@@ -264,7 +263,7 @@ class MiscDumpLock(object):
         return True
 
 
-class MiscDumpConfig(dumps.WikiDump.Config):
+class MiscDumpConfig(object):
     '''
     configuration information for dumps
     '''
@@ -341,7 +340,10 @@ class MiscDumpConfig(dumps.WikiDump.Config):
             self.db_user = self.conf.get("database", "user")
         if self.conf.has_option('database', 'password'):
             self.db_password = self.conf.get("database", "password")
-        self.get_db_user_and_password()  # get from MW adminsettings file if not set in conf file
+        # get from MW adminsettings file if not set in conf file
+        if not self.db_user:
+            self.db_user, self.db_password = Config.get_db_user_and_password(
+                self.conf, self.wiki_dir)
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
 
     def read_template(self, name):

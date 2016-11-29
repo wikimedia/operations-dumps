@@ -124,13 +124,15 @@ class Config(object):
             print "The mandatory setting 'dir' in the section 'wiki' was not defined."
             raise ConfigParser.NoOptionError('wiki', 'dir')
 
-        self.db_user = None
-        self.db_password = None
         self.parse_conffile_globally()
         self.parse_conffile_per_project()
-        self.get_db_user_and_password()  # get from MW adminsettings file if not set in conf file
+        # get from MW adminsettings file if not set in conf file
+        if not self.db_user:
+            self.db_user, self.db_password = Config.get_db_user_and_password(
+                self.conf, self.wiki_dir)
 
-    def parse_php_assignment(self, line):
+    @staticmethod
+    def parse_php_assignment(line):
         # not so much parse as grab a string to the right of the equals sign,
         # we expect a line that has  ... = "somestring" ;
         # with single or double quotes, spaes or not.  but nothing more complicated.
@@ -141,23 +143,20 @@ class Config(object):
         else:
             return ""
 
-    def get_db_user_and_password(self):
-        # check MW adminsettings file for these if we didn't have values for
-        # them in the conf file; failing that we fall back on defaults specified
-        # here
-
-        if self.db_user:  # already set via conf file, don't override
-            return
+    @staticmethod
+    def get_db_user_and_password(conf, wiki_dir):
+        # check MW adminsettings file for these,
+        # failing that we fall back on defaults specified here
 
         default_dbuser = "root"
         default_dbpassword = ""
 
-        if not self.conf.has_option("wiki", "adminsettings"):
-            self.db_user = default_dbuser
-            self.db_password = default_dbpassword
-            return
+        if not conf.has_option("wiki", "adminsettings"):
+            db_user = default_dbuser
+            db_password = default_dbpassword
+            return db_user, db_password
 
-        adminfile = open(os.path.join(self.wiki_dir, self.conf.get("wiki", "adminsettings")), "r")
+        adminfile = open(os.path.join(wiki_dir, conf.get("wiki", "adminsettings")), "r")
         lines = adminfile.readlines()
         adminfile.close()
 
@@ -168,19 +167,19 @@ class Config(object):
 
         for line in lines:
             if "$wgDBadminuser" in line:
-                self.db_user = self.parse_php_assignment(line)
+                db_user = Config.parse_php_assignment(line)
             elif "$wgDBuser" in line:
-                default_dbuser = self.parse_php_assignment(line)
+                default_dbuser = Config.parse_php_assignment(line)
             elif "$wgDBadminpassword" in line:
-                self.db_password = self.parse_php_assignment(line)
+                db_password = Config.parse_php_assignment(line)
             elif "$wgDBpassword" in line:
-                default_dbpassword = self.parse_php_assignment(line)
+                default_dbpassword = Config.parse_php_assignment(line)
 
-        if not self.db_user:
-            self.db_user = default_dbuser
-        if not self.db_password:
-            self.db_password = default_dbpassword
-        return
+        if not db_user:
+            db_user = default_dbuser
+        if not db_password:
+            db_password = default_dbpassword
+        return db_user, db_password
 
     def parse_conffile_globally(self):
         self.db_list = MiscUtils.db_list(self.conf.get("wiki", "dblist"))
