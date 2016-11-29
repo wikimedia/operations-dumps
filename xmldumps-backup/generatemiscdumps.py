@@ -8,7 +8,7 @@ import os
 from os.path import exists
 import sys
 import time
-import traceback
+import logging
 from miscdumplib import STATUS_TODO, STATUS_GOOD, STATUS_FAILED
 from miscdumplib import StatusFile, IndexFile
 from miscdumplib import md5sums, MD5File
@@ -27,7 +27,7 @@ class Index(object):
     generate index.html page containing information for the dump
     run of the specified date for all wikis
     '''
-    def __init__(self, config, date, dumptype, verbose, args):
+    def __init__(self, config, date, dumptype, args):
         '''
         pass a dict of the standard args
         (config, date, dumptype, args)
@@ -37,7 +37,6 @@ class Index(object):
         self.dumptype = dumptype
         self.indexfile = IndexFile(self._config)
         self.dumpdir = MiscDumpDir(self._config)
-        self.verbose = verbose
         self.args = args
 
     def do_all_wikis(self):
@@ -49,8 +48,7 @@ class Index(object):
         for wikiname in self._config.all_wikis_list:
             result = self.do_one_wiki(wikiname)
             if result:
-                log(self.verbose, "result for wiki %s is %s"
-                    % (wikiname, result))
+                log.info("result for wiki %s is %s", wikiname, result)
                 text = text + "<li>" + result + "</li>\n"
         index_text = (self._config.read_template(self._config.indextmpl)
                       % {"items": text})
@@ -76,8 +74,8 @@ class Index(object):
         filenames = sorted(output_fileinfo.keys())
         for filename in filenames:
             file_date, file_size = output_fileinfo[filename]
-            log(self.verbose, "output file %s for %s %s %s"
-                % (filename, wikiname, safe(file_date), safe(file_size)))
+            log.info("output file %s for %s %s %s",
+                     filename, wikiname, safe(file_date), safe(file_size))
             if filename in expected and file_date is None:
                 # may do more with this sort of error in the future
                 # for now, just get stats on the other files
@@ -100,7 +98,7 @@ class Index(object):
         '''
         stat = StatusFile(self._config, dump_date, wikiname)
         stat_contents = FileUtils.read_file(stat.get_path())
-        log(self.verbose, "status for %s %s" % (wikiname, safe(stat_contents)))
+        log.info("status for %s %s", wikiname, safe(stat_contents))
         if stat_contents:
             stat_text = "(%s)" % (stat_contents)
         else:
@@ -115,14 +113,14 @@ class Index(object):
         if not skip_wiki(wikiname, self._config):
             dumps_dirs = MiscDumpDirs(self._config, wikiname)
             if not exists(self.dumpdir.get_dumpdir_no_date(wikiname)):
-                log(self.verbose, "No dump for wiki %s" % wikiname)
+                log.info("No dump for wiki %s", wikiname)
                 return
             if date is not None:
                 dump_date = date
             else:
                 dump_date = dumps_dirs.get_latest_dump_date(True)
             if not dump_date:
-                log(self.verbose, "No dump for wiki %s" % wikiname)
+                log.info("No dump for wiki %s", wikiname)
                 return
 
             other_runs_text = "other runs: %s<br />" % make_link(wikiname, wikiname)
@@ -131,7 +129,7 @@ class Index(object):
                 wiki.set_date(dump_date)
                 # fixme this is icky
                 dump_class = MiscDumpFactory.get_dumper(self.dumptype)
-                dumper = dump_class(wiki, False, self.verbose, self.args)
+                dumper = dump_class(wiki, False, self.args)
                 output_files, expected = dumper.get_output_files()
                 files_text = self.get_outputfile_indextxt(output_files, expected,
                                                           wikiname, dump_date)
@@ -145,10 +143,8 @@ class Index(object):
                 stat_text = self.get_stat_text(dump_date, wikiname)
 
             except Exception as ex:
-                if self.verbose:
-                    traceback.print_exc(file=sys.stdout)
-                log(self.verbose, "Error encountered, no information available"
-                    " for wiki %s" % wikiname)
+                log.info("Error encountered, no information available"
+                         " for wiki %s", wikiname, exc_info=ex)
                 return ("<strong>%s</strong> Error encountered,"
                         " no information available | %s" % (wikiname, other_runs_text))
 
@@ -160,10 +156,8 @@ class Index(object):
                 wiki_info = (wiki_info + "&nbsp;&nbsp;" + "\n&nbsp;&nbsp;".join(files_text))
                 wiki_info = wiki_info + "\n&nbsp;" + other_runs_text
             except Exception as ex:
-                if self.verbose:
-                    traceback.print_exc(file=sys.stdout)
-                log(self.verbose, "Error encountered formatting information"
-                    " for wiki %s" % wikiname)
+                log.info("Error encountered formatting information"
+                         " for wiki %s", wikiname, exc_info=ex)
                 return ("Error encountered formatting information"
                         " for wiki %s" % wikiname)
 
@@ -180,7 +174,7 @@ class MiscDumpOne(object):
     through to the class for the specific dump you want
     '''
     def __init__(self, config, date, wikiname, dumptype, do_dumps,
-                 do_index, dryrun, verbose, forcerun, args):
+                 do_index, dryrun, forcerun, args):
         self._config = config
         self.wiki = Wiki(self._config, wikiname)
         self.date = date
@@ -193,10 +187,9 @@ class MiscDumpOne(object):
         self.forcerun = forcerun
         self.status_info = StatusInfo(self._config, self.date, self.wikiname)
         self.dumps_dirs = MiscDumpDirs(self._config, self.wikiname)
-        self.verbose = verbose
         self.dumptype = dumptype
         dump_class = MiscDumpFactory.get_dumper(self.dumptype)
-        self.dumper = dump_class(self.wiki, self.dryrun, self.verbose, args)
+        self.dumper = dump_class(self.wiki, self.dryrun, args)
         self.args = args
 
     def do_one_wiki(self):
@@ -211,21 +204,21 @@ class MiscDumpOne(object):
                 os.makedirs(self.dumpdir.get_dumpdir(self.wikiname))
             status = self.status_info.get_status()
             if status == "done:all" and not self.forcerun:
-                log(self.verbose, "wiki %s skipped, adds/changes dump already"
-                    " complete" % self.wikiname)
+                log.info("wiki %s skipped, adds/changes dump already"
+                         " complete", self.wikiname)
                 return STATUS_GOOD
 
             if not self.dryrun:
                 lock = MiscDumpLock(self._config, self.date, self.wikiname)
                 if not lock.get_lock():
-                    log(self.verbose, "wiki %s skipped, wiki is locked,"
-                        " another process should be doing the job"
-                        % self.wikiname)
+                    log.info("wiki %s skipped, wiki is locked,"
+                             " another process should be doing the job",
+                             self.wikiname)
                     return STATUS_TODO
 
                 self.dumps_dirs.cleanup_old_dumps(self.date)
 
-            log(self.verbose, "Doing run for wiki: %s" % self.wikiname)
+            log.info("Doing run for wiki: %s", self.wikiname)
 
             try:
                 result = self.dumper.run()
@@ -241,16 +234,14 @@ class MiscDumpOne(object):
                     lock.unlock()
 
                 if self.do_index:
-                    index = Index(self._config, self.date, self.dumptype, self.verbose, self.args)
+                    index = Index(self._config, self.date, self.dumptype, self.args)
                     index.do_all_wikis()
             except Exception as ex:
-                if self.verbose:
-                    traceback.print_exc(file=sys.stdout)
                 if not self.dryrun:
                     lock.unlock()
                 return STATUS_FAILED
-        log(self.verbose, "Success!  Wiki %s %s dump complete."
-            % (self.wikiname, self.dumptype))
+        log.info("Success!  Wiki %s %s dump complete.",
+                 self.wikiname, self.dumptype)
         return STATUS_GOOD
 
 
@@ -261,14 +252,13 @@ class MiscDumpLoop(object):
     skipped according to the supplied args
     '''
     def __init__(self, config, date, dumptype, do_dump,
-                 do_index, dryrun, verbose, forcerun, args):
+                 do_index, dryrun, forcerun, args):
         self._config = config
         self.date = date
         self.dumptype = dumptype
         self.do_dump = do_dump
         self.do_index = do_index
         self.dryrun = dryrun
-        self.verbose = verbose
         self.forcerun = forcerun
         self.args = args
 
@@ -287,7 +277,7 @@ class MiscDumpLoop(object):
         for wikiname in self._config.all_wikis_list:
             dump = MiscDumpOne(self._config, self.date, wikiname,
                                self.dumptype, self.do_dump, self.do_index,
-                               self.dryrun, self.verbose, self.forcerun,
+                               self.dryrun, self.forcerun,
                                self.args)
             result = dump.do_one_wiki()
             if result == STATUS_FAILED:
@@ -374,7 +364,6 @@ def main():
     do_dump = True
     do_index = True
     dryrun = False
-    verbose = False
     forcerun = False
     wikiname = None
 
@@ -402,7 +391,7 @@ def main():
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--verbose":
-            verbose = True
+            logging.basicConfig(level=logging.INFO)
         elif opt == "--forcerun":
             forcerun = True
 
@@ -435,11 +424,11 @@ def main():
 
     if wikiname is not None:
         dump_one = MiscDumpOne(config, date, wikiname, dumptype, do_dump, do_index,
-                               dryrun, verbose, forcerun, args)
+                               dryrun, forcerun, args)
         dump_one.do_one_wiki()
     else:
         dump_all = MiscDumpLoop(config, date, dumptype, do_dump, do_index, dryrun,
-                                verbose, forcerun, args)
+                                forcerun, args)
         dump_all.do_all_wikis_til_done(3)
 
 
