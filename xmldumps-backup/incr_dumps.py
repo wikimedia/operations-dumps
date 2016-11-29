@@ -113,6 +113,14 @@ class IncrDump(object):
         self.args = args
         if not self.args['cutoff']:
             self.args['cutoff'] = cutoff_from_date(self.wiki.date, self.wiki.config)
+        if 'revsonly' in args:
+            self.dostubs = False
+        else:
+            self.dostubs = True
+        if 'stubsonly' in args:
+            self.dorevs = False
+        else:
+            self.dorevs = True
 
     def get_prev_incrdate(self, date, dumpok=False, revidok=False):
         # find the most recent incr dump before the
@@ -204,7 +212,7 @@ class IncrDump(object):
         return max_revid
 
     def dump_stub(self, start_revid, end_revid):
-        if 'do_stubs' not in self.args:
+        if not self.dostubs:
             return True
 
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
@@ -231,7 +239,7 @@ class IncrDump(object):
         return True
 
     def dump_revs(self):
-        if 'do_revs' not in self.args:
+        if not self.dorevs:
             return True
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
@@ -288,6 +296,16 @@ class IncrDump(object):
             return False
         return True
 
+    def get_stages_done(self):
+        """
+        return comma-sep list of stages that are complete, in case not all are.
+        if all are complete, return 'all'
+        """
+        if 'stubsonly' in self.args:
+            return 'stubs'
+        else:
+            return 'all'
+
     def get_output_files(self):
         dumpdir = MiscDumpDir(self.wiki.config, self.wiki.date)
         outputdir = dumpdir.get_dumpdir(self.wiki.db_name, self.wiki.date)
@@ -296,8 +314,17 @@ class IncrDump(object):
         revsfile = RevsFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
         filenames = [revidfile.get_filename(), stubfile.get_filename(), revsfile.get_filename()]
         expected = []
-        if 'do_revs' in self.args:
+        if self.dorevs:
             expected.append(revsfile)
-        if 'do_stubs' in self.args:
+        if self.dostubs:
             expected.append(stubfile)
         return [os.path.join(outputdir, filename) for filename in filenames], expected
+
+
+def get_usage():
+    return """Specific args:
+
+stubsonly        -- dump stubs but not revs
+revsonly         -- dump revs but not stubs (requires that
+                    stubs have already been dumped)
+"""

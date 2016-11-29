@@ -15,6 +15,7 @@ from miscdumplib import StatusFile, IndexFile
 from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link
+import incr_dumps
 from incr_dumps import IncrDump
 from incr_dumps import DumpConfig
 from incr_dumps import cutoff_from_date
@@ -62,7 +63,6 @@ class Index(object):
                 return
 
             other_runs_text = "other runs: %s" % make_link(wikiname, wikiname)
-
             try:
                 wiki = Wiki(self._config, wikiname)
                 wiki.set_date(dump_date)
@@ -73,7 +73,6 @@ class Index(object):
                 for filename in output_files:
                     output_fileinfo[filename] = FileUtils.file_info(os.path.join(path, filename))
                 files_text = []
-                errors = False
                 for filename in output_fileinfo:
                     file_date, file_size = output_fileinfo[filename]
                     log(self.verbose, "output file %s for %s %s %s"
@@ -136,9 +135,6 @@ class MiscDumpOne(object):
         self.wikiname = wikiname
         self.dumpdir = MiscDumpDir(self._config, self.date)
         self.do_dumps = do_dumps
-
-        self.do_stubs = args['do_stubs']
-        self.do_revs = args['do_revs']
         self.do_index = do_index
         self.dryrun = dryrun
         self.forcerun = forcerun
@@ -154,7 +150,7 @@ class MiscDumpOne(object):
             if not exists(self.dumpdir.get_dumpdir(self.wikiname)):
                 os.makedirs(self.dumpdir.get_dumpdir(self.wikiname))
             status = self.status_info.get_status()
-            if status == "done" and not self.forcerun:
+            if status == "done:all" and not self.forcerun:
                 log(self.verbose, "wiki %s skipped, adds/changes dump already"
                     " complete" % self.wikiname)
                 return STATUS_GOOD
@@ -181,7 +177,7 @@ class MiscDumpOne(object):
                     if not md5sums(self.wiki, self.wiki.config.fileperms,
                                    output_files, expected):
                         return STATUS_FAILED
-                    self.status_info.set_status("done")
+                    self.status_info.set_status("done:" + self.incr.get_stages_done())
                     lock.unlock()
 
                 if self.do_index:
@@ -289,11 +285,13 @@ Options: --configfile, --date, --dumponly, --indexonly,
 
 Args:  If your dump needs specific arguments passed to the class that
        are not provided for here, you can pass them on the command line
-       before the final wikidbname argument.  These arguments will be
-       in pairs, first the argument name, then whitespace, then the argument
-       value.
+       before the final wikidbname argument.  Arguments with values should
+       be passed as argname:value, and arguments without values (flags that
+       will be set as True) should be passed simply as argname.
 """)
     sys.stderr.write(usage_message)
+    secondary_message = incr_dumps.get_usage()
+    sys.stderr.write(secondary_message)
     sys.exit(1)
 
 
@@ -305,12 +303,12 @@ def main():
     dryrun = False
     verbose = False
     forcerun = False
-    args = {'do_stubs': True, 'do_revs': True, 'cutoff': None}
+    wikiname = None
 
     try:
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "",
-            ['date=', 'configfile=', 'stubsonly', 'revsonly',
+            ['date=', 'configfile=', 'wiki=', 'dumpsonly',
              'indexonly', 'dryrun', 'verbose', 'forcerun'])
     except Exception as ex:
         usage("Unknown option specified")
@@ -320,16 +318,12 @@ def main():
             date = val
         elif opt == "--configfile":
             config_file = val
-        elif opt == "--stubsonly":
+        elif opt == "--wiki":
+            wikiname = val
+        elif opt == "--dumpsonly":
             do_index = False
-            args['do_revs'] = False
-        elif opt == "--revsonly":
-            do_index = False
-            args['do_stubs'] = False
         elif opt == "--indexonly":
             do_dump = False
-            args['do_stubs'] = False
-            args['do_revs'] = False
         elif opt == "--dryrun":
             dryrun = True
         elif opt == "--verbose":
@@ -346,6 +340,7 @@ def main():
     else:
         config = DumpConfig()
 
+    args = {}
     if not date:
         date = TimeUtils.today()
         args['cutoff'] = time.strftime("%Y%m%d%H%M%S",
@@ -354,7 +349,15 @@ def main():
         args['cutoff'] = cutoff_from_date(date, config)
 
     if len(remainder) > 0:
-        dump_one = MiscDumpOne(config, date, remainder[0], do_dump, do_index,
+        for opt in remainder:
+            if ':' in opt:
+                name, value = opt.split(':', 1)
+                args[name] = value
+            else:
+                args[opt] = True
+
+    if wikiname is not None:
+        dump_one = MiscDumpOne(config, date, wikiname, do_dump, do_index,
                                dryrun, verbose, forcerun, args)
         dump_one.do_one_wiki()
     else:

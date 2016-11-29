@@ -294,7 +294,7 @@ class MiscDumpDirs(object):
             if dumpok:
                 for dump in reversed(dirs):
                     status_info = StatusInfo(self._config, dump, self.wikiname)
-                    if status_info.get_status(dump) == "done":
+                    if status_info.get_status(dump).startswith("done"):
                         return dump
             else:
                 return dirs[-1]
