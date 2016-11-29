@@ -14,7 +14,7 @@ from dumps.utils import MultiVersion
 from miscdumplib import ContentFile
 from miscdumplib import StatusInfo
 from miscdumplib import MiscDumpDir
-from miscdumplib import Config
+from miscdumplib import MiscDumpConfig
 from miscdumplib import MiscDumpDirs
 from miscdumplib import get_config_defaults
 from miscdumplib import log
@@ -89,7 +89,7 @@ def cutoff_from_date(date, config):
             time.strptime(date + "235900UTC", "%Y%m%d%H%M%S%Z")) - config.delay))
 
 
-class IncrDumpConfig(Config):
+class IncrDumpConfig(MiscDumpConfig):
     '''
     additional config settings for incremental dumps
     '''

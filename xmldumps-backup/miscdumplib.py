@@ -283,7 +283,7 @@ class MaxRevIDLock(Lock):
         self.lockfile = MaxRevIDLockFile(self._config, self.date, self.wikiname)
 
 
-class Config(dumps.WikiDump.Config):
+class MiscDumpConfig(dumps.WikiDump.Config):
     '''
     configuration information for dumps
     '''
