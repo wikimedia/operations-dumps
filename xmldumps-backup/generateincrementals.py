@@ -10,6 +10,7 @@ import sys
 import time
 import hashlib
 import traceback
+from miscdumplib import STATUS_TODO, STATUS_GOOD, STATUS_FAILED
 from miscdumplib import StatusFile, IndexFile
 from miscdumplib import MD5File, MiscDumpDirs, MiscDumpDir
 from miscdumplib import MiscDumpLock, StatusInfo
@@ -126,12 +127,6 @@ class Index(object):
             return wiki_info
 
 
-class DumpResults(object):
-    TODO = 1
-    FAILED = -1
-    GOOD = 0
-
-
 class MiscDumpOne(object):
     def __init__(self, config, date, wikiname, do_dumps,
                  do_index, dryrun, verbose, forcerun, args):
@@ -168,7 +163,7 @@ class MiscDumpOne(object):
             if status == "done" and not self.forcerun:
                 log(self.verbose, "wiki %s skipped, adds/changes dump already"
                     " complete" % self.wikiname)
-                return DumpResults.GOOD
+                return STATUS_GOOD
 
             if not self.dryrun:
                 lock = MiscDumpLock(self._config, self.date, self.wikiname)
@@ -176,7 +171,7 @@ class MiscDumpOne(object):
                     log(self.verbose, "wiki %s skipped, wiki is locked,"
                         " another process should be doing the job"
                         % self.wikiname)
-                    return DumpResults.TODO
+                    return STATUS_TODO
 
                 self.dumps_dirs.cleanup_old_dumps(self.date)
 
@@ -185,11 +180,11 @@ class MiscDumpOne(object):
             try:
                 result = self.incr.run()
                 if not result:
-                    return DumpResults.FAILED
+                    return STATUS_FAILED
 
                 if not self.dryrun:
                     if not self.md5sums():
-                        return DumpResults.FAILED
+                        return STATUS_FAILED
                     self.status_info.set_status("done")
                     lock.unlock()
 
@@ -201,10 +196,10 @@ class MiscDumpOne(object):
                     traceback.print_exc(file=sys.stdout)
                 if not self.dryrun:
                     lock.unlock()
-                return DumpResults.FAILED
+                return STATUS_FAILED
         log(self.verbose, "Success!  Wiki %s incremental dump complete."
             % self.wikiname)
-        return DumpResults.GOOD
+        return STATUS_GOOD
 
     def md5sum_one_file(self, filename):
         summer = hashlib.md5()
@@ -258,9 +253,9 @@ class MiscDumpLoop(object):
                                self.dryrun, self.verbose, self.forcerun,
                                self.args)
             result = dump.do_one_wiki()
-            if result == DumpResults.FAILED:
+            if result == STATUS_FAILED:
                 failures = failures + 1
-            elif result == DumpResults.TODO:
+            elif result == STATUS_TODO:
                 todos = todos + 1
         return (failures, todos)
 

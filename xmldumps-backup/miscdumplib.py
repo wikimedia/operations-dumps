@@ -11,6 +11,11 @@ import dumps.WikiDump
 from dumps.WikiDump import FileUtils, MiscUtils
 
 
+STATUS_TODO = 1
+STATUS_FAILED = -1
+STATUS_GOOD = 0
+
+
 def log(verbose, message):
     if verbose:
         print message
