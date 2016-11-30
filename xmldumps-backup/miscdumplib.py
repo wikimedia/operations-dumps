@@ -181,7 +181,7 @@ def md5sums(wiki, fileperms, files, mandatory):
             FileUtils.write_file_in_place(md5file.get_path(),
                                           text, fileperms)
         except Exception as ex:
-            log.info("Error encountered in md5sum for %s", fname, exc_info=ex)
+            log.warning("Error encountered in md5sum for %s", fname, exc_info=ex)
             if fname in mandatory:
                 errors = True
     return not errors
@@ -505,7 +505,7 @@ class MiscDumpDirs(object):
                 if digits.match(dirname):
                     dates.append(dirname)
         except OSError as ex:
-            log.info("Error encountered listing %s", base, exc_info=ex)
+            log.warning("Error encountered listing %s", base, exc_info=ex)
             return []
         dates = sorted(dates)
         return dates
@@ -698,7 +698,7 @@ class MiscDumpBase(object):
         if output:
             log.info(output)
         if error:
-            log.info(error)
+            log.warning(error)
         self.lock.refresh()
 
     def get_lock_timeout_interval(self):

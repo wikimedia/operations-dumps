@@ -150,8 +150,8 @@ class Index(object):
                 stat_text = self.get_stat_text(dump_date, wikiname)
 
             except Exception as ex:
-                log.info("Error encountered, no information available"
-                         " for wiki %s", wikiname, exc_info=ex)
+                log.warning("Error encountered, no information available"
+                            " for wiki %s", wikiname, exc_info=ex)
                 return ("<strong>%s</strong> Error encountered,"
                         " no information available | %s" % (wikiname, other_runs_text))
 
@@ -163,8 +163,8 @@ class Index(object):
                 wiki_info = (wiki_info + "&nbsp;&nbsp;" + "\n&nbsp;&nbsp;".join(files_text))
                 wiki_info = wiki_info + "\n&nbsp;" + other_runs_text
             except Exception as ex:
-                log.info("Error encountered formatting information"
-                         " for wiki %s", wikiname, exc_info=ex)
+                log.warning("Error encountered formatting information"
+                            " for wiki %s", wikiname, exc_info=ex)
                 return ("Error encountered formatting information"
                         " for wiki %s" % wikiname)
 
@@ -245,8 +245,8 @@ class MiscDumpOne(object):
                     index = Index(self.args)
                     index.do_all_wikis()
             except Exception as ex:
-                log.info("error from dump run"
-                         " for wiki %s", self.wiki.db_name, exc_info=ex)
+                log.warning("error from dump run"
+                            " for wiki %s", self.wiki.db_name, exc_info=ex)
                 if not self.flags['dryrun']:
                     lock.unlock_if_owner()
                 return STATUS_FAILED
@@ -435,6 +435,7 @@ def main():
     '''
     config_file = False
     wikiname = None
+    logging.basicConfig(level=logging.WARNING)
 
     try:
         (options, remainder) = getopt.gnu_getopt(

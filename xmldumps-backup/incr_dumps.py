@@ -192,8 +192,8 @@ class IncrDump(MiscDumpBase):
             if not self.dump_revs():
                 return False
         except Exception as ex:
-            log.info("Error encountered runing dump for %s ", self.wiki.db_name,
-                     exc_info=ex)
+            log.warning("Error encountered runing dump for %s ", self.wiki.db_name,
+                        exc_info=ex)
             return False
         return True
 
@@ -328,7 +328,7 @@ class IncrDump(MiscDumpBase):
                 command, shell=False, timeout=self.get_lock_timeout_interval(),
                 timeout_callback=self.periodic_callback)
             if not success:
-                log.info("error producing stub files for wiki %s", self.wiki.db_name)
+                log.warning("error producing stub files for wiki %s", self.wiki.db_name)
                 return False
         return True
 
@@ -362,8 +362,8 @@ class IncrDump(MiscDumpBase):
                 command, shell=False, timeout=self.get_lock_timeout_interval(),
                 timeout_callback=self.periodic_callback)
             if not success:
-                log.info("error producing revision text files"
-                         " for wiki %s", self.wiki.db_name)
+                log.warning("error producing revision text files"
+                            " for wiki %s", self.wiki.db_name)
                 return False
         return True
 

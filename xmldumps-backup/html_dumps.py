@@ -72,8 +72,8 @@ class HTMLDump(MiscDumpBase):
             if not self.dump_html():
                 return False
         except Exception as ex:
-            log.info("Error encountered runing dump for %s ", self.wiki.db_name,
-                     exc_info=ex)
+            log.warning("Error encountered runing dump for %s ", self.wiki.db_name,
+                        exc_info=ex)
             return False
         return True
 
@@ -92,7 +92,7 @@ class HTMLDump(MiscDumpBase):
         log.info("running with no output: " + command_text)
         output = RunSimpleCommand.run_with_output(command_text, shell=True)
         if not output:
-            log.info("error retrieving domain for wiki %s", self.wiki.db_name)
+            log.warning("error retrieving domain for wiki %s", self.wiki.db_name)
             return None
         # rstrip gets rid of any trailing newlines from eval.php
         return output.split('//')[1].rstrip()
@@ -128,7 +128,7 @@ class HTMLDump(MiscDumpBase):
                 timeout=self.get_lock_timeout_interval(),
                 timeout_callback=self.periodic_callback)
             if not success:
-                log.info("error producing html files for wiki %s", self.wiki.db_name)
+                log.warning("error producing html files for wiki %s", self.wiki.db_name)
                 return False
         return True
 
