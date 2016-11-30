@@ -706,12 +706,12 @@ class MiscDumpBase(object):
         sooner than the stale interval so it doesn't expire
 
         it would be nice if users configured the stale
-        interval greater than 1 second, but just in case
+        interval greater than 5 seconds, but just in case
         we try to be polite about that
         '''
         timeout_interval = self.wiki.config.lock_stale * 1000
-        if timeout_interval > 2000:
-            timeout_interval -= 1000
+        if timeout_interval > 5000:
+            timeout_interval -= 3000
         elif timeout_interval > 0:
             timeout_interval -= 500
         return timeout_interval
