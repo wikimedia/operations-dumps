@@ -705,14 +705,14 @@ class MiscDumpBase(object):
         '''
         how often in milliseconds should we try to refresh?
         sooner than the stale interval so it doesn't expire
-
-        it would be nice if users configured the stale
-        interval greater than 5 seconds, but just in case
-        we try to be polite about that
         '''
         timeout_interval = self.wiki.config.lock_stale * 1000
         if timeout_interval > 5000:
-            timeout_interval -= 3000
+            # refresh every 5 seconds is plenty often, and not
+            # too long to wait for a job to finish running
+            timeout_interval = 5000
         elif timeout_interval > 0:
             timeout_interval -= 500
-        return timeout_interval
+        else:
+            # be nice if they gave us bogus or no interval
+            timeout_interval = 500
