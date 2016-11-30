@@ -320,10 +320,10 @@ def usage(message=None):
     if message:
         print message
     usage_message = (
-        """Usage: python generatemiscdumps.py --dumptype <type> [options] [args] [wikidbname]
+        """Usage: python generatemiscdumps.py --dumptype <type> [options] [args]
 
 Options: --configfile, --date, --dumponly, --indexonly,
-         --dryrun, --forcerun, --verbose
+         --dryrun, --forcerun, --verbose, --wiki
 
  --dumptype:    type of dump to be run.  Known types include:
                 {0}
@@ -336,8 +336,7 @@ Options: --configfile, --date, --dumponly, --indexonly,
  --forcerun:    Do the run even if there is already a successful run in place.
  --verbose:     Print error messages and other informative messages
                 (normally the script runs silently).
-
- wikidbname:    Run the dumps only for the specific wiki.
+ --wiki:        Run the dumps only for the specific wiki.
 
 Args:  If your dump needs specific arguments passed to the class that
        are not provided for here, you can pass them on the command line
