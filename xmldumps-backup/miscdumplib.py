@@ -423,8 +423,8 @@ class MiscDumpConfig(object):
         self.bzip2 = self.conf.get("tools", "bzip2")
         self.mysql = self.conf.get("tools", "mysql")
         self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
-        self.writeuptopageid = self.conf.get("tools", "writeuptopageid")
         self.multiversion = self.conf.get("tools", "multiversion")
+        self.adminsettings = self.conf.get("tools", "adminsettings")
 
         if not self.conf.has_section('cleanup'):
             self.conf.add_section('cleanup')
@@ -555,25 +555,26 @@ def get_config_defaults():
         "privatewikislist": "",
         "closedwikislist": "",
         "skipwikislist": "",
+        "mediawiki": "",
+        "adminsettings": "",
         # "output": {
-        "dumpsdir": "/dumps/public/misc",
+        "dumpdir": "/dumps/public/misc",
         "templatedir": "/dumps/templates",
         "indextmpl": "miscdumps-index.tmpl",
         "temp": "/dumps/temp",
         "webroot": "http://localhost/dumps/misc",
         "fileperms": "0640",
-        "maxrevidstaleinterval": "3600",
+        "delay": "3600",
+        "lockstale": "300",
         # "database": {
         # moved defaults to get_db_user_and_password
         "max_allowed_packet": "16M",
         # "tools": {
-        "mediawiki": "",
         "php": "/bin/php",
         "gzip": "/usr/bin/gzip",
         "bzip2": "/usr/bin/bzip2",
         "mysql": "/usr/bin/mysql",
         "checkforbz2footer": "/usr/local/bin/checkforbz2footer",
-        "writeuptopageid": "/usr/local/bin/writeuptopageid",
         "multiversion": "",
         # "cleanup": {
         "keep": "3",
