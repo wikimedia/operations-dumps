@@ -53,6 +53,7 @@ class Config(object):
             "mailfrom": "root@localhost",
             "smtpserver": "localhost",
             "staleage": "3600",
+            "skipprivatetables": "0",
             # "database": {
             # these are now set in get_db_user_and_password() if needed
             "user": "",
@@ -225,6 +226,7 @@ class Config(object):
         self.mail_from = self.conf.get("reporting", "mailfrom")
         self.smtp_server = self.conf.get("reporting", "smtpserver")
         self.stale_age = self.conf.getint("reporting", "staleage")
+        self.skip_privatetables = self.conf.getint("reporting", "skipprivatetables")
 
         if not self.conf.has_section('tools'):
             self.conf.add_section('tools')

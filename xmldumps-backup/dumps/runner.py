@@ -161,7 +161,8 @@ class DumpItemList(object):
 
             try:
                 # tables job names end in 'table' so stick that on
-                if tables_configured[table]['type'] == 'private':
+                if (tables_configured[table]['type'] == 'private' and
+                        not self.wiki.config.skip_privatetables):
                     self.dump_items.append(PrivateTable(
                         table,
                         normalize_tablejob_name(tables_configured[table]['job']),
