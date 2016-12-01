@@ -14,6 +14,8 @@ from dumps.utils import MiscUtils, TimeUtils
 class Config(object):
     def __init__(self, config_file=False):
         self.project_name = False
+        self.db_user = None
+        self.db_password = None
 
         home = os.path.dirname(sys.argv[0])
         if not config_file:
@@ -271,13 +273,9 @@ class Config(object):
         dbuser = self.get_opt_for_proj_or_default(conf, "database", "user", 0)
         if dbuser:
             self.db_user = dbuser
-        else:
-            self.db_user = None
         dbpassword = self.get_opt_for_proj_or_default(conf, "database", "password", 0)
         if dbpassword:
             self.db_password = dbpassword
-        else:
-            self.db_password = None
         max_allowed_packet = self.get_opt_for_proj_or_default(
             conf, "database", "max_allowed_packet", 0)
         if max_allowed_packet:
