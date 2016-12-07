@@ -106,10 +106,6 @@ class DumpItemList(object):
                  singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir,
                  verbose):
         self.wiki = wiki
-        self._has_flagged_revs = self.wiki.has_flagged_revs()
-        self._has_wikidata = self.wiki.has_wikidata()
-        self._has_global_usage = self.wiki.has_global_usage()
-        self._is_wikidata_client = self.wiki.is_wikidata_client()
         self._has_flow = self.wiki.has_flow()
         self._prefetch = prefetch
         self._prefetchdate = prefetchdate
@@ -148,59 +144,39 @@ class DumpItemList(object):
                 raise BackupError("You cannot specify a checkpoint file with the job %s, exiting.\n"
                                   % self._single_job)
 
-        self.dump_items = [PrivateTable("user", "usertable", "User account data."),
-                           PrivateTable("watchlist", "watchlisttable",
-                                        "Users' watchlist settings."),
-                           PrivateTable("ipblocks", "ipblockstable",
-                                        "Data for blocks of IP addresses, ranges, and users."),
-                           PrivateTable("archive", "archivetable",
-                                        "Deleted page and revision data."),
-                           PrivateTable("logging", "loggingtable",
-                                        "Data for various events (deletions, uploads, etc)."),
-                           PrivateTable("oldimage", "oldimagetable",
-                                        "Metadata on prior versions of uploaded images."),
+        self.dump_items = []
+        tables_known = self.wiki.get_known_tables()
+        tables_configured = self.wiki.config.get_tablejobs_from_conf()['tables']
+        for table in tables_configured:
+            # account for wikis without the particular extension or feature enabled
+            if table not in tables_known:
+                continue
 
-                           PublicTable("site_stats", "sitestatstable",
-                                       "A few statistics such as the page count."),
-                           PublicTable("image", "imagetable",
-                                       "Metadata on current versions of uploaded media/files."),
-                           PublicTable("pagelinks", "pagelinkstable",
-                                       "Wiki page-to-page link records."),
-                           PublicTable("categorylinks", "categorylinkstable",
-                                       "Wiki category membership link records."),
-                           PublicTable("imagelinks", "imagelinkstable",
-                                       "Wiki media/files usage records."),
-                           PublicTable("templatelinks", "templatelinkstable",
-                                       "Wiki template inclusion link records."),
-                           PublicTable("externallinks", "externallinkstable",
-                                       "Wiki external URL link records."),
-                           PublicTable("langlinks", "langlinkstable",
-                                       "Wiki interlanguage link records."),
-                           PublicTable("user_groups", "usergroupstable", "User group assignments."),
-                           PublicTable("category", "categorytable", "Category information."),
+            try:
+                if tables_configured[table]['type'] == 'private':
+                    self.dump_items.append(PrivateTable(table, tables_configured[table]['job'],
+                                                        tables_configured[table]['description']))
+                elif tables_configured[table]['type'] == 'public':
+                    self.dump_items.append(PublicTable(table, tables_configured[table]['job'],
+                                                       tables_configured[table]['description']))
+                else:
+                    raise BackupError("Unknown table type in table jobs config: " +
+                                      tables_configured[table][type])
+            except:
+                # whine about missing keys etc
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                sys.stderr.write(repr(traceback.format_exception(
+                    exc_type, exc_value, exc_traceback)))
 
-                           PublicTable("page", "pagetable",
-                                       "Base per-page data (id, title, old restrictions, etc)."),
-                           PublicTable("page_restrictions", "pagerestrictionstable",
-                                       "Newer per-page restrictions table."),
-                           PublicTable("page_props", "pagepropstable",
-                                       "Name/value pairs for pages."),
-                           PublicTable("protected_titles", "protectedtitlestable",
-                                       "Nonexistent pages that have been protected."),
-                           PublicTable("redirect", "redirecttable", "Redirect list"),
-                           PublicTable("iwlinks", "iwlinkstable",
-                                       "Interwiki link tracking records"),
-                           PublicTable("geo_tags", "geotagstable",
-                                       "List of pages' geographical coordinates"),
-                           PublicTable("change_tag", "changetagstable",
-                                       "List of annotations (tags) for revisions and log entries"),
-
-                           TitleDump("pagetitlesdump", "List of page titles in main namespace"),
-                           AllTitleDump("allpagetitlesdump", "List of all page titles"),
-
-                           AbstractDump("abstractsdump", "Extracted page abstracts for Yahoo",
-                                        self._get_partnum_todo("abstractsdump"), self.wiki.db_name,
-                                        self.filepart.get_pages_per_filepart_abstract())]
+        self.dump_items.extend([TitleDump("pagetitlesdump",
+                                          "List of page titles in main namespace"),
+                                AllTitleDump("allpagetitlesdump",
+                                             "List of all page titles"),
+                                AbstractDump("abstractsdump",
+                                             "Extracted page abstracts for Yahoo",
+                                             self._get_partnum_todo("abstractsdump"),
+                                             self.wiki.db_name,
+                                             self.filepart.get_pages_per_filepart_abstract())])
 
         self.append_job_if_needed(RecombineAbstractDump(
             "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
@@ -261,50 +237,6 @@ class DumpItemList(object):
 
         self.dump_items.append(
             XmlLogging("Log events to all pages and users."))
-
-        self.append_job_if_needed(
-            PublicTable("flaggedpages", "flaggedpagestable",
-                        "This contains a row for each flagged article, " +
-                        "containing the stable revision ID, if the lastest edit " +
-                        "was flagged, and how long edits have been pending."))
-        self.append_job_if_needed(
-            PublicTable("flaggedrevs", "flaggedrevstable",
-                        "This contains a row for each flagged revision, " +
-                        "containing who flagged it, when it was flagged, " +
-                        "reviewer comments, the flag values, and the " +
-                        "quality tier those flags fall under."))
-
-        self.append_job_if_needed(
-            PublicTable("wb_items_per_site", "wbitemspersitetable",
-                        "For each Wikidata item, this contains rows with the " +
-                        "corresponding page name on a given wiki project."))
-        self.append_job_if_needed(
-            PublicTable("wb_terms", "wbtermstable",
-                        "For each Wikidata item, this contains rows with a label, " +
-                        "an alias and a description of the item in a given language."))
-        self.append_job_if_needed(
-            PublicTable("wb_entity_per_page", "wbentityperpagetable",
-                        "Contains a mapping of page ids and entity ids, with " +
-                        "an additional entity type column."))
-        self.append_job_if_needed(
-            PublicTable("wb_property_info", "wbpropertyinfotable",
-                        "Contains a mapping of Wikidata property ids and data types."))
-        self.append_job_if_needed(
-            PublicTable("wb_changes_subscription", "wbchangessubscriptiontable",
-                        "Tracks which Wikibase Client wikis are using which items."))
-        self.append_job_if_needed(
-            PublicTable("sites", "sitestable",
-                        "This contains the SiteMatrix information from " +
-                        "meta.wikimedia.org provided as a table."))
-
-        self.append_job_if_needed(
-            PublicTable("globalimagelinks", "globalimagelinkstable",
-                        "Global wiki media/files usage records."))
-
-        self.append_job_if_needed(
-            PublicTable("wbc_entity_usage", "wbcentityusagetable",
-                        "Tracks which pages use which Wikidata items or properties " +
-                        "and what aspect (e.g. item label) is used."))
 
         self.append_job_if_needed(
             FlowDump("xmlflowdump", "content of flow pages in xml format"))
@@ -387,25 +319,9 @@ class DumpItemList(object):
             if self.filepart.parts_enabled():
                 if 'metahistory' not in job.name() or self.filepart.recombine_history():
                     self.dump_items.append(job)
-        elif job.name().startswith("wb_") or job.name() == "sitestable":
-            if self._has_wikidata:
-                self.dump_items.append(job)
-        elif job.name().startswith("flagged"):
-            if self._has_flagged_revs:
-                self.dump_items.append(job)
-        elif job.name().startswith("global"):
-            if self._has_global_usage:
-                self.dump_items.append(job)
-        elif job.name().startswith("wbc_"):
-            if self._is_wikidata_client:
-                self.dump_items.append(job)
         elif 'flow' in job.name():
             if self._has_flow:
                 self.dump_items.append(job)
-
-    def append_job(self, jobname, job):
-        if jobname not in self.skip_jobs:
-            self.dump_items.append(job)
 
     def all_possible_jobs_done(self):
         for item in self.dump_items:
@@ -526,7 +442,7 @@ class Runner(object):
             if self._partnum_todo is None and fname.partnum_int:
                 self._partnum_todo = fname.partnum_int
             elif (self._partnum_todo is not None and fname.partnum_int and
-                    self._partnum_todo != fname.partnum_int):
+                  self._partnum_todo != fname.partnum_int):
                 raise BackupError("specifed partnum to do does not match part number "
                                   "of checkpoint file %s to redo", self.checkpoint_file)
             self.checkpoint_file = fname
@@ -537,7 +453,7 @@ class Runner(object):
                         RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
                         "cleanup_old_files", "check_trunc_files"]:
-                self.enabled[setting] = True
+            self.enabled[setting] = True
 
         if not self.cleanup_old_files:
             if "cleanup_old_files" in self.enabled:

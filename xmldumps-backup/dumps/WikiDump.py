@@ -5,10 +5,12 @@ import socket
 import sys
 import threading
 import time
+import yaml
+import traceback
 
 from dumps.runnerutils import StatusHtml
 from dumps.fileutils import FileUtils
-from dumps.utils import MiscUtils, TimeUtils
+from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand
 
 
 class Config(object):
@@ -37,6 +39,7 @@ class Config(object):
             "wikidatalist": "",
             "globalusagelist": "",
             "wikidataclientlist": "",
+            "tablejobs": "",
             # "dir": "",
             "forcenormal": "0",
             "halt": "0",
@@ -207,6 +210,7 @@ class Config(object):
         self.wikidata_client_list = MiscUtils.db_list(self.conf.get("wiki", "wikidataclientlist"))
         self.flow_list = MiscUtils.db_list(self.conf.get("wiki", "flowlist"))
         self.halt = self.conf.getint("wiki", "halt")
+        self.tablejobs = self.conf.get("wiki", "tablejobs")
 
         self.db_list = list(set(self.db_list) - set(self.skip_db_list))
 
@@ -423,6 +427,19 @@ class Config(object):
         template = os.path.join(self.template_dir, name)
         return FileUtils.read_file(template)
 
+    def get_tablejobs_from_conf(self):
+        try:
+            if self.tablejobs:
+                contents = open(self.tablejobs).read()
+            else:
+                contents = open("default_tables.yaml").read()
+            return yaml.load(contents)
+        except Exception as ex:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            sys.stderr.write(repr(traceback.format_exception(
+                exc_type, exc_value, exc_traceback)))
+            return {}
+
 
 class Wiki(object):
     def __init__(self, config, db_name):
@@ -526,6 +543,15 @@ class Wiki(object):
             return []
         dates = sorted(dates)
         return dates
+
+    def get_known_tables(self):
+        dbserver = DbServerInfo(self, self.db_name)
+        commands = dbserver.build_sql_command("'show tables'")
+        echocmd = commands[0]
+        mysqlcmd = commands[1]
+        to_run = " ".join(echocmd) + " | " + " ".join(mysqlcmd) + " --silent"
+        results = RunSimpleCommand.run_with_output(to_run, shell=True)
+        return results.splitlines()
 
 
 class Locker(object):
