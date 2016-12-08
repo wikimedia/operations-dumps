@@ -90,10 +90,6 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
                         date=None, job=None, skipjobs=None, page_id_range=None,
                         partnum_todo=None, checkpoint_file=None, skipdone=False, restart=False,
                         verbose=False):
-    if config.halt:
-        sys.stderr.write("Dump process halted by config.\n")
-        return None
-
     nextdbs = config.db_list_by_age(bystatustime)
     nextdbs.reverse()
 

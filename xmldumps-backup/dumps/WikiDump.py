@@ -37,8 +37,6 @@ class Config(object):
             "closedlist": "",
             "tablejobs": "",
             # "dir": "",
-            "forcenormal": "0",
-            "halt": "0",
             "skipdblist": "",
             # "output": {
             "public": "/dumps/public",
@@ -201,7 +199,6 @@ class Config(object):
         self.private_list = MiscUtils.db_list(self.conf.get("wiki", "privatelist"))
         self.closed_list = MiscUtils.db_list(self.conf.get("wiki", "closedlist"))
         self.flow_list = MiscUtils.db_list(self.conf.get("wiki", "flowlist"))
-        self.halt = self.conf.getint("wiki", "halt")
         self.tablejobs = self.conf.get("wiki", "tablejobs")
 
         self.db_list = list(set(self.db_list) - set(self.skip_db_list))
