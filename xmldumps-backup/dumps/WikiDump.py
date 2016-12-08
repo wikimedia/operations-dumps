@@ -35,10 +35,6 @@ class Config(object):
             "dblist": "",
             "privatelist": "",
             "closedlist": "",
-            "flaggedrevslist": "",
-            "wikidatalist": "",
-            "globalusagelist": "",
-            "wikidataclientlist": "",
             "tablejobs": "",
             # "dir": "",
             "forcenormal": "0",
@@ -204,10 +200,6 @@ class Config(object):
 
         self.private_list = MiscUtils.db_list(self.conf.get("wiki", "privatelist"))
         self.closed_list = MiscUtils.db_list(self.conf.get("wiki", "closedlist"))
-        self.flagged_revs_list = MiscUtils.db_list(self.conf.get("wiki", "flaggedrevslist"))
-        self.wikidata_list = MiscUtils.db_list(self.conf.get("wiki", "wikidatalist"))
-        self.global_usage_list = MiscUtils.db_list(self.conf.get("wiki", "globalusagelist"))
-        self.wikidata_client_list = MiscUtils.db_list(self.conf.get("wiki", "wikidataclientlist"))
         self.flow_list = MiscUtils.db_list(self.conf.get("wiki", "flowlist"))
         self.halt = self.conf.getint("wiki", "halt")
         self.tablejobs = self.conf.get("wiki", "tablejobs")
@@ -453,18 +445,6 @@ class Wiki(object):
 
     def is_closed(self):
         return self.db_name in self.config.closed_list
-
-    def has_flagged_revs(self):
-        return self.db_name in self.config.flagged_revs_list
-
-    def has_wikidata(self):
-        return self.db_name in self.config.wikidata_list
-
-    def has_global_usage(self):
-        return self.db_name in self.config.global_usage_list
-
-    def is_wikidata_client(self):
-        return self.db_name in self.config.wikidata_client_list
 
     def has_flow(self):
         return self.db_name in self.config.flow_list
