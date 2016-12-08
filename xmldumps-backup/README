@@ -64,12 +64,18 @@ mwbzutils/
  
 == Configuration ==
 
-Configuration is done with an INI-style configuration file wikidump.conf.
+General configuration is done with an INI-style configuration file wikidump.conf.
 Configuration files in the script directory, /etc, and $HOME are used
 if available, in that order.
 
 See README.config for details about the configuration options supported,
 and wikidump.conf.sample for a sample configuration file.
+
+Job configuration for dumps of sql tables is done via a yaml file, the
+location of which is configurable.
+
+See README.job_config for details about that, and default_tables.yaml for the
+default configuration for table dump jobs.
 
 == Hacking ==
 

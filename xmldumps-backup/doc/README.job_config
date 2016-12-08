@@ -1,0 +1,42 @@
+Job configuration
+
+The definition of some dump jobs is configurable via addition to a
+yaml file.  At present this is limited to jobs which dump sql tables
+via mysqldump.
+
+The default name and location of this file is default_tables.yaml
+in the same directory as the worker.py script.  The file included
+with this repo is intended to be such a default file.
+
+The location of this file can be changed by adding the setting
+tablejobs=/full/path/to/file
+in the [wiki] section of the general configuration file. See
+README.config for more on general configuration.
+
+The yaml file contains an entry for each table to be dumped, specifying
+the table name, the job name, the dump type, and a short text description
+of the job.
+
+Entry parameters
+----------------
+table name:  the name of the table as it appears in the sql database
+job:         the internal name of the job, used in status reports
+             and in running specific jobs from the command line; must
+	     end in the string 'table' in order to be included in the
+	     pseudo-job 'tables'
+type:        public or private; private tables are dumped to a location
+             outside of the web docroot and links to them are not
+	     provided to downloaders
+description: a short text description of the contents of the table,
+             which is provided to downloaders on the web
+
+
+Sample stanza
+-------------
+    watchlist:
+      job: watchlisttable
+      description: Users' watchlist settings.
+      type: private
+
+Note: it is possible that this file will be used for other types of jobs
+in the future, hence the 'tables:' line at the beginning of the file.
