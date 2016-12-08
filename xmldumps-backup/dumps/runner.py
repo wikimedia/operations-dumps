@@ -101,6 +101,13 @@ def get_int_setting(settings, setting_name):
         return None
 
 
+def normalize_tablejob_name(jobname):
+    if jobname.endswith("table"):
+        return jobname
+    else:
+        return jobname + "table"
+
+
 class DumpItemList(object):
     def __init__(self, wiki, prefetch, prefetchdate, spawn, partnum_todo, checkpoint_file,
                  singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir,
@@ -153,12 +160,17 @@ class DumpItemList(object):
                 continue
 
             try:
+                # tables job names end in 'table' so stick that on
                 if tables_configured[table]['type'] == 'private':
-                    self.dump_items.append(PrivateTable(table, tables_configured[table]['job'],
-                                                        tables_configured[table]['description']))
+                    self.dump_items.append(PrivateTable(
+                        table,
+                        normalize_tablejob_name(tables_configured[table]['job']),
+                        tables_configured[table]['description']))
                 elif tables_configured[table]['type'] == 'public':
-                    self.dump_items.append(PublicTable(table, tables_configured[table]['job'],
-                                                       tables_configured[table]['description']))
+                    self.dump_items.append(PublicTable(
+                        table,
+                        normalize_tablejob_name(tables_configured[table]['job']),
+                        tables_configured[table]['description']))
                 else:
                     raise BackupError("Unknown table type in table jobs config: " +
                                       tables_configured[table][type])

@@ -21,9 +21,10 @@ Entry parameters
 ----------------
 table name:  the name of the table as it appears in the sql database
 job:         the internal name of the job, used in status reports
-             and in running specific jobs from the command line; must
-	     end in the string 'table' in order to be included in the
-	     pseudo-job 'tables'
+             and in running specific jobs from the command line;
+             note that the name will automatically have the string
+	     'table' appended to it for use by the pseudo-job
+	     'tables', you need not do this in the config
 type:        public or private; private tables are dumped to a location
              outside of the web docroot and links to them are not
 	     provided to downloaders
@@ -34,7 +35,7 @@ description: a short text description of the contents of the table,
 Sample stanza
 -------------
     watchlist:
-      job: watchlisttable
+      job: watchlist
       description: Users' watchlist settings.
       type: private
 
