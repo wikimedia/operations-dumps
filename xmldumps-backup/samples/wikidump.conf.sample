@@ -4,17 +4,17 @@
 dblist=/home/ariel/src/mediawiki/testing/backup/all.dblist
 skipdblist=/home/ariel/src/mediawiki/testing/backup/skip.dblist
 privatelist=/home/ariel/src/mediawiki/testing/backup/private.dblist
-flaggedrevslist=/home/ariel/src/mediawiki/testing/backup/flagged.dblist
-wikidatalist=/home/ariel/src/mediawiki/testing/backup/wikidata.dblist
-biglist=/home/ariel/src/mediawiki/testing/backup/big.dblist
+flowlist=/home/ariel/src/mediawiki/testing/backup/flow.dblist
 dir=/home/ariel/src/mediawiki/1.16wmf4/phase3
-forcenormal=0
+tablejobs=/home/ariel/srv/mediawiki/testing/backup/tablejobs.yaml
 
 [output]
 public=/home/ariel/src/mediawiki/testing/dumps/public
 private=/home/ariel/src/mediawiki/testing/dumps/private
+temp=/home/ariel/src/mediawiki/testing/dumps/temp
 index=backup-index.html
 webroot=http://localhost/mydumps
+templatedir=/home/ariel/src/mediawiki/testing/dumps/templs
 
 [reporting]
 staleage=3600
@@ -26,6 +26,7 @@ smtpserver=smtp.myisp.com
 [database]
 user=root
 password=""
+max_allowed_packet=32M
 
 [tools]
 php=/usr/bin/php
@@ -44,3 +45,9 @@ keep=10
 chunksEnabled=1
 pagesPerChunkHistory=10000,50000,50000,50000,50000
 pagesPerChunkAbstract=100000,100000
+
+[otherformats]
+multistream=1
+
+[elwikt]
+dir=/var/www/html/elwikt
