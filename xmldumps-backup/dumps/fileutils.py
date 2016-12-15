@@ -669,7 +669,7 @@ class DumpDir(object):
                     (checkpoint and not fobj.is_checkpoint_file)):
                 continue
             files_matched.append(fobj)
-            self.sort_fileobjs(files_matched)
+            files_matched = self.sort_fileobjs(files_matched)
         return files_matched
 
     # taken from a comment by user "Toothy" on Ned Batchelder's blog (no longer on the net)
@@ -679,6 +679,7 @@ class DumpDir(object):
         convert = lambda text: int(text) if text.isdigit() else text
         alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key.filename)]
         mylist = sorted(mylist, key=alphanum_key)
+        return mylist
 
     def get_checkpt_files(self, date=None, dump_name=None,
                           file_type=None, file_ext=None, parts=False, temp=False):
