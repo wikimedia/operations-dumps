@@ -2,8 +2,8 @@
 All xml dump jobs are defined here
 '''
 
-import os
 import re
+import os
 from os.path import exists
 import signal
 
@@ -361,6 +361,29 @@ class XmlDump(Dump):
                                    temp=False)
         return output_file
 
+    def chkptfile_in_pagerange(self, fobj, chkpt_fobj):
+        """return False if both files are checkpoint files (with page ranges)
+        and the second file page range does not overlap with the first one"""
+        # not both checkpoint files:
+        if not fobj.is_checkpoint_file or not chkpt_fobj.is_checkpoint_file:
+            return True
+        # one or both end values are missing:
+        if not fobj.last_page_id and not chkpt_fobj.last_page_id:
+            return True
+        elif not fobj.last_page_id and chkpt_fobj.last_page_id < fobj.first_page_id:
+            return True
+        elif not chkpt_fobj.last_page_id and fobj.last_page_id < chkpt_fobj.first_page_id:
+            return True
+        # have end values for both files:
+        elif (fobj.first_page_id <= chkpt_fobj.first_page_id and
+              chkpt_fobj.first_page_id <= fobj.last_page_id):
+            return True
+        elif (chkpt_fobj.first_page_id <= fobj.first_page_id and
+              fobj.first_page_id <= chkpt_fobj.last_page_id):
+            return True
+        else:
+            return False
+
     def run(self, runner):
         # here we will either clean up or not depending on how we were called FIXME
         self.cleanup_old_files(runner.dump_dir, runner)
@@ -550,10 +573,10 @@ class XmlDump(Dump):
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
         if (proc.exited_successfully() or
-            (proc.get_failed_cmds_with_retcode() ==
-             [[-signal.SIGPIPE, pipeline[0]]]) or
-            (proc.get_failed_cmds_with_retcode() ==
-             [[signal.SIGPIPE + 128, pipeline[0]]])):
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[-signal.SIGPIPE, pipeline[0]]]) or
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[signal.SIGPIPE + 128, pipeline[0]]])):
             last_lines = proc.output()
         return last_lines
 
@@ -576,10 +599,10 @@ class XmlDump(Dump):
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
         if (proc.exited_successfully() or
-            (proc.get_failed_cmds_with_retcode() ==
-             [[-signal.SIGPIPE, pipeline[0]]]) or
-            (proc.get_failed_cmds_with_retcode() ==
-             [[signal.SIGPIPE + 128, pipeline[0]]])):
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[-signal.SIGPIPE, pipeline[0]]]) or
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[signal.SIGPIPE + 128, pipeline[0]]])):
             output = proc.output()
             # 339915646:  <page>
             if ':' in output:
@@ -635,6 +658,11 @@ class XmlDump(Dump):
             # we need to check existence for each and put them together in a string
             if possible_sources:
                 for sourcefile in possible_sources:
+                    # if we are doing partial stub run, include only the analogous
+                    # checkpointed prefetch files, if there are checkpointed files
+                    # otherwise we'll use the all the sourcefiles reported
+                    if not self.chkptfile_in_pagerange(stub_file, sourcefile):
+                        continue
                     sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
                     if exists(sname):
                         sources.append(sname)
@@ -755,9 +783,9 @@ class XmlDump(Dump):
                     if ((first_page_id_in_file <= int(start_page_id) and
                          (last_page_id_in_file is None or
                           last_page_id_in_file >= int(start_page_id))) or
-                        (first_page_id_in_file >= int(start_page_id) and
-                         (end_page_id is None or
-                          first_page_id_in_file <= int(end_page_id)))):
+                            (first_page_id_in_file >= int(start_page_id) and
+                             (end_page_id is None or
+                              first_page_id_in_file <= int(end_page_id)))):
                         possibles.append(file_obj)
                 except Exception as ex:
                     runner.debug(
