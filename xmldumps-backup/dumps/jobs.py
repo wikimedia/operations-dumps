@@ -195,6 +195,9 @@ class Dump(object):
                     # The file exists and is not truncated. Heck, it's a good file!
                     file_truncated = False
 
+            else:
+                # file doesn't exist, move on
+                file_truncated = False
             if file_truncated:
                 ret += 1
 
