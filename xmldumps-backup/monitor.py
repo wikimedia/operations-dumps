@@ -3,9 +3,13 @@
 import os
 from os.path import exists
 import sys
+import traceback
 from dumps.WikiDump import Wiki, Config, Locker
 from dumps.fileutils import FileUtils
 from dumps.runnerutils import StatusHtml
+
+
+VERBOSE = False
 
 
 def add_to_filename(filename, infix):
@@ -23,14 +27,19 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False):
         dbs = config.db_list_by_age()
 
     for db_name in dbs:
-        wiki = Wiki(config, db_name)
-        locker = Locker(wiki)
-        lockfiles = locker.is_stale(all_locks=True)
-        if lockfiles:
-            locker.cleanup_stale_locks(lockfiles)
-        running = running or locker.is_locked(all_locks=True)
-        states.append(StatusHtml.status_line(wiki))
-
+        try:
+            wiki = Wiki(config, db_name)
+            locker = Locker(wiki)
+            lockfiles = locker.is_stale(all_locks=True)
+            if lockfiles:
+                locker.cleanup_stale_locks(lockfiles)
+            running = running or locker.is_locked(all_locks=True)
+            states.append(StatusHtml.status_line(wiki))
+        except Exception:
+            # if there's a problem with one wiki at least
+            # let's show the rest
+            if VERBOSE:
+                traceback.print_exc(file=sys.stdout)
     if running:
         status = "Dumps are in progress..."
     elif exists("maintenance.txt"):
