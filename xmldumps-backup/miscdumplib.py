@@ -2,7 +2,7 @@
 shared classes for misc dumps (incrementals, html, etc)
 '''
 import os
-from os.path import exists
+from os.path import exists, basename
 import sys
 import re
 import socket
@@ -173,17 +173,20 @@ def md5sums(wiki, fileperms, files, mandatory):
     output file
     '''
     md5file = MD5File(wiki.config, wiki.date, wiki.db_name)
-    text = ""
+    lines = []
     errors = False
     for fname in files:
         try:
-            text = text + "%s\n" % md5sum_one_file(fname)
-            FileUtils.write_file_in_place(md5file.get_path(),
-                                          text, fileperms)
+            fbase = basename(fname)
+            lines.append("{} *{}".format(md5sum_one_file(fname), fbase))
         except Exception as ex:
             log.warning("Error encountered in md5sum for %s", fname, exc_info=ex)
             if fname in mandatory:
                 errors = True
+
+    text = "\n".join(lines)
+    FileUtils.write_file_in_place(md5file.get_path(),
+                                  text, fileperms)
     return not errors
 
 
