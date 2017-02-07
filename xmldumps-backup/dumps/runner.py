@@ -19,7 +19,7 @@ from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 from dumps.flowjob import FlowDump
 
 from dumps.runnerutils import RunSettings, SymLinks, Feeds, NoticeFile
-from dumps.runnerutils import Checksummer, IndexHtml, StatusHtml, FailureHandler
+from dumps.runnerutils import Checksummer, Report, StatusHtml, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
 
 from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils
@@ -475,7 +475,7 @@ class Runner(object):
 
         if self.enabled is None:
             self.enabled = {}
-        for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
+        for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
                         RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
                         "cleanup_old_files", "check_trunc_files", "cleanup_tmp_files"]:
@@ -486,7 +486,7 @@ class Runner(object):
                 del self.enabled["cleanup_old_files"]
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
-            for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
+            for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
                             RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
                 if setting in self.enabled:
@@ -502,7 +502,7 @@ class Runner(object):
         self.job_requested = job
 
         if self.job_requested == "latestlinks":
-            for setting in [StatusHtml.NAME, IndexHtml.NAME, RunInfoFile.NAME]:
+            for setting in [StatusHtml.NAME, Report.NAME, RunInfoFile.NAME]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 
@@ -562,11 +562,11 @@ class Runner(object):
                                      self.dumpjobdata, self.enabled,
                                      self.failurehandler,
                                      self.log_and_print, self.verbose)
-        self.indexhtml = IndexHtml(self.wiki, self.dump_dir,
-                                   self.dump_item_list.dump_items,
-                                   self.dumpjobdata, self.enabled,
-                                   self.failurehandler,
-                                   self.log_and_print, self.verbose)
+        self.report = Report(self.wiki, self.dump_dir,
+                             self.dump_item_list.dump_items,
+                             self.dumpjobdata, self.enabled,
+                             self.failurehandler,
+                             self.log_and_print, self.verbose)
 
     def log_queue_reader(self, log):
         if not log:
@@ -581,7 +581,7 @@ class Runner(object):
         sys.stderr.write("%s\n" % message)
 
     def html_update_callback(self):
-        self.indexhtml.update_index_html()
+        self.report.update_index_html_and_json()
         self.statushtml.update_status_file()
 
     # returns 0 on success, 1 on error
@@ -663,7 +663,7 @@ class Runner(object):
             % (self.db_name, item.name()))
         if item.to_run():
             item.start()
-            self.indexhtml.update_index_html()
+            self.report.update_index_html_and_json()
             self.statushtml.update_status_file()
 
             self.dumpjobdata.do_before_job(self.dump_item_list.dump_items)
@@ -778,14 +778,14 @@ class Runner(object):
 
         if self.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            self.indexhtml.update_index_html("done")
+            self.report.update_index_html_and_json("done")
             self.statushtml.update_status_file("done")
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            self.indexhtml.update_index_html("partialdone")
+            self.report.update_index_html_and_json("partialdone")
             self.statushtml.update_status_file("partialdone")
 
         self.dumpjobdata.do_after_dump(self.dump_item_list.dump_items)

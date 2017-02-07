@@ -139,7 +139,7 @@ class Dump(object):
 
             self.run(runner)
             self.post_run(runner)
-        except Exception as ex:
+        except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             if self.verbose:
                 sys.stderr.write(repr(traceback.format_exception(
@@ -211,7 +211,7 @@ class Dump(object):
                 runner.log.add_to_log_queue(line)
             sys.stderr.write(line)
         self.progress = line.strip()
-        runner.indexhtml.update_index_html()
+        runner.report.update_index_html_and_json()
         runner.statushtml.update_status_file()
         runner.dumpjobdata.runinfofile.save_dump_runinfo_file(
             runner.dumpjobdata.runinfofile.report_dump_runinfo(runner.dump_item_list.dump_items))

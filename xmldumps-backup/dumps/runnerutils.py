@@ -41,15 +41,41 @@ class Maintenance(object):
 class Checksummer(object):
     NAME = "checksum"
     HASHTYPES = ['md5', 'sha1']
+    FORMATS = ['text', 'json']
 
     @staticmethod
-    def get_checksum_filename_basename(htype):
+    def get_checksum_filename_basename(htype, fmt="text"):
+        if fmt == "json":
+            ext = "json"
+        else:
+            # default
+            ext = "txt"
+
         if htype == "md5":
-            return "md5sums.txt"
+            return "md5sums." + ext
         elif htype == "sha1":
-            return "sha1sums.txt"
+            return "sha1sums." + ext
         else:
             return None
+
+    @staticmethod
+    def get_hashinfo(filename, jsoninfo):
+        """
+        given json output from the checksum json file,
+        find and return list of tuples (hashtype, sum) for the
+        file
+        """
+        results = []
+        if not jsoninfo:
+            return results
+        for htype in jsoninfo:
+            if filename in jsoninfo[htype]["files"]:
+                results.append((htype, jsoninfo[htype]["files"][filename]))
+        return results
+
+    @staticmethod
+    def get_empty_json():
+        return {}
 
     def __init__(self, wiki, dump_dir, enabled, verbose=False):
         self.wiki = wiki
@@ -64,50 +90,83 @@ class Checksummer(object):
         into the final location at the completion of the dump run."""
         if Checksummer.NAME in self._enabled:
             for htype in Checksummer.HASHTYPES:
-                checksum_filename = self._get_checksum_filename_tmp(htype)
-                output = open(checksum_filename, "w")
-                output.close()
+                for fmt in Checksummer.FORMATS:
+                    checksum_filename = self._get_checksum_filename_tmp(htype, fmt)
+                    with open(checksum_filename, "w") as output:
+                        if fmt == "json":
+                            output.write(json.dumps({htype: {"files": {}}}))
+                        output.close()
 
     def checksums(self, file_obj, dumpjobdata):
         """Run checksum for an output file, and append to the list."""
         if Checksummer.NAME in self._enabled:
             for htype in Checksummer.HASHTYPES:
-                checksum_filename = self._get_checksum_filename_tmp(htype)
-                output = file(checksum_filename, "a")
+                checksum_filename_text = self._get_checksum_filename_tmp(htype, "text")
+                checksum_filename_json = self._get_checksum_filename_tmp(htype, "json")
+                output_text = file(checksum_filename_text, "a")
+                # for text file, append our new line. for json file, must read
+                # previous contents, stuff our new info into the dict, write it
+                # back out
+                input_json = file(checksum_filename_json, "a")
+                output = {}
+                try:
+                    with open(checksum_filename_json, "r") as fdesc:
+                        contents = fdesc.read()
+                        output = json.loads(contents)
+                except:
+                    # might be empty file, as at the start of a run
+                    pass
+                if not output:
+                    # at least let's not write new bad content into a
+                    # possibly corrupt file.
+                    output = {htype: {"files": {}}}
+                output_json = file(checksum_filename_json, "w")
                 dumpjobdata.debugfn("Checksumming %s via %s" % (file_obj.filename, htype))
                 dumpfile = DumpFile(self.wiki, dumpjobdata.dump_dir.filename_public_path(file_obj),
                                     None, self.verbose)
                 checksum = dumpfile.checksum(htype)
                 if checksum is not None:
-                    output.write("%s  %s\n" % (checksum, file_obj.filename))
-                output.close()
+                    output_text.write("%s  %s\n" % (checksum, file_obj.filename))
+                    output[htype]["files"][file_obj.filename] = checksum
+                # always write a json stanza, even if no file info included.
+                output_json.write(json.dumps(output))
+                output_text.close()
+                output_json.close()
 
     def move_chksumfiles_into_place(self):
+        # after the run we move the temp file into the permanent
+        # location, as we have finished
         if Checksummer.NAME in self._enabled:
             for htype in Checksummer.HASHTYPES:
-                tmp_filename = self._get_checksum_filename_tmp(htype)
-                real_filename = self._get_checksum_filename(htype)
-                os.rename(tmp_filename, real_filename)
+                for fmt in Checksummer.FORMATS:
+                    tmp_filename = self._get_checksum_filename_tmp(htype, fmt)
+                    real_filename = self._get_checksum_filename(htype, fmt)
+                    os.rename(tmp_filename, real_filename)
 
     def cp_chksum_tmpfiles_to_permfile(self):
+        # during the run we copy what we've done into the permanent location
+        # after each job etc
         if Checksummer.NAME in self._enabled:
             for htype in Checksummer.HASHTYPES:
-                tmp_filename = self._get_checksum_filename_tmp(htype)
-                real_filename = self._get_checksum_filename(htype)
-                text = FileUtils.read_file(tmp_filename)
-                FileUtils.write_file(self.wiki.config.temp_dir, real_filename, text,
-                                     self.wiki.config.fileperms)
+                for fmt in Checksummer.FORMATS:
+                    tmp_filename = self._get_checksum_filename_tmp(htype, fmt)
+                    real_filename = self._get_checksum_filename(htype, fmt)
+                    content = FileUtils.read_file(tmp_filename)
+                    FileUtils.write_file(self.wiki.config.temp_dir, real_filename, content,
+                                         self.wiki.config.fileperms)
 
     #
     # functions internal to the class
     #
 
-    def _get_checksum_filename(self, htype):
-        file_obj = DumpFilename(self.wiki, None, Checksummer.get_checksum_filename_basename(htype))
+    def _get_checksum_filename(self, htype, fmt):
+        file_obj = DumpFilename(self.wiki, None,
+                                Checksummer.get_checksum_filename_basename(htype, fmt))
         return self.dump_dir.filename_public_path(file_obj)
 
-    def _get_checksum_filename_tmp(self, htype):
-        file_obj = DumpFilename(self.wiki, None, Checksummer.get_checksum_filename_basename(htype) +
+    def _get_checksum_filename_tmp(self, htype, fmt):
+        file_obj = DumpFilename(self.wiki, None,
+                                Checksummer.get_checksum_filename_basename(htype, fmt) +
                                 "." + self.timestamp + ".tmp")
         return self.dump_dir.filename_public_path(file_obj)
 
@@ -115,16 +174,17 @@ class Checksummer(object):
         return os.path.join(self.wiki.public_dir(), self.wiki.date)
 
 
-class IndexHtml(object):
+class Report(object):
     '''
-    methods for generation of the index.html file for a dump
+    methods for generation of the index.html file and the json file for a dump
     run for a given wiki and date
     '''
-    NAME = "indexhtml"
+    NAME = "report"
+    JSONFILE = "report.json"
 
     @staticmethod
     def report_dump_step_status(dump_dir, item):
-        """Return an HTML fragment with info on the progress of this dump step."""
+        """Return an HTML fragment and a json object with info on the progress of this dump step."""
         item.status()
         item.updated()
         item.description()
@@ -135,16 +195,24 @@ class IndexHtml(object):
             html += "<div class='progress'>%s</div>\n" % item.progress
         file_objs = item.list_outfiles_to_publish(dump_dir)
         if file_objs:
-            list_items = [IndexHtml.report_file_size_status(dump_dir, file_obj, item.status())
+            list_items = [Report.report_file_size_status(dump_dir, file_obj, item.status())
                           for file_obj in file_objs]
             html += "<ul>"
             detail = item.detail()
             if detail:
                 html += "<li class='detail'>%s</li>\n" % detail
-            html += "\n".join(list_items)
+            html += "\n".join([entry['text'] for entry in list_items])
             html += "</ul>"
+            json_out = {item.name():
+                        {'files':
+                         {entry['json']['name']:
+                          dict((key, entry['json'][key]) for key in entry['json'] if key != 'name')
+                          for entry in list_items}}}
+        else:
+            json_out = {'job': item.name()}
         html += "</li>"
-        return html
+        content = {'html': html, 'json': json_out}
+        return content
 
     # this is a per-dump-item report (well, per file generated by the item)
     # Report on the file size & item status of the current output and output a link if we are done
@@ -156,15 +224,47 @@ class IndexHtml(object):
         else:
             item_status = "missing"
             size = 0
-        size = FileUtils.pretty_size(size)
+        pretty_size = FileUtils.pretty_size(size)
         if item_status == "in-progress":
-            return "<li class='file'>%s %s (written) </li>" % (file_obj.filename, size)
+            text = "<li class='file'>%s %s (written) </li>" % (file_obj.filename, pretty_size)
+            json_out = {'name': file_obj.filename, 'size': size}
         elif item_status == "done":
             webpath_relative = dump_dir.web_path_relative(file_obj)
-            return ("<li class='file'><a href=\"%s\">%s</a> %s</li>"
-                    % (webpath_relative, file_obj.filename, size))
+            text = ("<li class='file'><a href=\"%s\">%s</a> %s</li>"
+                    % (webpath_relative, file_obj.filename, pretty_size))
+            json_out = {'name': file_obj.filename, 'size': size,
+                        'url': webpath_relative}
         else:
-            return "<li class='missing'>%s</li>" % file_obj.filename
+            text = "<li class='missing'>%s</li>" % file_obj.filename
+            json_out = {'name': file_obj.filename}
+        content = {'text': text, 'json': json_out}
+        return content
+
+    @staticmethod
+    def get_jobs(jsoninfo):
+        """
+        given json output from report file, return the list
+        of job names covered in the output
+        """
+        if jsoninfo is None or "jobs" not in jsoninfo:
+            return []
+        else:
+            return jsoninfo['jobs'].keys()
+
+    @staticmethod
+    def get_fileinfo_for_job(jobname, reportinfo):
+        """
+        given json output from report file, and a job name,
+        return info about the files associated with that job
+        """
+        try:
+            return reportinfo['jobs'][jobname]["files"]
+        except:
+            return {}
+
+    @staticmethod
+    def get_filenames_for_job(jobname, reportinfo):
+        return Report.get_fileinfo_for_job(jobname, reportinfo).keys()
 
     def __init__(self, wiki, dump_dir, items, dumpjobdata, enabled,
                  failhandler, error_callback=None, verbose=False):
@@ -176,6 +276,20 @@ class IndexHtml(object):
         self.verbose = verbose
         self._enabled = enabled
         self.failhandler = failhandler
+
+    @staticmethod
+    def add_file_property(jobname, filename, prop, value, reportinfo):
+        """
+        given json output from report file, a job name, a filename, and
+        a property and value, add the property and value to the filename
+        specified for the given job
+        """
+        try:
+            if "files" not in reportinfo["jobs"][jobname]:
+                reportinfo["jobs"][jobname] = {}
+            reportinfo["jobs"][jobname]["files"][filename][prop] = value
+        except:
+            pass
 
     def report_previous_dump_link(self, done):
         """Produce a link to the previous dump, if any"""
@@ -218,19 +332,20 @@ class IndexHtml(object):
         web_path = self.dump_dir.web_path_relative(path)
         return '<a href="%s">(%s)</a>' % (web_path, htype)
 
-    def update_index_html(self, dump_status=""):
+    def update_index_html_and_json(self, dump_status=""):
         '''
         generate the index.html file for the wiki's dump run which contains
         information on each dump step as well as links to completed files
-        for download, hash files, etc.
-        and links to completed files'''
-        if IndexHtml.NAME in self._enabled:
+        for download, hash files, etc. and links to completed files;
+        generate the json file with the same information as well'''
+        if Report.NAME in self._enabled:
 
             self.dumpjobdata.noticefile.refresh_notice()
-            status_items = [IndexHtml.report_dump_step_status(self.dump_dir, item)
+            status_items = [Report.report_dump_step_status(self.dump_dir, item)
                             for item in self.items]
-            status_items.reverse()
-            html = "\n".join(status_items)
+            status_items_html = [item['html'] for item in status_items]
+            status_items_html.reverse()
+            html = "\n".join(status_items_html)
             checksums = [self.get_checksum_html(htype)
                          for htype in Checksummer.HASHTYPES]
             checksums_html = ", ".join(checksums)
@@ -245,10 +360,18 @@ class IndexHtml(object):
                 "checksum": checksums_html,
                 "index": self.wiki.config.index}
 
+            json_out = {'jobs': {}}
+            for item in status_items:
+                for jobname in item['json']:
+                    json_out['jobs'][jobname] = item['json'][jobname]
             try:
                 index = os.path.join(self.wiki.public_dir(), self.wiki.date,
                                      self.wiki.config.perdump_index)
                 FileUtils.write_file_in_place(index, text, self.wiki.config.fileperms)
+                json_file = os.path.join(self.wiki.public_dir(), self.wiki.date,
+                                         Report.JSONFILE)
+                FileUtils.write_file_in_place(json_file, json.dumps(json_out),
+                                              self.wiki.config.fileperms)
             except Exception as ex:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -366,7 +489,7 @@ class StatusHtml(object):
         FileUtils.write_file_in_place(index, message, wiki.config.fileperms)
 
     def __init__(self, wiki, dump_dir, items, dumpjobdata, enabled, failhandler,
-                 email=True, error_callback=None, verbose=False):
+                 error_callback=None, verbose=False):
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.items = items
@@ -375,7 +498,6 @@ class StatusHtml(object):
         self.failhandler = failhandler
         self.verbose = verbose
         self._enabled = enabled
-        self.email = email
 
     def update_status_file(self, done=False):
         """Write out a status HTML file with the status for this wiki's dump;
@@ -405,8 +527,9 @@ class StatusHtml(object):
 
         active_items = [x for x in self.items if x.status() == "in-progress"]
         if active_items:
-            return html + "<ul>" + "\n".join([IndexHtml.report_dump_step_status(self.dump_dir, x)
-                                              for x in active_items]) + "</ul>"
+            return html + "<ul>" + "\n".join([
+                Report.report_dump_step_status(self.dump_dir, x)['html']
+                for x in active_items]) + "</ul>"
         else:
             return html
 
@@ -783,6 +906,7 @@ class DumpRunJobData(object):
 
 class RunInfoFile(object):
     NAME = "runinfofile"
+    FORMATS = ['text', 'json']
 
     @staticmethod
     def report_dump_runinfo(dump_items):
@@ -791,20 +915,54 @@ class RunInfoFile(object):
                          (item.name(), item.status(), item.updated())
                          for item in dump_items]
         runinfo_lines.reverse()
-        text = "\n".join(runinfo_lines)
-        text = text + "\n"
-        return text
+        text_content = "\n".join(runinfo_lines)
+        content = {}
+        content['text'] = text_content + "\n"
+        # {"jobs": {name: {"status": stuff, "updated": stuff}}, othername: {...}, ...}
+        content_json = {"jobs": {}}
+        for item in sorted(dump_items, reverse=True):
+            content_json["jobs"][item.name()] = {'status': item.status(), 'updated': item.updated()}
+        content['json'] = json.dumps(content_json)
+        return content
+
+    @staticmethod
+    def add_job_property(jobname, jproperty, value, dumpruninfo):
+        """
+        given the json formatted dumpruninfo file contents, and
+        a property and value that should be added to a given job,
+        add it
+        """
+        if "jobs" not in dumpruninfo:
+            dumpruninfo["jobs"] = {}
+        if jobname not in dumpruninfo["jobs"]:
+            dumpruninfo["jobs"][jobname] = {}
+        dumpruninfo["jobs"][jobname][jproperty] = value
+
+    @staticmethod
+    def get_empty_json():
+        return {"jobs": {}}
+
+    @staticmethod
+    def get_jobs(dumpruninfo):
+        """
+        given the json formatted dumpruninfo file contents,
+        return the jobnames covered by it
+        """
+        if "jobs" not in dumpruninfo:
+            return []
+        else:
+            return dumpruninfo["jobs"].keys()
 
     def __init__(self, wiki, enabled, verbose=False):
         self.wiki = wiki
         self._enabled = enabled
         self.verbose = verbose
 
-    def save_dump_runinfo_file(self, text):
+    def save_dump_runinfo_file(self, content):
         """Write out a simple text file with the status for this wiki's dump."""
         if RunInfoFile.NAME in self._enabled:
             try:
-                self._write_dump_runinfo_file(text)
+                self._write_dump_runinfo_file(content)
             except Exception as ex:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -855,13 +1013,17 @@ class RunInfoFile(object):
     #
     # functions internal to the class
     #
-    def _get_dump_runinfo_filename(self, date=None):
+    def _get_dump_runinfo_filename(self, date=None, fmt='text'):
         # sometimes need to get this info for an older run to check status of a file for
         # possible prefetch
-        if date:
-            return os.path.join(self.wiki.public_dir(), date, "dumpruninfo.txt")
+        if fmt == 'json':
+            ext = "json"
         else:
-            return os.path.join(self.wiki.public_dir(), self.wiki.date, "dumpruninfo.txt")
+            ext = "txt"
+        if date:
+            return os.path.join(self.wiki.public_dir(), date, "dumpruninfo." + ext)
+        else:
+            return os.path.join(self.wiki.public_dir(), self.wiki.date, "dumpruninfo." + ext)
 
     def _get_dump_runinfo_dirname(self, date=None):
         if date:
@@ -883,10 +1045,13 @@ class RunInfoFile(object):
                 dump_runinfo[fieldname] = field_value
         return dump_runinfo
 
-    def _write_dump_runinfo_file(self, text):
-        dump_runinfo_filename = self._get_dump_runinfo_filename()
-#        FileUtils.write_file(directory, dumpRunInfoFilename, text, self.wiki.config.fileperms)
-        FileUtils.write_file_in_place(dump_runinfo_filename, text, self.wiki.config.fileperms)
+    def _write_dump_runinfo_file(self, content):
+        for fmt in RunInfoFile.FORMATS:
+            dump_runinfo_filename = self._get_dump_runinfo_filename(fmt=fmt)
+            #  FileUtils.write_file(directory, dumpRunInfoFilename, text,
+            #    self.wiki.config.fileperms)
+            FileUtils.write_file_in_place(dump_runinfo_filename, content[fmt],
+                                          self.wiki.config.fileperms)
 
     # format: name:%; updated:%; status:%
     def _get_status_from_runinfo_line(self, line, job_name):
