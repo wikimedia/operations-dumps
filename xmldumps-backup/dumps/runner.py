@@ -161,12 +161,12 @@ class DumpItemList(object):
 
             try:
                 # tables job names end in 'table' so stick that on
-                if (tables_configured[table]['type'] == 'private' and
-                        not self.wiki.config.skip_privatetables):
-                    self.dump_items.append(PrivateTable(
-                        table,
-                        normalize_tablejob_name(tables_configured[table]['job']),
-                        tables_configured[table]['description']))
+                if tables_configured[table]['type'] == 'private':
+                    if not self.wiki.config.skip_privatetables:
+                        self.dump_items.append(PrivateTable(
+                            table,
+                            normalize_tablejob_name(tables_configured[table]['job']),
+                            tables_configured[table]['description']))
                 elif tables_configured[table]['type'] == 'public':
                     self.dump_items.append(PublicTable(
                         table,
@@ -174,7 +174,8 @@ class DumpItemList(object):
                         tables_configured[table]['description']))
                 else:
                     raise BackupError("Unknown table type in table jobs config: " +
-                                      tables_configured[table][type])
+                                      tables_configured[table]['type'] +
+                                      " for table " + table)
             except:
                 # whine about missing keys etc
                 exc_type, exc_value, exc_traceback = sys.exc_info()
