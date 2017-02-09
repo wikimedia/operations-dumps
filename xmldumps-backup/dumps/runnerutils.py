@@ -234,12 +234,12 @@ class IndexHtml(object):
             checksums = [self.get_checksum_html(htype)
                          for htype in Checksummer.HASHTYPES]
             checksums_html = ", ".join(checksums)
+            failed_jobs = sum(1 for item in self.items if item.status() == "failed")
             text = self.wiki.config.read_template("report.html") % {
                 "db": self.wiki.db_name,
                 "date": self.wiki.date,
                 "notice": self.dumpjobdata.noticefile.notice,
-                "status": StatusHtml.report_dump_status(
-                    self.failhandler.failure_count, dump_status),
+                "status": StatusHtml.report_dump_status(failed_jobs, dump_status),
                 "previous": self.report_previous_dump_link(dump_status),
                 "items": html,
                 "checksum": checksums_html,
@@ -267,6 +267,7 @@ class FailureHandler(object):
     '''
     def __init__(self, wiki, email):
         self.wiki = wiki
+        # number of times jobs have failed on this run
         self.failure_count = 0
         self.email = email
 
@@ -302,7 +303,7 @@ class StatusHtml(object):
     NAME = "status"
 
     @staticmethod
-    def report_dump_status(failure_count, dump_status=""):
+    def report_dump_status(num_jobs_failed, dump_status=""):
         if dump_status == "done":
             classes = "done"
             text = "Dump complete"
@@ -312,13 +313,13 @@ class StatusHtml(object):
         else:
             classes = "in-progress"
             text = "Dump in progress"
-        if failure_count > 0:
+        if num_jobs_failed > 0:
             classes += " failed"
-            if failure_count == 1:
+            if num_jobs_failed == 1:
                 ess = ""
             else:
                 ess = "s"
-            text += ", %d item%s failed" % (failure_count, ess)
+            text += ", %d item%s failed" % (num_jobs_failed, ess)
         return "<span class='%s'>%s</span>" % (classes, text)
 
     @staticmethod
@@ -398,7 +399,8 @@ class StatusHtml(object):
 
     def _report_dump_status_html(self, done=False):
         """Put together a brief status summary and link for the current database."""
-        status = StatusHtml.report_dump_status(self.failhandler.failure_count, done)
+        failed_jobs = sum(1 for item in self.items if item.status() == "failed")
+        status = StatusHtml.report_dump_status(failed_jobs, done)
         html = StatusHtml.report_statusline(self.wiki, status)
 
         active_items = [x for x in self.items if x.status() == "in-progress"]

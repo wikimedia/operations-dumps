@@ -795,7 +795,7 @@ class Runner(object):
             self.show_runner_state_complete()
 
         # let caller know if this was a successful run
-        if self.failurehandler.failure_count > 0:
+        if sum(1 for item in self.dump_item_list.dump_items if item.status() == "failed"):
             return False
         else:
             return True
