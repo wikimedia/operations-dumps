@@ -12,6 +12,7 @@ from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFile, DumpFilename
 from dumps.utils import MultiVersion, MiscUtils
 from dumps.jobs import Dump
+from dumps.WikiDump import Locker
 
 
 def batcher(items, batchsize):
@@ -384,9 +385,48 @@ class XmlDump(Dump):
         else:
             return False
 
+    def cleanup_tmp_files(self, dump_dir, runner):
+        """
+        with checkpoint files turned on, this job writes output
+        to <something>.xml<-maybemorestuff>.bz2-tmp
+        and if those files are lying around after such a job dies,
+        we should clean them up
+        """
+        if "cleanup_tmp_files" not in runner.enabled:
+            return
+
+        # if we don't have the lock it's possible some
+        # other process is writing tmp files, don't touch
+        locker = Locker(self.wiki, self.wiki.date)
+        lockfiles = locker.is_locked()
+        if not lockfiles:
+            return
+        if len(lockfiles) > 1:
+            # more than one process with the lock? should not
+            # be possible, but if it is... touch nothing!
+            return
+        if not locker.check_owner(lockfiles[0], str(os.getpid())):
+            return
+
+        to_delete = self.get_tmp_files(dump_dir)
+        for finfo in to_delete:
+            if exists(dump_dir.filename_public_path(finfo)):
+                os.remove(dump_dir.filename_public_path(finfo))
+            elif exists(dump_dir.filename_private_path(finfo)):
+                os.remove(dump_dir.filename_private_path(finfo))
+
     def run(self, runner):
-        # here we will either clean up or not depending on how we were called FIXME
+        # here we will either clean up or not depending on how we were called
+        # FIXME callers should set this appropriately and they don't right now
         self.cleanup_old_files(runner.dump_dir, runner)
+
+        # clean up all tmp output files from previous attempts of this job
+        # for this dump wiki and date, otherwise we'll wind up indexing
+        # them and hashsumming them etc.
+        # they may have been left around from an interrupted or failed earlier
+        # run
+        self.cleanup_tmp_files(runner.dump_dir, runner)
+
         commands = []
 
         todo = []
@@ -860,6 +900,10 @@ class XmlDump(Dump):
 
         runner.debug("Could not locate a prefetchable dump.")
         return None
+
+    def get_tmp_files(self, dump_dir, dump_names=None):
+        files = Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names)
+        return [fileinfo for fileinfo in files if fileinfo.is_temp_file]
 
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         files = Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names)

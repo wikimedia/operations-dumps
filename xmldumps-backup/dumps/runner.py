@@ -466,7 +466,7 @@ class Runner(object):
         for setting in [StatusHtml.NAME, IndexHtml.NAME, Checksummer.NAME,
                         RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
-                        "cleanup_old_files", "check_trunc_files"]:
+                        "cleanup_old_files", "check_trunc_files", "cleanup_tmp_files"]:
             self.enabled[setting] = True
 
         if not self.cleanup_old_files:
@@ -481,7 +481,7 @@ class Runner(object):
                     del self.enabled[setting]
 
         if self.dryrun:
-            for setting in ["check_trunc_files"]:
+            for setting in ["check_trunc_files", "cleanup_tmp_files"]:
                 if setting in self.enabled:
                     del self.enabled[setting]
             if "logging" in self.enabled:
