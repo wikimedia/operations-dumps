@@ -476,7 +476,7 @@ class XmlDump(Dump):
                     todo = []
                     parts = self.get_fileparts_list()
                     for partnum in parts:
-                        if not [int(chkpt_range[2]) for chkpt_range in checkpoint_ranges
+                        if not [1 for chkpt_range in checkpoint_ranges
                                 if int(chkpt_range[2]) == int(partnum)]:
                             # no page ranges covered by checkpoints for a particular
                             # file part (subjob) so do that output file the
