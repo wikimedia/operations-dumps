@@ -474,23 +474,23 @@ class XmlDump(Dump):
                     todo = outfiles
                 else:
                     todo = []
+                    missing_ranges = self.find_missing_ranges(stub_ranges, checkpoint_ranges)
                     parts = self.get_fileparts_list()
                     for partnum in parts:
                         if not [1 for chkpt_range in checkpoint_ranges
-                                if int(chkpt_range[2]) == int(partnum)]:
-                            # no page ranges covered by checkpoints for a particular
-                            # file part (subjob) so do that output file the
-                            # regular way
+                                if int(chkpt_range[2]) == partnum]:
+                            # entire page range for a particular file part (subjob)
+                            # is missing so generate the regular output file
                             todo.extend([outfile for outfile in outfiles
-                                         if int(outfile.partnum) == int(partnum)])
-
-                    missing = self.find_missing_ranges(stub_ranges, checkpoint_ranges)
-                    todo.extend([self.chkpt_file_from_page_range((first, last), partnum)
-                                 for (first, last, partnum) in missing])
-
+                                         if int(outfile.partnum) == partnum])
+                        else:
+                            # at least some page ranges are covered, just do those that
+                            # are missing (maybe none are and list is empty)
+                            todo.extend([self.chkpt_file_from_page_range((first, last), part)
+                                         for (first, last, part) in missing_ranges
+                                         if int(part) == partnum])
             else:
                 # do the missing files only
-                # FIXME public or private depending on the wiki!
                 todo = [outfile for outfile in outfiles
                         if not os.path.exists(runner.dump_dir.filename_public_path(outfile))]
 
