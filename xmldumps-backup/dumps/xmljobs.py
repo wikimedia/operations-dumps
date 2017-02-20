@@ -371,16 +371,16 @@ class XmlDump(Dump):
         # one or both end values are missing:
         if not fobj.last_page_id and not chkpt_fobj.last_page_id:
             return True
-        elif not fobj.last_page_id and chkpt_fobj.last_page_id < fobj.first_page_id:
+        elif not fobj.last_page_id and int(chkpt_fobj.last_page_id) < int(fobj.first_page_id):
             return True
-        elif not chkpt_fobj.last_page_id and fobj.last_page_id < chkpt_fobj.first_page_id:
+        elif not chkpt_fobj.last_page_id and int(fobj.last_page_id) < int(chkpt_fobj.first_page_id):
             return True
         # have end values for both files:
-        elif (fobj.first_page_id <= chkpt_fobj.first_page_id and
-              chkpt_fobj.first_page_id <= fobj.last_page_id):
+        elif (int(fobj.first_page_id) <= int(chkpt_fobj.first_page_id) and
+              int(chkpt_fobj.first_page_id) <= int(fobj.last_page_id)):
             return True
-        elif (chkpt_fobj.first_page_id <= fobj.first_page_id and
-              fobj.first_page_id <= chkpt_fobj.last_page_id):
+        elif (int(chkpt_fobj.first_page_id) <= int(fobj.first_page_id) and
+              int(fobj.first_page_id) <= int(chkpt_fobj.last_page_id)):
             return True
         else:
             return False
@@ -443,7 +443,6 @@ class XmlDump(Dump):
             outfiles = self.get_reg_files_for_filepart_possible(
                 runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
             if self._checkpoints_enabled:
-
                 # get the stub list that would be used for the current run
                 stubs = self.get_stub_files(runner)
                 stubs = sorted(stubs, key=lambda thing: thing.filename)
@@ -498,6 +497,7 @@ class XmlDump(Dump):
         partial_stubs = []
         if self.verbose:
             print "todo is", [to.filename for to in todo]
+
         for fileobj in todo:
 
             stub_for_file = self.get_stub_files(runner, fileobj.partnum_int)[0]
