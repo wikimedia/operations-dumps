@@ -10,6 +10,7 @@ from dumps.CommandManagement import CommandsInParallel
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpDir, DumpFilename
 
+from dumps.apijobs import SiteInfoDump
 from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
@@ -181,6 +182,17 @@ class DumpItemList(object):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(
                     exc_type, exc_value, exc_traceback)))
+
+        apijobs_configured = self.wiki.config.get_apijobs_from_conf()
+        for apijob_type in apijobs_configured:
+            if apijob_type == 'siteinfo':
+                for apijob in apijobs_configured[apijob_type]:
+                    self.dump_items.append(SiteInfoDump(
+                        apijobs_configured[apijob_type][apijob]['properties'],
+                        apijobs_configured[apijob_type][apijob]['job'],
+                        apijobs_configured[apijob_type][apijob]['description']))
+            else:
+                raise BackupError("Unknown api job type in config: " + apijob_type)
 
         self.dump_items.extend([TitleDump("pagetitlesdump",
                                           "List of page titles in main namespace"),

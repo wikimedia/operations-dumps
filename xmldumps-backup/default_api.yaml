@@ -1,0 +1,6 @@
+# default list of api jobs to run
+siteinfo:
+    namespaces:
+      job: namespaces
+      description: Namespaces, namespace aliases, magic words.
+      properties: [namespaces,namespacealiases,magicwords]

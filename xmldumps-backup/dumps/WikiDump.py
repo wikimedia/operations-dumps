@@ -120,6 +120,7 @@ class Config(object):
         self.closed_list = MiscUtils.db_list(self.conf.get("wiki", "closedlist"))
         self.flow_list = MiscUtils.db_list(self.conf.get("wiki", "flowlist"))
         self.tablejobs = self.conf.get("wiki", "tablejobs")
+        self.apijobs = self.conf.get("wiki", "apijobs")
 
         self.db_list = list(set(self.db_list) - set(self.skip_db_list))
 
@@ -342,6 +343,19 @@ class Config(object):
                 contents = open(self.tablejobs).read()
             else:
                 contents = open("default_tables.yaml").read()
+            return yaml.load(contents)
+        except Exception as ex:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            sys.stderr.write(repr(traceback.format_exception(
+                exc_type, exc_value, exc_traceback)))
+            return {}
+
+    def get_apijobs_from_conf(self):
+        try:
+            if self.apijobs:
+                contents = open(self.apijobs).read()
+            else:
+                contents = open("default_api.yaml").read()
             return yaml.load(contents)
         except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()

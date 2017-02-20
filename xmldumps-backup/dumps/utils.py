@@ -92,6 +92,7 @@ class DbServerInfo(object):
         self.db_table_prefix = None
         self.db_server = None
         self.db_port = None
+        self.apibase = None
         self.get_db_server_and_prefix()
 
     def get_db_server_and_prefix(self):
@@ -119,16 +120,30 @@ class DbServerInfo(object):
         if ':' in self.db_server:
             self.db_server, _, self.db_port = self.db_server.rpartition(':')
 
-        #       [wgDBprefix] =>
+        #       [wgDBprefix] => stuff
         wgdb_prefix_pattern = re.compile(r"\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
+        wgcanonserver_pattern = re.compile(r"\s+\[wgCanonicalServer\]\s+=>\s+(?P<prefix>.*)$")
+        wgscriptpath_pattern = re.compile(r"\s+\[wgScriptPath\]\s+=>\s+(?P<prefix>.*)$")
         for line in lines:
             match = wgdb_prefix_pattern.match(line)
             if match:
                 self.db_table_prefix = match.group('prefix').strip()
+            else:
+                match = wgcanonserver_pattern.match(line)
+                if match:
+                    wgcanonserver = match.group('prefix').strip()
+                else:
+                    match = wgscriptpath_pattern.match(line)
+                    if match:
+                        wgscriptpath = match.group('prefix').strip()
+        # if we didn't see these in the globals list, something is broken.
         if self.db_table_prefix is None:
-            # if we didn't see this in the globals list, something is broken.
             raise BackupError("Failed to get database table prefix for %s, bailing."
                               % self.wiki.config.php)
+        if wgcanonserver is None or wgscriptpath is None:
+            raise BackupError("Failed to get apibase for %s, bailing."
+                              % self.wiki.config.php)
+        self.apibase = "/".join([wgcanonserver, wgscriptpath, "api.php"])
 
     def mysql_standard_parameters(self):
         host = self.db_server
