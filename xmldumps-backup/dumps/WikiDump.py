@@ -172,79 +172,72 @@ class Config(object):
         self.queryfile = self.conf.get("query", "queryfile")
 
     def parse_conffile_per_project(self, project_name=False):
-        # we need to read from the project section without falling back
-        # to the defaults, which has_option() normally does, ugh.  so set
-        # up a local conf instance without the defaults
-        conf = ConfigParser.SafeConfigParser()
-        conf.readfp(open('defaults.conf', "rb"))
-        conf.read(self.files)
-
         if project_name:
             self.project_name = project_name
 
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
 
-        dbuser = self.get_opt_for_proj_or_default(self.conf, "database", "user", 0)
+        dbuser = self.get_opt_for_proj_or_default("database", "user", 0)
         if dbuser:
             self.db_user = dbuser
-        dbpassword = self.get_opt_for_proj_or_default(self.conf, "database", "password", 0)
+        dbpassword = self.get_opt_for_proj_or_default("database", "password", 0)
         if dbpassword:
             self.db_password = dbpassword
         max_allowed_packet = self.get_opt_for_proj_or_default(
-            conf, "database", "max_allowed_packet", 0)
+            "database", "max_allowed_packet", 0)
         if max_allowed_packet:
             self.max_allowed_packet = max_allowed_packet
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')
         self.parts_enabled = self.get_opt_for_proj_or_default(
-            conf, "chunks", "chunksEnabled", 1)
+            "chunks", "chunksEnabled", 1)
         self.jobsperbatch = self.get_opt_for_proj_or_default(
-            conf, "chunks", "jobsperbatch", 0)
+            "chunks", "jobsperbatch", 0)
         self.pages_per_filepart_history = self.get_opt_for_proj_or_default(
-            conf, "chunks", "pagesPerChunkHistory", 0)
+            "chunks", "pagesPerChunkHistory", 0)
         self.revs_per_filepart_history = self.get_opt_for_proj_or_default(
-            conf, "chunks", "revsPerChunkHistory", 0)
+            "chunks", "revsPerChunkHistory", 0)
         self.numparts_for_abstract = self.get_opt_for_proj_or_default(
-            conf, "chunks", "chunksForAbstract", 0)
+            "chunks", "chunksForAbstract", 0)
         self.pages_per_filepart_abstract = self.get_opt_for_proj_or_default(
-            conf, "chunks", "pagesPerChunkAbstract", 0)
+            "chunks", "pagesPerChunkAbstract", 0)
         self.recombine_history = self.get_opt_for_proj_or_default(
-            conf, "chunks", "recombineHistory", 1)
+            "chunks", "recombineHistory", 1)
         self.checkpoint_time = self.get_opt_for_proj_or_default(
-            conf, "chunks", "checkpointTime", 1)
+            "chunks", "checkpointTime", 1)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
         self.multistream_enabled = self.get_opt_for_proj_or_default(
-            conf, 'otherformats', 'multistream', 1)
+            'otherformats', 'multistream', 1)
 
         if not self.conf.has_section('stubs'):
             self.conf.add_section('stubs')
         self.stubs_orderrevs = self.get_opt_for_proj_or_default(
-            conf, 'stubs', 'orderrevs', 1)
+            'stubs', 'orderrevs', 1)
         self.stubs_minpages = self.get_opt_for_proj_or_default(
-            conf, 'stubs', 'minpages', 1)
+            'stubs', 'minpages', 1)
         self.stubs_maxrevs = self.get_opt_for_proj_or_default(
-            conf, 'stubs', 'maxrevs', 1)
+            'stubs', 'maxrevs', 1)
 
         if not self.conf.has_section('wiki'):
             self.conf.add_section('wiki')
-        self.wiki_dir = self.get_opt_for_proj_or_default(conf, "wiki", "dir", 0)
+        self.wiki_dir = self.get_opt_for_proj_or_default("wiki", "dir", 0)
 
-    def get_opt_for_proj_or_default(self, conf, section_name, item_name, is_int):
+    def get_opt_for_proj_or_default(self, section_name, item_name, is_int):
         # look for option in per project sections
-        if conf.has_section(self.project_name):
-            if conf.has_option(self.project_name, item_name):
+        if self.conf.has_section(self.project_name):
+            if self.conf.has_option(self.project_name, item_name):
                 if is_int:
-                    return conf.getint(self.project_name, item_name)
+                    return self.conf.getint(self.project_name, item_name)
                 else:
-                    return conf.get(self.project_name, item_name)
+                    return self.conf.get(self.project_name, item_name)
 
         # look for option in global sections
-        if conf.has_section(section_name):
-            if conf.has_option(section_name, item_name):
+        if self.conf.has_section(section_name):
+            if self.conf.has_option(section_name, item_name):
                 if is_int:
                     return self.conf.getint(section_name, item_name)
                 else:
