@@ -612,6 +612,7 @@ class XmlDump(Dump):
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
+        last_lines = ""
         if (proc.exited_successfully() or
                 (proc.get_failed_cmds_with_retcode() ==
                  [[-signal.SIGPIPE, pipeline[0]]]) or
