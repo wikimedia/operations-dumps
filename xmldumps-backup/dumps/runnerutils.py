@@ -885,7 +885,7 @@ class DumpRunJobData(object):
         self.runinfofile.save_dump_runinfo_file(
             RunInfoFile.report_dump_runinfo(dump_items))
 
-    def do_after_job(self, item):
+    def do_after_job(self, item, dump_items):
         self.checksummer.cp_chksum_tmpfiles_to_permfile()
         # this will include checkpoint files if they are enabled.
         for file_obj in item.list_outfiles_to_publish(self.dump_dir):
@@ -898,6 +898,8 @@ class DumpRunJobData(object):
                 self.checksummer.checksums(file_obj, self)
                 self.symlinks.cleanup_symlinks()
                 self.feeds.cleanup_feeds()
+        self.runinfofile.save_dump_runinfo_file(
+            RunInfoFile.report_dump_runinfo(dump_items))
 
     def do_latest_job(self):
         self.symlinks.remove_symlinks_from_old_runs(self.wiki.date)

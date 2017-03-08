@@ -23,6 +23,7 @@ from dumps.runnerutils import Checksummer, Report, StatusHtml, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
 
 from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils
+from dumps.runstatusapi import StatusAPI
 
 
 class Logger(threading.Thread):
@@ -477,8 +478,9 @@ class Runner(object):
             self.enabled = {}
         for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
                         RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
-                        Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps",
-                        "cleanup_old_files", "check_trunc_files", "cleanup_tmp_files"]:
+                        Feeds.NAME, NoticeFile.NAME, StatusAPI.NAME,
+                        "makedir", "clean_old_dumps", "cleanup_old_files",
+                        "check_trunc_files", "cleanup_tmp_files"]:
             self.enabled[setting] = True
 
         if not self.cleanup_old_files:
@@ -487,7 +489,7 @@ class Runner(object):
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
-                            RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
+                            StatusAPI.NAME, RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
                 if setting in self.enabled:
                     del self.enabled[setting]
@@ -507,7 +509,7 @@ class Runner(object):
                     del self.enabled[setting]
 
         if self.job_requested == "createdirs":
-            for setting in [SymLinks.NAME, Feeds.NAME, RunSettings.NAME]:
+            for setting in [SymLinks.NAME, Feeds.NAME, RunSettings.NAME, StatusAPI.NAME]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 
@@ -568,6 +570,9 @@ class Runner(object):
                              self.failurehandler,
                              self.log_and_print, self.verbose)
 
+        self.runstatus_updater = StatusAPI(self.wiki, self.enabled, "json",
+                                           self.log_and_print, self.verbose)
+
     def log_queue_reader(self, log):
         if not log:
             return
@@ -583,6 +588,7 @@ class Runner(object):
     def html_update_callback(self):
         self.report.update_index_html_and_json()
         self.statushtml.update_status_file()
+        self.runstatus_updater.write_statusapi_file()
 
     # returns 0 on success, 1 on error
     def save_command(self, commands, outfile):
@@ -665,6 +671,7 @@ class Runner(object):
             item.start()
             self.report.update_index_html_and_json()
             self.statushtml.update_status_file()
+            self.runstatus_updater.write_statusapi_file()
 
             self.dumpjobdata.do_before_job(self.dump_item_list.dump_items)
 
@@ -687,7 +694,7 @@ class Runner(object):
                     item.set_status("failed")
 
         if item.status() == "done":
-            self.dumpjobdata.do_after_job(item)
+            self.dumpjobdata.do_after_job(item, self.dump_item_list.dump_items)
         elif item.status() == "waiting" or item.status() == "skipped":
             # don't update the checksum files for this item.
             pass
@@ -780,6 +787,7 @@ class Runner(object):
             # All jobs are either in status "done", "waiting", "failed", "skipped"
             self.report.update_index_html_and_json("done")
             self.statushtml.update_status_file("done")
+            self.runstatus_updater.write_statusapi_file()
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
@@ -787,6 +795,7 @@ class Runner(object):
             # previously in "waiting" are still in status "waiting"
             self.report.update_index_html_and_json("partialdone")
             self.statushtml.update_status_file("partialdone")
+            self.runstatus_updater.write_statusapi_file()
 
         self.dumpjobdata.do_after_dump(self.dump_item_list.dump_items)
 
