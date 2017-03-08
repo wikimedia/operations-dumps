@@ -20,7 +20,7 @@ done
 
 cd ${WIKIDUMP_BASE}
 
-pythonargs=( "$WIKIDUMP_BASE/monitor.py" )
+pythonargs=( "./monitor.py" )
 if [ ! -z "$CONFIGFILE" ]; then
     pythonargs=( "${pythonargs[@]}" "$CONFIGFILE" )
 fi
