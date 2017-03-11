@@ -25,6 +25,7 @@ class StatusAPI(object):
 
     NAME = "statusapi"
     FILENAME = "dumpstatus"
+    VERSION = "0.8"
 
     # might add more someday, but not today
     known_formats = ["json"]
@@ -171,6 +172,7 @@ class StatusAPI(object):
             report_info = self.get_report_info()
 
             contents = self.combine_status_sources(dumprun_info, filehash_info, report_info)
+            contents['version'] = StatusAPI.VERSION
             self.write_contents(contents)
         except Exception as ex:
             if self.verbose:
