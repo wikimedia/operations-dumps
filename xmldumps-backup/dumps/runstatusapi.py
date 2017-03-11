@@ -29,6 +29,25 @@ class StatusAPI(object):
     # might add more someday, but not today
     known_formats = ["json"]
 
+    @staticmethod
+    def get_wiki_info(wiki, fmt="json"):
+        """
+        read and return the contents of the json status file
+        for the wiki
+        """
+        if fmt not in StatusAPI.known_formats:
+            return {}
+        date = wiki.latest_dump()
+        if date:
+            fname = os.path.join(wiki.public_dir(),
+                                 date, StatusAPI.FILENAME + "." + fmt)
+            with open(fname, "r") as status_file:
+                contents = status_file.read()
+                status_file.close()
+            return json.loads(contents)
+        else:
+            return {}
+
     def __init__(self, wiki, enabled, fileformat="json", error_callback=None, verbose=False):
         self.wiki = wiki
         self._enabled = enabled
