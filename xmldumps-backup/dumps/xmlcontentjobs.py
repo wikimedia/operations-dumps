@@ -12,7 +12,219 @@ from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFile, DumpFilename
 from dumps.utils import MultiVersion, MiscUtils
 from dumps.jobs import Dump
+from dumps.jobs import get_checkpt_files, get_reg_files
 from dumps.WikiDump import Locker
+
+
+class Prefetch(object):
+    """
+    finding appropriate prefetch files for a page
+    content dump
+    """
+    def __init__(self, wiki, jobinfo, prefetchinfo, verbose):
+        self.wiki = wiki
+        self.jobinfo = jobinfo
+        self.prefetchinfo = prefetchinfo
+        self.verbose = verbose
+
+    def get_relevant_prefetch_files(self, file_list, start_page_id, end_page_id, date, runner):
+        possibles = []
+        if len(file_list):
+            # (a) nasty hack, see below (b)
+            maxparts = 0
+            for file_obj in file_list:
+                if file_obj.is_file_part and file_obj.partnum_int > maxparts:
+                    maxparts = file_obj.partnum_int
+                if not file_obj.first_page_id:
+                    fname = DumpFile(
+                        self.wiki, runner.dump_dir.filename_public_path(file_obj, date),
+                        file_obj, self.verbose)
+                    file_obj.first_page_id = fname.find_first_page_id_in_file()
+
+            # get the files that cover our range
+            for file_obj in file_list:
+                # If some of the file_objs in file_list could not be properly be parsed, some of
+                # the (int) conversions below will fail. However, it is of little use to us,
+                # which conversion failed. /If any/ conversion fails, it means, that that we do
+                # not understand how to make sense of the current file_obj. Hence we cannot use
+                # it as prefetch object and we have to drop it, to avoid passing a useless file
+                # to the text pass. (This could days as of a comment below, but by not passing
+                # a likely useless file, we have to fetch more texts from the database)
+                #
+                # Therefore try...except-ing the whole block is sufficient: If whatever error
+                # occurs, we do not abort, but skip the file for prefetch.
+                try:
+                    # If we could properly parse
+                    first_page_id_in_file = int(file_obj.first_page_id)
+
+                    # fixme what do we do here? this could be very expensive. is that worth it??
+                    if not file_obj.last_page_id:
+                        # (b) nasty hack, see (a)
+                        # it's not a checkpoint fle or we'd have the pageid in the filename
+                        # so... temporary hack which will give expensive results
+                        # if file part, and it's the last one, put none
+                        # if it's not the last part, get the first pageid in the next
+                        #  part and subtract 1
+                        # if not file part, put none.
+                        if file_obj.is_file_part and file_obj.partnum_int < maxparts:
+                            for fname in file_list:
+                                if fname.partnum_int == file_obj.partnum_int + 1:
+                                    # not true!  this could be a few past where it really is
+                                    # (because of deleted pages that aren't included at all)
+                                    file_obj.last_page_id = str(int(fname.first_page_id) - 1)
+                    if file_obj.last_page_id:
+                        last_page_id_in_file = int(file_obj.last_page_id)
+                    else:
+                        last_page_id_in_file = None
+
+                    # FIXME there is no point in including files that have just a
+                    # few rev ids in them that we need, and having to read through
+                    # the whole file... could take hours or days (later it won't matter,
+                    # right? but until a rewrite, this is important)
+                    # also be sure that if a critical page is deleted by the time we
+                    # try to figure out ranges, that we don't get hosed
+                    if ((first_page_id_in_file <= int(start_page_id) and
+                         (last_page_id_in_file is None or
+                          last_page_id_in_file >= int(start_page_id))) or
+                            (first_page_id_in_file >= int(start_page_id) and
+                             (end_page_id is None or
+                              first_page_id_in_file <= int(end_page_id)))):
+                        possibles.append(file_obj)
+                except Exception as ex:
+                    runner.debug(
+                        "Couldn't process %s for prefetch. Format update? Corrupt file?"
+                        % file_obj.filename)
+        return possibles
+
+    # this finds the content file or files from the first previous successful dump
+    # to be used as input ("prefetch") for this run.
+    def _find_previous_dump(self, runner, partnum=None):
+        """The previously-linked previous successful dump."""
+        if partnum:
+            start_page_id = sum([self.prefetchinfo['parts'][i]
+                                 for i in range(0, int(partnum) - 1)]) + 1
+            if len(self.prefetchinfo['parts']) > int(partnum):
+                end_page_id = sum([self.prefetchinfo['parts'][i]
+                                   for i in range(0, int(partnum))])
+            else:
+                end_page_id = None
+        else:
+            start_page_id = 1
+            end_page_id = None
+
+        if self.prefetchinfo['date']:
+            dumpdates = [self.prefetchinfo['date']]
+        else:
+            dumpdates = self.wiki.dump_dirs()
+        dumpdates = sorted(dumpdates, reverse=True)
+        for date in dumpdates:
+            if date == self.wiki.date:
+                runner.debug("skipping current dump for prefetch of job %s, date %s" %
+                             (self.jobinfo['name'], self.wiki.date))
+                continue
+
+            # see if this job from that date was successful
+            if not runner.dumpjobdata.runinfo.status_of_old_dump_is_done(
+                    runner, date, self.jobinfo['name'], self.jobinfo['desc']):
+                runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
+                continue
+
+            # first check if there are checkpoint files from this run we can use
+            files = get_checkpt_files(
+                runner.dump_dir, [self.jobinfo['dumpname']], self.jobinfo['ftype'],
+                self.jobinfo['fext'], date, parts=None)
+            possible_prefetch_list = self.get_relevant_prefetch_files(
+                files, start_page_id, end_page_id, date, runner)
+            if len(possible_prefetch_list):
+                return possible_prefetch_list
+
+            # ok, let's check for file parts instead, from any run
+            # (may not conform to our numbering for this job)
+            files = get_reg_files(
+                runner.dump_dir, [self.jobinfo['dumpname']], self.jobinfo['ftype'],
+                self.jobinfo['fext'], date, parts=True)
+            possible_prefetch_list = self.get_relevant_prefetch_files(
+                files, start_page_id, end_page_id, date, runner)
+            if len(possible_prefetch_list):
+                return possible_prefetch_list
+
+            # last shot, get output file that contains all the pages, if there is one
+            files = get_reg_files(
+                runner.dump_dir, [self.jobinfo['dumpname']],
+                self.jobinfo['ftype'], self.jobinfo['fext'], date, parts=False)
+            # there is only one, don't bother to check for relevance :-P
+            possible_prefetch_list = files
+            files = []
+            for prefetch in possible_prefetch_list:
+                possible = runner.dump_dir.filename_public_path(prefetch, date)
+                size = os.path.getsize(possible)
+                if size < 70000:
+                    runner.debug("small %d-byte prefetch dump at %s, skipping" % (size, possible))
+                    continue
+                else:
+                    files.append(prefetch)
+            if len(files):
+                return files
+
+        runner.debug("Could not locate a prefetchable dump.")
+        return None
+
+    def get_prefetch(self, runner, output_file, stub_file):
+        # Try to pull text from the previous run; most stuff hasn't changed
+        # Source=$OutputDir/pages_$section.xml.bz2
+        sources = []
+
+        possible_sources = self._find_previous_dump(runner, output_file.partnum)
+        # if we have a list of more than one then
+        # we need to check existence for each and put them together in a string
+        if possible_sources:
+            for sourcefile in possible_sources:
+                # if we are doing partial stub run, include only the analogous
+                # checkpointed prefetch files, if there are checkpointed files
+                # otherwise we'll use the all the sourcefiles reported
+                if not self.chkptfile_in_pagerange(stub_file, sourcefile):
+                    continue
+                sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
+                if exists(sname):
+                    sources.append(sname)
+
+        if output_file.partnum:
+            partnum_str = "%s" % stub_file.partnum
+        else:
+            partnum_str = ""
+        if len(sources) > 0:
+            source = "bzip2:%s" % (";".join(sources))
+            runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." %
+                                     (self.jobinfo['subset'], partnum_str, source))
+            prefetch = "--prefetch=%s" % (source)
+        else:
+            runner.show_runner_state("... building %s %s XML dump, no text prefetch..." %
+                                     (self.jobinfo['subset'], partnum_str))
+            prefetch = ""
+        return prefetch
+
+    def chkptfile_in_pagerange(self, fobj, chkpt_fobj):
+        """return False if both files are checkpoint files (with page ranges)
+        and the second file page range does not overlap with the first one"""
+        # not both checkpoint files:
+        if not fobj.is_checkpoint_file or not chkpt_fobj.is_checkpoint_file:
+            return True
+        # one or both end values are missing:
+        if not fobj.last_page_id and not chkpt_fobj.last_page_id:
+            return True
+        elif not fobj.last_page_id and int(chkpt_fobj.last_page_id) < int(fobj.first_page_id):
+            return True
+        elif not chkpt_fobj.last_page_id and int(fobj.last_page_id) < int(chkpt_fobj.first_page_id):
+            return True
+        # have end values for both files:
+        elif (int(fobj.first_page_id) <= int(chkpt_fobj.first_page_id) and
+              int(chkpt_fobj.first_page_id) <= int(fobj.last_page_id)):
+            return True
+        elif (int(chkpt_fobj.first_page_id) <= int(fobj.first_page_id) and
+              int(fobj.first_page_id) <= int(chkpt_fobj.last_page_id)):
+            return True
+        else:
+            return False
 
 
 class XmlDump(Dump):
@@ -181,29 +393,6 @@ class XmlDump(Dump):
                                    partnum, checkpoint=checkpoint_string,
                                    temp=False)
         return output_file
-
-    def chkptfile_in_pagerange(self, fobj, chkpt_fobj):
-        """return False if both files are checkpoint files (with page ranges)
-        and the second file page range does not overlap with the first one"""
-        # not both checkpoint files:
-        if not fobj.is_checkpoint_file or not chkpt_fobj.is_checkpoint_file:
-            return True
-        # one or both end values are missing:
-        if not fobj.last_page_id and not chkpt_fobj.last_page_id:
-            return True
-        elif not fobj.last_page_id and int(chkpt_fobj.last_page_id) < int(fobj.first_page_id):
-            return True
-        elif not chkpt_fobj.last_page_id and int(fobj.last_page_id) < int(chkpt_fobj.first_page_id):
-            return True
-        # have end values for both files:
-        elif (int(fobj.first_page_id) <= int(chkpt_fobj.first_page_id) and
-              int(chkpt_fobj.first_page_id) <= int(fobj.last_page_id)):
-            return True
-        elif (int(chkpt_fobj.first_page_id) <= int(fobj.first_page_id) and
-              int(fobj.first_page_id) <= int(chkpt_fobj.last_page_id)):
-            return True
-        else:
-            return False
 
     def cleanup_tmp_files(self, dump_dir, runner):
         """
@@ -509,36 +698,16 @@ class XmlDump(Dump):
             # use regular stub file
             stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(stub_file)
 
-        # Try to pull text from the previous run; most stuff hasn't changed
-        # Source=$OutputDir/pages_$section.xml.bz2
-        sources = []
-        possible_sources = None
         if self._prefetch:
-            possible_sources = self._find_previous_dump(runner, output_file.partnum)
-            # if we have a list of more than one then
-            # we need to check existence for each and put them together in a string
-            if possible_sources:
-                for sourcefile in possible_sources:
-                    # if we are doing partial stub run, include only the analogous
-                    # checkpointed prefetch files, if there are checkpointed files
-                    # otherwise we'll use the all the sourcefiles reported
-                    if not self.chkptfile_in_pagerange(stub_file, sourcefile):
-                        continue
-                    sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
-                    if exists(sname):
-                        sources.append(sname)
-        if output_file.partnum:
-            partnum_str = "%s" % stub_file.partnum
+            prefetcher = Prefetch(self.wiki,
+                                  {'name': self.name(), 'desc': self._desc,
+                                   'dumpname': self.dumpname,
+                                   'ftype': self.file_type, 'fext': self.file_ext},
+                                  {'date': self._prefetchdate, 'parts': self._parts,
+                                   'subset': self._subset},
+                                  self.verbose)
+            prefetch = prefetcher.get_prefetch(runner, output_file, stub_file)
         else:
-            partnum_str = ""
-        if len(sources) > 0:
-            source = "bzip2:%s" % (";".join(sources))
-            runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." %
-                                     (self._subset, partnum_str, source))
-            prefetch = "--prefetch=%s" % (source)
-        else:
-            runner.show_runner_state("... building %s %s XML dump, no text prefetch..." %
-                                     (self._subset, partnum_str))
             prefetch = ""
 
         if self._spawn:
@@ -584,143 +753,6 @@ class XmlDump(Dump):
         convert = lambda text: int(text) if text.isdigit() else text
         alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
         mylist = sorted(mylist, key=alphanum_key)
-
-    def get_relevant_prefetch_files(self, file_list, start_page_id, end_page_id, date, runner):
-        possibles = []
-        if len(file_list):
-            # (a) nasty hack, see below (b)
-            maxparts = 0
-            for file_obj in file_list:
-                if file_obj.is_file_part and file_obj.partnum_int > maxparts:
-                    maxparts = file_obj.partnum_int
-                if not file_obj.first_page_id:
-                    fname = DumpFile(
-                        self.wiki, runner.dump_dir.filename_public_path(file_obj, date),
-                        file_obj, self.verbose)
-                    file_obj.first_page_id = fname.find_first_page_id_in_file()
-
-            # get the files that cover our range
-            for file_obj in file_list:
-                # If some of the file_objs in file_list could not be properly be parsed, some of
-                # the (int) conversions below will fail. However, it is of little use to us,
-                # which conversion failed. /If any/ conversion fails, it means, that that we do
-                # not understand how to make sense of the current file_obj. Hence we cannot use
-                # it as prefetch object and we have to drop it, to avoid passing a useless file
-                # to the text pass. (This could days as of a comment below, but by not passing
-                # a likely useless file, we have to fetch more texts from the database)
-                #
-                # Therefore try...except-ing the whole block is sufficient: If whatever error
-                # occurs, we do not abort, but skip the file for prefetch.
-                try:
-                    # If we could properly parse
-                    first_page_id_in_file = int(file_obj.first_page_id)
-
-                    # fixme what do we do here? this could be very expensive. is that worth it??
-                    if not file_obj.last_page_id:
-                        # (b) nasty hack, see (a)
-                        # it's not a checkpoint fle or we'd have the pageid in the filename
-                        # so... temporary hack which will give expensive results
-                        # if file part, and it's the last one, put none
-                        # if it's not the last part, get the first pageid in the next
-                        #  part and subtract 1
-                        # if not file part, put none.
-                        if file_obj.is_file_part and file_obj.partnum_int < maxparts:
-                            for fname in file_list:
-                                if fname.partnum_int == file_obj.partnum_int + 1:
-                                    # not true!  this could be a few past where it really is
-                                    # (because of deleted pages that aren't included at all)
-                                    file_obj.last_page_id = str(int(fname.first_page_id) - 1)
-                    if file_obj.last_page_id:
-                        last_page_id_in_file = int(file_obj.last_page_id)
-                    else:
-                        last_page_id_in_file = None
-
-                    # FIXME there is no point in including files that have just a
-                    # few rev ids in them that we need, and having to read through
-                    # the whole file... could take hours or days (later it won't matter,
-                    # right? but until a rewrite, this is important)
-                    # also be sure that if a critical page is deleted by the time we
-                    # try to figure out ranges, that we don't get hosed
-                    if ((first_page_id_in_file <= int(start_page_id) and
-                         (last_page_id_in_file is None or
-                          last_page_id_in_file >= int(start_page_id))) or
-                            (first_page_id_in_file >= int(start_page_id) and
-                             (end_page_id is None or
-                              first_page_id_in_file <= int(end_page_id)))):
-                        possibles.append(file_obj)
-                except Exception as ex:
-                    runner.debug(
-                        "Couldn't process %s for prefetch. Format update? Corrupt file?"
-                        % file_obj.filename)
-        return possibles
-
-    # this finds the content file or files from the first previous successful dump
-    # to be used as input ("prefetch") for this run.
-    def _find_previous_dump(self, runner, partnum=None):
-        """The previously-linked previous successful dump."""
-        if partnum:
-            start_page_id = sum([self._parts[i] for i in range(0, int(partnum) - 1)]) + 1
-            if len(self._parts) > int(partnum):
-                end_page_id = sum([self._parts[i] for i in range(0, int(partnum))])
-            else:
-                end_page_id = None
-        else:
-            start_page_id = 1
-            end_page_id = None
-
-        if self._prefetchdate:
-            dumps = [self._prefetchdate]
-        else:
-            dumps = self.wiki.dump_dirs()
-        dumps = sorted(dumps, reverse=True)
-        for date in dumps:
-            if date == self.wiki.date:
-                runner.debug("skipping current dump for prefetch of job %s, date %s" %
-                             (self.name(), self.wiki.date))
-                continue
-
-            # see if this job from that date was successful
-            if not runner.dumpjobdata.runinfo.status_of_old_dump_is_done(
-                    runner, date, self.name(), self._desc):
-                runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
-                continue
-
-            # first check if there are checkpoint files from this run we can use
-            files = self.list_checkpt_files(
-                runner.dump_dir, [self.dumpname], date, parts=None)
-            possible_prefetch_list = self.get_relevant_prefetch_files(
-                files, start_page_id, end_page_id, date, runner)
-            if len(possible_prefetch_list):
-                return possible_prefetch_list
-
-            # ok, let's check for file parts instead, from any run
-            # (may not conform to our numbering for this job)
-            files = self.list_reg_files(
-                runner.dump_dir, [self.dumpname], date, parts=True)
-            possible_prefetch_list = self.get_relevant_prefetch_files(
-                files, start_page_id, end_page_id, date, runner)
-            if len(possible_prefetch_list):
-                return possible_prefetch_list
-
-            # last shot, get output file that contains all the pages, if there is one
-            files = self.list_reg_files(runner.dump_dir, [self.dumpname],
-                                        date, parts=False)
-            # there is only one, don't bother to check for relevance :-P
-            possible_prefetch_list = files
-            files = []
-            for prefetch in possible_prefetch_list:
-                possible = runner.dump_dir.filename_public_path(prefetch, date)
-                size = os.path.getsize(possible)
-                if size < 70000:
-                    runner.debug("small %d-byte prefetch dump at %s, skipping" % (size, possible))
-                    continue
-                else:
-                    files.append(prefetch)
-            if len(files):
-                return files
-
-        runner.debug("Could not locate a prefetchable dump.")
-        return None
 
     def get_tmp_files(self, dump_dir, dump_names=None):
         files = Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names)

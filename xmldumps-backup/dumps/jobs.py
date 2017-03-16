@@ -15,6 +15,24 @@ from dumps.fileutils import DumpFile, DumpFilename
 from dumps.utils import TimeUtils, MiscUtils
 
 
+def get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
+    '''return all checkpoint files that exist'''
+    files = []
+    for dname in dump_names:
+        files.extend(dump_dir.get_checkpt_files(
+            date, dname, file_type, file_ext, parts, temp=False))
+    return files
+
+
+def get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
+    '''get all regular output files that exist'''
+    files = []
+    for dname in dump_names:
+        files.extend(dump_dir.get_reg_files(
+            date, dname, file_type, file_ext, parts, temp=False))
+    return files
+
+
 class Dump(object):
     def __init__(self, name, desc, verbose=False):
         self._desc = desc
@@ -328,20 +346,16 @@ class Dump(object):
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
-        for dname in dump_names:
-            files.extend(dump_dir.get_reg_files(
-                date, dname, self.file_type, self.file_ext, parts, temp=False))
-        return files
+        return get_reg_files(dump_dir, dump_names, self.file_type,
+                             self.file_ext, date, parts)
 
     def list_checkpt_files(self, dump_dir, dump_names=None, date=None, parts=None):
         '''list all checkpoint files that exist'''
         files = []
         if not dump_names:
             dump_names = [self.dumpname]
-        for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files(
-                date, dname, self.file_type, self.file_ext, parts, temp=False))
-        return files
+        return get_checkpt_files(dump_dir, dump_names, self.file_type,
+                                 self.file_ext, date, parts)
 
     def list_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None):
         '''list checkpoint files that have been produced for specified file part(s)'''
