@@ -6,7 +6,7 @@ dump jobs are defined here
 from os.path import exists
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
-from dumps.xmljobs import XmlDump
+from dumps.xmlcontentjobs import XmlDump
 
 
 class RecombineXmlStub(Dump):

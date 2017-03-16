@@ -7,7 +7,7 @@ from os.path import exists
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
-from dumps.xmljobs import XmlDump
+from dumps.xmlcontentjobs import XmlDump
 
 
 class XmlMultiStreamDump(XmlDump):

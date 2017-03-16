@@ -14,7 +14,8 @@ from dumps.apijobs import SiteInfoDump
 from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
-from dumps.xmljobs import XmlDump, XmlLogging, XmlStub, BigXmlDump, AbstractDump
+from dumps.xmljobs import XmlLogging, XmlStub, AbstractDump
+from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 from dumps.flowjob import FlowDump
 
