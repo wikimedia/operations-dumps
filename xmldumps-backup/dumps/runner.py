@@ -430,8 +430,10 @@ class DumpItemList(object):
             return False
         for item in self.dump_items:
             if item.name() == runinfo["name"]:
-                item.set_status(runinfo["status"], False)
-                item.set_updated(runinfo["updated"])
+                if 'status' in runinfo:
+                    item.set_status(runinfo["status"], False)
+                if 'updated' in runinfo:
+                    item.set_updated(runinfo["updated"])
                 if "to_run" in runinfo:
                     item.set_to_run(runinfo["to_run"])
                 return True

@@ -62,12 +62,14 @@ class PrivateTable(PublicTable):
     """Hidden table dumps for private data."""
 
     def __init__(self, table, name, desc):
+        PublicTable.__init__(self, table, name, desc)
+
+    def check_truncation(self):
         # Truncation checks require output to public dir, hence we
         # cannot use them. The default would be 'False' anyways, but
         # if that default changes, we still cannot use automatic
         # truncation checks.
-        self._check_truncation = False
-        PublicTable.__init__(self, table, name, desc)
+        return False
 
     def description(self):
         return self._desc + " (private)"

@@ -38,8 +38,10 @@ class XmlStub(Dump):
         self.articles_dump_name = "stub-articles"
         if checkpoints:
             self._checkpoints_enabled = True
-        self._check_truncation = True
         Dump.__init__(self, name, desc)
+
+    def check_truncation(self):
+        return True
 
     def detail(self):
         return "These files contain no page text, only revision metadata."
@@ -59,7 +61,7 @@ class XmlStub(Dump):
 
     def list_outfiles_to_publish(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -68,7 +70,7 @@ class XmlStub(Dump):
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -77,7 +79,7 @@ class XmlStub(Dump):
 
     def list_outfiles_for_build_command(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -86,7 +88,7 @@ class XmlStub(Dump):
 
     def list_outfiles_for_cleanup(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -95,7 +97,7 @@ class XmlStub(Dump):
 
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         if dump_names is None:
             dump_names = self.list_dumpnames()
@@ -316,7 +318,7 @@ class AbstractDump(Dump):
 
     def list_outfiles_to_publish(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -325,7 +327,7 @@ class AbstractDump(Dump):
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -334,7 +336,7 @@ class AbstractDump(Dump):
 
     def list_outfiles_for_build_command(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -343,7 +345,7 @@ class AbstractDump(Dump):
 
     def list_outfiles_for_cleanup(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -352,7 +354,7 @@ class AbstractDump(Dump):
 
     def list_outfiles_for_input(self, dump_dir):
         """
-        returns: list of DumpFilenames
+        returns: list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []

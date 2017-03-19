@@ -26,7 +26,7 @@ class RecombineXmlStub(Dump):
     def list_outfiles_to_publish(self, dump_dir):
         """
         returns:
-            list of DumpFile
+            list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []
@@ -36,7 +36,7 @@ class RecombineXmlStub(Dump):
     def list_outfiles_to_check_for_truncation(self, dump_dir):
         """
         returns:
-            list of DumpFile
+            list of DumpFilename
         """
         dump_names = self.list_dumpnames()
         dfnames = []

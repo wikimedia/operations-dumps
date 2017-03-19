@@ -208,6 +208,8 @@ class Config(object):
             "chunks", "recombineHistory", 1)
         self.checkpoint_time = self.get_opt_for_proj_or_default(
             "chunks", "checkpointTime", 1)
+        self.revs_per_job = self.get_opt_for_proj_or_default(
+            "chunks", "revsPerJob", 1)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')

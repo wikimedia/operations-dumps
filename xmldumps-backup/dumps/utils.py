@@ -95,30 +95,37 @@ class DbServerInfo(object):
         self.apibase = None
         self.get_db_server_and_prefix()
 
-    def get_db_server_and_prefix(self):
-        """Get the name of a slave server for our cluster; also get
-        the prefix for all tables for the specific wiki ($wgDBprefix)"""
+    def get_db_server_and_prefix(self, do_globals=True):
+        """
+        Get the name of a slave server for our cluster; also get
+        the prefix for all tables for the specific wiki ($wgDBprefix)
+        if do_globals is True, also get global variables and use them
+        to set varias attributes such as apibase, table prefix
+        """
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
         command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getSlaveServer.php")
-        php_command = MiscUtils.shell_escape(self.wiki.config.php)
-        db_name = MiscUtils.shell_escape(self.db_name)
-        for i in range(0, len(command_list)):
-            command_list[i] = MiscUtils.shell_escape(command_list[i])
-        command = " ".join(command_list)
-        command = "%s %s --wiki=%s --group=dump --globals" % (php_command, command, db_name)
+        command = "{php} {command} --wiki={dbname} --group=dump".format(
+            php=MiscUtils.shell_escape(self.wiki.config.php),
+            command=" ".join(command_list),
+            dbname=MiscUtils.shell_escape(self.db_name))
+        if do_globals:
+            command += " --globals"
         results = RunSimpleCommand.run_with_output(
             command, shell=True, log_callback=self.error_callback).strip()
         if not results:
             raise BackupError("Failed to get database connection " +
                               "information for %s, bailing." % self.wiki.config.php)
-        # first line is the server, the second is an array of the globals, we need
+        # first line is the server, the second is an array of the globals (if any), we need
         # the db table prefix out of those
         lines = results.splitlines()
         self.db_server = lines[0]
         self.db_port = None
         if ':' in self.db_server:
             self.db_server, _, self.db_port = self.db_server.rpartition(':')
+
+        if not do_globals:
+            return
 
         #       [wgDBprefix] => stuff
         wgdb_prefix_pattern = re.compile(r"\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
@@ -195,6 +202,26 @@ class DbServerInfo(object):
         else:
             return None
 
+    def run_sql_query_with_retries(self, query, maxretries=3):
+        """
+        run the supplied sql query, retrying up to
+        maxtretries times, with sleep of 5 secs in between
+        this will recheck the db config in case a db server
+        has been removed from the pool suddenly
+        """
+        results = None
+        retries = 0
+        while results is None and retries < maxretries:
+            retries = retries + 1
+            results = self.run_sql_and_get_output(query)
+            if results is None:
+                time.sleep(5)
+                # get db config again in case something's changed
+                self.get_db_server_and_prefix()
+                continue
+            return results
+        return results
+
     def password_option(self):
         """If you pass '-pfoo' mysql uses the password 'foo',
         but if you pass '-p' it prompts. Sigh."""
@@ -265,11 +292,15 @@ class MyPopen(Popen):
 
         poller = select.poll()
 
-        def register_and_append(file_obj, eventmask):
-            if file_obj.closed:
+        def register_and_append(fhandle, eventmask):
+            """
+            args:
+
+            """
+            if fhandle.closed:
                 return
-            poller.register(file_obj.fileno(), eventmask)
-            fd2file[file_obj.fileno()] = file_obj
+            poller.register(fhandle.fileno(), eventmask)
+            fd2file[fhandle.fileno()] = fhandle
 
         def close_unregister_and_remove(fdesc):
             poller.unregister(fdesc)

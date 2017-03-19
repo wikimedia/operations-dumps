@@ -19,7 +19,7 @@ def get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None, part
     '''
     return all checkpoint files that exist
     returns:
-        list of DumpFilenames
+        list of DumpFilename
     '''
     dfnames = []
     for dump_name in dump_names:
@@ -32,7 +32,7 @@ def get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=No
     '''
     get all regular output files that exist
     returns:
-        list of DumpFilenames
+        list of DumpFilename
     '''
     dfnames = []
     for dump_name in dump_names:
@@ -66,14 +66,15 @@ class Dump(object):
             self._partnum_todo = None
         if not hasattr(self, '_prerequisite_items'):
             self._prerequisite_items = []
-        if not hasattr(self, '_check_truncation'):
-            # Automatic checking for truncation of produced files is
-            # (due to dump_dir handling) only possible for public dir
-            # right now. So only set this to True, when all files of
-            # the item end in the public dir.
-            self._check_truncation = False
         if not hasattr(self, '_parts'):
             self._parts = False
+
+    def check_truncation(self):
+        # Automatic checking for truncation of produced files is
+        # (due to dump_dir handling) only possible for public dir
+        # right now. So only set this to True, when all files of
+        # the item end in the public dir.
+        return False
 
     def name(self):
         if "name" in self.runinfo:
@@ -197,7 +198,7 @@ class Dump(object):
         """
         ret = 0
 
-        if "check_trunc_files" not in runner.enabled or not self._check_truncation:
+        if "check_trunc_files" not in runner.enabled or not self.check_truncation():
             return ret
 
         for dfname in self.list_outfiles_to_check_for_truncation(
@@ -256,7 +257,7 @@ class Dump(object):
                                        uncompression_command, end_header_marker="</siteinfo>"):
         """
         args:
-            Runner, list of DumpFile, ...
+            Runner, list of DumpFilename, ...
         """
         output_filename = runner.dump_dir.filename_public_path(output_file)
         partnum = 0
@@ -414,7 +415,6 @@ class Dump(object):
         which contains a value for that arg
         if we get True for an arg (temp), we accept only filenames which contain a value for the arg
         parts should be a list of value(s), or True / False / None
-
         returns:
             list of DumpFilename
         '''

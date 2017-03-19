@@ -2,18 +2,17 @@
 All xml content dump jobs are defined here
 '''
 
-import re
 import os
 from os.path import exists
-import signal
 
-from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpContents, DumpFilename
-from dumps.utils import MultiVersion, MiscUtils
+from dumps.utils import MultiVersion
 from dumps.jobs import Dump
 from dumps.jobs import get_checkpt_files, get_reg_files
 from dumps.WikiDump import Locker
+import dumps.pagerange
+from dumps.pagerange import PageRange, QueryRunner
 
 
 class StubProvider(object):
@@ -25,22 +24,22 @@ class StubProvider(object):
         self.jobinfo = jobinfo
         self.verbose = verbose
 
-    def get_stub_files(self, runner, partnum=None):
+    def get_stub_dfname(self, partnum, runner):
         '''
-        get the stub files pertaining to our dumpname, which is *one* of
-        articles, pages-current, pages-history.
-        stubs include all of these together.
+        get the stub file pertaining to our dumpname
+        (one of articles, pages-current, pages-history)
+        and our desired subjob or page range etc.
         we will either return the one full stubs file that exists
         or the one stub file part, if we are (re)running a specific
         file part (subjob), or all file parts if we are (re)running
         the entire job which is configured for subjobs.
 
         arguments:
-           runner        - Runner
-           partnum (int) - number of file part (subjob) if any
+           partnum   - subjob number if any,
+           runner    - Runner
+        returns:
+           DumpFilename
         '''
-        if partnum is None:
-            partnum = self.jobinfo['partnum_todo']
         if not self.jobinfo['dumpname'].startswith(self.jobinfo['dumpnamebase']):
             raise BackupError("dumpname %s of unknown form for this job" % self.jobinfo['dumpname'])
 
@@ -51,15 +50,15 @@ class StubProvider(object):
                 stub_dumpname = sname
         input_dfnames = self.jobinfo['item_for_stubs'].list_outfiles_for_input(
             runner.dump_dir, [stub_dumpname])
-        if self.jobinfo['parts']:
-            if partnum is not None:
-                for inp_dfname in input_dfnames:
-                    if inp_dfname.partnum_int == partnum:
-                        input_dfnames = [inp_dfname]
-                        break
-        return input_dfnames
+        if partnum is not None:
+            input_dfnames = [dfname for dfname in input_dfnames
+                             if dfname.partnum_int == int(partnum)]
+        if len(input_dfnames) > 1:
+            # this is an error
+            return None
+        return input_dfnames[0]
 
-    def write_partial_stub(self, input_dfname, output_dfname, runner):
+    def write_pagerange_stub(self, input_dfname, output_dfname, runner):
         """
         write out a stub file corresponding to the page range
         in the output filename
@@ -96,36 +95,24 @@ class StubProvider(object):
         series = [pipeline]
         error = runner.run_command([series], shell=True)
         if error:
-            raise BackupError("failed to write partial stub file %s" % output_dfname.filename)
+            raise BackupError("failed to write pagerange stub file %s" % output_dfname.filename)
 
-    def get_partial_stubs(self, todo, runner):
-        partial_stubs = []
-        if self.verbose:
-            print "todo is", [to.filename for to in todo]
+    def get_pagerange_stub_dfname(self, wanted, runner):
+        """
+        return the dumpfilename for stub file that would have
+        the page range in 'wanted'
+        """
+        stub_input_dfname = self.get_stub_dfname(wanted['partnum'], runner)
+        stub_output_dfname = DumpFilename(
+            self.wiki, stub_input_dfname.date, stub_input_dfname.dumpname,
+            stub_input_dfname.file_type,
+            stub_input_dfname.file_ext,
+            stub_input_dfname.partnum,
+            DumpFilename.make_checkpoint_string(
+                wanted['outfile'].first_page_id, wanted['outfile'].last_page_id), temp=True)
+        return stub_output_dfname
 
-        for dfname in todo:
-            stub_for_file = self.get_stub_files(runner, dfname.partnum_int)[0]
-
-            if dfname.first_page_id is None:
-                partial_stubs.append(stub_for_file)
-            else:
-                stub_output_dfname = DumpFilename(
-                    self.wiki, dfname.date, dfname.dumpname,
-                    self.jobinfo['item_for_stubs'].get_filetype(),
-                    self.jobinfo['item_for_stubs'].get_file_ext(),
-                    dfname.partnum,
-                    DumpFilename.make_checkpoint_string(
-                        dfname.first_page_id, dfname.last_page_id), temp=True)
-
-                self.write_partial_stub(stub_for_file, stub_output_dfname, runner)
-                if not self.has_no_entries(stub_output_dfname, runner):
-                    partial_stubs.append(stub_output_dfname)
-
-        if self.verbose:
-            print "partial_stubs is", [ps.filename for ps in partial_stubs]
-        return partial_stubs
-
-    def has_no_entries(self, xmlfile, runner):
+    def has_no_pages(self, xmlfile, runner):
         '''
         see if it has a page id in it or not. no? then return True
         '''
@@ -137,7 +124,7 @@ class StubProvider(object):
         return bool(dcontents.find_first_page_id_in_file() is None)
 
 
-class Prefetch(object):
+class PrefetchFinder(object):
     """
     finding appropriate prefetch files for a page
     content dump
@@ -148,7 +135,15 @@ class Prefetch(object):
         self.prefetchinfo = prefetchinfo
         self.verbose = verbose
 
-    def get_relevant_prefetch_files(self, file_list, start_page_id, end_page_id, date, runner):
+    def get_relevant_prefetch_dfnames(self, file_list, pagerange, date, runner):
+        """
+        given list of page content files from a dump run and its date, find from that run
+        files that cover the specific page range
+        pagerange = {'start': <num>, 'end': <num>}
+
+        args: list of DumpFilename, pagerange dict, string in format YYYYMMDD, Runner
+        returns: list of DumpFilename
+        """
         possibles = []
         if len(file_list):
             # (a) nasty hack, see below (b)
@@ -164,58 +159,32 @@ class Prefetch(object):
 
             # get the files that cover our range
             for dfname in file_list:
-                # If some of the dumpfilenames in file_list could not be properly be parsed, some of
-                # the (int) conversions below will fail. However, it is of little use to us,
-                # which conversion failed. /If any/ conversion fails, it means, that that we do
-                # not understand how to make sense of the current dumpfilename. Hence we cannot use
-                # it as prefetch object and we have to drop it, to avoid passing a useless file
-                # to the text pass. (This could days as of a comment below, but by not passing
-                # a likely useless file, we have to fetch more texts from the database)
-                #
-                # Therefore try...except-ing the whole block is sufficient: If whatever error
-                # occurs, we do not abort, but skip the file for prefetch.
-                try:
-                    # If we could properly parse
-                    first_page_id_in_file = int(dfname.first_page_id)
-
-                    # fixme what do we do here? this could be very expensive. is that worth it??
-                    if not dfname.last_page_id:
-                        # (b) nasty hack, see (a)
-                        # it's not a checkpoint fle or we'd have the pageid in the filename
-                        # so... temporary hack which will give expensive results
-                        # if file part, and it's the last one, put none
-                        # if it's not the last part, get the first pageid in the next
-                        #  part and subtract 1
-                        # if not file part, put none.
-                        if dfname.is_file_part and dfname.partnum_int < maxparts:
-                            for filename in file_list:
-                                if filename.partnum_int == dfname.partnum_int + 1:
-                                    # not true!  this could be a few past where it really is
-                                    # (because of deleted pages that aren't included at all)
-                                    dfname.last_page_id = str(int(filename.first_page_id) - 1)
-                    if dfname.last_page_id:
-                        last_page_id_in_file = int(dfname.last_page_id)
-                    else:
-                        last_page_id_in_file = None
-
-                    # FIXME there is no point in including files that have just a
-                    # few rev ids in them that we need, and having to read through
-                    # the whole file... could take hours or days (later it won't matter,
-                    # right? but until a rewrite, this is important)
-                    # also be sure that if a critical page is deleted by the time we
-                    # try to figure out ranges, that we don't get hosed
-                    if ((first_page_id_in_file <= int(start_page_id) and
-                         (last_page_id_in_file is None or
-                          last_page_id_in_file >= int(start_page_id))) or
-                            (first_page_id_in_file >= int(start_page_id) and
-                             (end_page_id is None or
-                              first_page_id_in_file <= int(end_page_id)))):
-                        possibles.append(dfname)
-                except Exception as ex:
-                    runner.debug(
-                        "Couldn't process %s for prefetch. Format update? Corrupt file?"
-                        % dfname.filename)
+                if dumps.pagerange.check_file_covers_range(dfname, pagerange,
+                                                           maxparts, file_list, runner):
+                    possibles.append(dfname)
         return possibles
+
+    def get_pagerange_to_prefetch(self, partnum):
+        """
+        for the given partnum or for the whole job,
+        return the page range for which we want prefetch files
+
+        args: string (digits)
+        returns: {'start': <num>, 'end': <num> or None}
+        """
+        pagerange = {}
+        if partnum:
+            pagerange['start'] = sum([self.prefetchinfo['parts'][i]
+                                      for i in range(0, int(partnum) - 1)]) + 1
+            if len(self.prefetchinfo['parts']) > int(partnum):
+                pagerange['end'] = sum([self.prefetchinfo['parts'][i]
+                                        for i in range(0, int(partnum))])
+            else:
+                pagerange['end'] = None
+        else:
+            pagerange['start'] = 1
+            pagerange['end'] = None
+        return pagerange
 
     def _find_previous_dump(self, runner, partnum=None):
         """
@@ -227,18 +196,7 @@ class Prefetch(object):
         returns:
             list of DumpFilename
         """
-        if partnum:
-            start_page_id = sum([self.prefetchinfo['parts'][i]
-                                 for i in range(0, int(partnum) - 1)]) + 1
-            if len(self.prefetchinfo['parts']) > int(partnum):
-                end_page_id = sum([self.prefetchinfo['parts'][i]
-                                   for i in range(0, int(partnum))])
-            else:
-                end_page_id = None
-        else:
-            start_page_id = 1
-            end_page_id = None
-
+        pagerange = self.get_pagerange_to_prefetch(partnum)
         if self.prefetchinfo['date']:
             dumpdates = [self.prefetchinfo['date']]
         else:
@@ -260,8 +218,8 @@ class Prefetch(object):
             dfnames = get_checkpt_files(
                 runner.dump_dir, [self.jobinfo['dumpname']], self.jobinfo['ftype'],
                 self.jobinfo['fext'], date, parts=None)
-            possible_prefetch_dfnames = self.get_relevant_prefetch_files(
-                dfnames, start_page_id, end_page_id, date, runner)
+            possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
+                dfnames, pagerange, date, runner)
             if len(possible_prefetch_dfnames):
                 return possible_prefetch_dfnames
 
@@ -270,8 +228,8 @@ class Prefetch(object):
             dfnames = get_reg_files(
                 runner.dump_dir, [self.jobinfo['dumpname']], self.jobinfo['ftype'],
                 self.jobinfo['fext'], date, parts=True)
-            possible_prefetch_dfnames = self.get_relevant_prefetch_files(
-                dfnames, start_page_id, end_page_id, date, runner)
+            possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
+                dfnames, pagerange, date, runner)
             if len(possible_prefetch_dfnames):
                 return possible_prefetch_dfnames
 
@@ -297,7 +255,7 @@ class Prefetch(object):
         runner.debug("Could not locate a prefetchable dump.")
         return None
 
-    def get_prefetch(self, runner, output_dfname, stub_file):
+    def get_prefetch_arg(self, runner, output_dfname, stub_file):
         """
         Try to pull text from the previous run; most stuff hasn't changed
         Source=$OutputDir/pages_$section.xml.bz2
@@ -314,10 +272,10 @@ class Prefetch(object):
         # we need to check existence for each and put them together in a string
         if possible_sources:
             for sourcefile in possible_sources:
-                # if we are doing partial stub run, include only the analogous
+                # if we are doing pagerange stub run, include only the analogous
                 # checkpointed prefetch files, if there are checkpointed files
                 # otherwise we'll use the all the sourcefiles reported
-                if not self.chkptfile_in_pagerange(stub_file, sourcefile):
+                if not dumps.pagerange.chkptfile_in_pagerange(stub_file, sourcefile):
                     continue
                 source_path = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
                 if exists(source_path):
@@ -338,34 +296,6 @@ class Prefetch(object):
             prefetch = ""
         return prefetch
 
-    def chkptfile_in_pagerange(self, dfname, chkpt_dfname):
-        """
-        return False if both files are checkpoint files (with page ranges)
-        and the second file page range does not overlap with the first one
-
-        args: DumpFilename, checkpoint file DumpFilename
-        """
-        # not both checkpoint files:
-        if not dfname.is_checkpoint_file or not chkpt_dfname.is_checkpoint_file:
-            return True
-        # one or both end values are missing:
-        if not dfname.last_page_id and not chkpt_dfname.last_page_id:
-            return True
-        elif not dfname.last_page_id and int(chkpt_dfname.last_page_id) < int(dfname.first_page_id):
-            return True
-        elif (not chkpt_dfname.last_page_id and
-              int(dfname.last_page_id) < int(chkpt_dfname.first_page_id)):
-            return True
-        # have end values for both files:
-        elif (int(dfname.first_page_id) <= int(chkpt_dfname.first_page_id) and
-              int(chkpt_dfname.first_page_id) <= int(dfname.last_page_id)):
-            return True
-        elif (int(chkpt_dfname.first_page_id) <= int(dfname.first_page_id) and
-              int(dfname.first_page_id) <= int(chkpt_dfname.last_page_id)):
-            return True
-        else:
-            return False
-
 
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
@@ -373,134 +303,88 @@ class XmlDump(Dump):
                  prefetchdate, spawn,
                  wiki, partnum_todo, parts=False, checkpoints=False, checkpoint_file=None,
                  page_id_range=None, verbose=False):
-        self._subset = subset
-        self._detail = detail
-        self._desc = desc
-        self._prefetch = prefetch
-        self._prefetchdate = prefetchdate
-        self._spawn = spawn
+        self.jobinfo = {'subset': subset, 'detail': detail, 'desc': desc,
+                        'prefetch': prefetch, 'prefetchdate': prefetchdate,
+                        'spawn': spawn, 'partnum_todo': partnum_todo,
+                        'pageid_range': page_id_range, 'item_for_stubs': item_for_stubs}
+        if checkpoints:
+            self._checkpoints_enabled = True
+        self.checkpoint_file = checkpoint_file
         self._parts = parts
         if self._parts:
             self._parts_enabled = True
             self.onlyparts = True
-        self._page_id = {}
-        self._partnum_todo = partnum_todo
 
         self.wiki = wiki
-        self.item_for_stubs = item_for_stubs
-        if checkpoints:
-            self._checkpoints_enabled = True
-        self.checkpoint_file = checkpoint_file
-        self.page_id_range = page_id_range
         self.verbose = verbose
-        self._prerequisite_items = [self.item_for_stubs]
-        self._check_truncation = True
+        self._prerequisite_items = [self.jobinfo['item_for_stubs']]
         self.stubber = StubProvider(
             self.wiki, {'dumpname': self.get_dumpname(), 'parts': self._parts,
                         'dumpnamebase': self.get_dumpname_base(),
-                        'item_for_stubs': self.item_for_stubs,
-                        'partnum_todo': self._partnum_todo}, self.verbose)
+                        'item_for_stubs': item_for_stubs,
+                        'partnum_todo': self.jobinfo['partnum_todo']}, self.verbose)
         Dump.__init__(self, name, desc, self.verbose)
 
-    def get_dumpname_base(self):
+    @classmethod
+    def check_truncation(cls):
+        return True
+
+    @classmethod
+    def get_dumpname_base(cls):
+        """
+        these dumps are all pages-{articles,meta-current,meta-history}
+        return the common part of the name
+        """
         return 'pages-'
 
     def get_dumpname(self):
-        return self.get_dumpname_base() + self._subset
+        """
+        these dumps are all pages-{articles,meta-current,meta-history}
+        return the full dump name
+        """
+        return self.get_dumpname_base() + self.jobinfo['subset']
 
-    def get_filetype(self):
+    @classmethod
+    def get_filetype(cls):
+        """
+        text, sql, xml?
+        """
         return "xml"
 
-    def get_file_ext(self):
+    @classmethod
+    def get_file_ext(cls):
+        """
+        gz, bz2, 7z?
+        """
         return "bz2"
 
-    def get_chkptfile_from_pageids(self):
-        if ',' in self.page_id_range:
-            first_page_id, last_page_id = self.page_id_range.split(',', 1)
+    def get_pagerange_output_dfname(self):
+        """
+        given page range passed in,
+        return a dumpfilename for the appropriate checkpoint file
+        """
+        if ',' in self.jobinfo['pageid_range']:
+            first_page_id, last_page_id = self.jobinfo['pageid_range'].split(',', 1)
         else:
-            first_page_id = self.page_id_range
+            first_page_id = self.jobinfo['pageid_range']
+            # really? ewww gross
             last_page_id = "00000"  # indicates no last page id specified, go to end of stub
-        checkpoint_string = DumpFilename.make_checkpoint_string(first_page_id, last_page_id)
-        if self._partnum_todo:
-            partnum = self._partnum_todo
+        if self.jobinfo['partnum_todo']:
+            partnum = self.jobinfo['partnum_todo']
         else:
             # fixme is that right? maybe NOT
             partnum = None
-        dfname = DumpFilename(self.get_dumpname(), self.wiki.date, self.get_filetype(),
-                              self.get_file_ext(), partnum, checkpoint_string)
-        return dfname.filename
+        return self.make_dfname_from_pagerange([first_page_id, last_page_id], partnum)
 
-    def get_missing_before(self, needed_range, have_range):
-        # given range of numbers needed and range of numbers we have,
-        # return range of numbers needed before first number we have,
-        # or None if none
-        if have_range is None:
-            return needed_range
-        elif needed_range is None or int(have_range[0]) <= int(needed_range[0]):
-            return None
-        else:
-            return (needed_range[0], str(int(have_range[0]) - 1), needed_range[2])
-
-    def find_missing_ranges(self, needed, have):
-        # given list tuples of ranges of numbers needed, and ranges of numbers we have,
-        # determine the ranges of numbers missing and return list of said tuples
-        needed_index = 0
-        have_index = 0
-        missing = []
-
-        if not needed:
-            return missing
-        if not have:
-            return needed
-
-        needed_range = needed[needed_index]
-        have_range = have[have_index]
-
-        while True:
-            # if we're out of haves, append everything we need
-            if have_range is None:
-                missing.append(needed_range)
-                needed_index += 1
-                if needed_index < len(needed):
-                    needed_range = needed[needed_index]
-                else:
-                    # end of needed. done
-                    return missing
-
-            before_have = self.get_missing_before(needed_range, have_range)
-
-            # write anything we don't have
-            if before_have is not None:
-                missing.append(before_have)
-
-            # if we haven't already exhausted all the ranges we have...
-            if have_range is not None:
-                # skip over the current range of what we have
-                skip_up_to = str(int(have_range[1]) + 1)
-                while int(needed_range[1]) < int(skip_up_to):
-                    needed_index += 1
-                    if needed_index < len(needed):
-                        needed_range = needed[needed_index]
-                    else:
-                        # end of needed. done
-                        return missing
-
-                if int(needed_range[0]) < int(skip_up_to):
-                    needed_range = (skip_up_to, needed_range[1], needed_range[2])
-
-                # get the next range we have
-                have_index += 1
-                if have_index < len(have):
-                    have_range = have[have_index]
-                else:
-                    have_range = None
-
-        return missing
-
-    def chkpt_file_from_page_range(self, page_range, partnum):
+    def make_dfname_from_pagerange(self, pagerange, partnum):
+        """
+        given pagerange, make output file for appropriate type
+        of page content dumps
+        args: (startpage<str>, endpage<str>), string
+        """
         checkpoint_string = DumpFilename.make_checkpoint_string(
-            page_range[0], page_range[1])
-        output_dfname = DumpFilename(self.wiki, self.wiki.date, self.dumpname,
+            pagerange[0], pagerange[1])
+        output_dfname = DumpFilename(self.wiki, self.wiki.date, self.get_dumpname(),
                                      self.get_filetype(), self.get_file_ext(),
                                      partnum, checkpoint=checkpoint_string,
                                      temp=False)
@@ -536,6 +420,180 @@ class XmlDump(Dump):
             elif exists(dump_dir.filename_private_path(finfo)):
                 os.remove(dump_dir.filename_private_path(finfo))
 
+    def get_done_pageranges(self, runner):
+        """
+        get the current checkpoint files and from them get
+        the page ranges that are covered by the files
+
+        returns: sorted
+        """
+        chkpt_dfnames = self.list_checkpt_files(
+            runner.dump_dir, [self.get_dumpname()], runner.wiki.date, parts=None)
+        # chkpt_dfnames = sorted(chkpt_dfnames, key=lambda thing: thing.filename)
+        # get the page ranges covered by existing checkpoint files
+        done_pageranges = [(dfname.first_page_id, dfname.last_page_id,
+                            dfname.partnum)
+                           for dfname in chkpt_dfnames]
+        done_pageranges = sorted(done_pageranges, key=lambda x: int(x[0]))
+        if self.verbose:
+            print "done_pageranges:", done_pageranges
+        return done_pageranges
+
+    def get_nochkpt_outputfiles(self, runner):
+        """
+        get output files that should be produced by this step,
+        if no checkpoints were specified.
+        if only one part was specified to run, only that file will
+        be listed
+        returns:
+            list of DumpFilename
+        """
+        return self.get_reg_files_for_filepart_possible(
+            runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
+
+    def get_ranges_covered_by_stubs(self, runner):
+        """
+        get the page ranges covered by stubs
+        returns a list of tuples: (startpage<str>, endpage<str>, partnum<str>)
+        """
+        output_dfnames = self.get_reg_files_for_filepart_possible(
+            runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
+        # get the stub list that would be used for the current run
+        # stub_dfnames = [self.stubber.get_stub_dfname(dfname, runner) for dfname in output_dfnames]
+        stub_dfnames = [self.stubber.get_stub_dfname(dfname.partnum, runner)
+                        for dfname in output_dfnames]
+        stub_dfnames = sorted(stub_dfnames, key=lambda thing: thing.filename)
+
+        stub_ranges = []
+        for stub_dfname in stub_dfnames:
+            dcontents = DumpContents(self.wiki,
+                                     runner.dump_dir.filename_public_path(
+                                         stub_dfname, stub_dfname.date),
+                                     stub_dfname, self.verbose)
+
+            stub_ranges.append((dcontents.find_first_page_id_in_file(),
+                                dcontents.find_last_page_id(runner),
+                                stub_dfname.partnum))
+        return stub_ranges
+
+    def get_dfnames_for_missing_pranges(self, runner, stub_pageranges):
+        """
+        if there are some page ranges done already for this job,
+        return a list of output files covering only the missing
+        pages, otherwise return the usual (single output file
+        or list of subjob output files)
+
+        returns: list of DumpFilename
+        """
+        # get list of existing checkpoint files
+        done_pageranges = self.get_done_pageranges(runner)
+        if not done_pageranges:
+            # no pages already done, do them all
+            return self.get_nochkpt_outputfiles(runner)
+
+        missing_ranges = dumps.pagerange.find_missing_pageranges(stub_pageranges, done_pageranges)
+
+        todo = []
+        parts = self.get_fileparts_list()
+        for partnum in parts:
+            if not [1 for chkpt_range in done_pageranges
+                    if int(chkpt_range[2]) == partnum]:
+                # entire page range for a particular file part (subjob)
+                # is missing so generate the regular output file
+                output_dfnames = self.get_reg_files_for_filepart_possible(
+                    runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
+                todo.extend([dfname for dfname in output_dfnames
+                             if int(dfname.partnum) == partnum])
+            else:
+                # at least some page ranges are covered, just do those that
+                # are missing (maybe none are and list is empty)
+                todo.extend([self.make_dfname_from_pagerange((first, last), part)
+                             for (first, last, part) in missing_ranges
+                             if int(part) == partnum])
+        return todo
+
+    def get_pagerange_jobs_for_file(self, output_dfname, page_start, page_end):
+        """
+        given an output filename, the start and end pages it should cover,
+        split up into output filenames that will each contain roughly the same
+        number of revisions, so that each dump to produce them doesn't
+        take a ridiculous length of time
+
+        args: DumpFilename, startpage<str>, endpage<str>
+        returns: list of DumpFilename
+        """
+        output_dfnames = []
+        if 'history' in self.jobinfo['subset']:
+            prange = PageRange(QueryRunner(self.wiki.db_name, self.wiki.config,
+                                           self.verbose), self.verbose)
+            ranges = prange.get_pageranges_for_revs(int(page_start), int(page_end),
+                                                    self.wiki.config.revs_per_job)
+        else:
+            # strictly speaking this splits up the pages-articles
+            # dump more than is needed but who cares
+            ranges = [(str(n), str(min(n + self.wiki.config.revs_per_job, int(page_end))))
+                      for n in xrange(int(page_start), int(page_end),
+                                      self.wiki.config.revs_per_job)]
+        for pagerange in ranges:
+            dfname = self.make_dfname_from_pagerange(pagerange, output_dfname.partnum)
+            if dfname is not None:
+                output_dfnames.append(dfname)
+        return output_dfnames
+
+    def make_bitesize_jobs(self, output_dfnames, stub_pageranges):
+        """
+        for each file in the list, generate a list of page ranges
+        such that we can dump page content files for those page ranges
+        covering the output requested, all having around the same
+        number of revisions in them, (example: split up
+        dewiki page meta history part 1 into a bunch of
+        1 million rev pieces for output)
+
+        if we have been requested to produce a specific pagerange already,
+        this routine should not be used.
+
+        args: list of DumpFilename, list of (startpage<str>, endpage<str>, partnum<str>)
+        """
+        to_return = []
+        for dfname in output_dfnames:
+            # whether we have a partnum or not, this will be just fine
+            for stub_prange in stub_pageranges:
+                if dfname.partnum == stub_prange[2]:
+                    # if the stub files are broken for some reason...
+                    if stub_prange[0] is not None and stub_prange[1] is not None:
+                        to_return.extend(self.get_pagerange_jobs_for_file(
+                            dfname, stub_prange[0], stub_prange[1]))
+                    break
+        return to_return
+
+    def setup_wanted(self, dfname, runner, prefetcher):
+        """
+        gather and return info about all comands we want to run,
+        including input stubs, input prefetchs, output filenames, etc
+
+        args: DumpFilename, Runner, PrefetchFinder
+        """
+        wanted = {}
+        wanted['outfile'] = dfname
+        wanted['pagerange'] = (dfname.first_page_id, dfname.last_page_id)
+        wanted['partnum'] = dfname.partnum
+        wanted['stub_input'] = self.stubber.get_stub_dfname(wanted['partnum'], runner)
+        if wanted['pagerange'] and wanted['outfile'].first_page_id is not None:
+            wanted['stub'] = self.stubber.get_pagerange_stub_dfname(wanted, runner)
+            # generate a stub to cover the page range
+            wanted['generate'] = True
+        else:
+            # use existing stub
+            wanted['stub'] = wanted['stub_input']
+            wanted['generate'] = False
+
+        if self.jobinfo['prefetch']:
+            wanted['prefetch'] = prefetcher.get_prefetch_arg(
+                runner, wanted['outfile'], wanted['stub'])
+        else:
+            wanted['prefetch'] = ""
+        return wanted
+
     def run(self, runner):
         # here we will either clean up or not depending on how we were called
         # FIXME callers should set this appropriately and they don't right now
@@ -546,96 +604,95 @@ class XmlDump(Dump):
         # them and hashsumming them etc.
         # they may have been left around from an interrupted or failed earlier
         # run
+
+        # in cases where we have request of specific file, do it as asked,
+        # no splitting it up into smaller pieces
+        do_bitesize = False
+
         self.cleanup_tmp_files(runner.dump_dir, runner)
 
         commands = []
 
         dfnames_todo = []
-
-        if self.page_id_range is not None:
+        if self.jobinfo['pageid_range'] is not None:
             # convert to checkpoint filename, handle the same way
-            self.checkpoint_file = self.get_chkptfile_from_pageids()
-
-        if self.checkpoint_file:
+            dfnames_todo = [self.get_pagerange_output_dfname()]
+        elif self.checkpoint_file:
             dfnames_todo = [self.checkpoint_file]
-        else:
-            # list all the output files that would be produced w/o
-            # checkpoint files on
-            out_dfnames = self.get_reg_files_for_filepart_possible(
-                runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
-            if self._checkpoints_enabled:
-                # get the stub list that would be used for the current run
-                stub_dfnames = self.stubber.get_stub_files(runner)
-                stub_dfnames = sorted(stub_dfnames, key=lambda thing: thing.filename)
-
-                # get the page ranges covered by stubs
-                stub_ranges = []
-                for stub_dfname in stub_dfnames:
-                    dcontents = DumpContents(self.wiki,
-                                             runner.dump_dir.filename_public_path(
-                                                 stub_dfname, stub_dfname.date),
-                                             stub_dfname, self.verbose)
-                    stub_ranges.append((dcontents.find_first_page_id_in_file(),
-                                        self.find_last_page_id(stub_dfname, runner),
-                                        stub_dfname.partnum))
-
-                # get list of existing checkpoint files
-                chkpt_dfnames = self.list_checkpt_files(
-                    runner.dump_dir, [self.dumpname], runner.wiki.date, parts=None)
-                chkpt_dfnames = sorted(chkpt_dfnames, key=lambda thing: thing.filename)
-                # get the page ranges covered by existing checkpoint files
-                checkpoint_ranges = [(chkptfile.first_page_id, chkptfile.last_page_id,
-                                      chkptfile.partnum)
-                                     for chkptfile in chkpt_dfnames]
-                if self.verbose:
-                    print "checkpoint_ranges is", checkpoint_ranges
-                    print "stub_ranges is", stub_ranges
-
-                if not checkpoint_ranges:
-                    # no page ranges covered by checkpoints. do all output files
-                    # the usual way
-                    dfnames_todo = out_dfnames
+        elif self._checkpoints_enabled:
+            do_bitesize = True
+            stub_pageranges = self.get_ranges_covered_by_stubs(runner)
+            stub_pageranges = sorted(stub_pageranges, key=lambda x: int(x[0]))
+            dfnames_todo = self.get_dfnames_for_missing_pranges(runner, stub_pageranges)
+            # replace stub ranges for output files that cover smaller
+            # ranges, with just those numbers
+            new_stub_ranges = []
+            for dfname in dfnames_todo:
+                if dfname.is_checkpoint_file:
+                    new_stub_ranges.append((dfname.first_page_id,
+                                            dfname.last_page_id, dfname.partnum))
                 else:
-                    dfnames_todo = []
-                    missing_ranges = self.find_missing_ranges(stub_ranges, checkpoint_ranges)
-                    parts = self.get_fileparts_list()
-                    for partnum in parts:
-                        if not [1 for chkpt_range in checkpoint_ranges
-                                if int(chkpt_range[2]) == partnum]:
-                            # entire page range for a particular file part (subjob)
-                            # is missing so generate the regular output file
-                            dfnames_todo.extend([out_dfname for out_dfname in out_dfnames
-                                                 if int(out_dfname.partnum) == partnum])
-                        else:
-                            # at least some page ranges are covered, just do those that
-                            # are missing (maybe none are and list is empty)
-                            dfnames_todo.extend(
-                                [self.chkpt_file_from_page_range((first, last), part)
-                                 for (first, last, part) in missing_ranges
-                                 if int(part) == partnum])
-            else:
-                # do the missing files only
-                dfnames_todo = [out_dfname for out_dfname in out_dfnames
-                                if not os.path.exists(
-                                    runner.dump_dir.filename_public_path(out_dfname))]
-
-        partial_stubs = self.stubber.get_partial_stubs(dfnames_todo, runner)
-        if partial_stubs:
-            stub_files = partial_stubs
+                    for srange in stub_pageranges:
+                        if srange[2] == dfname.partnum:
+                            new_stub_ranges.append(srange)
+            stub_pageranges = new_stub_ranges
         else:
-            # what was this about? dunno
-            return
+            output_dfnames = self.get_reg_files_for_filepart_possible(
+                runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
+            # at least some page ranges are covered, just do those that
+            dfnames_todo = [dfname for dfname in output_dfnames
+                            if not os.path.exists(runner.dump_dir.filename_public_path(dfname))]
+        if self._checkpoints_enabled and do_bitesize:
+            dfnames_todo = self.make_bitesize_jobs(dfnames_todo, stub_pageranges)
 
-        for stub_file in stub_files:
-            series = self.build_command(runner, stub_file)
-            commands.append(series)
+        if self.jobinfo['prefetch']:
+            prefetcher = PrefetchFinder(
+                self.wiki,
+                {'name': self.name(), 'desc': self.jobinfo['desc'],
+                 'dumpname': self.get_dumpname(),
+                 'ftype': self.file_type, 'fext': self.file_ext,
+                 'subset': self.jobinfo['subset']},
+                {'date': self.jobinfo['prefetchdate'], 'parts': self._parts},
+                self.verbose)
 
-        error = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                   callback_stderr_arg=runner)
-        if error:
-            raise BackupError("error producing xml file(s) %s" % self.dumpname)
+        wanted = [self.setup_wanted(dfname, runner, prefetcher) for dfname in dfnames_todo]
+        # FIXME we really should generate a number of these at once.  eh next commit
+        for entry in wanted:
+            if entry['generate']:
+                self.stubber.write_pagerange_stub(entry['stub_input'], entry['stub'], runner)
+                if self.stubber.has_no_pages(entry['stub'], runner):
+                    # this page range has no pages in it (all deleted?) so we need not
+                    # keep info on how to generate it
+                    continue
+            # series = self.build_command(runner, entry['stub'], entry['prefetch'])
+            entry['command'] = self.build_command(runner, entry['stub'], entry['prefetch'])
+            commands.append(entry['command'])
 
-    def build_eta(self, runner):
+        # don't do them all at once, do only up to _parts commands at the same time
+        if self._parts:
+            batchsize = len(self._parts)
+        else:
+            batchsize = 1
+        errors = False
+        while commands:
+            command_batch = commands[:batchsize]
+            error = runner.run_command(command_batch, callback_stderr=self.progress_callback,
+                                       callback_stderr_arg=runner)
+            # log individual batch failures, FIXME we should find out which command specifically
+            # failed
+            if error:
+                runner.log_and_print("error from commands: %s" % " ".join(
+                    entry for series in command_batch for pipeline in series
+                    for command in pipeline for entry in command))
+                errors = True
+            commands = commands[batchsize:]
+        # FIXME we should accumulate all failures, wait a bit and retry them as
+        # batches in their own right
+        if errors:
+            raise BackupError("error producing xml file(s) %s" % self.get_dumpname())
+
+    @classmethod
+    def build_eta(cls):
         """Tell the dumper script whether to make ETA estimate on page or revision count."""
         return "--current"
 
@@ -657,123 +714,26 @@ class XmlDump(Dump):
             bz2mode = "bzip2"
         return "--output=%s:%s" % (bz2mode, xmlbz2_path)
 
-    def get_last_lines_from_n(self, dfname, runner, count):
-        if not dfname.filename or not exists(runner.dump_dir.filename_public_path(dfname)):
-            return None
-
-        dumpfile = DumpContents(self.wiki,
-                                runner.dump_dir.filename_public_path(dfname, self.wiki.date),
-                                dfname, self.verbose)
-        pipeline = dumpfile.setup_uncompression_command()
-
-        tail = self.wiki.config.tail
-        if not exists(tail):
-            raise BackupError("tail command %s not found" % tail)
-        tail_esc = MiscUtils.shell_escape(tail)
-        pipeline.append([tail, "-n", "+%s" % count])
-        # without shell
-        proc = CommandPipeline(pipeline, quiet=True)
-        proc.run_pipeline_get_output()
-        last_lines = ""
-        if (proc.exited_successfully() or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[-signal.SIGPIPE, pipeline[0]]]) or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[signal.SIGPIPE + 128, pipeline[0]]])):
-            last_lines = proc.output()
-        return last_lines
-
-    def get_lineno_last_page(self, dfname, runner):
-        if not dfname.filename or not exists(runner.dump_dir.filename_public_path(dfname)):
-            return None
-        dumpfile = DumpContents(self.wiki,
-                                runner.dump_dir.filename_public_path(dfname, self.wiki.date),
-                                dfname, self.verbose)
-        pipeline = dumpfile.setup_uncompression_command()
-        grep = self.wiki.config.grep
-        if not exists(grep):
-            raise BackupError("grep command %s not found" % grep)
-        pipeline.append([grep, "-n", "<page>"])
-        tail = self.wiki.config.tail
-        if not exists(tail):
-            raise BackupError("tail command %s not found" % tail)
-        pipeline.append([tail, "-1"])
-        # without shell
-        proc = CommandPipeline(pipeline, quiet=True)
-        proc.run_pipeline_get_output()
-        if (proc.exited_successfully() or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[-signal.SIGPIPE, pipeline[0]]]) or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[signal.SIGPIPE + 128, pipeline[0]]])):
-            output = proc.output()
-            # 339915646:  <page>
-            if ':' in output:
-                linecount = output.split(':')[0]
-                if linecount.isdigit():
-                    return linecount
-        return None
-
-    def find_last_page_id(self, dfname, runner):
-        """
-        find and return the last page id in a compressed
-        stub or page content xml file, using uncompression
-        command (bzcat, zcat) and tail
-
-        arg: DumpFilename, Runner
-        """
-        count = self.get_lineno_last_page(dfname, runner)
-        lastlines = self.get_last_lines_from_n(dfname, runner, count)
-        # now look for the last page id in here. eww
-        if not lastlines:
-            return None
-        title_and_id_pattern = re.compile(r'<title>(?P<title>.+?)</title>\s*' +
-                                          r'(<ns>[0-9]+</ns>\s*)?' +
-                                          r'<id>(?P<pageid>\d+?)</id>')
-        result = None
-        for result in re.finditer(title_and_id_pattern, lastlines):
-            pass
-        if result is not None:
-            return result.group('pageid')
-        else:
-            return None
-
-    def build_command(self, runner, stub_dfname):
+    def build_command(self, runner, stub_dfname, prefetch):
         """
         Build the command line for the dump, minus output and filter options
         args:
             Runner, stub DumpFilename, ....
         """
-        # we write a temp file, it will be checkpointed every so often.
-        temp = bool(self._checkpoints_enabled)
-
         output_dfname = DumpFilename(self.wiki, stub_dfname.date, self.get_dumpname(),
                                      self.get_filetype(), self.file_ext, stub_dfname.partnum,
                                      DumpFilename.make_checkpoint_string(stub_dfname.first_page_id,
                                                                          stub_dfname.last_page_id),
-                                     temp)
+                                     False)
 
         stub_path = os.path.join(self.wiki.config.temp_dir, stub_dfname.filename)
         if os.path.exists(stub_path):
-            # if this is a partial stub file in temp dir, use that
+            # if this is a pagerange stub file in temp dir, use that
             stub_option = "--stub=gzip:%s" % stub_path
         else:
             # use regular stub file
             stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(stub_dfname)
-
-        if self._prefetch:
-            prefetcher = Prefetch(self.wiki,
-                                  {'name': self.name(), 'desc': self._desc,
-                                   'dumpname': self.dumpname,
-                                   'ftype': self.file_type, 'fext': self.file_ext},
-                                  {'date': self._prefetchdate, 'parts': self._parts,
-                                   'subset': self._subset},
-                                  self.verbose)
-            prefetch = prefetcher.get_prefetch(runner, output_dfname, stub_dfname)
-        else:
-            prefetch = ""
-
-        if self._spawn:
+        if self.jobinfo['spawn']:
             spawn = "--spawn=%s" % (self.wiki.config.php)
         else:
             spawn = ""
@@ -781,41 +741,20 @@ class XmlDump(Dump):
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
 
-        if self._checkpoints_enabled:
-            checkpoint_time = "--maxtime=%s" % (self.wiki.config.checkpoint_time)
-            checkpoint_file = "--checkpointfile=%s" % output_dfname.new_filename(
-                output_dfname.dumpname, output_dfname.file_type, output_dfname.file_ext,
-                output_dfname.date, output_dfname.partnum, "p%sp%s", None)
-        else:
-            checkpoint_time = ""
-            checkpoint_file = ""
         script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpTextPass.php")
         dump_command = [self.wiki.config.php]
         dump_command.extend(script_command)
         dump_command.extend(["--wiki=%s" % runner.db_name,
                              "%s" % stub_option,
                              "%s" % prefetch,
-                             "%s" % checkpoint_time,
-                             "%s" % checkpoint_file,
                              "--report=1000",
                              "%s" % spawn])
 
         dump_command = [entry for entry in dump_command if entry is not None]
-        command = dump_command
-        filters = self.build_filters(runner, output_dfname)
-        eta = self.build_eta(runner)
-        command.extend([filters, eta])
-        pipeline = [command]
-        series = [pipeline]
-        return series
-
-    # taken from a comment by user "Toothy" on Ned Batchelder's blog (no longer on the net)
-    def sort_nicely(self, mylist):
-        """ Sort the given list in the way that humans expect.
-        """
-        convert = lambda text: int(text) if text.isdigit() else text
-        alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-        mylist = sorted(mylist, key=alphanum_key)
+        dump_command.extend([self.build_filters(runner, output_dfname), self.build_eta()])
+        pipeline = [dump_command]
+        # return a command series of one pipeline
+        return [pipeline]
 
     def get_tmp_files(self, dump_dir, dump_names=None):
         """
@@ -840,14 +779,14 @@ class XmlDump(Dump):
         dfnames = Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names)
         dfnames_to_return = []
 
-        if self.page_id_range:
+        if self.jobinfo['pageid_range']:
             # this file is for one page range only
-            if ',' in self.page_id_range:
-                (first_page_id, last_page_id) = self.page_id_range.split(',', 2)
+            if ',' in self.jobinfo['pageid_range']:
+                (first_page_id, last_page_id) = self.jobinfo['pageid_range'].split(',', 2)
                 first_page_id = int(first_page_id)
                 last_page_id = int(last_page_id)
             else:
-                first_page_id = int(self.page_id_range)
+                first_page_id = int(self.jobinfo['pageid_range'])
                 last_page_id = None
 
             # checkpoint files cover specific page ranges. for those,
@@ -873,6 +812,7 @@ class BigXmlDump(XmlDump):
     """XML page dump for something larger, where a 7-Zip compressed copy
     could save 75% of download time for some users."""
 
-    def build_eta(self, runner):
+    @classmethod
+    def build_eta(cls):
         """Tell the dumper script whether to make ETA estimate on page or revision count."""
         return "--full"

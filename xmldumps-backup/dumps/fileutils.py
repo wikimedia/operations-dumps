@@ -332,6 +332,7 @@ class DumpContents(object):
     find_first_page_id_in_file(): set self.first_page_id by examining the contents,
        returning the value, or None if there is no pageID.  We uncompress the file
        if needed and look through the first 500 lines.
+    def find_last_page_id_in_file(self): set self.last_page_id by examining the contents
 
     useful variables:
 
@@ -352,6 +353,7 @@ class DumpContents(object):
         self.is_truncated = None
         self.is_empty = None
         self.first_page_id = None
+        self.last_page_id = None
         self.dirname = os.path.dirname(filename)
         if dfname:
             self.dfname = dfname
@@ -467,6 +469,90 @@ class DumpContents(object):
             if result:
                 self.first_page_id = result.group('pageid')
         return self.first_page_id
+
+    def get_last_lines(self, runner, count):
+        """
+        read last count lines from compressed file,
+        using tail to get the lines, and return the content
+        as one long string
+
+        args: Runner, number of lines to read
+        """
+        pipeline = self.setup_uncompression_command()
+
+        tail = self._wiki.config.tail
+        if not exists(tail):
+            raise BackupError("tail command %s not found" % tail)
+        tail_esc = MiscUtils.shell_escape(tail)
+        pipeline.append([tail, "-n", "+%s" % count])
+        # without shell
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.run_pipeline_get_output()
+        last_lines = ""
+        if (proc.exited_successfully() or
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[-signal.SIGPIPE, pipeline[0]]]) or
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[signal.SIGPIPE + 128, pipeline[0]]])):
+            last_lines = proc.output()
+        return last_lines
+
+    def get_lineno_last_page(self, runner):
+        """
+        find and return the line number of the last page tag
+        in the file
+
+        args: Runner
+        """
+        pipeline = self.setup_uncompression_command()
+        grep = self._wiki.config.grep
+        if not exists(grep):
+            raise BackupError("grep command %s not found" % grep)
+        pipeline.append([grep, "-n", "<page>"])
+        tail = self._wiki.config.tail
+        if not exists(tail):
+            raise BackupError("tail command %s not found" % tail)
+        pipeline.append([tail, "-1"])
+        # without shell
+        proc = CommandPipeline(pipeline, quiet=True)
+        proc.run_pipeline_get_output()
+        if (proc.exited_successfully() or
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[-signal.SIGPIPE, pipeline[0]]]) or
+                (proc.get_failed_cmds_with_retcode() ==
+                 [[signal.SIGPIPE + 128, pipeline[0]]])):
+            output = proc.output()
+            # 339915646:  <page>
+            if ':' in output:
+                linecount = output.split(':')[0]
+                if linecount.isdigit():
+                    return linecount
+        return None
+
+    def find_last_page_id(self, runner):
+        """
+        find and return the last page id in a compressed
+        stub or page content xml file, using uncompression
+        command (bzcat, zcat) and tail
+
+        arg: Runner
+        """
+        if self.last_page_id:
+            return self.last_page_id
+        count = self.get_lineno_last_page(runner)
+        lastlines = self.get_last_lines(runner, count)
+        # now look for the last page id in here. eww
+        if not lastlines:
+            return None
+        title_and_id_pattern = re.compile(r'<title>(?P<title>.+?)</title>\s*' +
+                                          r'(<ns>[0-9]+</ns>\s*)?' +
+                                          r'<id>(?P<pageid>\d+?)</id>')
+        result = None
+        for result in re.finditer(title_and_id_pattern, lastlines):
+            pass
+        if result:
+            self.last_page_id = result.group('pageid')
+        return self.last_page_id
 
     def check_if_truncated(self):
         if self.is_truncated:
@@ -603,7 +689,7 @@ class DumpDir(object):
         args:
             date in YYYYMMDD format
         returns:
-            list of DumpFilenames
+            list of DumpFilename
         """
         if not date:
             date = self._wiki.date
