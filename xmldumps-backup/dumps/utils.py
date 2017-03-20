@@ -526,7 +526,8 @@ class FilePartInfo(object,):
             self._recombine_history = False
         if self._parts_enabled:
             if self._revs_per_filepart_history:
-                if len(self._revs_per_filepart_history) == 1:
+                if (len(self._revs_per_filepart_history) == 1 and
+                        self._revs_per_filepart_history[0]):
                     self._num_parts_history = self.get_num_parts_for_xml_dumps(
                         self.stats.total_edits, self._pages_per_filepart_history[0])
                     self._revs_per_filepart_history = [self._revs_per_filepart_history[0]
@@ -537,7 +538,8 @@ class FilePartInfo(object,):
                 # ...next code update! FIXME
                 # self._pages_per_filepart_history = ....
             elif self._pages_per_filepart_history:
-                if len(self._pages_per_filepart_history) == 1:
+                if (len(self._pages_per_filepart_history) == 1 and
+                        self._pages_per_filepart_history[0]):
                     self._num_parts_history = self.get_num_parts_for_xml_dumps(
                         self.stats.total_pages, self._pages_per_filepart_history[0])
                     self._pages_per_filepart_history = [self._pages_per_filepart_history[0]
