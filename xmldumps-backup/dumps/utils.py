@@ -503,7 +503,8 @@ class FilePartInfo(object,):
             self.stats = PageAndEditStats(self.wiki, self._db_name, error_callback)
             if not self.stats.total_edits or not self.stats.total_pages:
                 raise BackupError("Failed to get DB stats, exiting")
-            if self.wiki.config.numparts_for_abstract:
+            if (self.wiki.config.numparts_for_abstract and
+                    self.wiki.config.numparts_for_abstract != "0"):
                 # we add 200 padding to cover new pages that may be added
                 pages_per_filepart = 200 + self.stats.total_pages / int(
                     self.wiki.config.numparts_for_abstract)
@@ -547,7 +548,8 @@ class FilePartInfo(object,):
                 self._num_parts_history = 0
 
             if self._pages_per_filepart_abstract:
-                if len(self._pages_per_filepart_abstract) == 1:
+                if (len(self._pages_per_filepart_abstract) == 1 and
+                        self._pages_per_filepart_abstract[0]):
                     self._num_parts_abstract = self.get_num_parts_for_xml_dumps(
                         self.stats.total_pages, self._pages_per_filepart_abstract[0])
                     self._pages_per_filepart_abstract = [self._pages_per_filepart_abstract[0]
