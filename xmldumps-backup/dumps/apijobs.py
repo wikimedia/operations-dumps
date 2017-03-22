@@ -22,18 +22,18 @@ class SiteInfoDump(Dump):
     def run(self, runner):
         retries = 0
         maxretries = 3
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("siteinfo dump %s trying to produce more than one file" %
                               self.dumpname)
-        output_file = files[0]
+        output_dfname = dfnames[0]
         error = self.get_siteinfo(
-            runner.dump_dir.filename_public_path(output_file), runner)
+            runner.dump_dir.filename_public_path(output_dfname), runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
             error = self.get_siteinfo(
-                runner.dump_dir.filename_public_path(output_file), runner)
+                runner.dump_dir.filename_public_path(output_dfname), runner)
         if error:
             raise BackupError("error dumping siteinfo props %s" % ','.join(self._properties))
 

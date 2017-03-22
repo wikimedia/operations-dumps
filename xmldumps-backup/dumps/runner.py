@@ -464,16 +464,16 @@ class Runner(object):
         self.do_prereqs = do_prereqs
 
         if self.checkpoint_file is not None:
-            fname = DumpFilename(self.wiki)
-            fname.new_from_filename(checkpoint_file)
+            dfname = DumpFilename(self.wiki)
+            dfname.new_from_filename(checkpoint_file)
             # we should get file partnum if any
-            if self._partnum_todo is None and fname.partnum_int:
-                self._partnum_todo = fname.partnum_int
-            elif (self._partnum_todo is not None and fname.partnum_int and
-                  self._partnum_todo != fname.partnum_int):
+            if self._partnum_todo is None and dfname.partnum_int:
+                self._partnum_todo = dfname.partnum_int
+            elif (self._partnum_todo is not None and dfname.partnum_int and
+                  self._partnum_todo != dfname.partnum_int):
                 raise BackupError("specifed partnum to do does not match part number "
                                   "of checkpoint file %s to redo", self.checkpoint_file)
-            self.checkpoint_file = fname
+            self.checkpoint_file = dfname
 
         if self.enabled is None:
             self.enabled = {}
@@ -534,9 +534,9 @@ class Runner(object):
 
         # these must come after the dumpdir setup so we know which directory we are in
         if "logging" in self.enabled and "makedir" in self.enabled:
-            file_obj = DumpFilename(self.wiki)
-            file_obj.new_from_filename(self.wiki.config.log_file)
-            self.log_filename = self.dump_dir.filename_private_path(file_obj)
+            dfname = DumpFilename(self.wiki)
+            dfname.new_from_filename(self.wiki.config.log_file)
+            self.log_filename = self.dump_dir.filename_private_path(dfname)
             self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
             self.log = Logger(self.log_filename)
             # thread should die horribly when main script dies. no exceptions.

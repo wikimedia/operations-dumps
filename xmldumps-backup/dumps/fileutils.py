@@ -339,8 +339,13 @@ class DumpContents(object):
                           looking for page and id tags, wihout other tags in between. (hmm)
     filename          full filename with directory
     """
-    def __init__(self, wiki, filename, file_obj=None, verbose=False):
-        """takes full filename including path"""
+    def __init__(self, wiki, filename, dfname=None, verbose=False):
+        """
+        args:
+            Wiki, full path to file, DumpFilename, bool
+
+        If dfname is set, it will be used, otherwise 'filename' must be not None
+        """
         self._wiki = wiki
         self.filename = filename
         self.first_lines = None
@@ -348,11 +353,11 @@ class DumpContents(object):
         self.is_empty = None
         self.first_page_id = None
         self.dirname = os.path.dirname(filename)
-        if file_obj:
-            self.file_obj = file_obj
+        if dfname:
+            self.dfname = dfname
         else:
-            self.file_obj = DumpFilename(wiki)
-            self.file_obj.new_from_filename(os.path.basename(filename))
+            self.dfname = DumpFilename(wiki)
+            self.dfname.new_from_filename(os.path.basename(filename))
         if verbose:
             sys.stderr.write("setting up info for %s\n" % filename)
 
@@ -426,11 +431,11 @@ class DumpContents(object):
         if not self.filename or not exists(self.filename):
             return None
         pipeline = []
-        if self.file_obj.file_ext == 'bz2':
+        if self.dfname.file_ext == 'bz2':
             command = [self._wiki.config.bzip2, '-dc']
-        elif self.file_obj.file_ext == 'gz':
+        elif self.dfname.file_ext == 'gz':
             command = [self._wiki.config.gzip, '-dc']
-        elif self.file_obj.file_ext == '7z':
+        elif self.dfname.file_ext == '7z':
             command = [self._wiki.config.sevenzip, "e", "-so"]
         else:
             command = [self._wiki.config.cat]
@@ -468,7 +473,7 @@ class DumpContents(object):
             return self.is_truncated
 
         # Setting up the pipeline depending on the file extension
-        if self.file_obj.file_ext == "bz2":
+        if self.dfname.file_ext == "bz2":
             if not exists(self._wiki.config.checkforbz2footer):
                 raise BackupError("checkforbz2footer command %s not found" %
                                   self._wiki.config.checkforbz2footer)
@@ -476,10 +481,10 @@ class DumpContents(object):
             pipeline = []
             pipeline.append([checkforbz2footer, self.filename])
         else:
-            if self.file_obj.file_ext == 'gz':
+            if self.dfname.file_ext == 'gz':
                 pipeline = [[self._wiki.config.gzip, "-dc", self.filename,
                              ">", "/dev/null"]]
-            elif self.file_obj.file_ext == '7z':
+            elif self.dfname.file_ext == '7z':
                 # Note that 7z does return 0, if archive contains
                 # garbage /after/ the archive end
                 pipeline = [[self._wiki.config.sevenzip, "e", "-so",
@@ -498,14 +503,14 @@ class DumpContents(object):
     def check_if_empty(self):
         if self.is_empty:
             return self.is_empty
-        if self.file_obj.file_ext == "bz2":
+        if self.dfname.file_ext == "bz2":
             pipeline = [["%s -dc  %s | head -5" % (self._wiki.config.bzip2, self.filename)]]
-        elif self.file_obj.file_ext == "gz":
+        elif self.dfname.file_ext == "gz":
             pipeline = [["%s -dc %s | head -5" % (self._wiki.config.gzip, self.filename)]]
-        elif self.file_obj.file_ext == '7z':
+        elif self.dfname.file_ext == '7z':
             pipeline = [["%s e -so %s | head -5" % (self._wiki.config.sevenzip, self.filename)]]
-        elif (self.file_obj.file_ext == '' or self.file_obj.file_ext == 'txt' or
-              self.file_obj.file_ext == 'html'):
+        elif (self.dfname.file_ext == '' or self.dfname.file_ext == 'txt' or
+              self.dfname.file_ext == 'html'):
             pipeline = [["head -5 %s" % self.filename]]
         else:
             # we do't know how to handle this type of file.
@@ -594,6 +599,12 @@ class DumpDir(object):
 
     # warning: date can also be "latest"
     def get_files_in_dir(self, date=None):
+        """
+        args:
+            date in YYYYMMDD format
+        returns:
+            list of DumpFilenames
+        """
         if not date:
             date = self._wiki.date
         if self.dir_cache_outdated(date):
@@ -601,12 +612,12 @@ class DumpDir(object):
             if exists(directory):
                 dir_time_stamp = os.stat(directory).st_mtime
                 files = os.listdir(directory)
-                file_objs = []
+                dfnames = []
                 for filename in files:
-                    file_obj = DumpFilename(self._wiki)
-                    file_obj.new_from_filename(filename)
-                    file_objs.append(file_obj)
-                self._dir_cache[date] = file_objs
+                    dfname = DumpFilename(self._wiki)
+                    dfname.new_from_filename(filename)
+                    dfnames.append(dfname)
+                self._dir_cache[date] = dfnames
                 # The directory listing should get cached. However, some tyical file
                 # system's (eg. ext2, ext3) mtime's resolution is 1s. If we would
                 # unconditionally cache, it might happen that we cache at x.1 seconds
@@ -640,38 +651,41 @@ class DumpDir(object):
         '''
         if not date:
             date = self._wiki.date
-        file_objs = self.get_files_in_dir(date)
-        files_matched = []
-        for fobj in file_objs:
+        dfnames = self.get_files_in_dir(date)
+        dfnames_matched = []
+        for dfname in dfnames:
             # fixme this is a bit hackish
-            if fobj.filename.endswith("truncated"):
+            if dfname.filename.endswith("truncated"):
                 continue
 
-            if dump_name and fobj.dumpname != dump_name:
+            if dump_name and dfname.dumpname != dump_name:
                 continue
-            if file_type is not None and fobj.file_type != file_type:
+            if file_type is not None and dfname.file_type != file_type:
                 continue
-            if file_ext is not None and fobj.file_ext != file_ext:
+            if file_ext is not None and dfname.file_ext != file_ext:
                 continue
-            if parts is False and fobj.is_file_part:
+            if parts is False and dfname.is_file_part:
                 continue
-            if parts is True and not fobj.is_file_part:
+            if parts is True and not dfname.is_file_part:
                 continue
             # parts is a list...
-            if parts and parts is not True and fobj.partnum_int not in parts:
+            if parts and parts is not True and dfname.partnum_int not in parts:
                 continue
-            if (temp is False and fobj.is_temp_file) or (temp and not fobj.is_temp_file):
+            if (temp is False and dfname.is_temp_file) or (temp and not dfname.is_temp_file):
                 continue
-            if ((checkpoint is False and fobj.is_checkpoint_file) or
-                    (checkpoint and not fobj.is_checkpoint_file)):
+            if ((checkpoint is False and dfname.is_checkpoint_file) or
+                    (checkpoint and not dfname.is_checkpoint_file)):
                 continue
-            files_matched.append(fobj)
-            files_matched = self.sort_fileobjs(files_matched)
-        return files_matched
+            dfnames_matched.append(dfname)
+            dfnames_matched = self.sort_dumpfilenames(dfnames_matched)
+        return dfnames_matched
 
     # taken from a comment by user "Toothy" on Ned Batchelder's blog (no longer on the net)
-    def sort_fileobjs(self, mylist):
-        """ Sort the given list in the way that humans expect.
+    def sort_dumpfilenames(self, mylist):
+        """
+        Sort the given list in the way that humans expect.
+        args:
+            list of DumpFilename
         """
         convert = lambda text: int(text) if text.isdigit() else text
         alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key.filename)]

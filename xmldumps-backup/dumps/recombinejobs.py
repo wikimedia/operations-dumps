@@ -25,15 +25,15 @@ class RecombineXmlStub(Dump):
 
     def list_outfiles_to_publish(self, dump_dir):
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
+        return dfnames
 
     def get_filetype(self):
         return self.item_for_xml_stubs.get_filetype()
@@ -46,15 +46,15 @@ class RecombineXmlStub(Dump):
 
     def run(self, runner):
         error = 0
-        files = self.item_for_xml_stubs.list_outfiles_for_input(runner.dump_dir)
-        output_file_list = self.list_outfiles_for_build_command(
+        dfnames = self.item_for_xml_stubs.list_outfiles_for_input(runner.dump_dir)
+        output_dfnames = self.list_outfiles_for_build_command(
             runner.dump_dir, self.list_dumpnames())
-        for output_file_obj in output_file_list:
-            input_files = []
-            for in_file in files:
-                if in_file.dumpname == output_file_obj.dumpname:
-                    input_files.append(in_file)
-            if not len(input_files):
+        for output_dfname in output_dfnames:
+            input_dfnames = []
+            for in_dfname in dfnames:
+                if in_dfname.dumpname == output_dfname.dumpname:
+                    input_dfnames.append(in_dfname)
+            if not len(input_dfnames):
                 self.set_status("failed")
                 raise BackupError("No input files for %s found" % self.name())
             if not exists(runner.wiki.config.gzip):
@@ -63,7 +63,7 @@ class RecombineXmlStub(Dump):
             compression_command = "%s > " % runner.wiki.config.gzip
             uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
             recombine_command_string = self.build_recombine_command_string(
-                runner, input_files, output_file_obj, compression_command, uncompression_command)
+                runner, input_dfnames, output_dfname, compression_command, uncompression_command)
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
@@ -98,9 +98,9 @@ class RecombineXmlDump(XmlDump):
         return self.item_for_xml_dumps.get_dumpname()
 
     def run(self, runner):
-        files = self.item_for_xml_dumps.list_outfiles_for_input(runner.dump_dir)
-        output_files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(output_files) > 1:
+        dfnames = self.item_for_xml_dumps.list_outfiles_for_input(runner.dump_dir)
+        output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(output_dfnames) > 1:
             raise BackupError("recombine XML Dump trying to "
                               "produce more than one output file")
 
@@ -112,7 +112,7 @@ class RecombineXmlDump(XmlDump):
         compression_command = "%s > " % runner.wiki.config.bzip2
         uncompression_command = ["%s" % runner.wiki.config.bzip2, "-dc"]
         recombine_command_string = self.build_recombine_command_string(
-            runner, files, output_files[0], compression_command, uncompression_command)
+            runner, dfnames, output_dfnames[0], compression_command, uncompression_command)
         recombine_command = [recombine_command_string]
         recombine_pipeline = [recombine_command]
         series = [recombine_pipeline]
@@ -148,14 +148,14 @@ class RecombineXmlRecompressDump(Dump):
     def run(self, runner):
         error = 0
         self.cleanup_old_files(runner.dump_dir, runner)
-        output_file_list = self.list_outfiles_for_build_command(runner.dump_dir)
-        for output_file in output_file_list:
-            input_files = []
-            files = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
-            for in_file in files:
-                if in_file.dumpname == output_file.dumpname:
-                    input_files.append(in_file)
-            if not len(input_files):
+        output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        for output_dfname in output_dfnames:
+            input_dfnames = []
+            dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
+            for in_dfname in dfnames:
+                if in_dfname.dumpname == output_dfname.dumpname:
+                    input_dfnames.append(in_dfname)
+            if not len(input_dfnames):
                 self.set_status("failed")
                 raise BackupError("No input files for %s found" % self.name())
             if not exists(self.wiki.config.sevenzip):
@@ -164,7 +164,7 @@ class RecombineXmlRecompressDump(Dump):
             uncompression_command = ["%s" % self.wiki.config.sevenzip, "e", "-so"]
 
             recombine_command_string = self.build_recombine_command_string(
-                runner, files, output_file, compression_command, uncompression_command)
+                runner, dfnames, output_dfname, compression_command, uncompression_command)
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
@@ -197,14 +197,14 @@ class RecombineAbstractDump(Dump):
 
     def run(self, runner):
         error = 0
-        files = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
-        output_file_list = self.list_outfiles_for_build_command(runner.dump_dir)
-        for output_file in output_file_list:
-            input_files = []
-            for in_file in files:
-                if in_file.dumpname == output_file.dumpname:
-                    input_files.append(in_file)
-            if not len(input_files):
+        to_recombine_dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
+        output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        for output_dfname in output_dfnames:
+            input_dfnames = []
+            for in_dfname in to_recombine_dfnames:
+                if in_dfname.dumpname == output_dfname.dumpname:
+                    input_dfnames.append(in_dfname)
+            if not len(input_dfnames):
                 self.set_status("failed")
                 raise BackupError("No input files for %s found" % self.name())
             if not exists(runner.wiki.config.cat):
@@ -212,7 +212,7 @@ class RecombineAbstractDump(Dump):
             compression_command = "%s > " % runner.wiki.config.cat
             uncompression_command = ["%s" % runner.wiki.config.cat]
             recombine_command_string = self.build_recombine_command_string(
-                runner, input_files, output_file, compression_command,
+                runner, input_dfnames, output_dfname, compression_command,
                 uncompression_command, "<feed>")
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]

@@ -16,21 +16,29 @@ from dumps.utils import TimeUtils, MiscUtils
 
 
 def get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
-    '''return all checkpoint files that exist'''
-    files = []
-    for dname in dump_names:
-        files.extend(dump_dir.get_checkpt_files(
-            date, dname, file_type, file_ext, parts, temp=False))
-    return files
+    '''
+    return all checkpoint files that exist
+    returns:
+        list of DumpFilenames
+    '''
+    dfnames = []
+    for dump_name in dump_names:
+        dfnames.extend(dump_dir.get_checkpt_files(
+            date, dump_name, file_type, file_ext, parts, temp=False))
+    return dfnames
 
 
 def get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
-    '''get all regular output files that exist'''
-    files = []
-    for dname in dump_names:
-        files.extend(dump_dir.get_reg_files(
-            date, dname, file_type, file_ext, parts, temp=False))
-    return files
+    '''
+    get all regular output files that exist
+    returns:
+        list of DumpFilenames
+    '''
+    dfnames = []
+    for dump_name in dump_names:
+        dfnames.extend(dump_dir.get_reg_files(
+            date, dump_name, file_type, file_ext, parts, temp=False))
+    return dfnames
 
 
 class Dump(object):
@@ -242,8 +250,12 @@ class Dump(object):
     def wait_alarm_handler(self, signum, frame):
         pass
 
-    def build_recombine_command_string(self, runner, files, output_file, compression_command,
+    def build_recombine_command_string(self, runner, dfnames, output_file, compression_command,
                                        uncompression_command, end_header_marker="</siteinfo>"):
+        """
+        args:
+            Runner, list of DumpFile, ...
+        """
         output_filename = runner.dump_dir.filename_public_path(output_file)
         partnum = 0
         recombines = []
@@ -271,13 +283,13 @@ class Dump(object):
         for command in compression_command:
             command = MiscUtils.shell_escape(command)
 
-        if not files:
+        if not dfnames:
             raise BackupError("No files for the recombine step found in %s." % self.name())
 
-        for file_obj in files:
+        for dfname in dfnames:
             # uh oh FIXME
-            # f = MiscUtils.shell_escape(file_obj.filename)
-            fpath = runner.dump_dir.filename_public_path(file_obj)
+            # f = MiscUtils.shell_escape(dfname.filename)
+            fpath = runner.dump_dir.filename_public_path(dfname)
             partnum = partnum + 1
             pipeline = []
             uncompress_this_file = uncompression_command[:]
@@ -305,7 +317,7 @@ class Dump(object):
             if partnum == 1:
                 # first file, put header and contents
                 recombine = recombine + " | %s -n -1 " % head
-            elif partnum == len(files):
+            elif partnum == len(dfnames):
                 # last file, put footer
                 recombine = recombine + (" | %s -n +%s" % (tail, header_end_num))
             else:
@@ -325,12 +337,12 @@ class Dump(object):
                     os.remove(dump_dir.filename_public_path(self.checkpoint_file))
                 elif exists(dump_dir.filename_private_path(self.checkpoint_file)):
                     os.remove(dump_dir.filename_private_path(self.checkpoint_file))
-            files = self.list_outfiles_for_cleanup(dump_dir)
-            for finfo in files:
-                if exists(dump_dir.filename_public_path(finfo)):
-                    os.remove(dump_dir.filename_public_path(finfo))
-                elif exists(dump_dir.filename_private_path(finfo)):
-                    os.remove(dump_dir.filename_private_path(finfo))
+            dfnames = self.list_outfiles_for_cleanup(dump_dir)
+            for dfname in dfnames:
+                if exists(dump_dir.filename_public_path(dfname)):
+                    os.remove(dump_dir.filename_public_path(dfname))
+                elif exists(dump_dir.filename_private_path(dfname)):
+                    os.remove(dump_dir.filename_private_path(dfname))
 
     def get_fileparts_list(self):
         if self._parts_enabled:
@@ -342,52 +354,70 @@ class Dump(object):
             return False
 
     def list_reg_files(self, dump_dir, dump_names=None, date=None, parts=None):
-        '''list all regular output files that exist'''
-        files = []
+        '''
+        list all regular output files that exist
+        returns:
+            list of DumpFilename
+        '''
         if not dump_names:
             dump_names = [self.dumpname]
         return get_reg_files(dump_dir, dump_names, self.file_type,
                              self.file_ext, date, parts)
 
     def list_checkpt_files(self, dump_dir, dump_names=None, date=None, parts=None):
-        '''list all checkpoint files that exist'''
-        files = []
+        '''
+        list all checkpoint files that exist
+        returns:
+            list of DumpFilename
+        '''
         if not dump_names:
             dump_names = [self.dumpname]
         return get_checkpt_files(dump_dir, dump_names, self.file_type,
                                  self.file_ext, date, parts)
 
     def list_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None):
-        '''list checkpoint files that have been produced for specified file part(s)'''
-        files = []
+        '''
+        list checkpoint files that have been produced for specified file part(s)
+        returns:
+            list of DumpFilename
+        '''
+        dfnames = []
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files(
+            dfnames.extend(dump_dir.get_checkpt_files(
                 None, dname, self.file_type, self.file_ext, parts, temp=False))
-        return files
+        return dfnames
 
     def list_reg_files_for_filepart(self, dump_dir, parts, dump_names=None):
-        '''list noncheckpoint files that have been produced for specified file part(s)'''
-        files = []
+        '''
+        list noncheckpoint files that have been produced for specified file part(s)
+        returns:
+            list of DumpFilename
+        '''
+        dfnames = []
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_reg_files(
+            dfnames.extend(dump_dir.get_reg_files(
                 None, dname, self.file_type, self.file_ext, parts, temp=False))
-        return files
+        return dfnames
 
     def list_temp_files_for_filepart(self, dump_dir, parts, dump_names=None):
-        '''list temp output files that have been produced for specified file part(s)'''
-        files = []
+        '''
+        list temp output files that have been produced for specified file part(s)
+        returns:
+            list of DumpFilename
+        '''
+        dfnames = []
         if not dump_names:
             dump_names = [self.dumpname]
         for dname in dump_names:
-            files.extend(dump_dir.get_checkpt_files(
+            dfnames.extend(dump_dir.get_checkpt_files(
                 None, dname, self.file_type, self.file_ext, parts, temp=True))
-            files.extend(dump_dir.get_reg_files(
+            dfnames.extend(dump_dir.get_reg_files(
                 None, dname, self.file_type, self.file_ext, parts, temp=True))
-        return files
+        return dfnames
 
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
                             file_type=None, file_ext=None, parts=None, temp=False):
@@ -402,34 +432,39 @@ class Dump(object):
         which contains a value for that arg
         if we get True for an arg (temp), we accept only filenames which contain a value for the arg
         parts should be a list of value(s), or True / False / None
+
+        returns:
+            list of DumpFilename
         '''
 
-        files = []
+        dfnames = []
         if dumpname is None:
             dumpname = self.dumpname
         if parts is None or parts is False:
-            files.append(DumpFilename(dump_dir._wiki, date, dumpname,
-                                      file_type, file_ext, None, None, temp))
+            dfnames.append(DumpFilename(dump_dir._wiki, date, dumpname,
+                                        file_type, file_ext, None, None, temp))
         if parts is True or parts is None:
             parts = self.get_fileparts_list()
         if parts:
             for partnum in parts:
-                files.append(DumpFilename(dump_dir._wiki, date, dumpname,
-                                          file_type, file_ext, partnum, None, temp))
-        return files
+                dfnames.append(DumpFilename(dump_dir._wiki, date, dumpname,
+                                            file_type, file_ext, partnum, None, temp))
+        return dfnames
 
     def get_reg_files_for_filepart_possible(self, dump_dir, parts, dump_names=None):
         '''
         based on dump name, parts, etc. get all the
         output files we expect to generate for these parts
+        returns:
+            list of DumpFilename
         '''
         if not dump_names:
             dump_names = [self.dumpname]
-        files = []
+        dfnames = []
         for dname in dump_names:
-            files.extend(self._get_files_possible(
+            dfnames.extend(self._get_files_possible(
                 dump_dir, None, dname, self.file_type, self.file_ext, parts, temp=False))
-        return files
+        return dfnames
 
 # these routines are all used for listing output files for various purposes...
 
@@ -440,24 +475,26 @@ class Dump(object):
         exist. At end of run temp files must be gone.
         even if only one file part (one subjob) is being rerun, this lists all output files,
         not just those for the one part.
+        returns:
+            list of DumpFilename
         '''
 
         if dump_names is None:
             dump_names = [self.dumpname]
-        files = []
+        dfnames = []
         if self.checkpoint_file is not None:
-            files.append(self.checkpoint_file)
-            return files
+            dfnames.append(self.checkpoint_file)
+            return dfnames
 
         if self._checkpoints_enabled:
-            files.extend(self.list_checkpt_files_for_filepart(
+            dfnames.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
-            files.extend(self.list_temp_files_for_filepart(
+            dfnames.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            files.extend(self.get_reg_files_for_filepart_possible(
+            dfnames.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
-        return files
+        return dfnames
 
     def list_outfiles_to_check_for_truncation(self, dump_dir, dump_names=None):
         '''
@@ -467,21 +504,23 @@ class Dump(object):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
+        returns:
+            list of DumpFilename
         '''
         if dump_names is None:
             dump_names = [self.dumpname]
-        files = []
+        dfnames = []
         if self.checkpoint_file is not None:
-            files.append(self.checkpoint_file)
-            return files
+            dfnames.append(self.checkpoint_file)
+            return dfnames
 
         if self._checkpoints_enabled:
-            files.extend(self.list_checkpt_files_for_filepart(
+            dfnames.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            files.extend(self.get_reg_files_for_filepart_possible(
+            dfnames.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
-        return files
+        return dfnames
 
     def list_outfiles_for_build_command(self, dump_dir, dump_names=None):
         '''
@@ -490,21 +529,23 @@ class Dump(object):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
+        returns:
+            list of DumpFilename
         '''
         if dump_names is None:
             dump_names = [self.dumpname]
-        files = []
+        dfnames = []
         if self.checkpoint_file is not None:
-            files.append(self.checkpoint_file)
-            return files
+            dfnames.append(self.checkpoint_file)
+            return dfnames
 
         if self._checkpoints_enabled:
-            files.extend(self.list_temp_files_for_filepart(
+            dfnames.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            files.extend(self.get_reg_files_for_filepart_possible(
+            dfnames.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
-        return files
+        return dfnames
 
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         '''
@@ -513,24 +554,26 @@ class Dump(object):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
+        returns:
+            list of DumpFilename
         '''
         if dump_names is None:
             dump_names = [self.dumpname]
-        files = []
+        dfnames = []
 
         if self.checkpoint_file is not None:
-            files.append(self.checkpoint_file)
-            return files
+            dfnames.append(self.checkpoint_file)
+            return dfnames
 
         if self._checkpoints_enabled:
-            files.extend(self.list_checkpt_files_for_filepart(
+            dfnames.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
-            files.extend(self.list_temp_files_for_filepart(
+            dfnames.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            files.extend(self.list_reg_files_for_filepart(
+            dfnames.extend(self.list_reg_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
-        return files
+        return dfnames
 
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
         '''
@@ -539,14 +582,16 @@ class Dump(object):
         Includes: checkpoints, partial files and/or whole files.
         Even if only file part is being rerun, this will return the list
         of all file parts.
+        returns:
+            list of DumpFilename
         '''
         if dump_names is None:
             dump_names = [self.dumpname]
-        files = []
+        dfnames = []
         if self._checkpoints_enabled:
-            files.extend(self.list_checkpt_files_for_filepart(
+            dfnames.extend(self.list_checkpt_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
-            files.extend(self.list_reg_files_for_filepart(
+            dfnames.extend(self.list_reg_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
-        return files
+        return dfnames

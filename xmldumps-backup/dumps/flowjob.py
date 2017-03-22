@@ -32,14 +32,14 @@ class FlowDump(Dump):
 
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("flow content step wants to produce more than one output file")
-        output_file_obj = files[0]
+        output_dfname = dfnames[0]
         if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        flow_output_file = runner.dump_dir.filename_public_path(output_file_obj)
+        flow_output_file = runner.dump_dir.filename_public_path(output_dfname)
         script_command = MultiVersion.mw_script_as_array(
             runner.wiki.config, "extensions/Flow/maintenance/dumpBackup.php")
 

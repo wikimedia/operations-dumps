@@ -81,11 +81,11 @@ class StatusAPI(object):
         """
         contents = []
         for hashtype in Checksummer.HASHTYPES:
-            dumpfile = DumpFilename(
+            dfname = DumpFilename(
                 self.wiki, None, Checksummer.get_checksum_filename_basename(hashtype, "json"))
             dump_dir = DumpDir(self.wiki, self.wiki.db_name)
 
-            basefilename = dump_dir.filename_public_path(dumpfile)
+            basefilename = dump_dir.filename_public_path(dfname)
             path = os.path.join(self.wiki.public_dir(), self.wiki.date, basefilename)
 
             contents.append(self.get_json_file_contents(path))

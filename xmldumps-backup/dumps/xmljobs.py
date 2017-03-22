@@ -58,35 +58,50 @@ class XmlStub(Dump):
         return dump_names
 
     def list_outfiles_to_publish(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_for_build_command(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_for_cleanup(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
+        """
+        returns: list of DumpFilenames
+        """
         if dump_names is None:
             dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
+        return dfnames
 
     def build_command(self, runner, outf):
         if not exists(runner.wiki.config.php):
@@ -124,19 +139,19 @@ class XmlStub(Dump):
 
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         # pick out the articles_dump files, setting up the stubs command for these
         # will cover all the other cases, as we generate all three stub file types
         # (article, meta-current, meta-history) at once
-        files = [fileinfo for fileinfo in files if fileinfo.dumpname == self.articles_dump_name]
+        dfnames = [dfname for dfname in dfnames if dfname.dumpname == self.articles_dump_name]
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
         else:
-            maxjobs = len(files)
-        for batch in batcher(files, maxjobs):
+            maxjobs = len(dfnames)
+        for batch in batcher(dfnames, maxjobs):
             commands = []
-            for fname in batch:
-                series = self.build_command(runner, fname)
+            for dfname in batch:
+                series = self.build_command(runner, dfname)
                 commands.append(series)
             error = runner.run_command(commands, callback_stderr=self.progress_callback,
                                        callback_stderr_arg=runner)
@@ -167,15 +182,15 @@ class XmlLogging(Dump):
 
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("logging table job wants to produce more than one output file")
-        output_file_obj = files[0]
+        output_dfname = dfnames[0]
         if not exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 #        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
-        logging = runner.dump_dir.filename_public_path(output_file_obj)
+        logging = runner.dump_dir.filename_public_path(output_dfname)
 
         command = ["/usr/bin/python", "xmllogs.py", "--config",
                    runner.wiki.config.files[0], "--wiki", runner.db_name,
@@ -210,34 +225,44 @@ class AbstractDump(Dump):
     def get_file_ext(self):
         return ""
 
-    def build_command(self, runner, fname):
+    def build_command(self, runner, novariant_dfname):
+        """
+        args:
+            Runner, DumpFilename for output without any language variant
+        """
         command = ["/usr/bin/python", "xmlabstracts.py", "--config",
                    runner.wiki.config.files[0], "--wiki", self.db_name]
 
         outputs = []
         variants = []
         for variant in self._variants():
+            # if variants is the empty string, then we will wind up with
+            # one output file using the dumpname base only
+            # otherwise we will wind up with one per variant, with filename
+            # containing that variant string
             variant_option = self._variant_option(variant)
             dumpname = self.dumpname_from_variant(variant)
-            file_obj = DumpFilename(runner.wiki, fname.date, dumpname,
-                                    fname.file_type, fname.file_ext,
-                                    fname.partnum, fname.checkpoint)
-            outputs.append(runner.dump_dir.filename_public_path(file_obj))
+            dfname = DumpFilename(runner.wiki, novariant_dfname.date, dumpname,
+                                  novariant_dfname.file_type,
+                                  novariant_dfname.file_ext,
+                                  novariant_dfname.partnum,
+                                  novariant_dfname.checkpoint)
+            outputs.append(runner.dump_dir.filename_public_path(dfname))
             variants.append(variant_option)
 
             command.extend(["--outfiles=%s" % ",".join(outputs),
                             "--variants=%s" % ",".join(variants)])
 
-        if fname.partnum:
+        if novariant_dfname.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, fname.partnum_int - 1)]) + 1
+            start = sum([self._parts[i] for i in range(0, novariant_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if fname.partnum_int < len(self._parts):
-                end = sum([self._parts[i] for i in range(0, fname.partnum_int)]) + 1
+            if novariant_dfname.partnum_int < len(self._parts):
+                end = sum([self._parts[i] for i in range(0, novariant_dfname.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
         pipeline = [command]
@@ -247,11 +272,11 @@ class AbstractDump(Dump):
     def run(self, runner):
         commands = []
         # choose the empty variant to pass to buildcommand, it will fill in the rest if needed
-        output_files = self.list_outfiles_for_build_command(runner.dump_dir)
+        output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         dumpname0 = self.list_dumpnames()[0]
-        for fname in output_files:
-            if fname.dumpname == dumpname0:
-                series = self.build_command(runner, fname)
+        for dfname in output_dfnames:
+            if dfname.dumpname == dumpname0:
+                series = self.build_command(runner, dfname)
                 commands.append(series)
         error = runner.run_command(commands, callback_stderr=self.progress_callback,
                                    callback_stderr_arg=runner)
@@ -290,31 +315,46 @@ class AbstractDump(Dump):
         return dump_names
 
     def list_outfiles_to_publish(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_for_build_command(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_for_cleanup(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_for_cleanup(self, dump_dir, dump_names))
+        return dfnames
 
     def list_outfiles_for_input(self, dump_dir):
+        """
+        returns: list of DumpFilenames
+        """
         dump_names = self.list_dumpnames()
-        files = []
-        files.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
-        return files
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
+        return dfnames

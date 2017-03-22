@@ -31,17 +31,17 @@ class PublicTable(Dump):
         retries = 0
         # try this initially and see how it goes
         maxretries = 3
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
-        output_file = files[0]
+        output_dfname = dfnames[0]
         error = self.save_table(
-            self._table, runner.dump_dir.filename_public_path(output_file), runner)
+            self._table, runner.dump_dir.filename_public_path(output_dfname), runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
             error = self.save_table(
-                self._table, runner.dump_dir.filename_public_path(output_file), runner)
+                self._table, runner.dump_dir.filename_public_path(output_dfname), runner)
         if error:
             raise BackupError("error dumping table %s" % self._table)
 
@@ -72,17 +72,17 @@ class PrivateTable(PublicTable):
         retries = 0
         # try this initially and see how it goes
         maxretries = 3
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
-        output_file = files[0]
+        output_dfname = dfnames[0]
         error = self.save_table(
-            self._table, runner.dump_dir.filename_private_path(output_file), runner)
+            self._table, runner.dump_dir.filename_private_path(output_dfname), runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
             error = self.save_table(
-                self._table, runner.dump_dir.filename_private_path(output_file), runner)
+                self._table, runner.dump_dir.filename_private_path(output_dfname), runner)
         if error:
             raise BackupError("error dumping table %s" % self._table)
 
@@ -108,16 +108,16 @@ class TitleDump(Dump):
         # try this initially and see how it goes
         maxretries = 3
         query = "select page_title from page where page_namespace=0;"
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("page title dump trying to produce more than one output file")
-        file_obj = files[0]
-        out_filename = runner.dump_dir.filename_public_path(file_obj)
-        error = self.save_sql(query, out_filename, runner)
+        dfname = dfnames[0]
+        outpath = runner.dump_dir.filename_public_path(dfname)
+        error = self.save_sql(query, outpath, runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error = self.save_sql(query, out_filename, runner)
+            error = self.save_sql(query, outpath, runner)
         if error:
             raise BackupError("error dumping titles list")
 
@@ -138,15 +138,15 @@ class AllTitleDump(TitleDump):
         retries = 0
         maxretries = 3
         query = "select page_namespace, page_title from page;"
-        files = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(files) > 1:
+        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        if len(dfnames) > 1:
             raise BackupError("all titles dump trying to produce more than one output file")
-        file_obj = files[0]
-        out_filename = runner.dump_dir.filename_public_path(file_obj)
-        error = self.save_sql(query, out_filename, runner)
+        dfname = dfnames[0]
+        outpath = runner.dump_dir.filename_public_path(dfname)
+        error = self.save_sql(query, outpath, runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error = self.save_sql(query, out_filename, runner)
+            error = self.save_sql(query, outpath, runner)
         if error:
             raise BackupError("error dumping all titles list")
