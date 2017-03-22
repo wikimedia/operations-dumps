@@ -40,9 +40,9 @@ class StatusAPI(object):
             return {}
         date = wiki.latest_dump()
         if date:
-            fname = os.path.join(wiki.public_dir(),
-                                 date, StatusAPI.FILENAME + "." + fmt)
-            with open(fname, "r") as status_file:
+            filepath = os.path.join(wiki.public_dir(),
+                                    date, StatusAPI.FILENAME + "." + fmt)
+            with open(filepath, "r") as status_file:
                 contents = status_file.read()
                 status_file.close()
             return json.loads(contents)
@@ -150,8 +150,8 @@ class StatusAPI(object):
     def write_contents_json(self, contents):
         if not self.filepath:
             return
-        with open(self.filepath, "w+") as fdesc:
-            fdesc.write(json.dumps(contents) + "\n")
+        with open(self.filepath, "w+") as fhandle:
+            fhandle.write(json.dumps(contents) + "\n")
 
     def write_contents(self, contents):
         if not self.check_format():

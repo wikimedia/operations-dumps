@@ -104,7 +104,6 @@ class StubProvider(object):
             print "todo is", [to.filename for to in todo]
 
         for dfname in todo:
-
             stub_for_file = self.get_stub_files(runner, dfname.partnum_int)[0]
 
             if dfname.first_page_id is None:
@@ -134,8 +133,8 @@ class StubProvider(object):
             path = os.path.join(self.wiki.config.temp_dir, xmlfile.filename)
         else:
             path = runner.dump_dir.filename_public_path(xmlfile, self.wiki.date)
-        fname = DumpContents(self.wiki, path, xmlfile, self.verbose)
-        return bool(fname.find_first_page_id_in_file() is None)
+        dcontents = DumpContents(self.wiki, path, xmlfile, self.verbose)
+        return bool(dcontents.find_first_page_id_in_file() is None)
 
 
 class Prefetch(object):
@@ -284,10 +283,11 @@ class Prefetch(object):
             possible_prefetch_dfnames = dfnames
             dfnames = []
             for prefetch_dfname in possible_prefetch_dfnames:
-                possible = runner.dump_dir.filename_public_path(prefetch_dfname, date)
-                size = os.path.getsize(possible)
+                possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
+                size = os.path.getsize(possible_path)
                 if size < 70000:
-                    runner.debug("small %d-byte prefetch dump at %s, skipping" % (size, possible))
+                    runner.debug("small %d-byte prefetch dump at %s, skipping" % (
+                        size, possible_path))
                     continue
                 else:
                     dfnames.append(prefetch_dfname)
@@ -319,9 +319,9 @@ class Prefetch(object):
                 # otherwise we'll use the all the sourcefiles reported
                 if not self.chkptfile_in_pagerange(stub_file, sourcefile):
                     continue
-                sname = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
-                if exists(sname):
-                    sources.append(sname)
+                source_path = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
+                if exists(source_path):
+                    sources.append(source_path)
 
         if output_dfname.partnum:
             partnum_str = "%s" % stub_file.partnum
@@ -571,11 +571,11 @@ class XmlDump(Dump):
                 # get the page ranges covered by stubs
                 stub_ranges = []
                 for stub_dfname in stub_dfnames:
-                    fname = DumpContents(self.wiki,
-                                         runner.dump_dir.filename_public_path(
-                                             stub_dfname, stub_dfname.date),
-                                         stub_dfname, self.verbose)
-                    stub_ranges.append((fname.find_first_page_id_in_file(),
+                    dcontents = DumpContents(self.wiki,
+                                             runner.dump_dir.filename_public_path(
+                                                 stub_dfname, stub_dfname.date),
+                                             stub_dfname, self.verbose)
+                    stub_ranges.append((dcontents.find_first_page_id_in_file(),
                                         self.find_last_page_id(stub_dfname, runner),
                                         stub_dfname.partnum))
 
@@ -647,7 +647,7 @@ class XmlDump(Dump):
             Runner, DumpFilename
         """
         # do we need checkpoints? ummm
-        xmlbz2 = runner.dump_dir.filename_public_path(input_dfname)
+        xmlbz2_path = runner.dump_dir.filename_public_path(input_dfname)
 
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
@@ -655,7 +655,7 @@ class XmlDump(Dump):
             bz2mode = "dbzip2"
         else:
             bz2mode = "bzip2"
-        return "--output=%s:%s" % (bz2mode, xmlbz2)
+        return "--output=%s:%s" % (bz2mode, xmlbz2_path)
 
     def get_last_lines_from_n(self, dfname, runner, count):
         if not dfname.filename or not exists(runner.dump_dir.filename_public_path(dfname)):
@@ -828,6 +828,12 @@ class XmlDump(Dump):
 
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         """
+        list output files including checkpoint files currently existing
+        (from the dump run for the current wiki and date), in case
+        we have been requested to clean up before a retry
+
+        args:
+            DumpDir, list of dump names ("stub-meta-history", ...)
         returns:
             list of DumpFilename
         """

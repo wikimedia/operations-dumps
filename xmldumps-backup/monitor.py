@@ -95,25 +95,25 @@ def update_index(config):
         config.public_dir, config.index), "bydb")
 
     temp_fname = output_fname + ".tmp"
-    filehdl = open(temp_fname, "wt")
-    filehdl.write(generate_index(config, other_indexhtml=output_fname_sorted_by_db))
-    filehdl.close()
+    fhandle = open(temp_fname, "wt")
+    fhandle.write(generate_index(config, other_indexhtml=output_fname_sorted_by_db))
+    fhandle.close()
     os.rename(temp_fname, output_fname)
 
     temp_fname = output_fname_sorted_by_db + ".tmp"
-    filehdl = open(temp_fname, "wt")
-    filehdl.write(generate_index(config, other_indexhtml=output_fname,
+    fhandle = open(temp_fname, "wt")
+    fhandle.write(generate_index(config, other_indexhtml=output_fname,
                                  sorted_by_db=True))
-    filehdl.close()
+    fhandle.close()
     os.rename(temp_fname, output_fname_sorted_by_db)
 
 
 def update_json(config):
     output_fname = os.path.join(config.public_dir, "index.json")
     temp_fname = output_fname + ".tmp"
-    filehdl = open(temp_fname, "wt")
-    filehdl.write(json.dumps(generate_json(config)))
-    filehdl.close()
+    fhandle = open(temp_fname, "wt")
+    fhandle.write(json.dumps(generate_json(config)))
+    fhandle.close()
     os.rename(temp_fname, output_fname)
 
 

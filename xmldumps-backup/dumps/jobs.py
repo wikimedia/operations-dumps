@@ -191,26 +191,28 @@ class Dump(object):
                               (truncated_files_count, self.dumpname))
 
     def check_for_truncated_files(self, runner):
-        """Returns the number of files that have been detected to be truncated.
-        This function expects that all files to check for truncation live in the public dir"""
+        """
+        Returns the number of files that have been detected to be truncated.
+        This function expects that all files to check for truncation live in the public dir
+        """
         ret = 0
 
         if "check_trunc_files" not in runner.enabled or not self._check_truncation:
             return ret
 
-        for dump_fname in self.list_outfiles_to_check_for_truncation(
+        for dfname in self.list_outfiles_to_check_for_truncation(
                 runner.dump_dir):
-            dfile = DumpContents(runner.wiki, runner.dump_dir.filename_public_path(
-                dump_fname), dump_fname)
+            dcontents = DumpContents(runner.wiki, runner.dump_dir.filename_public_path(
+                dfname), dfname)
 
             file_truncated = True
-            if exists(dfile.filename):
-                if dfile.check_if_empty():
+            if exists(dcontents.filename):
+                if dcontents.check_if_empty():
                     # file exists and is empty, move it out of the way
-                    dfile.rename(dfile.filename + ".empty")
-                elif dfile.check_if_truncated():
+                    dcontents.rename(dcontents.filename + ".empty")
+                elif dcontents.check_if_truncated():
                     # The file exists and is truncated, we move it out of the way
-                    dfile.rename(dfile.filename + ".truncated")
+                    dcontents.rename(dcontents.filename + ".truncated")
 
                     # We detected a failure and could abort right now. However,
                     # there might still be some further file parts, that are good.

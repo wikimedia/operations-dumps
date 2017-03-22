@@ -107,18 +107,18 @@ class XmlStub(Dump):
         if not exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        articles_file = runner.dump_dir.filename_public_path(outf)
-        history_file = runner.dump_dir.filename_public_path(DumpFilename(
+        articles_filepath = runner.dump_dir.filename_public_path(outf)
+        history_filepath = runner.dump_dir.filename_public_path(DumpFilename(
             runner.wiki, outf.date, self.history_dump_name, outf.file_type,
             outf.file_ext, outf.partnum, outf.checkpoint, outf.temp))
-        current_file = runner.dump_dir.filename_public_path(DumpFilename(
+        current_filepath = runner.dump_dir.filename_public_path(DumpFilename(
             runner.wiki, outf.date, self.current_dump_name, outf.file_type,
             outf.file_ext, outf.partnum, outf.checkpoint, outf.temp))
 #        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0],
-                   "--wiki", runner.db_name, "--articles", articles_file,
-                   "--history", history_file, "--current", current_file]
+                   "--wiki", runner.db_name, "--articles", articles_filepath,
+                   "--history", history_filepath, "--current", current_filepath]
 
         if outf.partnum:
             # set up start end end pageids for this piece
@@ -190,11 +190,11 @@ class XmlLogging(Dump):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 #        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
-        logging = runner.dump_dir.filename_public_path(output_dfname)
+        logging_path = runner.dump_dir.filename_public_path(output_dfname)
 
         command = ["/usr/bin/python", "xmllogs.py", "--config",
                    runner.wiki.config.files[0], "--wiki", runner.db_name,
-                   "--outfile", logging]
+                   "--outfile", logging_path]
 
         pipeline = [command]
         series = [pipeline]
@@ -233,7 +233,7 @@ class AbstractDump(Dump):
         command = ["/usr/bin/python", "xmlabstracts.py", "--config",
                    runner.wiki.config.files[0], "--wiki", self.db_name]
 
-        outputs = []
+        output_paths = []
         variants = []
         for variant in self._variants():
             # if variants is the empty string, then we will wind up with
@@ -247,10 +247,10 @@ class AbstractDump(Dump):
                                   novariant_dfname.file_ext,
                                   novariant_dfname.partnum,
                                   novariant_dfname.checkpoint)
-            outputs.append(runner.dump_dir.filename_public_path(dfname))
+            output_paths.append(runner.dump_dir.filename_public_path(dfname))
             variants.append(variant_option)
 
-            command.extend(["--outfiles=%s" % ",".join(outputs),
+            command.extend(["--outfiles=%s" % ",".join(output_paths),
                             "--variants=%s" % ",".join(variants)])
 
         if novariant_dfname.partnum:

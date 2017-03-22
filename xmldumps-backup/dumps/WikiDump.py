@@ -75,9 +75,9 @@ class Config(object):
             db_password = default_dbpassword
             return db_user, db_password
 
-        adminfile = open(os.path.join(wiki_dir, conf.get("wiki", "adminsettings")), "r")
-        lines = adminfile.readlines()
-        adminfile.close()
+        adminfhandle = open(os.path.join(wiki_dir, conf.get("wiki", "adminsettings")), "r")
+        lines = adminfhandle.readlines()
+        adminfhandle.close()
 
         # we are digging through a php file and expecting to find
         # lines more or less like the below.. anything more complicated we're not going to handle.
@@ -566,8 +566,8 @@ class Locker(object):
             return True
 
         try:
-            with open(lockfile, "r") as fdesc:
-                lines = fdesc.read().splitlines()
+            with open(lockfile, "r") as fhandle:
+                lines = fhandle.read().splitlines()
                 # if there's more than one line it's garbage or wrong file,
                 # don't touch
                 if len(lines) == 1:

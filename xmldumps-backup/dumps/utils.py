@@ -17,17 +17,17 @@ from dumps.exceptions import BackupError
 
 class MiscUtils(object):
     @staticmethod
-    def db_list(filename):
+    def db_list(path):
         """Read database list from a file"""
-        if not filename:
+        if not path:
             return []
-        infile = open(filename)
+        infhandle = open(path)
         dbs = []
-        for line in infile:
+        for line in infhandle:
             line = line.strip()
             if line != "":
                 dbs.append(line)
-        infile.close()
+        infhandle.close()
         dbs = sorted(dbs)
         return dbs
 

@@ -92,10 +92,10 @@ class Checksummer(object):
             for htype in Checksummer.HASHTYPES:
                 for fmt in Checksummer.FORMATS:
                     checksum_filename = self._get_checksum_filename_tmp(htype, fmt)
-                    with open(checksum_filename, "w") as output:
+                    with open(checksum_filename, "w") as output_fhandle:
                         if fmt == "json":
-                            output.write(json.dumps({htype: {"files": {}}}))
-                        output.close()
+                            output_fhandle.write(json.dumps({htype: {"files": {}}}))
+                        output_fhandle.close()
 
     def checksums(self, dfname, dumpjobdata):
         """
@@ -114,8 +114,8 @@ class Checksummer(object):
                 input_json = file(checksum_filename_json, "a")
                 output = {}
                 try:
-                    with open(checksum_filename_json, "r") as fdesc:
-                        contents = fdesc.read()
+                    with open(checksum_filename_json, "r") as fhandle:
+                        contents = fhandle.read()
                         output = json.loads(contents)
                 except:
                     # might be empty file, as at the start of a run
@@ -126,9 +126,9 @@ class Checksummer(object):
                     output = {htype: {"files": {}}}
                 output_json = file(checksum_filename_json, "w")
                 dumpjobdata.debugfn("Checksumming %s via %s" % (dfname.filename, htype))
-                dumpfile = DumpContents(self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
-                                        None, self.verbose)
-                checksum = dumpfile.checksum(htype)
+                dcontents = DumpContents(self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
+                                         None, self.verbose)
+                checksum = dcontents.checksum(htype)
                 if checksum is not None:
                     output_text.write("%s  %s\n" % (checksum, dfname.filename))
                     output[htype]["files"][dfname.filename] = checksum
@@ -393,12 +393,12 @@ class Report(object):
                 for jobname in item['json']:
                     json_out['jobs'][jobname] = item['json'][jobname]
             try:
-                index = os.path.join(self.wiki.public_dir(), self.wiki.date,
-                                     self.wiki.config.perdump_index)
-                FileUtils.write_file_in_place(index, text, self.wiki.config.fileperms)
-                json_file = os.path.join(self.wiki.public_dir(), self.wiki.date,
-                                         Report.JSONFILE)
-                FileUtils.write_file_in_place(json_file, json.dumps(json_out),
+                indexpath = os.path.join(self.wiki.public_dir(), self.wiki.date,
+                                         self.wiki.config.perdump_index)
+                FileUtils.write_file_in_place(indexpath, text, self.wiki.config.fileperms)
+                json_filepath = os.path.join(self.wiki.public_dir(), self.wiki.date,
+                                             Report.JSONFILE)
+                FileUtils.write_file_in_place(json_filepath, json.dumps(json_out),
                                               self.wiki.config.fileperms)
             except Exception as ex:
                 if self.verbose:
@@ -573,28 +573,28 @@ class Notice(object):
 
     def write_notice(self):
         if Notice.NAME in self._enabled:
-            notice_file = self._get_notice_filename()
+            notice_filepath = self._get_notice_filename()
             # delnotice.  toss any existing file
             if self.notice is False:
-                if exists(notice_file):
-                    os.remove(notice_file)
+                if exists(notice_filepath):
+                    os.remove(notice_filepath)
                 self.notice = ""
             # addnotice, stuff notice in a file for other jobs etc
             elif self.notice != "":
                 # notice_dir = self._get_notice_dir()
-                FileUtils.write_file(self.wiki.config.temp_dir, notice_file, self.notice,
+                FileUtils.write_file(self.wiki.config.temp_dir, notice_filepath, self.notice,
                                      self.wiki.config.fileperms)
             # default case. if there is a file get the contents, otherwise
             # we have empty contents, all good
             else:
-                if exists(notice_file):
-                    self.notice = FileUtils.read_file(notice_file)
+                if exists(notice_filepath):
+                    self.notice = FileUtils.read_file(notice_filepath)
 
     def refresh_notice(self):
         # if the notice file has changed or gone away, we comply.
-        notice_file = self._get_notice_filename()
-        if exists(notice_file):
-            self.notice = FileUtils.read_file(notice_file)
+        notice_filepath = self._get_notice_filename()
+        if exists(notice_filepath):
+            self.notice = FileUtils.read_file(notice_filepath)
         else:
             self.notice = ""
 
@@ -629,7 +629,7 @@ class SymLinks(object):
     def save_symlink(self, dumpfile):
         if SymLinks.NAME in self._enabled:
             self.make_dir(self.dump_dir.latest_dir())
-            realfile = self.dump_dir.filename_public_path(dumpfile)
+            realfilepath = self.dump_dir.filename_public_path(dumpfile)
             latest_filename = dumpfile.new_filename(dumpfile.dumpname, dumpfile.file_type,
                                                     dumpfile.file_ext, 'latest',
                                                     dumpfile.partnum, dumpfile.checkpoint,
@@ -637,11 +637,11 @@ class SymLinks(object):
             link = os.path.join(self.dump_dir.latest_dir(), latest_filename)
             if exists(link) or os.path.islink(link):
                 if os.path.islink(link):
-                    oldrealfile = os.readlink(link)
+                    oldrealfilepath = os.readlink(link)
                     # format of these links should be...
                     # ../20110228/elwikidb-20110228-templatelinks.sql.gz
                     rellinkpattern = re.compile(r'^\.\./(20[0-9]+)/')
-                    dateinlink = rellinkpattern.search(oldrealfile)
+                    dateinlink = rellinkpattern.search(oldrealfilepath)
                     if dateinlink:
                         dateoflinkedfile = dateinlink.group(1)
                         dateinterval = int(self.wiki.date) - int(dateoflinkedfile)
@@ -654,9 +654,9 @@ class SymLinks(object):
                 else:
                     self.logfn("What the hell dude, %s is not a symlink" % link)
                     raise BackupError("What the hell dude, %s is not a symlink" % link)
-            relative = FileUtils.relative_path(realfile, os.path.dirname(link))
+            relative = FileUtils.relative_path(realfilepath, os.path.dirname(link))
             # if we removed the link cause it's obsolete, make the new one
-            if exists(realfile) and not exists(link):
+            if exists(realfilepath) and not exists(link):
                 self.debugfn("Adding symlink %s -> %s" % (link, relative))
                 os.symlink(relative, link)
 
@@ -667,8 +667,8 @@ class SymLinks(object):
             for filename in files:
                 link = os.path.join(latest_dir, filename)
                 if os.path.islink(link):
-                    realfile = os.readlink(link)
-                    if not exists(os.path.join(latest_dir, realfile)):
+                    realfilepath = os.readlink(link)
+                    if not exists(os.path.join(latest_dir, realfilepath)):
                         os.remove(link)
 
     # if the args are False or None, we remove all the old links for all values of the arg.
@@ -688,9 +688,9 @@ class SymLinks(object):
             for filename in files:
                 link = os.path.join(latest_dir, filename)
                 if os.path.islink(link):
-                    realfile = os.readlink(link)
+                    realfilepath = os.readlink(link)
                     dfname = DumpFilename(self.dump_dir._wiki)
-                    dfname.new_from_filename(os.path.basename(realfile))
+                    dfname.new_from_filename(os.path.basename(realfilepath))
                     if dfname.date < date_string:
                         # fixme check that these are ok if the value is None
                         if dump_name and (dfname.dumpname != dump_name):
@@ -699,7 +699,7 @@ class SymLinks(object):
                             continue
                         if checkpoint and (dfname.checkpoint != checkpoint):
                             continue
-                        self.debugfn("Removing old symlink %s -> %s" % (link, realfile))
+                        self.debugfn("Removing old symlink %s -> %s" % (link, realfilepath))
                         os.remove(link)
 
 
@@ -811,8 +811,8 @@ class RunSettings(object):
         if not os.path.exists(os.path.join(self.wiki.private_dir(), self.wiki.date)):
             os.makedirs(os.path.join(self.wiki.private_dir(), self.wiki.date))
 
-        with open(settings_path, "w+") as settings_fd:
-            settings_fd.write(json.dumps(setting_info) + "\n")
+        with open(settings_path, "w+") as settings_fhandle:
+            settings_fhandle.write(json.dumps(setting_info) + "\n")
 
     def read_settings(self):
         '''
@@ -821,9 +821,9 @@ class RunSettings(object):
         settings_path = self.get_settings_path()
         if not os.path.exists(settings_path):
             return None
-        with open(settings_path, "r") as settings_fd:
-            contents = settings_fd.read()
-            settings_fd.close()
+        with open(settings_path, "r") as settings_fhandle:
+            contents = settings_fhandle.read()
+            settings_fhandle.close()
         if contents[-1] == '\n':
             contents = contents[:-1]
         return json.loads(contents)
@@ -883,9 +883,9 @@ class DumpRunJobData(object):
         # will have accurate checksums for the run for which it was
         # produced, but not the other files. FIXME
         for htype in Checksummer.HASHTYPES:
-            dumpfile = DumpFilename(
+            dfname = DumpFilename(
                 self.wiki, None, self.checksummer.get_checksum_filename_basename(htype))
-            self.symlinks.save_symlink(dumpfile)
+            self.symlinks.save_symlink(dfname)
             self.symlinks.cleanup_symlinks()
         for item in dump_items:
             self.runinfo.save_dump_runinfo(RunInfo.report_dump_runinfo(dump_items))
@@ -1040,10 +1040,10 @@ class RunInfo(object):
             return False
 
         try:
-            infile = open(dump_runinfo_filename, "r")
-            for line in infile:
+            input_fhandle = open(dump_runinfo_filename, "r")
+            for line in input_fhandle:
                 results.append(self._get_old_runinfo_from_line(line))
-            infile.close()
+            input_fhandle.close()
             return results
         except Exception as ex:
             if self.verbose:
@@ -1115,12 +1115,12 @@ class RunInfo(object):
         # already run and whether it was successful (use to examine status
         # of step from some previous run)
         try:
-            infile = open(filename, "r")
-            for line in infile:
+            input_fhandle = open(filename, "r")
+            for line in input_fhandle:
                 result = self._get_status_from_runinfo_line(line, job_name)
                 if result is not None:
                     return result
-            infile.close()
+            input_fhandle.close()
             return None
         except Exception as ex:
             if self.verbose:
@@ -1144,12 +1144,12 @@ class RunInfo(object):
         # already run and whether it was successful (use to examine status
         # of step from some previous run)
         try:
-            infile = open(filename, "r")
-            for line in infile:
+            input_fhandle = open(filename, "r")
+            for line in input_fhandle:
                 result = self._get_status_from_html_line(line, desc)
                 if result is not None:
                     return result
-            infile.close()
+            input_fhandle.close()
             return None
         except Exception as ex:
             if self.verbose:

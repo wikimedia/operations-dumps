@@ -19,21 +19,21 @@ from dumps.exceptions import BackupError
 class FileUtils(object):
 
     @staticmethod
-    def file_age(filename):
-        return time.time() - os.stat(filename).st_mtime
+    def file_age(filepath):
+        return time.time() - os.stat(filepath).st_mtime
 
     @staticmethod
-    def atomic_create(filename, mode='w'):
+    def atomic_create(filepath, mode='w'):
         """Create a file, aborting if it already exists..."""
-        fhandle = os.open(filename, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
-        return os.fdopen(fhandle, mode)
+        fdesc = os.open(filepath, os.O_EXCL + os.O_CREAT + os.O_WRONLY)
+        return os.fdopen(fdesc, mode)
 
     @staticmethod
-    def write_file(dirname, filename, text, perms=0):
+    def write_file(dirname, filepath, text, perms=0):
         """Write text to a file, as atomically as possible,
         via a temporary file in a specified directory.
         Arguments: dirname = where temp file is created,
-        filename = full path to actual file, text = contents
+        filepath = full path to actual file, text = contents
         to write to file, perms = permissions that the file will have after creation"""
 
         if not os.path.isdir(dirname):
@@ -43,35 +43,35 @@ class FileUtils(object):
                 raise IOError("The given directory '%s' is neither "
                               "a directory nor can it be created" % dirname)
 
-        (fhandle, temp_filename) = tempfile.mkstemp("_txt", "wikidump_", dirname)
-        os.write(fhandle, text)
-        os.close(fhandle)
+        (fdesc, temp_filepath) = tempfile.mkstemp("_txt", "wikidump_", dirname)
+        os.write(fdesc, text)
+        os.close(fdesc)
         if perms:
-            os.chmod(temp_filename, perms)
+            os.chmod(temp_filepath, perms)
         # This may fail across filesystems or on Windows.
         # Of course nothing else will work on Windows. ;)
-        shutil.move(temp_filename, filename)
+        shutil.move(temp_filepath, filepath)
 
     @staticmethod
-    def write_file_in_place(filename, text, perms=0):
+    def write_file_in_place(filepath, text, perms=0):
         """Write text to a file, after opening it for write with truncation.
         This assumes that only one process or thread accesses the given file at a time.
-        Arguments: filename = full path to actual file, text = contents
+        Arguments: filepath = full path to actual file, text = contents
         to write to file, perms = permissions that the file will have after creation,
         if it did not exist already"""
 
-        filehdl = open(filename, "wt")
-        filehdl.write(text)
-        filehdl.close()
+        fhandle = open(filepath, "wt")
+        fhandle.write(text)
+        fhandle.close()
         if perms:
-            os.chmod(filename, perms)
+            os.chmod(filepath, perms)
 
     @staticmethod
-    def read_file(filename):
+    def read_file(filepath):
         """Read text from a file in one fell swoop."""
-        filehdl = open(filename, "r")
-        text = filehdl.read()
-        filehdl.close()
+        fhandle = open(filepath, "r")
+        text = fhandle.read()
+        fhandle.close()
         return text
 
     @staticmethod
@@ -364,13 +364,13 @@ class DumpContents(object):
     def _checksum(self, summer):
         if not self.filename:
             return None
-        infile = file(self.filename, "rb")
+        infhandle = file(self.filename, "rb")
         bufsize = 4192 * 32
-        fbuffer = infile.read(bufsize)
+        fbuffer = infhandle.read(bufsize)
         while fbuffer:
             summer.update(fbuffer)
-            fbuffer = infile.read(bufsize)
-        infile.close()
+            fbuffer = infhandle.read(bufsize)
+        infhandle.close()
         return summer.hexdigest()
 
     def md5sum(self):
@@ -548,22 +548,22 @@ class DumpDir(object):
         self._filepart_cache = {}
         self._checkpoint_file_cache = {}
 
-    def filename_private_path(self, dump_file, date_string=None):
+    def filename_private_path(self, dfname, date_string=None):
         """Given a DumpFilename object, produce the full path to the filename in the date subdir
         of the the private dump dir for the selected database.
         If a different date is specified, use that instead"""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.private_dir(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.private_dir(), date_string, dfname.filename)
 
-    def filename_public_path(self, dump_file, date_string=None):
+    def filename_public_path(self, dfname, date_string=None):
         """Given a DumpFilename object produce the full path to the filename in the date subdir
         of the public dump dir for the selected database.
         If this database is marked as private, use the private dir instead.
         If a different date is specified, use that instead"""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.public_dir(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.public_dir(), date_string, dfname.filename)
 
     def latest_dir(self):
         """Return 'latest' directory for the current project being dumped, e.g.
@@ -572,20 +572,20 @@ class DumpDir(object):
         is the path to the directory for public dumps)."""
         return os.path.join(self._wiki.public_dir(), "latest")
 
-    def web_path(self, dump_file, date_string=None):
+    def web_path(self, dfname, date_string=None):
         """Given a DumpFilename object produce the full url to the filename for the date of
         the dump for the selected database."""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.web_dir(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.web_dir(), date_string, dfname.filename)
 
-    def web_path_relative(self, dump_file, date_string=None):
+    def web_path_relative(self, dfname, date_string=None):
         """Given a DumpFilename object produce the url relative
         to the docroot for the filename for the date of
         the dump for the selected database."""
         if not date_string:
             date_string = self._wiki.date
-        return os.path.join(self._wiki.web_dir_relative(), date_string, dump_file.filename)
+        return os.path.join(self._wiki.web_dir_relative(), date_string, dfname.filename)
 
     def dir_cache_outdated(self, date):
         if not date:
@@ -611,9 +611,9 @@ class DumpDir(object):
             directory = os.path.join(self._wiki.public_dir(), date)
             if exists(directory):
                 dir_time_stamp = os.stat(directory).st_mtime
-                files = os.listdir(directory)
+                filenames = os.listdir(directory)
                 dfnames = []
-                for filename in files:
+                for filename in filenames:
                     dfname = DumpFilename(self._wiki)
                     dfname.new_from_filename(filename)
                     dfnames.append(dfname)
@@ -648,6 +648,10 @@ class DumpDir(object):
         parts should be a list of value(s) or True / False / None
 
         note that we ignore files with ".truncated". these are known to be bad.
+        args:
+            date in YYYYMMDD format, string identifying dump type eg "stub-articles",
+            file type eg "xml", "sql", file ext e.g. "gz", "bz2",
+            bool (if subjobs are enabled), ...
         '''
         if not date:
             date = self._wiki.date

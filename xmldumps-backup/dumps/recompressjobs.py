@@ -52,29 +52,41 @@ class XmlMultiStreamDump(XmlDump):
     def get_dumpname_multistream_index(self, name):
         return self.get_dumpname_multistream(name) + "-index"
 
-    def get_multistream_fname(self, fname):
-        """assuming that fname is the name of an input file,
-        return the name of the associated multistream output file"""
-        return DumpFilename(self.wiki, fname.date,
-                            self.get_dumpname_multistream(fname.dumpname),
-                            fname.file_type, self.file_ext, fname.partnum,
-                            fname.checkpoint, fname.temp)
+    def get_multistream_dfname(self, dfname):
+        """
+        assuming that dfname is an input file,
+        return the name of the associated multistream output file
+        args:
+            DumpFilename
+        returns:
+            DumpFilename
+        """
+        return DumpFilename(self.wiki, dfname.date,
+                            self.get_dumpname_multistream(dfname.dumpname),
+                            dfname.file_type, self.file_ext, dfname.partnum,
+                            dfname.checkpoint, dfname.temp)
 
-    def get_multistream_index_fname(self, fname):
-        """assuming that fname is the name of a multistream output file,
-        return the name of the associated index file"""
-        return DumpFilename(self.wiki, fname.date,
-                            self.get_dumpname_multistream_index(fname.dumpname),
-                            self.get_index_filetype(), self.file_ext, fname.partnum,
-                            fname.checkpoint, fname.temp)
+    def get_multistream_index_dfname(self, dfname):
+        """
+        assuming that dfname is a multistream output file,
+        return the name of the associated index file
+        args:
+            DumpFilename
+        returns:
+            DumpFilename
+        """
+        return DumpFilename(self.wiki, dfname.date,
+                            self.get_dumpname_multistream_index(dfname.dumpname),
+                            self.get_index_filetype(), self.file_ext, dfname.partnum,
+                            dfname.checkpoint, dfname.temp)
 
     def build_command(self, runner, output_dfnames):
         '''
         arguments:
         runner: Runner object
         output_dfnames: if checkpointing of files is enabled, this should be a
-                      list of checkpoint files (DumpFilename), otherwise it should be
-                      a list of the one file that will be produced by the dump
+                        list of checkpoint files (DumpFilename), otherwise it should be
+                        a list of the one file that will be produced by the dump
         Note that checkpoint files get done one at a time. not in parallel
         '''
 
@@ -91,13 +103,13 @@ class XmlMultiStreamDump(XmlDump):
                                         dfname.file_type,
                                         self.item_for_recompression.file_ext,
                                         dfname.partnum, dfname.checkpoint)
-            outfile = runner.dump_dir.filename_public_path(self.get_multistream_fname(dfname))
-            outfile_index = runner.dump_dir.filename_public_path(
-                self.get_multistream_index_fname(dfname))
-            infile = runner.dump_dir.filename_public_path(input_dfname)
+            outfilepath = runner.dump_dir.filename_public_path(self.get_multistream_dfname(dfname))
+            outfilepath_index = runner.dump_dir.filename_public_path(
+                self.get_multistream_index_dfname(dfname))
+            infilepath = runner.dump_dir.filename_public_path(input_dfname)
             command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s" %
-                             (self.wiki.config.bzip2, infile, self.wiki.config.recompressxml,
-                              outfile_index, outfile)]]
+                             (self.wiki.config.bzip2, infilepath, self.wiki.config.recompressxml,
+                              outfilepath_index, outfilepath)]]
             command_series.append(command_pipe)
         return command_series
 
@@ -138,8 +150,8 @@ class XmlMultiStreamDump(XmlDump):
         dfnames = []
         input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_dfname in input_dfnames:
-            dfnames.append(self.get_multistream_fname(inp_dfname))
-            dfnames.append(self.get_multistream_index_fname(inp_dfname))
+            dfnames.append(self.get_multistream_dfname(inp_dfname))
+            dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
@@ -154,8 +166,8 @@ class XmlMultiStreamDump(XmlDump):
         for inp_dfname in input_dfnames:
             if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
                 continue
-            dfnames.append(self.get_multistream_fname(inp_dfname))
-            dfnames.append(self.get_multistream_index_fname(inp_dfname))
+            dfnames.append(self.get_multistream_dfname(inp_dfname))
+            dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
     def list_outfiles_for_build_command(self, dump_dir, partnum=None):
@@ -259,7 +271,6 @@ class XmlRecompressDump(Dump):
                         by the dump
         Note that checkpoint files get done one at a time, not in parallel
         '''
-
         # FIXME need shell escape
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
@@ -312,7 +323,7 @@ class XmlRecompressDump(Dump):
         shows all files possible if we don't have checkpoint files. without temp files of course
         returns:
             list of DumpFilename
-         '''
+        '''
         dfnames = []
         input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_dfname in input_dfnames:

@@ -123,11 +123,11 @@ def catfile(inputfile, process):
     read a file, cat it as fast as possible to the
     stdin of the process passed, then go away
     '''
-    with open(inputfile, "r") as filed:
+    with open(inputfile, "r") as fhandle:
         while True:
-            content = filed.read(1048576)
+            content = fhandle.read(1048576)
             if not content:
-                filed.close()
+                fhandle.close()
                 break
             process.stdin.write(content)
 

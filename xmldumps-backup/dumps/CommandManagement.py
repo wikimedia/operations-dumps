@@ -32,7 +32,7 @@ class CommandPipeline(object):
         self._first_process_in_pipe = None
         self._last_poll_state = None
         self._processes = []
-        self._save_file = None
+        self._save_fhandle = None
         self._save_filename = None
         self._quiet = quiet
         self._poller = None
@@ -73,16 +73,16 @@ class CommandPipeline(object):
         return self._pipeline_string
 
     def save_file(self):
-        return self._save_file
+        return self._save_fhandle
 
     # note that this (no "b" mode) probably means bad data on windoze...
     # but then this whole module won't run over there :-P
     def open_save_file(self):
         if self._save_filename:
             if self._append:
-                self._save_file = open(self._save_filename, "a")
+                self._save_fhandle = open(self._save_filename, "a")
             else:
-                self._save_file = open(self._save_filename, "w")
+                self._save_fhandle = open(self._save_filename, "w")
 
     def subprocess_setup(self):
         # Python installs a SIGPIPE handler by default. This is usually not what

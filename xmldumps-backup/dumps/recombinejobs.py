@@ -24,12 +24,20 @@ class RecombineXmlStub(Dump):
         return self.item_for_xml_stubs.list_dumpnames()
 
     def list_outfiles_to_publish(self, dump_dir):
+        """
+        returns:
+            list of DumpFile
+        """
         dump_names = self.list_dumpnames()
         dfnames = []
         dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
         return dfnames
 
     def list_outfiles_to_check_for_truncation(self, dump_dir):
+        """
+        returns:
+            list of DumpFile
+        """
         dump_names = self.list_dumpnames()
         dfnames = []
         dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))

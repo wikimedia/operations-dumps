@@ -28,24 +28,24 @@ from dumps.runstatusapi import StatusAPI
 
 
 class Logger(threading.Thread):
-    def __init__(self, log_filename=None):
+    def __init__(self, log_filepath=None):
         threading.Thread.__init__(self)
 
-        if log_filename:
-            self.log_file = open(log_filename, "a")
+        if log_filepath:
+            self.log_fhandle = open(log_filepath, "a")
         else:
-            self.log_file = None
+            self.log_fhandle = None
         self.queue = Queue.Queue()
         self.jobs_done = "JOBSDONE"
 
     def log_write(self, line=None):
-        if self.log_file is not None:
-            self.log_file.write(line)
-            self.log_file.flush()
+        if self.log_fhandle is not None:
+            self.log_fhandle.write(line)
+            self.log_fhandle.flush()
 
     def log_close(self):
-        if self.log_file is not None:
-            self.log_file.close()
+        if self.log_fhandle is not None:
+            self.log_fhandle.close()
             # return 1 if logging terminated, 0 otherwise
 
     def do_job_on_log_queue(self):
@@ -66,7 +66,7 @@ class Logger(threading.Thread):
         self.queue.put_nowait(self.jobs_done)
 
     def run(self):
-        if self.log_file is None:
+        if self.log_fhandle is None:
             return
         done = False
         while not done:
@@ -536,9 +536,9 @@ class Runner(object):
         if "logging" in self.enabled and "makedir" in self.enabled:
             dfname = DumpFilename(self.wiki)
             dfname.new_from_filename(self.wiki.config.log_file)
-            self.log_filename = self.dump_dir.filename_private_path(dfname)
+            self.log_filepath = self.dump_dir.filename_private_path(dfname)
             self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
-            self.log = Logger(self.log_filename)
+            self.log = Logger(self.log_filepath)
             # thread should die horribly when main script dies. no exceptions.
             self.log.daemon = True
             self.log.start()

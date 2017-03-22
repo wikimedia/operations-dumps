@@ -39,7 +39,7 @@ class FlowDump(Dump):
         if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        flow_output_file = runner.dump_dir.filename_public_path(output_dfname)
+        flow_output_fpath = runner.dump_dir.filename_public_path(output_dfname)
         script_command = MultiVersion.mw_script_as_array(
             runner.wiki.config, "extensions/Flow/maintenance/dumpBackup.php")
 
@@ -47,7 +47,7 @@ class FlowDump(Dump):
         command.extend(script_command)
         command.extend(["--wiki=%s" % runner.db_name,
                         "--current", "--report=1000",
-                        "--output=bzip2:%s" % flow_output_file])
+                        "--output=bzip2:%s" % flow_output_fpath])
         if self.history:
             command.append("--full")
 

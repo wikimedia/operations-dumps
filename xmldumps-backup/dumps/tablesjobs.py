@@ -46,12 +46,16 @@ class PublicTable(Dump):
             raise BackupError("error dumping table %s" % self._table)
 
     # returns 0 on success, 1 on error
-    def save_table(self, table, outfile, runner):
-        """Dump a table from the current DB with mysqldump, save to a gzipped sql file."""
+    def save_table(self, table, outfilepath, runner):
+        """
+        Dump a table from the current DB with mysqldump, save to a gzipped sql file.
+        args:
+            table name (e.g. "site_stats"), path to output file, Runner
+        """
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
         commands = runner.db_server_info.build_sqldump_command(table, runner.wiki.config.gzip)
-        return runner.save_command(commands, outfile)
+        return runner.save_command(commands, outfilepath)
 
 
 class PrivateTable(PublicTable):
