@@ -309,30 +309,29 @@ class DumpFilename(object):
         return filename
 
 
-class DumpFile(object):
-    """File containing output created by any job of a jump run.  This includes
+class DumpContents(object):
+    """Methods for dealing with dump contents in a file containing output
+    created by any job of a jump run.  This includes
     any file that follows the standard naming convention, i.e.
     projectname-date-dumpname.sql/xml.gz/bz2/7z (possibly with a file part
     number, possibly with start/end page id information embedded in the name).
 
     Methods:
 
-    md5sum(): return md5sum of the file contents.
-    sha1sum(): return sha1sum of the file contents.
-    checksum(htype): return checksum of the specified type, of the file contents.
+    md5sum(): return md5sum of the contents.
+    sha1sum(): return sha1sum of the contents.
+    checksum(htype): return checksum of the specified type, of the contents.
     check_if_truncated(): for compressed files, check if the file is truncated (stops
        abruptly before the end of the compressed data) or not, and set and return
          self.is_truncated accordingly.  This is fast for bzip2 files
        and slow for gz and 7z fles, since for the latter two types it must serially
        read through the file to determine if it is truncated or not.
-    get_size(): returns the current size of the file in bytes
+    get_size(): returns the current size of the file contents in bytes
     rename(newname): rename the file. Arguments: the new name of the file without
        the directory.
-    find_first_page_id_in_file(): set self.first_page_id by examining the file contents,
+    find_first_page_id_in_file(): set self.first_page_id by examining the contents,
        returning the value, or None if there is no pageID.  We uncompress the file
        if needed and look through the first 500 lines.
-
-#    plus the usual file methods (read, write, open, close)
 
     useful variables:
 
@@ -356,8 +355,6 @@ class DumpFile(object):
             self.file_obj.new_from_filename(os.path.basename(filename))
         if verbose:
             sys.stderr.write("setting up info for %s\n" % filename)
-
-#        super(DumpFile,self).__init__(ops, args, s3Sess)
 
     def _checksum(self, summer):
         if not self.filename:

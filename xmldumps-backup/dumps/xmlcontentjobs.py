@@ -9,7 +9,7 @@ import signal
 
 from dumps.CommandManagement import CommandPipeline
 from dumps.exceptions import BackupError
-from dumps.fileutils import DumpFile, DumpFilename
+from dumps.fileutils import DumpContents, DumpFilename
 from dumps.utils import MultiVersion, MiscUtils
 from dumps.jobs import Dump
 from dumps.jobs import get_checkpt_files, get_reg_files
@@ -128,7 +128,7 @@ class StubProvider(object):
             path = os.path.join(self.wiki.config.temp_dir, xmlfile.filename)
         else:
             path = runner.dump_dir.filename_public_path(xmlfile, self.wiki.date)
-        fname = DumpFile(self.wiki, path, xmlfile, self.verbose)
+        fname = DumpContents(self.wiki, path, xmlfile, self.verbose)
         return bool(fname.find_first_page_id_in_file() is None)
 
 
@@ -152,7 +152,7 @@ class Prefetch(object):
                 if file_obj.is_file_part and file_obj.partnum_int > maxparts:
                     maxparts = file_obj.partnum_int
                 if not file_obj.first_page_id:
-                    fname = DumpFile(
+                    fname = DumpContents(
                         self.wiki, runner.dump_dir.filename_public_path(file_obj, date),
                         file_obj, self.verbose)
                     file_obj.first_page_id = fname.find_first_page_id_in_file()
@@ -547,9 +547,9 @@ class XmlDump(Dump):
                 # get the page ranges covered by stubs
                 stub_ranges = []
                 for stub in stubs:
-                    fname = DumpFile(self.wiki,
-                                     runner.dump_dir.filename_public_path(stub, stub.date),
-                                     stub, self.verbose)
+                    fname = DumpContents(self.wiki,
+                                         runner.dump_dir.filename_public_path(stub, stub.date),
+                                         stub, self.verbose)
                     stub_ranges.append((fname.find_first_page_id_in_file(),
                                         self.find_last_page_id(stub, runner), stub.partnum))
 
@@ -629,9 +629,9 @@ class XmlDump(Dump):
         if not fileobj.filename or not exists(runner.dump_dir.filename_public_path(fileobj)):
             return None
 
-        dumpfile = DumpFile(self.wiki,
-                            runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
-                            fileobj, self.verbose)
+        dumpfile = DumpContents(self.wiki,
+                                runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
+                                fileobj, self.verbose)
         pipeline = dumpfile.setup_uncompression_command()
 
         tail = self.wiki.config.tail
@@ -654,9 +654,9 @@ class XmlDump(Dump):
     def get_lineno_last_page(self, fileobj, runner):
         if not fileobj.filename or not exists(runner.dump_dir.filename_public_path(fileobj)):
             return None
-        dumpfile = DumpFile(self.wiki,
-                            runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
-                            fileobj, self.verbose)
+        dumpfile = DumpContents(self.wiki,
+                                runner.dump_dir.filename_public_path(fileobj, self.wiki.date),
+                                fileobj, self.verbose)
         pipeline = dumpfile.setup_uncompression_command()
         grep = self.wiki.config.grep
         if not exists(grep):

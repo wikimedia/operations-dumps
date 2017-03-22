@@ -10,7 +10,7 @@ import smtplib
 import json
 
 from dumps.exceptions import BackupError
-from dumps.fileutils import DumpFile, DumpFilename, FileUtils
+from dumps.fileutils import DumpContents, DumpFilename, FileUtils
 from dumps.utils import TimeUtils
 
 
@@ -122,8 +122,8 @@ class Checksummer(object):
                     output = {htype: {"files": {}}}
                 output_json = file(checksum_filename_json, "w")
                 dumpjobdata.debugfn("Checksumming %s via %s" % (file_obj.filename, htype))
-                dumpfile = DumpFile(self.wiki, dumpjobdata.dump_dir.filename_public_path(file_obj),
-                                    None, self.verbose)
+                dumpfile = DumpContents(self.wiki, dumpjobdata.dump_dir.filename_public_path(file_obj),
+                                        None, self.verbose)
                 checksum = dumpfile.checksum(htype)
                 if checksum is not None:
                     output_text.write("%s  %s\n" % (checksum, file_obj.filename))

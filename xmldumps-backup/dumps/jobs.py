@@ -11,7 +11,7 @@ import traceback
 from dumps.CommandManagement import CommandPipeline
 
 from dumps.exceptions import BackupError, BackupPrereqError
-from dumps.fileutils import DumpFile, DumpFilename
+from dumps.fileutils import DumpContents, DumpFilename
 from dumps.utils import TimeUtils, MiscUtils
 
 
@@ -192,7 +192,7 @@ class Dump(object):
 
         for dump_fname in self.list_outfiles_to_check_for_truncation(
                 runner.dump_dir):
-            dfile = DumpFile(runner.wiki, runner.dump_dir.filename_public_path(
+            dfile = DumpContents(runner.wiki, runner.dump_dir.filename_public_path(
                 dump_fname), dump_fname)
 
             file_truncated = True
