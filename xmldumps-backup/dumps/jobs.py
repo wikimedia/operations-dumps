@@ -12,7 +12,7 @@ from dumps.CommandManagement import CommandPipeline
 
 from dumps.exceptions import BackupError, BackupPrereqError
 from dumps.fileutils import DumpContents, DumpFilename
-from dumps.utils import TimeUtils, MiscUtils
+from dumps.utils import TimeUtils
 
 
 def get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
@@ -261,42 +261,22 @@ class Dump(object):
         output_filename = runner.dump_dir.filename_public_path(output_file)
         partnum = 0
         recombines = []
-        if not exists(runner.wiki.config.head):
-            raise BackupError("head command %s not found" % runner.wiki.config.head)
+        for utility in [runner.wiki.config.head, runner.wiki.config.tail, runner.wiki.config.grep]:
+            if not exists(utility):
+                raise BackupError("command %s not found" % utility)
         head = runner.wiki.config.head
-        if not exists(runner.wiki.config.tail):
-            raise BackupError("tail command %s not found" % runner.wiki.config.tail)
         tail = runner.wiki.config.tail
-        if not exists(runner.wiki.config.grep):
-            raise BackupError("grep command %s not found" % runner.wiki.config.grep)
         grep = runner.wiki.config.grep
-
-        # we assume the result is always going to be run in a subshell.
-        # much quicker than this script trying to read output
-        # and pass it to a subprocess
-        output_filename_esc = MiscUtils.shell_escape(output_filename)
-        head_esc = MiscUtils.shell_escape(head)
-        tail_esc = MiscUtils.shell_escape(tail)
-        grep_esc = MiscUtils.shell_escape(grep)
-
-        uncompression_command_esc = uncompression_command[:]
-        for command in uncompression_command_esc:
-            command = MiscUtils.shell_escape(command)
-        for command in compression_command:
-            command = MiscUtils.shell_escape(command)
 
         if not dfnames:
             raise BackupError("No files for the recombine step found in %s." % self.name())
 
         for dfname in dfnames:
-            # uh oh FIXME
-            # f = MiscUtils.shell_escape(dfname.filename)
             fpath = runner.dump_dir.filename_public_path(dfname)
             partnum = partnum + 1
             pipeline = []
-            uncompress_this_file = uncompression_command[:]
-            uncompress_this_file.append(fpath)
-            pipeline.append(uncompress_this_file)
+            uncompression_command.append(fpath)
+            pipeline.append(uncompression_command)
             # warning: we figure any header (<siteinfo>...</siteinfo>)
             # is going to be less than 2000 lines!
             pipeline.append([head, "-2000"])
@@ -307,14 +287,14 @@ class Dump(object):
             if ((proc.output()) and
                     (proc.exited_successfully() or
                      proc.get_failed_cmds_with_retcode() ==
-                     [[-signal.SIGPIPE, uncompress_this_file]] or
+                     [[-signal.SIGPIPE, uncompression_command]] or
                      proc.get_failed_cmds_with_retcode() ==
-                     [[signal.SIGPIPE + 128, uncompress_this_file]])):
+                     [[signal.SIGPIPE + 128, uncompression_command]])):
                 (header_end_num, junk_unused) = proc.output().split(":", 1)
                 # get header_end_num
             else:
                 raise BackupError("Could not find 'end of header' marker for %s" % fpath)
-            recombine = " ".join(uncompress_this_file)
+            recombine = " ".join(uncompression_command)
             header_end_num = int(header_end_num) + 1
             if partnum == 1:
                 # first file, put header and contents
