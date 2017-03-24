@@ -860,7 +860,7 @@ class XmlDump(Dump):
                 continue
 
             # see if this job from that date was successful
-            if not runner.dumpjobdata.runinfofile.status_of_old_dump_is_done(
+            if not runner.dumpjobdata.runinfo.status_of_old_dump_is_done(
                     runner, date, self.name(), self._desc):
                 runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
                 continue

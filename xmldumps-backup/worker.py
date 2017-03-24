@@ -49,7 +49,7 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
         # failed to get the run's info so let's call it 'didn't run'
         return False
 
-    results = runner.dumpjobdata.runinfofile.get_old_runinfo_from_file()
+    results = runner.dumpjobdata.runinfo.get_old_runinfo_from_file()
     if results:
         for runinfo_obj in results:
             runner.dump_item_list._set_dump_item_runinfo(runinfo_obj)

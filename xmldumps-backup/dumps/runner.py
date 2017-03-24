@@ -20,7 +20,7 @@ from dumps.flowjob import FlowDump
 
 from dumps.runnerutils import RunSettings, SymLinks, Feeds, NoticeFile
 from dumps.runnerutils import Checksummer, Report, StatusHtml, FailureHandler
-from dumps.runnerutils import Maintenance, RunInfoFile, DumpRunJobData
+from dumps.runnerutils import Maintenance, RunInfo, DumpRunJobData
 
 from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils
 from dumps.runstatusapi import StatusAPI
@@ -333,7 +333,7 @@ class DumpItemList(object):
                     "Useful for offline readers, or for parallel processing of pages.",
                     self.find_item_by_name(input_for_multistream), self.wiki, None))
 
-        results = self.dumpjobdata.runinfofile.get_old_runinfo_from_file()
+        results = self.dumpjobdata.runinfo.get_old_runinfo_from_file()
         if results:
             for runinfo_entry in results:
                 self._set_dump_item_runinfo(runinfo_entry)
@@ -477,7 +477,7 @@ class Runner(object):
         if self.enabled is None:
             self.enabled = {}
         for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
-                        RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
+                        RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, NoticeFile.NAME, StatusAPI.NAME,
                         "makedir", "clean_old_dumps", "cleanup_old_files",
                         "check_trunc_files", "cleanup_tmp_files"]:
@@ -489,7 +489,7 @@ class Runner(object):
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
-                            StatusAPI.NAME, RunInfoFile.NAME, SymLinks.NAME, RunSettings.NAME,
+                            StatusAPI.NAME, RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
                             Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
                 if setting in self.enabled:
                     del self.enabled[setting]
@@ -504,7 +504,7 @@ class Runner(object):
         self.job_requested = job
 
         if self.job_requested == "latestlinks":
-            for setting in [StatusHtml.NAME, Report.NAME, RunInfoFile.NAME]:
+            for setting in [StatusHtml.NAME, Report.NAME, RunInfo.NAME]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 

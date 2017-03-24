@@ -11,7 +11,7 @@ import glob
 import socket
 import signal
 import traceback
-from dumps.runnerutils import NoticeFile, RunInfoFile
+from dumps.runnerutils import NoticeFile, RunInfo
 from dumps.fileutils import DumpDir
 from dumps.runner import Runner
 from dumps.WikiDump import Wiki, Config, Locker
@@ -318,8 +318,8 @@ class ActionHandler(object):
             return [], None
 
         wiki.set_date(date)
-        run_info_file = RunInfoFile(wiki, False)
-        results = run_info_file.get_old_runinfo_from_file()
+        run_info = RunInfo(wiki, False)
+        results = run_info.get_old_runinfo_from_file()
         if not results:
             return [], None
 

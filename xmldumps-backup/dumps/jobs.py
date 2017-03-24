@@ -213,8 +213,8 @@ class Dump(object):
         self.progress = line.strip()
         runner.report.update_index_html_and_json()
         runner.statushtml.update_status_file()
-        runner.dumpjobdata.runinfofile.save_dump_runinfo_file(
-            runner.dumpjobdata.runinfofile.report_dump_runinfo(runner.dump_item_list.dump_items))
+        runner.dumpjobdata.runinfo.save_dump_runinfo(
+            runner.dumpjobdata.runinfo.report_dump_runinfo(runner.dump_item_list.dump_items))
 
     def time_to_wait(self):
         # we use wait this many secs for a command to complete that

@@ -830,7 +830,7 @@ class DumpRunJobData(object):
         self.settings_stash.apply_settings_to_config()
 
         # now we can set up everything else
-        self.runinfofile = RunInfoFile(wiki, enabled, verbose)
+        self.runinfo = RunInfo(wiki, enabled, verbose)
         self.checksummer = Checksummer(wiki, dump_dir, enabled, verbose)
         self.feeds = Feeds(wiki, dump_dir, wiki.db_name, debugfn, enabled)
         self.symlinks = SymLinks(wiki, dump_dir, logfn, debugfn, enabled)
@@ -852,7 +852,7 @@ class DumpRunJobData(object):
             self.symlinks.save_symlink(dumpfile)
             self.symlinks.cleanup_symlinks()
         for item in dump_items:
-            self.runinfofile.save_dump_runinfo_file(RunInfoFile.report_dump_runinfo(dump_items))
+            self.runinfo.save_dump_runinfo(RunInfo.report_dump_runinfo(dump_items))
             if item.to_run():
                 dump_names = item.list_dumpnames()
                 if type(dump_names).__name__ != 'list':
@@ -882,8 +882,8 @@ class DumpRunJobData(object):
                 self.feeds.cleanup_feeds()
 
     def do_before_job(self, dump_items):
-        self.runinfofile.save_dump_runinfo_file(
-            RunInfoFile.report_dump_runinfo(dump_items))
+        self.runinfo.save_dump_runinfo(
+            RunInfo.report_dump_runinfo(dump_items))
 
     def do_after_job(self, item, dump_items):
         self.checksummer.cp_chksum_tmpfiles_to_permfile()
@@ -898,16 +898,16 @@ class DumpRunJobData(object):
                 self.checksummer.checksums(file_obj, self)
                 self.symlinks.cleanup_symlinks()
                 self.feeds.cleanup_feeds()
-        self.runinfofile.save_dump_runinfo_file(
-            RunInfoFile.report_dump_runinfo(dump_items))
+        self.runinfo.save_dump_runinfo(
+            RunInfo.report_dump_runinfo(dump_items))
 
     def do_latest_job(self):
         self.symlinks.remove_symlinks_from_old_runs(self.wiki.date)
         self.feeds.cleanup_feeds()
 
 
-class RunInfoFile(object):
-    NAME = "runinfofile"
+class RunInfo(object):
+    NAME = "runinfo"
     FORMATS = ['text', 'json']
 
     @staticmethod
@@ -960,11 +960,11 @@ class RunInfoFile(object):
         self._enabled = enabled
         self.verbose = verbose
 
-    def save_dump_runinfo_file(self, content):
+    def save_dump_runinfo(self, content):
         """Write out a simple text file with the status for this wiki's dump."""
-        if RunInfoFile.NAME in self._enabled:
+        if RunInfo.NAME in self._enabled:
             try:
-                self._write_dump_runinfo_file(content)
+                self._write_dump_runinfo(content)
             except Exception as ex:
                 if self.verbose:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -1047,8 +1047,8 @@ class RunInfoFile(object):
                 dump_runinfo[fieldname] = field_value
         return dump_runinfo
 
-    def _write_dump_runinfo_file(self, content):
-        for fmt in RunInfoFile.FORMATS:
+    def _write_dump_runinfo(self, content):
+        for fmt in RunInfo.FORMATS:
             dump_runinfo_filename = self._get_dump_runinfo_filename(fmt=fmt)
             #  FileUtils.write_file(directory, dumpRunInfoFilename, text,
             #    self.wiki.config.fileperms)

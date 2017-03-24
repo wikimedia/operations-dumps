@@ -10,7 +10,7 @@ import sys
 import traceback
 import json
 from dumps.runnerutils import Checksummer
-from dumps.runnerutils import RunInfoFile
+from dumps.runnerutils import RunInfo
 from dumps.runnerutils import Report
 from dumps.fileutils import DumpFilename
 from dumps.fileutils import DumpDir
@@ -134,9 +134,9 @@ class StatusAPI(object):
         if filehashinfo is None:
             filehashinfo = [Checksummer.get_empty_json()]
         if dumpruninfo is None:
-            dumpruninfo = RunInfoFile.get_empty_json()
+            dumpruninfo = RunInfo.get_empty_json()
         if reportinfo is not None:
-            dumpruninfo_jobs = RunInfoFile.get_jobs(dumpruninfo)
+            dumpruninfo_jobs = RunInfo.get_jobs(dumpruninfo)
             for jobname in Report.get_jobs(reportinfo):
                 if jobname in dumpruninfo_jobs:
                     # fold hash info into the report
@@ -144,7 +144,7 @@ class StatusAPI(object):
                     # fold the report info (file info for all job-related files)
                     # into the dumpruninfo
                     fileinfo = Report.get_fileinfo_for_job(jobname, reportinfo)
-                    RunInfoFile.add_job_property(jobname, "files", fileinfo, dumpruninfo)
+                    RunInfo.add_job_property(jobname, "files", fileinfo, dumpruninfo)
         return dumpruninfo
 
     def write_contents_json(self, contents):
