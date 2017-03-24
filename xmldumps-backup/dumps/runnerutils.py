@@ -340,7 +340,7 @@ class Report(object):
         generate the json file with the same information as well'''
         if Report.NAME in self._enabled:
 
-            self.dumpjobdata.noticefile.refresh_notice()
+            self.dumpjobdata.notice.refresh_notice()
             status_items = [Report.report_dump_step_status(self.dump_dir, item)
                             for item in self.items]
             status_items_html = [item['html'] for item in status_items]
@@ -353,7 +353,7 @@ class Report(object):
             text = self.wiki.config.read_template("report.html") % {
                 "db": self.wiki.db_name,
                 "date": self.wiki.date,
-                "notice": self.dumpjobdata.noticefile.notice,
+                "notice": self.dumpjobdata.notice.notice,
                 "status": StatusHtml.report_dump_status(failed_jobs, dump_status),
                 "previous": self.report_previous_dump_link(dump_status),
                 "items": html,
@@ -534,17 +534,17 @@ class StatusHtml(object):
             return html
 
 
-class NoticeFile(object):
-    NAME = "noticefile"
+class Notice(object):
+    NAME = "notice"
 
     def __init__(self, wiki, notice, enabled):
         self.wiki = wiki
         self.notice = notice
         self._enabled = enabled
-        self.write_notice_file()
+        self.write_notice()
 
-    def write_notice_file(self):
-        if NoticeFile.NAME in self._enabled:
+    def write_notice(self):
+        if Notice.NAME in self._enabled:
             notice_file = self._get_notice_filename()
             # delnotice.  toss any existing file
             if self.notice is False:
@@ -834,7 +834,7 @@ class DumpRunJobData(object):
         self.checksummer = Checksummer(wiki, dump_dir, enabled, verbose)
         self.feeds = Feeds(wiki, dump_dir, wiki.db_name, debugfn, enabled)
         self.symlinks = SymLinks(wiki, dump_dir, logfn, debugfn, enabled)
-        self.noticefile = NoticeFile(wiki, notice, enabled)
+        self.notice = Notice(wiki, notice, enabled)
 
     def do_before_dump(self):
         self.checksummer.prepare_checksums()

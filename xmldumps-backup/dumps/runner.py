@@ -18,7 +18,7 @@ from dumps.xmljobs import XmlDump, XmlLogging, XmlStub, BigXmlDump, AbstractDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 from dumps.flowjob import FlowDump
 
-from dumps.runnerutils import RunSettings, SymLinks, Feeds, NoticeFile
+from dumps.runnerutils import RunSettings, SymLinks, Feeds, Notice
 from dumps.runnerutils import Checksummer, Report, StatusHtml, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfo, DumpRunJobData
 
@@ -478,7 +478,7 @@ class Runner(object):
             self.enabled = {}
         for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
                         RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
-                        Feeds.NAME, NoticeFile.NAME, StatusAPI.NAME,
+                        Feeds.NAME, Notice.NAME, StatusAPI.NAME,
                         "makedir", "clean_old_dumps", "cleanup_old_files",
                         "check_trunc_files", "cleanup_tmp_files"]:
             self.enabled[setting] = True
@@ -490,7 +490,7 @@ class Runner(object):
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
                             StatusAPI.NAME, RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
-                            Feeds.NAME, NoticeFile.NAME, "makedir", "clean_old_dumps"]:
+                            Feeds.NAME, Notice.NAME, "makedir", "clean_old_dumps"]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 
@@ -514,7 +514,7 @@ class Runner(object):
                     del self.enabled[setting]
 
         if self.job_requested == "latestlinks" or self.job_requested == "createdirs":
-            for setting in [Checksummer.NAME, NoticeFile.NAME, "makedir",
+            for setting in [Checksummer.NAME, Notice.NAME, "makedir",
                             "clean_old_dumps", "check_trunc_files"]:
                 if setting in self.enabled:
                     del self.enabled[setting]

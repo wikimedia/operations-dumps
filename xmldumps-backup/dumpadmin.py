@@ -11,7 +11,7 @@ import glob
 import socket
 import signal
 import traceback
-from dumps.runnerutils import NoticeFile, RunInfo
+from dumps.runnerutils import Notice, RunInfo
 from dumps.fileutils import DumpDir
 from dumps.runner import Runner
 from dumps.WikiDump import Wiki, Config, Locker
@@ -579,7 +579,7 @@ class ActionHandler(object):
             print "creating notice file for wiki", wikiname, "date", date
 
         wiki.set_date(date)
-        NoticeFile(wiki, self.message, True)
+        Notice(wiki, self.message, True)
 
     def do_mark(self, wikiname):
         '''
@@ -676,7 +676,7 @@ class ActionHandler(object):
             print "removing notice file for wiki", wikiname, "date", date
 
         wiki.set_date(date)
-        NoticeFile(wiki, False, True)
+        Notice(wiki, False, True)
 
     def find_dump_lockinfo(self):
         '''
