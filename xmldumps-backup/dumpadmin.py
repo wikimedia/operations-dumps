@@ -412,7 +412,7 @@ class ActionHandler(object):
         if not self.dryrun:
             for item in runner.dump_item_list.dump_items:
                 if item.status() == "done":
-                    runner.dumpjobdata.do_after_job(item)
+                    runner.dumpjobdata.do_after_job(item, runner.dump_item_list.dump_items)
 
         if self.dryrun:
             print "would update dumpruninfo file, checksums file, ",
@@ -426,10 +426,10 @@ class ActionHandler(object):
 
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            runner.indexhtml.update_index_html("done")
+            runner.report.update_index_html_and_json("done")
             runner.statushtml.update_status_file("done")
         else:
-            runner.indexhtml.update_index_html("partialdone")
+            runner.report.update_index_html_and_json("partialdone")
             runner.statushtml.update_status_file("partialdone")
 
         if rerun:
@@ -449,7 +449,7 @@ class ActionHandler(object):
         for item in runner.dump_item_list.dump_items:
             if item.to_run():
                 item.start()
-                runner.indexhtml.update_index_html()
+                runner.report.update_index_html_and_json()
                 runner.statushtml.update_status_file()
                 runner.dumpjobdata.do_before_job(runner.dump_item_list.dump_items)
                 try:
@@ -484,14 +484,14 @@ class ActionHandler(object):
 
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            runner.indexhtml.update_index_html_file("done")
+            runner.report.update_index_html_file_and_json("done")
             runner.statushtml.update_status_file("done")
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            runner.indexhtml.update_index_html("partialdone")
+            runner.report.update_index_html_file_and_json("partialdone")
             runner.statushtml.update_status_file("partialdone")
 
         runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
@@ -617,7 +617,7 @@ class ActionHandler(object):
             if item.name() == job:
                 item.set_status(status, True)
             if item.status() == "done":
-                runner.dumpjobdata.do_after_job(item)
+                runner.dumpjobdata.do_after_job(item, runner.dump_item_list.dump_items)
             elif item.status() not in ["done", "waiting", "skipped"]:
                 runner.failurehandler.failure_count += 1
 
@@ -625,10 +625,10 @@ class ActionHandler(object):
             print "updating status files for wiki", wiki.db_name
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            runner.indexhtml.update_index_html("done")
+            runner.report.update_index_html_and_json("done")
             runner.statushtml.update_status_file("done")
         else:
-            runner.indexhtml.update_index_html("partialdone")
+            runner.report.update_index_html_and_json("partialdone")
             runner.statushtml.update_status_file("partialdone")
 
         runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
