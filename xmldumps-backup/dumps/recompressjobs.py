@@ -135,8 +135,8 @@ class XmlMultiStreamDump(XmlDump):
             series = self.build_command(runner, output_dfnames)
             commands.append(series)
 
-        error = runner.run_command(commands, callback_timed=self.progress_callback,
-                                   callback_timed_arg=runner, shell=True)
+        error, broken = runner.run_command(commands, callback_timed=self.progress_callback,
+                                           callback_timed_arg=runner, shell=True)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -313,8 +313,8 @@ class XmlRecompressDump(Dump):
             series = self.build_command(runner, output_dfnames)
             commands.append(series)
 
-        error = runner.run_command(commands, callback_timed=self.progress_callback,
-                                   callback_timed_arg=runner, shell=True)
+        error, broken = runner.run_command(commands, callback_timed=self.progress_callback,
+                                           callback_timed_arg=runner, shell=True)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 

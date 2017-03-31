@@ -27,17 +27,17 @@ class SiteInfoDump(Dump):
             raise BackupError("siteinfo dump %s trying to produce more than one file" %
                               self.dumpname)
         output_dfname = dfnames[0]
-        error = self.get_siteinfo(
+        error, broken = self.get_siteinfo(
             runner.dump_dir.filename_public_path(output_dfname), runner)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error = self.get_siteinfo(
+            error, broken = self.get_siteinfo(
                 runner.dump_dir.filename_public_path(output_dfname), runner)
         if error:
             raise BackupError("error dumping siteinfo props %s" % ','.join(self._properties))
 
-    # returns 0 on success, 1 on error
+    # returns 0, None on success, 1, commands on error
     def get_siteinfo(self, outfile, runner):
         """Dump siteinfo properties via the MediaWiki api in json format and save."""
         commands = self.build_api_command(runner)

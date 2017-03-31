@@ -53,7 +53,7 @@ class FlowDump(Dump):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.run_command([series], callback_stderr=self.progress_callback,
-                                   callback_stderr_arg=runner)
+        error, broken = runner.run_command([series], callback_stderr=self.progress_callback,
+                                           callback_stderr_arg=runner)
         if error:
             raise BackupError("error dumping flow page files")

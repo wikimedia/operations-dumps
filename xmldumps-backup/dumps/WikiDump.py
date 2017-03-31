@@ -210,6 +210,12 @@ class Config(object):
             "chunks", "checkpointTime", 1)
         self.revs_per_job = self.get_opt_for_proj_or_default(
             "chunks", "revsPerJob", 1)
+        self.max_retries = self.get_opt_for_proj_or_default(
+            "chunks", "maxRetries", 1)
+        self.retry_wait = self.get_opt_for_proj_or_default(
+            "chunks", "retryWait", 1)
+        self.revs_margin = self.get_opt_for_proj_or_default(
+            "chunks", "revsMargin", 1)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')

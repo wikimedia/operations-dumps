@@ -593,7 +593,7 @@ class Runner(object):
         self.statushtml.update_status_file()
         self.runstatus_updater.write_statusapi_file()
 
-    # returns 0 on success, 1 on error
+    # returns 0, None on success, 1, commands on error
     def save_command(self, commands, outfile):
         """For one pipeline of commands, redirect output to a given file."""
         commands[-1].extend([">", outfile])
@@ -646,14 +646,14 @@ class Runner(object):
                                           shell=shell, callback_interval=callback_interval)
             commands.run_commands()
             if commands.exited_successfully():
-                return 0
+                return 0, None
             else:
                 problem_commands = commands.commands_with_errors()
                 error_string = "Error from command(s): "
                 for cmd in problem_commands:
                     error_string = error_string + "%s " % cmd
                 self.log_and_print(error_string)
-                return 1
+                return 1, commands.commands_with_errors(stringfmt=False)
 
     def debug(self, stuff):
         self.log_and_print("%s: %s %s" % (TimeUtils.pretty_time(), self.db_name, stuff))

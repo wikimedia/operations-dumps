@@ -155,8 +155,8 @@ class XmlStub(Dump):
             for dfname in batch:
                 series = self.build_command(runner, dfname)
                 commands.append(series)
-            error = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                       callback_stderr_arg=runner)
+            error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                               callback_stderr_arg=runner)
             if error:
                 raise BackupError("error producing stub files")
 
@@ -200,8 +200,8 @@ class XmlLogging(Dump):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.run_command([series], callback_stderr=self.progress_callback,
-                                   callback_stderr_arg=runner)
+        error, broken = runner.run_command([series], callback_stderr=self.progress_callback,
+                                           callback_stderr_arg=runner)
         if error:
             raise BackupError("error dumping log files")
 
@@ -280,8 +280,8 @@ class AbstractDump(Dump):
             if dfname.dumpname == dumpname0:
                 series = self.build_command(runner, dfname)
                 commands.append(series)
-        error = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                   callback_stderr_arg=runner)
+        error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                           callback_stderr_arg=runner)
         if error:
             raise BackupError("error producing abstract dump")
 

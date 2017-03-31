@@ -4,6 +4,7 @@ All xml content dump jobs are defined here
 
 import os
 from os.path import exists
+import time
 
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpContents, DumpFilename
@@ -93,7 +94,7 @@ class StubProvider(object):
 
         pipeline = [command]
         series = [pipeline]
-        error = runner.run_command([series], shell=True)
+        error, broken = runner.run_command([series], shell=True)
         if error:
             raise BackupError("failed to write pagerange stub file %s" % output_dfname.filename)
 
@@ -674,20 +675,30 @@ class XmlDump(Dump):
         else:
             batchsize = 1
         errors = False
-        while commands:
+        failed_commands = []
+        max_retries = self.wiki.config.max_retries
+        retries = 0
+        while commands and (retries < max_retries or retries == 0):
             command_batch = commands[:batchsize]
-            error = runner.run_command(command_batch, callback_stderr=self.progress_callback,
-                                       callback_stderr_arg=runner)
-            # log individual batch failures, FIXME we should find out which command specifically
-            # failed
+            error, broken = runner.run_command(command_batch, callback_stderr=self.progress_callback,
+                                               callback_stderr_arg=runner)
             if error:
-                runner.log_and_print("error from commands: %s" % " ".join(
-                    entry for series in command_batch for pipeline in series
-                    for command in pipeline for entry in command))
+                for series in broken:
+                    for pipeline in series:
+                        runner.log_and_print("error from commands: %s" % " ".join(
+                            [entry for entry in pipeline]))
+                failed_commands.append(broken)
                 errors = True
             commands = commands[batchsize:]
-        # FIXME we should accumulate all failures, wait a bit and retry them as
-        # batches in their own right
+            if not commands:
+                if failed_commands:
+                    retries += 1
+                    # retry failed commands
+                    commands = failed_commands
+                    failed_commands = []
+                    # no instant retries, give the servers a break
+                    time.sleep(self.wiki.config.retry_wait)
+                    errors = False
         if errors:
             raise BackupError("error producing xml file(s) %s" % self.get_dumpname())
 

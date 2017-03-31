@@ -298,8 +298,7 @@ class PageRange(object):
             prevguess = badguess
 
             margin = abs(revcount - numrevs)
-            # FIXME configurable?
-            if margin <= 100:
+            if margin <= self.qrunner.wiki.config.revs_margin:
                 return (page_start, badguess)
             if self.verbose:
                 print "revcount is greater than allowed margin from numrevs"

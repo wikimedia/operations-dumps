@@ -75,8 +75,8 @@ class RecombineXmlStub(Dump):
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.run_command([series], callback_timed=self.progress_callback,
-                                        callback_timed_arg=runner, shell=True)
+            result, broken = runner.run_command([series], callback_timed=self.progress_callback,
+                                                callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:
@@ -124,7 +124,7 @@ class RecombineXmlDump(XmlDump):
         recombine_command = [recombine_command_string]
         recombine_pipeline = [recombine_command]
         series = [recombine_pipeline]
-        error = runner.run_command(
+        error, broken = runner.run_command(
             [series], callback_timed=self.progress_callback,
             callback_timed_arg=runner, shell=True)
 
@@ -176,7 +176,7 @@ class RecombineXmlRecompressDump(Dump):
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.run_command(
+            result, broken = runner.run_command(
                 [series], callback_timed=self.progress_callback,
                 callback_timed_arg=runner, shell=True)
             if result:
@@ -225,8 +225,8 @@ class RecombineAbstractDump(Dump):
             recombine_command = [recombine_command_string]
             recombine_pipeline = [recombine_command]
             series = [recombine_pipeline]
-            result = runner.run_command([series], callback_timed=self.progress_callback,
-                                        callback_timed_arg=runner, shell=True)
+            result, broken = runner.run_command([series], callback_timed=self.progress_callback,
+                                                callback_timed_arg=runner, shell=True)
             if result:
                 error = result
         if error:

@@ -173,11 +173,14 @@ class CommandPipeline(object):
                 return False
         return True
 
-    def exited_with_errors(self):
+    def exited_with_errors(self, stringfmt=True):
         if not self.exited_successfully():
             # we wil return the whole pipeline I guess, they might as well
             # see it in the error report instead of the specific issue in the pipe.
-            return self.pipeline_string()
+            if stringfmt:
+                return self.pipeline_string()
+            else:
+                return self._commands
         return None
 
     # Checks the exit values of the individual commands in the
@@ -352,12 +355,12 @@ class CommandSeries(object):
                 return False
         return True
 
-    def exited_with_errors(self):
+    def exited_with_errors(self, stringfmt=True):
         """Return list of commands that exited with errors."""
         commands = []
         for pipeline in self._command_pipelines:
             if not pipeline.exited_successfully():
-                command = pipeline.exited_with_errors()
+                command = pipeline.exited_with_errors(stringfmt)
                 if command is not None:
                     commands.append(command)
         return commands
@@ -575,11 +578,11 @@ class CommandsInParallel(object):
                 return False
         return True
 
-    def commands_with_errors(self):
+    def commands_with_errors(self, stringfmt=True):
         commands = []
         for series in self._command_serieses:
             if not series.exited_successfully():
-                commands.extend(series.exited_with_errors())
+                commands.extend(series.exited_with_errors(stringfmt))
         return commands
 
     def watch_output_queue(self):
