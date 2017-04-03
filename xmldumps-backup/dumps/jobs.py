@@ -276,8 +276,8 @@ class Dump(object):
             fpath = runner.dump_dir.filename_public_path(dfname)
             partnum = partnum + 1
             pipeline = []
-            uncompression_command.append(fpath)
-            pipeline.append(uncompression_command)
+            uncompression_todo = uncompression_command + [fpath]
+            pipeline.append(uncompression_todo)
             # warning: we figure any header (<siteinfo>...</siteinfo>)
             # is going to be less than 2000 lines!
             pipeline.append([head, "-2000"])
@@ -288,14 +288,14 @@ class Dump(object):
             if ((proc.output()) and
                     (proc.exited_successfully() or
                      proc.get_failed_cmds_with_retcode() ==
-                     [[-signal.SIGPIPE, uncompression_command]] or
+                     [[-signal.SIGPIPE, uncompression_todo]] or
                      proc.get_failed_cmds_with_retcode() ==
-                     [[signal.SIGPIPE + 128, uncompression_command]])):
+                     [[signal.SIGPIPE + 128, uncompression_todo]])):
                 (header_end_num, junk_unused) = proc.output().split(":", 1)
                 # get header_end_num
             else:
                 raise BackupError("Could not find 'end of header' marker for %s" % fpath)
-            recombine = " ".join(uncompression_command)
+            recombine = " ".join(uncompression_todo)
             header_end_num = int(header_end_num) + 1
             if partnum == 1:
                 # first file, put header and contents
