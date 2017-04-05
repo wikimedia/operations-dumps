@@ -252,7 +252,10 @@ class PageRange(object):
         maxtodo = 50000
 
         runstodo = estimate / maxtodo + 1
-        step = (page_end - page_start) / runstodo
+        # let's say minimum pages per job is 10, that's
+        # quite reasonable (in the case where some pages
+        # have many many revisions
+        step = ((page_end - page_start) / runstodo) + 10
         ends = range(page_start, page_end, step)
 
         if ends[-1] != page_end:
@@ -295,6 +298,11 @@ class PageRange(object):
             interval = abs(prevguess - badguess) / 2
             if not interval:
                 return (page_start, badguess)
+
+            # set 10 pages as an absolute minimum in a query
+            if badguess - page_start <= 10:
+                return (page_start, badguess)
+
             prevguess = badguess
 
             margin = abs(revcount - numrevs)
