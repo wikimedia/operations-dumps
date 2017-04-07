@@ -345,6 +345,41 @@ class XmlRecompressDump(Dump):
             command_series.append(command_pipe)
         return command_series
 
+    def run_in_batches(self, runner):
+        """
+        queue up a bunch of commands to compress files with part numbers
+        and possibly also page ranges;
+        run them in batches of no more than self._parts at once
+
+        no auto-retry for these, if something went wrong we probably
+        want human intervention
+        """
+        commands = []
+        for partnum in range(1, len(self._parts) + 1):
+            output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
+            for output_dfname in output_dfnames:
+                series = self.build_command(runner, [output_dfname])
+                commands.append(series)
+                self.setup_command_info(runner, series, [output_dfname])
+        # now we have all the commands, run them in batches til we are done
+        batchsize = len(self._parts)
+        errors = False
+        while commands:
+            command_batch = commands[:batchsize]
+            error, broken = runner.run_command(
+                command_batch, callback_timed=self.progress_callback,
+                callback_timed_arg=runner, shell=True,
+                callback_on_completion=self.command_completion_callback)
+            if error:
+                for series in broken:
+                    for pipeline in series:
+                        runner.log_and_print("error from commands: %s" % " ".join(
+                            [entry for entry in pipeline]))
+                errors = True
+            commands = commands[batchsize:]
+        if errors:
+            raise BackupError("error recompressing bz2 file(s) %s")
+
     def run(self, runner):
         commands = []
         # Remove prior 7zip attempts; 7zip will try to append to an existing archive
@@ -358,13 +393,8 @@ class XmlRecompressDump(Dump):
             commands.append(series)
             self.setup_command_info(runner, series, [output_dfname])
         elif self._parts_enabled and not self._partnum_todo:
-            # must set up each parallel job separately, they may have checkpoint files that
-            # need to be processed in series, it's a special case
-            for partnum in range(1, len(self._parts) + 1):
-                output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
-                series = self.build_command(runner, output_dfnames)
-                commands.append(series)
-                self.setup_command_info(runner, series, output_dfnames)
+            self.run_in_batches(runner)
+            return
         else:
             output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
             series = self.build_command(runner, output_dfnames)
