@@ -164,11 +164,6 @@ class PageRange(object):
                 # last job, don't bother searching. just append up to max page id
                 ranges.append((page_start, self.total_pages))
                 break
-            # this is wrong too, we need to get it passed or something
-#            prevguess = min(interval*(jobnum+1), self.total_pages)
-            # fixme here the interval*jobnum can't be right
-#            (start, end) = self.get_pagerange(page_start, numrevs,
-#                                               interval*jobnum, prevguess)
             numjobs_left = numjobs - jobnum + 1
             interval = ((self.total_pages - page_start) / numjobs_left) + 1
             (start, end) = self.get_pagerange(page_start, numrevs,
@@ -201,9 +196,7 @@ class PageRange(object):
             page_start = 1
         if not page_end:
             page_end = self.total_pages
-        # actually this is ok for the start but it varies right afterwards
-        # interval = ((self.total_pages - page_start)/numjobs_left) + 1
-        prevguess = 0
+        prevguess = page_start
         if page_start == 1 and page_end == self.total_pages:
             numjobs = self.total_revs / numrevs + 1
         else:
@@ -215,11 +208,6 @@ class PageRange(object):
                 # last job, don't bother searching. just append up to max page id
                 ranges.append((str(page_start), str(page_end)))
                 break
-            # this is wrong too, we need to get it passed or something
-#            prevguess = min(interval*(jobnum+1), self.total_pages)
-            # fixme here the interval*jobnum can't be right
-#            (start, end) = self.get_pagerange(page_start, numrevs,
-#                                               interval*jobnum, prevguess)
             numjobs_left = numjobs - jobnum + 1
             interval = (page_end - page_start) / numjobs_left + 1
             (start, end) = self.get_pagerange(page_start, numrevs,
