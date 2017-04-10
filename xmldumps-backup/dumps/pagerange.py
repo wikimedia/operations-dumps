@@ -203,6 +203,9 @@ class PageRange(object):
             estimate = self.qrunner.get_estimate(page_start, page_end)
             revs_for_range = self.get_revcount(int(page_start), int(page_end), estimate)
             numjobs = revs_for_range / numrevs + 1
+            if self.verbose:
+                print ("DEBUG***: page_start, page_end, estimate, revs_for_range, numjobs:",
+                       page_start, page_end, estimate, revs_for_range, numjobs)
         jobnum = 1
         while True:
             jobnum += 1
