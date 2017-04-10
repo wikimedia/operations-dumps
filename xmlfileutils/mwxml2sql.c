@@ -120,9 +120,9 @@ mw_version_t *check_mw_version(char *specified) {
     comma = strchr(start, ',');
     if (comma) *comma = '\0';
     else last++;
-    /* we know MW 1.5 through MW 1.21 even though there is no MW 1.21 yet */
+    /* we know MW 1.5 through MW 1.29 even though there is no MW 1.29 yet */
     sscanf(start, "%u.%u%20s", &mwv->major, &mwv->minor, mwv->qualifier);
-    if (mwv->major != 1 || mwv->minor < 5 || mwv->minor > 21) {
+    if (mwv->major != 1 || mwv->minor < 5 || mwv->minor > 29) {
       free_mw_version(mwv);
       return(NULL);
     }

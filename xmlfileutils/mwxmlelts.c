@@ -580,6 +580,12 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
   c.id[0] = '\0';
 
   r.text = NULL;
+  r.comment[0] = '\0';
+  r.sha1[0] = '\0';
+  r.model[0] = '\0';
+  r.format[0] = '\0';
+  r.text_id[0] = '\0';
+  r.text_len[0] = '\0';
 
   get_elt_with_attrs(stubs, ID, r.id, sizeof(r.id), NULL, 0);
   if (get_line(stubs) == NULL) {
@@ -624,7 +630,6 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     r.minor[1]='\0';
   }
 
-  r.comment[0] = '\0';
   if (get_elt_with_attrs(stubs, COMMENT, r.comment, sizeof(r.comment), NULL, 0) != -1) {
     if (get_line(stubs) == NULL) {
       whine("abrupt end of revision data in rev id %s", r.id);
@@ -632,8 +637,6 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     }
   }
   un_xml_escape(r.comment, NULL, 1);
-  r.text_id[0] = '\0';
-  r.text_len[0] = '\0';
 
   /* schema 0.7 has sha1 then text, earlier schema don't have it at all so look for it here optionally */
   if (get_elt_with_attrs(stubs, SHA1, r.sha1, sizeof(r.sha1), NULL, 0) != -1) {
@@ -643,9 +646,22 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     }
   }
 
+  /* schema 0.10 has model, format before text, sha1 */
+  if (get_elt_with_attrs(stubs, MODEL, r.model, sizeof(r.model), NULL, 0) != -1) {
+    if (get_line(stubs) == NULL) {
+      whine("abrupt end of revision data in rev id %s", r.id);
+      return(0);
+    }
+  }
+  if (get_elt_with_attrs(stubs, FORMAT, r.format, sizeof(r.format), NULL, 0) != -1) {
+    if (get_line(stubs) == NULL) {
+      whine("abrupt end of revision data in rev id %s", r.id);
+      return(0);
+    }
+  }
+
   /*       <text id="382338088" bytes="57" />  */
   get_elt_with_attrs(stubs, TEXT, NULL, 0, attrs, MAX_ATTRS_STR_LEN);
-
   if (verbose > 1) fprintf(stderr,"text tag found, %s\n", attrs);
   attrs_ptr = attrs;
   while (1) {
@@ -680,14 +696,11 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     if (!todo) break;
     else attrs_ptr = todo;
   }
-
+  /* prep buffer after text end */
   if (get_line(stubs) == NULL) {
     whine("abrupt end of revision data in rev id %s", r.id);
     return(0);
   }
-
-  r.model[0] = '\0';
-  r.format[0] = '\0';
 
   /* schema 0.8 and later have sha1 here after text */
   if (! r.sha1[0]) {
@@ -698,17 +711,22 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
       }
     }
   }
-  /* schema 0.8 and later have model and format */
-  if (get_elt_with_attrs(stubs, MODEL, r.model, sizeof(r.model), NULL, 0) != -1) {
-    if (get_line(stubs) == NULL) {
-      whine("abrupt end of revision data in rev id %s", r.id);
-      return(0);
+
+  /* schema 0.8 and 0.9 have model and format after text/sha1 */
+  if (! r.model[0]) {
+    if (get_elt_with_attrs(stubs, MODEL, r.model, sizeof(r.model), NULL, 0) != -1) {
+      if (get_line(stubs) == NULL) {
+	whine("abrupt end of revision data in rev id %s", r.id);
+	return(0);
+      }
     }
   }
-  if (get_elt_with_attrs(stubs, FORMAT, r.format, sizeof(r.format), NULL, 0) != -1) {
-    if (get_line(stubs) == NULL) {
-      whine("abrupt end of revision data in rev id %s", r.id);
-      return(0);
+  if (! r.format[0]) {
+    if (get_elt_with_attrs(stubs, FORMAT, r.format, sizeof(r.format), NULL, 0) != -1) {
+      if (get_line(stubs) == NULL) {
+	whine("abrupt end of revision data in rev id %s", r.id);
+	return(0);
+      }
     }
   }
 
@@ -716,7 +734,6 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
     whine("no rev end tag for rev id %s", r.id);
     return(0);
   }
-
   /* 
      If schema is earlier than 0.5 or for some other reason we don't
      hve the bytes attr in the text tag, AND we aren't reading the
@@ -941,8 +958,10 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
   p.redirect[1] = '\0';
   p.restrictions[0] = '\0';
   p.touched[0] = '\0';
+  p.links_updated[0] = '\0';
   p.latest[0] = '\0';
   p.model[0] = '\0';
+  p.lang[0] = '\0';
 
   if (get_start_tag(stubs, PAGE) == -1) return(0);
 
@@ -1058,17 +1077,33 @@ int do_page(input_file_t *stubs, input_file_t *text, int text_compress, output_f
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
 
     snprintf(out_buf, sizeof(out_buf), "INSERT %s INTO %s \
-(page_id, page_namespace, page_title, page_restrictions, \
-page_counter, page_is_redirect, page_is_new, \
-page_random, page_touched, page_latest, page_len", insert_ignore?"IGNORE":"", t->page);
+(page_id, page_namespace, page_title, page_restrictions", insert_ignore?"IGNORE":"", t->page);
+    put_line_all(sqlp, out_buf);
+    if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
+
+    snprintf(out_buf, sizeof(out_buf), ", page_counter");
+    write_if_mwv(sqlp, 0,0,1,25,out_buf, verbose);
+
+    snprintf(out_buf, sizeof(out_buf), ", page_is_redirect, page_is_new, page_random, page_touched");
+    put_line_all(sqlp, out_buf);
+    if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
+
+    snprintf(out_buf, sizeof(out_buf), ", page_links_updated");
+    write_if_mwv(sqlp, 1,23,0,0,out_buf, verbose);
+
+    snprintf(out_buf, sizeof(out_buf), ", page_latest, page_len");
     put_line_all(sqlp, out_buf);
     if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
 
     snprintf(out_buf, sizeof(out_buf), ", page_content_model");
     write_if_mwv(sqlp, 1,20,0,0,out_buf, verbose);
 
+    snprintf(out_buf, sizeof(out_buf), ", page_lang");
+    write_if_mwv(sqlp, 1,23,0,0,out_buf, verbose);
+
     strcpy(out_buf, ") VALUES\n");
     put_line_all(sqlp, out_buf);
+    if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
 
   }
   else {
@@ -1079,17 +1114,38 @@ page_random, page_touched, page_latest, page_len", insert_ignore?"IGNORE":"", t-
   /* fixme having a fixed size buffer kinda sucks here */
   /* text: page_title page_restrictions page_touched */
   snprintf(out_buf, sizeof(out_buf),				\
-       "(%s, %s, '%s', '%s', %s, %s, %s, %.14f, '%s', %s, %s", \
-	   p.id, p.ns, escaped_title, p.restrictions,		\
-	   "0", p.redirect, "0", drand48(), p.touched, p.latest, p.len );
+	   "(%s, %s, '%s', '%s'",
+	   p.id, p.ns, escaped_title, p.restrictions);
   put_line_all(sqlp, out_buf);
   if (verbose > 2) fprintf(stderr,"(%s) %s",t->page, out_buf);
 
+  /* p->counter */
+  snprintf(out_buf, sizeof(out_buf), ", 0");
+  write_if_mwv(sqlp, 0, 0, 1, 25, out_buf, verbose);
+
+  snprintf(out_buf, sizeof(out_buf), ", %s, %s, %.14f, '%s'",	\
+	   p.redirect, "0", drand48(), p.touched);
+  put_line_all(sqlp, out_buf);
+  if (verbose > 2) fprintf(stderr,"%s", out_buf);
+
+  strcpy(out_buf, ", ");
+  write_if_mwv(sqlp, 1, 24, 0, 0, out_buf, verbose);
+  copy_sql_field(out_buf, p.links_updated[0]?p.links_updated:NULL, 1, 1);
+  write_if_mwv(sqlp, 1, 24, 0, 0, out_buf, verbose);
+
+  snprintf(out_buf, sizeof(out_buf), ", %s, %s", p.latest, p.len);
+  put_line_all(sqlp, out_buf);
+  if (verbose > 2) fprintf(stderr,"%s", out_buf);
+
   strcpy(out_buf, ", ");
   write_if_mwv(sqlp, 1, 20, 0, 0, out_buf, verbose);
-
   copy_sql_field(out_buf, p.model[0]?p.model:NULL, 1, 1);
   write_if_mwv(sqlp, 1, 20, 0, 0, out_buf, verbose);
+
+  strcpy(out_buf, ", ");
+  write_if_mwv(sqlp, 1, 23, 0, 0, out_buf, verbose);
+  copy_sql_field(out_buf, p.lang[0]?p.lang:NULL, 1, 1);
+  write_if_mwv(sqlp, 1, 23, 0, 0, out_buf, verbose);
 
   if (page_rows_written == MAX_PAGE_BATCH) {
     strcpy(out_buf,");\nCOMMIT;\n");
@@ -1334,6 +1390,10 @@ int do_siteinfo(input_file_t *f, siteinfo_t **s_info, int verbose) {
     exit(1);
   }
   s->sitename[0] = s->base[0] = s->generator[0] = s->s_case[0] = '\0';
+  memset(s->sitename, 0, sizeof(s->sitename));
+  memset(s->dbname, 0, sizeof(s->dbname));
+  memset(s->base, 0, sizeof(s->base));
+  memset(s->generator, 0, sizeof(s->generator));
   s->namespaces = NULL;
 
   if (s_info) *s_info = s;
@@ -1352,8 +1412,19 @@ int do_siteinfo(input_file_t *f, siteinfo_t **s_info, int verbose) {
     whine("abrupt end to siteinfo");
     return(0);
   }
-  result = get_elt_with_attrs(f, BASE, s->base, sizeof(s->base), NULL, 0);
 
+  result = get_elt_with_attrs(f, DBNAME, s->dbname, sizeof(s->dbname), NULL, 0);
+
+  if (result != -1) {
+    /* this xml file has the dbname tag in it (not all do);
+       get the next line. */
+    if (get_line(f) == NULL) {
+      whine("abrupt end to siteinfo");
+      return(0);
+    }
+  }
+
+  result = get_elt_with_attrs(f, BASE, s->base, sizeof(s->base), NULL, 0);
   if (get_line(f) == NULL) {
     whine("abrupt end to siteinfo");
     return(0);

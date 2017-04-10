@@ -59,6 +59,7 @@ typedef struct namespace_struct {
 
 typedef struct {
   char sitename[FIELD_LEN];
+  char dbname[FIELD_LEN];
   char base[FIELD_LEN];
   char generator[FIELD_LEN];
   char s_case[FIELD_LEN];
@@ -96,9 +97,11 @@ typedef struct {
   char redirect[2];
   char restrictions[FIELD_LEN];
   char touched[FIELD_LEN]; /* from rev_timestamp */
+  char links_updated[FIELD_LEN];   /* if not present, set to NULL */
   char latest[MAX_ID_LEN];  /* from rev_id */
   char len[FIELD_LEN];     /* from text_len */
   char model[FIELD_LEN];   /* if not present, set to NULL */
+  char lang[FIELD_LEN];   /* if not present, set to NULL */
   revision_t ** revs;
 } page_t;
 
@@ -149,6 +152,7 @@ typedef struct {
 /* tags we recognize */
 #define BASE "base"
 #define CASE "case"
+#define DBNAME "dbname"
 #define COMMENT "comment"
 #define CONTRIBUTOR "contributor"
 #define FORMAT "format"

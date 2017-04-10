@@ -1,9 +1,9 @@
 # ------------------------------------------------------------------
 # This project is released under the GPL, copyright (C) Ariel T. Glenn
-# 2013: see the file COPYING for details.
+# 2013 - 2017: see the file COPYING for details.
 # ------------------------------------------------------------------
 
-MWXML2SQLVERS  = "0.0.2"
+MWXML2SQLVERS  = "0.0.3"
 PROGRAM        = mediawiki-mwxml2sql
 DISTNAME       = $(PROGRAM)-$(MWXML2SQLVERS)
 NAME_MWXML2SQL = "convert MediaWiki XML dump file to MySQL INSERT commands"

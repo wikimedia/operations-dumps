@@ -511,13 +511,18 @@ void write_createtables_file(output_file_t *f, int nodrop, int table_compress, t
     else
       snprintf(out_buf, sizeof(out_buf), "`page_restrictions` tinyblob NOT NULL,\n");
     put_line(f, out_buf);
-    if (MWV_LESS(mwv,1,10))
+    if (MWV_LESS(mwv,1,10)) {
       snprintf(out_buf, sizeof(out_buf), "`page_counter` bigint(20) unsigned NOT NULL DEFAULT '0',\n");
-    else if (MWV_LESS(mwv,1,15))
+      put_line(f, out_buf);
+    }
+    else if (MWV_LESS(mwv,1,15)) {
       snprintf(out_buf, sizeof(out_buf), "`page_counter` bigint unsigned NOT NULL DEFAULT '0',\n");
-    else
+      put_line(f, out_buf);
+    }
+    else if (MWV_LESS(mwv,1,25)) {
       snprintf(out_buf, sizeof(out_buf), "`page_counter` bigint unsigned NOT NULL DEFAULT 0,\n");
-    put_line(f, out_buf);
+      put_line(f, out_buf);
+    }
     if (MWV_LESS(mwv,1,10))
       snprintf(out_buf, sizeof(out_buf), "`page_is_redirect` tinyint(1) unsigned NOT NULL DEFAULT '0',\n");
     else if (MWV_LESS(mwv,1,15))
@@ -541,6 +546,10 @@ void write_createtables_file(output_file_t *f, int nodrop, int table_compress, t
     else
       snprintf(out_buf, sizeof(out_buf), "`page_touched` binary(14) NOT NULL DEFAULT '',\n");
     put_line(f, out_buf);
+    if (MWV_GREATER(mwv,1,22)) {
+      snprintf(out_buf, sizeof(out_buf), "`page_links_updated` varbinary(14) NULL DEFAULT NULL,\n");
+      put_line(f, out_buf);
+    }
     if (MWV_LESS(mwv,1,10))
       snprintf(out_buf, sizeof(out_buf), "`page_latest` int(8) unsigned NOT NULL,\n");
     else
@@ -553,6 +562,10 @@ void write_createtables_file(output_file_t *f, int nodrop, int table_compress, t
     put_line(f, out_buf);
     if (MWV_GREATER(mwv, 1, 20)) {
       snprintf(out_buf, sizeof(out_buf), "`page_content_model` varbinary(32) DEFAULT NULL,\n");
+      put_line(f, out_buf);
+    }
+    if (MWV_GREATER(mwv, 1, 23)) {
+      snprintf(out_buf, sizeof(out_buf), "`page_lang` varbinary(35) DEFAULT NULL,\n");
       put_line(f, out_buf);
     }
     snprintf(out_buf, sizeof(out_buf), "PRIMARY KEY (`page_id`),\n");
@@ -598,8 +611,10 @@ void write_createtables_file(output_file_t *f, int nodrop, int table_compress, t
     }
     if (MWV_LESS(mwv, 1, 9))
       snprintf(out_buf, sizeof(out_buf), "`rev_comment` tinyblob NOT NULL default '',\n");
-    else
+    else if (MWV_LESS(mwv, 1, 25))
       snprintf(out_buf, sizeof(out_buf), "`rev_comment` tinyblob NOT NULL,\n");
+    else
+      snprintf(out_buf, sizeof(out_buf), "`rev_comment` varbinary(767) NOT NULL,\n");
     put_line(f, out_buf);
     if (MWV_LESS(mwv, 1, 10))
       snprintf(out_buf, sizeof(out_buf), "`rev_user` int(5) unsigned NOT NULL DEFAULT '0',\n");

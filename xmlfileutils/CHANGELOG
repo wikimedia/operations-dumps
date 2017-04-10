@@ -1,3 +1,11 @@
+10 April 2017 Ariel T. Glenn <ariel@wikimedia.org>
+
+   Release 0.0.3
+
+    Updated for compatibility with MediaWiki up through
+    version 1.29; bump version. Thanks to Kent L. Miller
+    for earlier patches that updated through MW 1.24.
+
 29 May 2013 Kent L. Miller <wpmirrordev@gmail.com>
 
    Release 0.0.2-1
