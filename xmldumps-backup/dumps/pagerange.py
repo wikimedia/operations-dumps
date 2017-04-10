@@ -203,12 +203,16 @@ class PageRange(object):
             estimate = self.qrunner.get_estimate(page_start, page_end)
             revs_for_range = self.get_revcount(int(page_start), int(page_end), estimate)
             numjobs = revs_for_range / numrevs + 1
-        for jobnum in range(1, numjobs + 1):
-            if jobnum == numjobs:
-                # last job, don't bother searching. just append up to max page id
-                ranges.append((str(page_start), str(page_end)))
-                break
+        jobnum = 1
+        while True:
+            jobnum += 1
             numjobs_left = numjobs - jobnum + 1
+            if numjobs_left <= 0:
+                # our initial count was a bit off, and we'll have more jobs
+                # than we thought. just keep passing the same endpoint
+                # and getting ranges until we've gotten up through
+                # the endpoint returned
+                numjobs_left = 1
             interval = (page_end - page_start) / numjobs_left + 1
             (start, end) = self.get_pagerange(page_start, numrevs,
                                               page_start + interval, prevguess)
@@ -240,10 +244,10 @@ class PageRange(object):
         maxtodo = 50000
 
         runstodo = estimate / maxtodo + 1
-        # let's say minimum pages per job is 10, that's
+        # let's say minimum pages per job is 1, that's
         # quite reasonable (in the case where some pages
         # have many many revisions
-        step = ((page_end - page_start) / runstodo) + 10
+        step = ((page_end - page_start) / runstodo) + 1
         ends = range(page_start, page_end, step)
 
         if ends[-1] != page_end:
@@ -287,8 +291,8 @@ class PageRange(object):
             if not interval:
                 return (page_start, badguess)
 
-            # set 10 pages as an absolute minimum in a query
-            if badguess - page_start <= 10:
+            # set 1 page as an absolute minimum in a query
+            if badguess - page_start <= 1:
                 return (page_start, badguess)
 
             prevguess = badguess
