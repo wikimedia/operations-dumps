@@ -1,5 +1,8 @@
 This is the script for generating data dumps for Wikimedia's public wikis.
 
+C.f. the project portal,
+  https://wikitech.wikimedia.org/wiki/Dumps
+
 == Architecture ==
 
 As of March 2007, the architecture has been split into two parts:
