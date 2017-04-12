@@ -2,9 +2,9 @@
 misc utils for dumps
 '''
 
+import json
 import os
 from os.path import exists
-import re
 import time
 import socket
 import select
@@ -112,8 +112,6 @@ class DbServerInfo(object):
             php=MiscUtils.shell_escape(self.wiki.config.php),
             command=" ".join(command_list),
             dbname=MiscUtils.shell_escape(self.db_name))
-        if do_globals:
-            command += " --globals"
         results = RunSimpleCommand.run_with_output(
             command, shell=True, log_callback=self.error_callback).strip()
         if not results:
@@ -127,33 +125,31 @@ class DbServerInfo(object):
         if ':' in self.db_server:
             self.db_server, _, self.db_port = self.db_server.rpartition(':')
 
-        if not do_globals:
-            return
+        if do_globals:
+            self.get_config_variables()
 
-        #       [wgDBprefix] => stuff
-        wgdb_prefix_pattern = re.compile(r"\s+\[wgDBprefix\]\s+=>\s+(?P<prefix>.*)$")
-        wgcanonserver_pattern = re.compile(r"\s+\[wgCanonicalServer\]\s+=>\s+(?P<prefix>.*)$")
-        wgscriptpath_pattern = re.compile(r"\s+\[wgScriptPath\]\s+=>\s+(?P<prefix>.*)$")
-        for line in lines:
-            match = wgdb_prefix_pattern.match(line)
-            if match:
-                self.db_table_prefix = match.group('prefix').strip()
-            else:
-                match = wgcanonserver_pattern.match(line)
-                if match:
-                    wgcanonserver = match.group('prefix').strip()
-                else:
-                    match = wgscriptpath_pattern.match(line)
-                    if match:
-                        wgscriptpath = match.group('prefix').strip()
-        # if we didn't see these in the globals list, something is broken.
-        if self.db_table_prefix is None:
-            raise BackupError("Failed to get database table prefix for %s, bailing."
-                              % self.wiki.config.php)
-        if wgcanonserver is None or wgscriptpath is None:
-            raise BackupError("Failed to get apibase for %s, bailing."
-                              % self.wiki.config.php)
-        self.apibase = "/".join([wgcanonserver.rstrip('/'), wgscriptpath.strip('/'), "api.php"])
+    def get_config_variables(self):
+        command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getConfiguration.php")
+        pull_vars = ["wgDBprefix", "wgCanonicalServer", "wgScriptPath"]
+        command = "{php} {command} --wiki={dbname} --group=dump --format=json --regex='{vars}'".format(
+            php=MiscUtils.shell_escape(self.wiki.config.php),
+            command=" ".join(command_list),
+            dbname=MiscUtils.shell_escape(self.db_name),
+            vars="|".join(pull_vars))
+        results = RunSimpleCommand.run_with_output(
+            command, shell=True, log_callback=self.error_callback).strip()
+        settings = json.loads(results)
+        if not settings or len(settings) != 3:
+            raise BackupError("Failed to get configuration for %s" % self.wiki.config.php)
+
+        self.db_table_prefix = settings['wgDBprefix']
+        wgcanonserver = settings['wgCanonicalServer']
+        wgscriptpath = settings['wgScriptPath']
+
+        self.apibase = "/".join([
+            wgcanonserver.rstrip('/'),
+            wgscriptpath.rstrip('/'),
+            "api.php"])
 
     def mysql_standard_parameters(self):
         host = self.db_server
