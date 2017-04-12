@@ -43,12 +43,13 @@ Build the programs in the mwbzutils subdirectory. First install bzip2 and its
 development headers and library (for a typical linux distro something like bzip2-devel).
 Then,
 
-cd xmldumps-backup/mwbzutils
-make
-make install
+	git clone https://gerrit.wikimedia.org/r/p/operations/dumps/mwbzutils.git
+	cd mwbzutils/xmldumps-backup/mwbzutils
+	make
+	make install
 
 This will install them to /usr/local/bin.  If you want to install them somewhere
-else you'll need to copy them by hand.
+else you'll need to copy them by hand, or they can be run out of the source directory.
 
 Copy the dumps scripts, templates and the sample configuration to the location from 
 where you'll be running them. 
