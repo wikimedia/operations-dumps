@@ -24,8 +24,16 @@ mailfrom=root@localhost
 smtpserver=smtp.myisp.com
 
 [database]
+# Database user to run queries as
 user=root
+
+# Careful to *not* include quotes when giving the password here, for example
+#password=a2rat8r
+#
 password=""
+
+# Arbitrary configuration parameters:
+#
 max_allowed_packet=32M
 
 [tools]
@@ -37,6 +45,7 @@ bzip2=/usr/bin/bzip2
 sevenzip=/usr/bin/7za
 checkforbz2footer=/usr/local/bin/checkforbz2footer		  
 recompressxml=/usr/local/bin/recompressxml
+writeuptopageid=/usr/local/bin/writeuptopageid
 
 [cleanup]
 keep=10
