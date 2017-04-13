@@ -267,6 +267,8 @@ int find_text_in_rev(input_file_t *f) {
 
 /*
    <text xml:space="preserve">#REDIRECT [[Computer accessibility]] {{R from CamelCase}}</text> (text content file)
+   OR
+   <text xml:space="preserve" />(text content file)
    (most will be multiple lines)
 
    args:
@@ -340,8 +342,54 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
     while (*ind == ' ') ind++;
     while (*ind && !(*ind == '/' && *(ind+1) == '>') && *ind != '>') ind++;
   }
-  if (*ind != '>') return(0); /* other options are: no close of tag on line, weird... or
-				 tag ends in /> which means no content, probably deleted */
+
+  /* handle the special case of a zero-length entry, this can be legit */
+  if (*ind == '/' && *(ind+1) == '>') {
+    /* tag ends in /> which means no content, probably deleted */
+    if (text_bytes_written == 0) {
+      strcpy(buf,"BEGIN;\n");
+      put_line_all(sqlt, buf);
+      snprintf(buf, sizeof(buf), "INSERT %s INTO %s (old_id, old_text, old_flags) VALUES\n", insert_ignore?"IGNORE":"", t->text);
+      put_line_all(sqlt, buf);
+    }
+    else {
+      strcpy(buf,",\n");
+      put_line_all(sqlt, buf);
+    }
+    snprintf(buf, sizeof(buf),"(%s, '",r->text_id);
+    put_line_all(sqlt, buf);
+    strcpy(buf,"', ");
+    put_line_all(sqlt, buf);
+    sprintf(buf,"'%s')", "utf-8");
+    put_line_all(sqlt, buf);
+
+    if (get_text_length) text_length = 0;
+
+    if (get_sha1) {
+      /* probably this does nothing, check it */
+      sha1_update(&ctx, (unsigned char *)raw, 0);
+
+      sha1_finish(&ctx, sha1);
+
+      /* base36 conversion, blah */
+      for (i=0; i < SHA_DIGEST_LENGTH; i++)
+        sprintf((char*)&(sha1_string[i*2]), "%02x", sha1[i]);
+
+      /*    sha1_num_len = hexstring2int((char *)sha1_string, SHA_DIGEST_LENGTH*2, sha1_num);*/
+      sha1_num_len = hexstring2int((char *)sha1_string, SHA_DIGEST_LENGTH*2, sha1_num);
+      sha1_b36_len = tobase36(sha1_num, sha1_copy, sha1_temp, sha1_num_len, sha1_b36);
+      int2string(sha1_b36, sha1_b36_len, r->sha1);
+    }
+
+    /* NULL or not, the caller can figure it out. we just advance the pointer. */
+    get_line(f);
+
+    if (verbose > 1) fprintf(stderr,"text info: insert end of line written\n");
+    return(1);
+  }
+
+  if (*ind != '>') return(0); /* other options are: no close of tag on line, weird */
+
 
   ind++;  /* skip that closing '.' */
 
@@ -351,6 +399,7 @@ int do_text(input_file_t *f,  output_file_t *sqlt, revision_t *r, int verbose, t
     put_line_all(sqlt, buf);
     snprintf(buf, sizeof(buf), "INSERT %s INTO %s (old_id, old_text, old_flags) VALUES\n", insert_ignore?"IGNORE":"", t->text);
     put_line_all(sqlt, buf);
+    if (get_text_length) sprintf(r->text_len, "%d", text_length);
   }
   else {
     strcpy(buf,",\n");
@@ -659,8 +708,9 @@ int do_revision(input_file_t *stubs, input_file_t *text, int text_compress, outp
       return(0);
     }
   }
-
-  /*       <text id="382338088" bytes="57" />  */
+  /*       <text id="382338088" bytes="57" />
+     but can also be:
+           <text id="382338088" bytes="0" />  */
   get_elt_with_attrs(stubs, TEXT, NULL, 0, attrs, MAX_ATTRS_STR_LEN);
   if (verbose > 1) fprintf(stderr,"text tag found, %s\n", attrs);
   attrs_ptr = attrs;
