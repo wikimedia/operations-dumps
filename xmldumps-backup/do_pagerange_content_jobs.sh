@@ -11,14 +11,15 @@
 usage() {
 	echo "Usage: $0 --config <pathtofile> --wiki <dbname>"
 	echo "  --date <YYYYMMDD> --jobinfo num:num:num,..."
-	echo "[--dryrun] [--verbose]"
+	echo "[--skiplock] [--dryrun] [--verbose]"
 	echo
-	echo "  --config  path to configuration file for dump generation"
-	echo "  --wiki    dbname of wiki"
-	echo "  --jobinfo partnum:start:end,partnum2:start:end,..."
-	echo "  --date    date of run"
-        echo "  --numjobs number of jobs to run simultaneously"
-	echo "  --dryrun  don't run commands, show what would have been done"
+	echo "  --config   path to configuration file for dump generation"
+	echo "  --wiki     dbname of wiki"
+	echo "  --jobinfo  partnum:start:end,partnum2:start:end,..."
+	echo "  --date     date of run"
+        echo "  --numjobs  number of jobs to run simultaneously"
+        echo "  --skiplock don't lock the wiki (use with care!)"
+	echo "  --dryrun   don't run commands, show what would have been done"
 	echo "  --verbose print commands as they are run, etc"
 	exit 1
 }
@@ -29,6 +30,7 @@ set_defaults() {
     JOBINFO=""
     DATE=""
     NUMJOBS=""
+    SKIPLOCK=""
     DRYRUN=""
     VERBOSE=""
 }
@@ -50,6 +52,9 @@ process_opts () {
 	elif [ $1 == "--numjobs" ]; then
 		NUMJOBS="$2"
 		shift; shift
+	elif [ $1 == "--skiplock" ]; then
+		SKIPLOCK="true"
+		shift
 	elif [ $1 == "--dryrun" ]; then
 		DRYRUN="true"
 		shift
@@ -198,11 +203,15 @@ set_defaults
 process_opts "$@"
 check_opts
 IFS=',' read -a JOBARRAY <<< "$JOBINFO"
-lockerup
+if [ -z "$SKIPLOCK" ]; then
+    lockerup
+fi
 for JOB in ${JOBARRAY[*]}; do
     IFS=: read PARTNUM START END <<< "$JOB"
     setup_pagerange_args
     get_ranges
     run_workers $NUMJOBS
 done
-cleanup_lock
+if [ -z "$SKIPLOCK" ]; then
+    cleanup_lock
+fi
