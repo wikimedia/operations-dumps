@@ -1,0 +1,3 @@
+Any files used to generate xml/sql or adds/changes dump in
+production are now in the master branch.  I have removed the
+old dead copies from here so no one gets confused.

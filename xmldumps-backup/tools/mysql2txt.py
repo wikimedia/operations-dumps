@@ -354,6 +354,7 @@ def usage(message=None):
         print "              --columns=page_title,page_id  --values=page_namespace=15 --separator=' | '"
         sys.exit(1)
 
+
 if __name__ == "__main__":
     tableRequested = None
     columnsRequested = None
