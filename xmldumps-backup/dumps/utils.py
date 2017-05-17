@@ -68,6 +68,8 @@ class MultiVersion(object):
         mw_script_location = os.path.join(config.wiki_dir, "multiversion", "MWScript.php")
         if exists(mw_script_location):
             return [mw_script_location, maintenance_script]
+        elif maintenance_script.startswith('extensions'):
+            return ["%s/%s" % (config.wiki_dir, maintenance_script)]
         else:
             return ["%s/maintenance/%s" % (config.wiki_dir, maintenance_script)]
 
