@@ -146,10 +146,8 @@ class CommandPipeline(object):
         # will hang forever in the wait() on them.
         self._processes.reverse()
         for proc in self._processes:
-            print "DEBUG: trying to get return code for %s" % proc.pid
             self._exit_values.append(proc.wait())
             retcode = proc.poll()
-            print "DEBUG: return code %s for %s" % (retcode, proc.pid)
         self._exit_values.reverse()
         self._processes.reverse()
         if self.save_file():
