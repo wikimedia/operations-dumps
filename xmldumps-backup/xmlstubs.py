@@ -135,7 +135,7 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
-                  5000, 100000, '</page>\n', callback)
+                  5000, 20000, '</page>\n', callback)
 
 
 def usage(message=None):

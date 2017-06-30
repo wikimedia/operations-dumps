@@ -204,6 +204,7 @@ class DumpItemList(object):
                                              "Extracted page abstracts for Yahoo",
                                              self._get_partnum_todo("abstractsdump"),
                                              self.wiki.db_name,
+                                             get_int_setting(self.jobsperbatch, "abstractsdump"),
                                              self.filepart.get_pages_per_filepart_abstract())])
 
         self.append_job_if_needed(RecombineAbstractDump(
@@ -636,7 +637,7 @@ class Runner(object):
         """
         if self.dryrun:
             self.pretty_print_commands(command_series_list)
-            return 0
+            return 0, None
 
         else:
             commands = CommandsInParallel(command_series_list, callback_stderr=callback_stderr,

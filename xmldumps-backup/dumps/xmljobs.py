@@ -209,8 +209,9 @@ class XmlLogging(Dump):
 class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
-    def __init__(self, name, desc, partnum_todo, db_name, parts=False):
+    def __init__(self, name, desc, partnum_todo, db_name, jobsperbatch=None, parts=False):
         self._partnum_todo = partnum_todo
+        self.jobsperbatch = jobsperbatch
         self._parts = parts
         if self._parts:
             self._parts_enabled = True
@@ -276,14 +277,20 @@ class AbstractDump(Dump):
         # choose the empty variant to pass to buildcommand, it will fill in the rest if needed
         output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         dumpname0 = self.list_dumpnames()[0]
-        for dfname in output_dfnames:
-            if dfname.dumpname == dumpname0:
+        wanted_dfnames = [dfname for dfname in output_dfnames if dfname.dumpname == dumpname0]
+        if self.jobsperbatch is not None:
+            maxjobs = self.jobsperbatch
+        else:
+            maxjobs = len(wanted_dfnames)
+        for batch in batcher(wanted_dfnames, maxjobs):
+            commands = []
+            for dfname in batch:
                 series = self.build_command(runner, dfname)
                 commands.append(series)
-        error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                           callback_stderr_arg=runner)
-        if error:
-            raise BackupError("error producing abstract dump")
+            error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                               callback_stderr_arg=runner)
+            if error:
+                raise BackupError("error producing abstract dump")
 
     # If the database name looks like it's marked as Chinese language,
     # return a list including Simplified and Traditional versions, so

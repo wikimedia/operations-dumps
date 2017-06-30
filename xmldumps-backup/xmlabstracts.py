@@ -59,7 +59,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
-                  20000, 30000, '</doc>\n')
+                  5000, 10000, '</doc>\n')
 
 
 # fixme must take a list of ouput files and a list of
