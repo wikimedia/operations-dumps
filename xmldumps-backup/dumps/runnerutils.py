@@ -12,6 +12,7 @@ import json
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpContents, DumpFilename, FileUtils
 from dumps.utils import TimeUtils
+from dumps.specialfilesregistry import Registered
 
 
 def xml_escape(text):
@@ -38,13 +39,13 @@ class Maintenance(object):
                 raise BackupError("In maintenance mode, exiting.")
 
 
-class Checksummer(object):
+class Checksummer(Registered):
     NAME = "checksum"
     HASHTYPES = ['md5', 'sha1']
-    FORMATS = ['text', 'json']
+    FORMATS = ['txt', 'json']
 
     @staticmethod
-    def get_checksum_filename_basename(htype, fmt="text"):
+    def get_checksum_filename_basename(htype, fmt="txt"):
         if fmt == "json":
             ext = "json"
         else:
@@ -77,7 +78,8 @@ class Checksummer(object):
     def get_empty_json():
         return {}
 
-    def __init__(self, wiki, dump_dir, enabled, verbose=False):
+    def __init__(self, wiki, enabled, dump_dir=None, verbose=False):
+        super(Checksummer, self).__init__()
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.verbose = verbose
@@ -105,10 +107,10 @@ class Checksummer(object):
         """
         if Checksummer.NAME in self._enabled:
             for htype in Checksummer.HASHTYPES:
-                checksum_filename_text = self._get_checksum_filename_tmp(htype, "text")
+                checksum_filename_txt = self._get_checksum_filename_tmp(htype, "txt")
                 checksum_filename_json = self._get_checksum_filename_tmp(htype, "json")
-                output_text = file(checksum_filename_text, "a")
-                # for text file, append our new line. for json file, must read
+                output_txt = file(checksum_filename_txt, "a")
+                # for txt file, append our new line. for json file, must read
                 # previous contents, stuff our new info into the dict, write it
                 # back out
                 input_json = file(checksum_filename_json, "a")
@@ -126,15 +128,16 @@ class Checksummer(object):
                     output = {htype: {"files": {}}}
                 output_json = file(checksum_filename_json, "w")
                 dumpjobdata.debugfn("Checksumming %s via %s" % (dfname.filename, htype))
-                dcontents = DumpContents(self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
-                                         None, self.verbose)
+                dcontents = DumpContents(
+                    self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
+                    None, self.verbose)
                 checksum = dcontents.checksum(htype)
                 if checksum is not None:
-                    output_text.write("%s  %s\n" % (checksum, dfname.filename))
+                    output_txt.write("%s  %s\n" % (checksum, dfname.filename))
                     output[htype]["files"][dfname.filename] = checksum
                 # always write a json stanza, even if no file info included.
                 output_json.write(json.dumps(output))
-                output_text.close()
+                output_txt.close()
                 output_json.close()
 
     def move_chksumfiles_into_place(self):
@@ -144,7 +147,7 @@ class Checksummer(object):
             for htype in Checksummer.HASHTYPES:
                 for fmt in Checksummer.FORMATS:
                     tmp_filename = self._get_checksum_filename_tmp(htype, fmt)
-                    real_filename = self._get_checksum_filename(htype, fmt)
+                    real_filename = self._get_checksum_path(htype, fmt)
                     os.rename(tmp_filename, real_filename)
 
     def cp_chksum_tmpfiles_to_permfile(self):
@@ -154,16 +157,38 @@ class Checksummer(object):
             for htype in Checksummer.HASHTYPES:
                 for fmt in Checksummer.FORMATS:
                     tmp_filename = self._get_checksum_filename_tmp(htype, fmt)
-                    real_filename = self._get_checksum_filename(htype, fmt)
+                    real_filename = self._get_checksum_path(htype, fmt)
                     content = FileUtils.read_file(tmp_filename)
                     FileUtils.write_file(self.wiki.config.temp_dir, real_filename, content,
                                          self.wiki.config.fileperms)
+
+    def get_all_output_files(self):
+        """
+        return a list of all checksum files in all formats
+        """
+        files = []
+        for htype in Checksummer.HASHTYPES:
+            for fmt in Checksummer.FORMATS:
+                files.append(self._get_checksum_filename(htype, fmt))
+        return files
 
     #
     # functions internal to the class
     #
 
     def _get_checksum_filename(self, htype, fmt):
+        """
+        args:
+            hashtype ('md5', 'sha1',...)
+            format of output ('json', 'txt', ...)
+        returns:
+            output file for wiki and date
+        """
+        dfname = DumpFilename(self.wiki, None,
+                              Checksummer.get_checksum_filename_basename(htype, fmt))
+        return dfname.filename
+
+    def _get_checksum_path(self, htype, fmt):
         """
         args:
             hashtype ('md5', 'sha1',...)
@@ -196,7 +221,7 @@ class Checksummer(object):
         return os.path.join(self.wiki.public_dir(), self.wiki.date)
 
 
-class Report(object):
+class Report(Registered):
     '''
     methods for generation of the index.html file and the json file for a dump
     run for a given wiki and date
@@ -223,7 +248,7 @@ class Report(object):
             detail = item.detail()
             if detail:
                 html += "<li class='detail'>%s</li>\n" % detail
-            html += "\n".join([entry['text'] for entry in list_items])
+            html += "\n".join([entry['txt'] for entry in list_items])
             html += "</ul>"
             json_out = {item.name():
                         {'files':
@@ -254,18 +279,18 @@ class Report(object):
             size = 0
         pretty_size = FileUtils.pretty_size(size)
         if item_status == "in-progress":
-            text = "<li class='file'>%s %s (written) </li>" % (dfname.filename, pretty_size)
+            txt = "<li class='file'>%s %s (written) </li>" % (dfname.filename, pretty_size)
             json_out = {'name': dfname.filename, 'size': size}
         elif item_status == "done":
             webpath_relative = dump_dir.web_path_relative(dfname)
-            text = ("<li class='file'><a href=\"%s\">%s</a> %s</li>"
-                    % (webpath_relative, dfname.filename, pretty_size))
+            txt = ("<li class='file'><a href=\"%s\">%s</a> %s</li>"
+                   % (webpath_relative, dfname.filename, pretty_size))
             json_out = {'name': dfname.filename, 'size': size,
                         'url': webpath_relative}
         else:
-            text = "<li class='missing'>%s</li>" % dfname.filename
+            txt = "<li class='missing'>%s</li>" % dfname.filename
             json_out = {'name': dfname.filename}
-        content = {'text': text, 'json': json_out}
+        content = {'txt': txt, 'json': json_out}
         return content
 
     @staticmethod
@@ -294,8 +319,9 @@ class Report(object):
     def get_filenames_for_job(jobname, reportinfo):
         return Report.get_fileinfo_for_job(jobname, reportinfo).keys()
 
-    def __init__(self, wiki, dump_dir, items, dumpjobdata, enabled,
-                 failhandler, error_callback=None, verbose=False):
+    def __init__(self, wiki, enabled, dump_dir=None, items=None, dumpjobdata=None,
+                 failhandler=None, error_callback=None, verbose=False):
+        super(Report, self).__init__()
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.items = items
@@ -378,7 +404,7 @@ class Report(object):
                          for htype in Checksummer.HASHTYPES]
             checksums_html = ", ".join(checksums)
             failed_jobs = sum(1 for item in self.items if item.status() == "failed")
-            text = self.wiki.config.read_template("report.html") % {
+            txt = self.wiki.config.read_template("report.html") % {
                 "db": self.wiki.db_name,
                 "date": self.wiki.date,
                 "notice": self.dumpjobdata.notice.notice,
@@ -395,7 +421,7 @@ class Report(object):
             try:
                 indexpath = os.path.join(self.wiki.public_dir(), self.wiki.date,
                                          self.wiki.config.perdump_index)
-                FileUtils.write_file_in_place(indexpath, text, self.wiki.config.fileperms)
+                FileUtils.write_file_in_place(indexpath, txt, self.wiki.config.fileperms)
                 json_filepath = os.path.join(self.wiki.public_dir(), self.wiki.date,
                                              Report.JSONFILE)
                 FileUtils.write_file_in_place(json_filepath, json.dumps(json_out),
@@ -410,6 +436,15 @@ class Report(object):
                     self.error_callback(message)
                 else:
                     sys.stderr.write("%s\n" % message)
+
+    def get_all_output_files(self):
+        """
+        return list of all report files in all known formats
+        """
+        files = []
+        files.append(self.wiki.config.perdump_index)
+        files.append(Report.JSONFILE)
+        return files
 
 
 class FailureHandler(object):
@@ -450,8 +485,12 @@ class FailureHandler(object):
             print message
 
 
-class StatusHtml(object):
+class StatusHtml(Registered):
     NAME = "status"
+
+    @staticmethod
+    def get_statusfilename():
+        return "status.html"
 
     @staticmethod
     def report_dump_status(num_jobs_failed, dump_status=""):
@@ -475,7 +514,7 @@ class StatusHtml(object):
 
     @staticmethod
     def get_statusfile_path(wiki, date):
-        return os.path.join(wiki.public_dir(), date, "status.html")
+        return os.path.join(wiki.public_dir(), date, StatusHtml.get_statusfilename())
 
     @staticmethod
     def status_line(wiki, aborted=False):
@@ -516,8 +555,9 @@ class StatusHtml(object):
         index = StatusHtml.get_statusfile_path(wiki, wiki.date)
         FileUtils.write_file_in_place(index, message, wiki.config.fileperms)
 
-    def __init__(self, wiki, dump_dir, items, dumpjobdata, enabled, failhandler,
-                 error_callback=None, verbose=False):
+    def __init__(self, wiki, enabled, dump_dir=None, items=None, dumpjobdata=None,
+                 failhandler=None, error_callback=None, verbose=False):
+        super(StatusHtml, self).__init__()
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.items = items
@@ -560,6 +600,9 @@ class StatusHtml(object):
                 for x in active_items]) + "</ul>"
         else:
             return html
+
+    def get_all_output_files(self):
+        return [self.get_statusfilename()]
 
 
 class Notice(object):
@@ -867,7 +910,7 @@ class DumpRunJobData(object):
 
         # now we can set up everything else
         self.runinfo = RunInfo(wiki, enabled, verbose)
-        self.checksummer = Checksummer(wiki, dump_dir, enabled, verbose)
+        self.checksummer = Checksummer(wiki, enabled, dump_dir, verbose)
         self.feeds = Feeds(wiki, dump_dir, wiki.db_name, debugfn, enabled)
         self.symlinks = SymLinks(wiki, dump_dir, logfn, debugfn, enabled)
         self.notice = Notice(wiki, notice, enabled)
@@ -946,9 +989,13 @@ class DumpRunJobData(object):
         self.feeds.cleanup_feeds()
 
 
-class RunInfo(object):
+class RunInfo(Registered):
     NAME = "runinfo"
-    FORMATS = ['text', 'json']
+    FORMATS = ['txt', 'json']
+
+    @staticmethod
+    def get_runinfo_basename():
+        return "dumpruninfo"
 
     @staticmethod
     def report_dump_runinfo(dump_items):
@@ -957,9 +1004,9 @@ class RunInfo(object):
                          (item.name(), item.status(), item.updated())
                          for item in dump_items]
         runinfo_lines.reverse()
-        text_content = "\n".join(runinfo_lines)
+        txt_content = "\n".join(runinfo_lines)
         content = {}
-        content['text'] = text_content + "\n"
+        content['txt'] = txt_content + "\n"
         # {"jobs": {name: {"status": stuff, "updated": stuff}}, othername: {...}, ...}
         content_json = {"jobs": {}}
         for item in sorted(dump_items, reverse=True):
@@ -996,6 +1043,7 @@ class RunInfo(object):
             return dumpruninfo["jobs"].keys()
 
     def __init__(self, wiki, enabled, verbose=False):
+        super(RunInfo, self).__init__()
         self.wiki = wiki
         self._enabled = enabled
         self.verbose = verbose
@@ -1052,10 +1100,19 @@ class RunInfo(object):
                     exc_type, exc_value, exc_traceback)))
             return False
 
+    def get_all_output_files(self):
+        """
+        return list of all runinfo files in all formats
+        """
+        files = []
+        for fmt in RunInfo.FORMATS:
+            files.append(RunInfo.get_runinfo_basename() + "." + fmt)
+        return files
+
     #
     # functions internal to the class
     #
-    def _get_dump_runinfo_filename(self, date=None, fmt='text'):
+    def _get_dump_runinfo_filename(self, date=None, fmt='txt'):
         # sometimes need to get this info for an older run to check status of a file for
         # possible prefetch
         if fmt == 'json':
@@ -1063,9 +1120,11 @@ class RunInfo(object):
         else:
             ext = "txt"
         if date:
-            return os.path.join(self.wiki.public_dir(), date, "dumpruninfo." + ext)
+            return os.path.join(self.wiki.public_dir(), date,
+                                RunInfo.get_runinfo_basename() + "." + ext)
         else:
-            return os.path.join(self.wiki.public_dir(), self.wiki.date, "dumpruninfo." + ext)
+            return os.path.join(self.wiki.public_dir(), self.wiki.date,
+                                RunInfo.get_runinfo_basename() + "." + ext)
 
     def _get_dump_runinfo_dirname(self, date=None):
         if date:

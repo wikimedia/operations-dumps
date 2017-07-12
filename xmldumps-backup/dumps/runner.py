@@ -25,6 +25,7 @@ from dumps.runnerutils import Maintenance, RunInfo, DumpRunJobData
 
 from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils
 from dumps.runstatusapi import StatusAPI
+from dumps.specialfileinfo import SpecialFileInfo
 
 
 class Logger(threading.Thread):
@@ -483,6 +484,7 @@ class Runner(object):
         for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
                         RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
                         Feeds.NAME, Notice.NAME, StatusAPI.NAME,
+                        SpecialFileInfo.NAME,
                         "makedir", "clean_old_dumps", "cleanup_old_files",
                         "check_trunc_files", "cleanup_tmp_files"]:
             self.enabled[setting] = True
@@ -493,7 +495,8 @@ class Runner(object):
 
         if self.dryrun or self._partnum_todo is not None or self.checkpoint_file is not None:
             for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
-                            StatusAPI.NAME, RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
+                            StatusAPI.NAME, SpecialFileInfo.NAME,
+                            RunInfo.NAME, SymLinks.NAME, RunSettings.NAME,
                             Feeds.NAME, Notice.NAME, "makedir", "clean_old_dumps"]:
                 if setting in self.enabled:
                     del self.enabled[setting]
@@ -513,7 +516,8 @@ class Runner(object):
                     del self.enabled[setting]
 
         if self.job_requested == "createdirs":
-            for setting in [SymLinks.NAME, Feeds.NAME, RunSettings.NAME, StatusAPI.NAME]:
+            for setting in [SymLinks.NAME, Feeds.NAME, RunSettings.NAME, StatusAPI.NAME,
+                            SpecialFileInfo.NAME]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 
@@ -563,19 +567,19 @@ class Runner(object):
         else:
             email = True
         self.failurehandler = FailureHandler(self.wiki, email)
-        self.statushtml = StatusHtml(self.wiki, self.dump_dir,
+        self.statushtml = StatusHtml(self.wiki, self.enabled, self.dump_dir,
                                      self.dump_item_list.dump_items,
-                                     self.dumpjobdata, self.enabled,
-                                     self.failurehandler,
+                                     self.dumpjobdata, self.failurehandler,
                                      self.log_and_print, self.verbose)
-        self.report = Report(self.wiki, self.dump_dir,
+        self.report = Report(self.wiki, self.enabled, self.dump_dir,
                              self.dump_item_list.dump_items,
-                             self.dumpjobdata, self.enabled,
-                             self.failurehandler,
+                             self.dumpjobdata, self.failurehandler,
                              self.log_and_print, self.verbose)
 
         self.runstatus_updater = StatusAPI(self.wiki, self.enabled, "json",
                                            self.log_and_print, self.verbose)
+        self.specialfiles_updater = SpecialFileInfo(self.wiki, self.enabled, "json",
+                                                    self.log_and_print, self.verbose)
 
     def log_queue_reader(self, log):
         if not log:
@@ -593,6 +597,7 @@ class Runner(object):
         self.report.update_index_html_and_json()
         self.statushtml.update_status_file()
         self.runstatus_updater.write_statusapi_file()
+        self.specialfiles_updater.write_specialfilesinfo_file()
 
     # returns 0, None on success, 1, commands on error
     def save_command(self, commands, outfile):
@@ -676,6 +681,7 @@ class Runner(object):
             self.report.update_index_html_and_json()
             self.statushtml.update_status_file()
             self.runstatus_updater.write_statusapi_file()
+            self.specialfiles_updater.write_specialfilesinfo_file()
 
             self.dumpjobdata.do_before_job(self.dump_item_list.dump_items)
 
@@ -792,6 +798,7 @@ class Runner(object):
             self.report.update_index_html_and_json("done")
             self.statushtml.update_status_file("done")
             self.runstatus_updater.write_statusapi_file()
+            self.specialfiles_updater.write_specialfilesinfo_file()
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
@@ -800,6 +807,7 @@ class Runner(object):
             self.report.update_index_html_and_json("partialdone")
             self.statushtml.update_status_file("partialdone")
             self.runstatus_updater.write_statusapi_file()
+            self.specialfiles_updater.write_specialfilesinfo_file()
 
         self.dumpjobdata.do_after_dump(self.dump_item_list.dump_items)
 
