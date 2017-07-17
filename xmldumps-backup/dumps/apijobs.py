@@ -48,7 +48,7 @@ class SiteInfoDump(Dump):
         #         &siprop=namespaces|namespacealiases|magicwords&format=json
         base_url = runner.db_server_info.apibase
         properties = '|'.join(self._properties)
-        api_url = "{baseurl}/api.php?action=query&meta=siteinfo&siprop={props}&format=json"
+        api_url = "{baseurl}?action=query&meta=siteinfo&siprop={props}&format=json"
         url = api_url.format(baseurl=base_url, props=properties)
         command = [["/usr/bin/curl", "-s", url]]
         return command

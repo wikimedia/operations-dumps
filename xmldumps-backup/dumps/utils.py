@@ -152,7 +152,7 @@ class DbServerInfo(object):
         if wgcanonserver is None or wgscriptpath is None:
             raise BackupError("Failed to get apibase for %s, bailing."
                               % self.wiki.config.php)
-        self.apibase = "/".join([wgcanonserver, wgscriptpath, "api.php"])
+        self.apibase = "/".join([wgcanonserver.rstrip('/'), wgscriptpath.strip('/'), "api.php"])
 
     def mysql_standard_parameters(self):
         host = self.db_server
