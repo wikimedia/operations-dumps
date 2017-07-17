@@ -115,7 +115,7 @@ class QueryRunner(object):
         and return it
         """
         query = ("explain select count(rev_id) from revision where "
-                 "rev_page >= {start} and rev_page < {end}".format(
+                 "rev_page >= {start} and rev_page <= {end}".format(
                      start=page_start, end=page_end))
         queryout = self.db_info.run_sql_query_with_retries(query)
         if queryout is None:
