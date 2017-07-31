@@ -105,33 +105,46 @@ class XmlStub(Dump):
         dfnames.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
         return dfnames
 
-    def build_command(self, runner, outf):
+    def list_truncated_empty_outfiles_for_input(self, dump_dir, dump_names=None):
+        """
+        returns: list of DumpFilename
+        """
+        if dump_names is None:
+            dump_names = self.list_dumpnames()
+        dfnames = []
+        dfnames.extend(Dump.list_truncated_empty_outfiles_for_input(self, dump_dir, dump_names))
+        return dfnames
+
+    def build_command(self, runner, output_dfname, history_dfname, current_dfname):
         if not exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        articles_filepath = runner.dump_dir.filename_public_path(outf)
-        history_filepath = runner.dump_dir.filename_public_path(DumpFilename(
-            runner.wiki, outf.date, self.history_dump_name, outf.file_type,
-            outf.file_ext, outf.partnum, outf.checkpoint, outf.temp))
-        current_filepath = runner.dump_dir.filename_public_path(DumpFilename(
-            runner.wiki, outf.date, self.current_dump_name, outf.file_type,
-            outf.file_ext, outf.partnum, outf.checkpoint, outf.temp))
+        if runner.wiki.is_private():
+            articles_filepath = runner.dump_dir.filename_private_path(output_dfname)
+            history_filepath = runner.dump_dir.filename_private_path(history_dfname)
+            current_filepath = runner.dump_dir.filename_private_path(current_dfname)
+        else:
+            articles_filepath = runner.dump_dir.filename_public_path(output_dfname)
+            history_filepath = runner.dump_dir.filename_public_path(history_dfname)
+            current_filepath = runner.dump_dir.filename_public_path(current_dfname)
 #        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
         command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0],
-                   "--wiki", runner.db_name, "--articles", articles_filepath,
-                   "--history", history_filepath, "--current", current_filepath]
+                   "--wiki", runner.db_name,
+                   "--articles", self.get_inprogress_name(articles_filepath),
+                   "--history", self.get_inprogress_name(history_filepath),
+                   "--current", self.get_inprogress_name(current_filepath)]
 
-        if outf.partnum:
+        if output_dfname.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, outf.partnum_int - 1)]) + 1
+            start = sum([self._parts[i] for i in range(0, output_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if outf.partnum_int < len(self._parts):
-                end = sum([self._parts[i] for i in range(0, outf.partnum_int)]) + 1
+            if output_dfname.partnum_int < len(self._parts):
+                end = sum([self._parts[i] for i in range(0, output_dfname.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -152,11 +165,26 @@ class XmlStub(Dump):
             maxjobs = len(dfnames)
         for batch in batcher(dfnames, maxjobs):
             commands = []
-            for dfname in batch:
-                series = self.build_command(runner, dfname)
-                commands.append(series)
-            error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                               callback_stderr_arg=runner)
+            for output_dfname in batch:
+                history_dfname = DumpFilename(
+                    runner.wiki, output_dfname.date, self.history_dump_name,
+                    output_dfname.file_type, output_dfname.file_ext,
+                    output_dfname.partnum, output_dfname.checkpoint,
+                    output_dfname.temp)
+                current_dfname = DumpFilename(
+                    runner.wiki, output_dfname.date, self.current_dump_name,
+                    output_dfname.file_type, output_dfname.file_ext,
+                    output_dfname.partnum, output_dfname.checkpoint,
+                    output_dfname.temp)
+                command_series = self.build_command(runner, output_dfname,
+                                                    history_dfname, current_dfname)
+                self.setup_command_info(runner, command_series,
+                                        [output_dfname, current_dfname, history_dfname])
+                commands.append(command_series)
+            error, broken = runner.run_command(
+                commands, callback_stderr=self.progress_callback,
+                callback_stderr_arg=runner,
+                callback_on_completion=self.command_completion_callback)
             if error:
                 raise BackupError("error producing stub files")
 
@@ -182,26 +210,34 @@ class XmlLogging(Dump):
     def get_temp_filename(self, name, number):
         return name + "-" + str(number)
 
+    def build_command(self, runner, output_dfname):
+        if not exists(runner.wiki.config.php):
+            raise BackupError("php command %s not found" % runner.wiki.config.php)
+
+        if runner.wiki.is_private():
+            logging_path = runner.dump_dir.filename_private_path(output_dfname)
+        else:
+            logging_path = runner.dump_dir.filename_public_path(output_dfname)
+
+        command = ["/usr/bin/python", "xmllogs.py", "--config",
+                   runner.wiki.config.files[0], "--wiki", runner.db_name,
+                   "--outfile", self.get_inprogress_name(logging_path)]
+
+        pipeline = [command]
+        series = [pipeline]
+        return series
+
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(dfnames) > 1:
             raise BackupError("logging table job wants to produce more than one output file")
         output_dfname = dfnames[0]
-        if not exists(runner.wiki.config.php):
-            raise BackupError("php command %s not found" % runner.wiki.config.php)
-#        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
-
-        logging_path = runner.dump_dir.filename_public_path(output_dfname)
-
-        command = ["/usr/bin/python", "xmllogs.py", "--config",
-                   runner.wiki.config.files[0], "--wiki", runner.db_name,
-                   "--outfile", logging_path]
-
-        pipeline = [command]
-        series = [pipeline]
-        error, broken = runner.run_command([series], callback_stderr=self.progress_callback,
-                                           callback_stderr_arg=runner)
+        command_series = self.build_command(runner, output_dfname)
+        self.setup_command_info(runner, command_series, [output_dfname])
+        error, broken = runner.run_command([command_series], callback_stderr=self.progress_callback,
+                                           callback_stderr_arg=runner,
+                                           callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error dumping log files")
 
@@ -228,7 +264,17 @@ class AbstractDump(Dump):
     def get_file_ext(self):
         return ""
 
-    def build_command(self, runner, novariant_dfname):
+    def get_variant_from_dumpname(self, dumpname):
+        fields = dumpname.split("-")
+        if fields[0] != self.get_dumpname() or len(fields) > 2:
+            # got garbage.
+            return None
+        if len(fields) == 1:
+            return ""
+        else:
+            return fields[1]
+
+    def build_command(self, runner, novariant_dfname, output_dfnames):
         """
         args:
             Runner, DumpFilename for output without any language variant
@@ -238,19 +284,15 @@ class AbstractDump(Dump):
 
         output_paths = []
         variants = []
-        for variant in self._variants():
-            # if variants is the empty string, then we will wind up with
-            # one output file using the dumpname base only
-            # otherwise we will wind up with one per variant, with filename
-            # containing that variant string
+        for dfname in output_dfnames:
+            variant = self.get_variant_from_dumpname(dfname.dumpname)
             variant_option = self._variant_option(variant)
-            dumpname = self.dumpname_from_variant(variant)
-            dfname = DumpFilename(runner.wiki, novariant_dfname.date, dumpname,
-                                  novariant_dfname.file_type,
-                                  novariant_dfname.file_ext,
-                                  novariant_dfname.partnum,
-                                  novariant_dfname.checkpoint)
-            output_paths.append(runner.dump_dir.filename_public_path(dfname))
+            if runner.wiki.is_private():
+                output_paths.append(self.get_inprogress_name(
+                    runner.dump_dir.filename_private_path(dfname)))
+            else:
+                output_paths.append(self.get_inprogress_name(
+                    runner.dump_dir.filename_public_path(dfname)))
             variants.append(variant_option)
 
             command.extend(["--outfiles=%s" % ",".join(output_paths),
@@ -285,10 +327,21 @@ class AbstractDump(Dump):
         for batch in batcher(wanted_dfnames, maxjobs):
             commands = []
             for dfname in batch:
-                series = self.build_command(runner, dfname)
-                commands.append(series)
-            error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                               callback_stderr_arg=runner)
+                produced_dfnames = []
+                for variant in self._variants():
+                    dumpname = self.dumpname_from_variant(variant)
+                    produced_dfnames.append(
+                        DumpFilename(runner.wiki, dfname.date, dumpname,
+                                     dfname.file_type, dfname.file_ext,
+                                     dfname.partnum, dfname.checkpoint))
+
+                command_series = self.build_command(runner, dfname, produced_dfnames)
+                self.setup_command_info(runner, command_series, produced_dfnames)
+                commands.append(command_series)
+            error, broken = runner.run_command(
+                commands, callback_stderr=self.progress_callback,
+                callback_stderr_arg=runner,
+                callback_on_completion=self.command_completion_callback)
             if error:
                 raise BackupError("error producing abstract dump")
 
@@ -366,4 +419,13 @@ class AbstractDump(Dump):
         dump_names = self.list_dumpnames()
         dfnames = []
         dfnames.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
+        return dfnames
+
+    def list_truncated_empty_outfiles_for_input(self, dump_dir):
+        """
+        returns: list of DumpFilename
+        """
+        dump_names = self.list_dumpnames()
+        dfnames = []
+        dfnames.extend(Dump.list_truncated_empty_outfiles_for_input(self, dump_dir, dump_names))
         return dfnames

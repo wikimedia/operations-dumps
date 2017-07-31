@@ -27,23 +27,26 @@ class SiteInfoDump(Dump):
             raise BackupError("siteinfo dump %s trying to produce more than one file" %
                               self.dumpname)
         output_dfname = dfnames[0]
-        error, broken = self.get_siteinfo(
-            runner.dump_dir.filename_public_path(output_dfname), runner)
+        commands = self.build_command(runner)
+        if runner.wiki.is_private():
+            command_series = runner.get_save_command_series(
+                commands, self.get_inprogress_name(
+                    runner.dump_dir.filename_private_path(output_dfname)))
+        else:
+            command_series = runner.get_save_command_series(
+                commands, self.get_inprogress_name(
+                    runner.dump_dir.filename_public_path(output_dfname)))
+        self.setup_command_info(runner, command_series, [output_dfname])
+
+        error, broken = runner.save_command(command_series, self.command_completion_callback)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error, broken = self.get_siteinfo(
-                runner.dump_dir.filename_public_path(output_dfname), runner)
+            error, broken = runner.save_command(command_series)
         if error:
             raise BackupError("error dumping siteinfo props %s" % ','.join(self._properties))
 
-    # returns 0, None on success, 1, commands on error
-    def get_siteinfo(self, outfile, runner):
-        """Dump siteinfo properties via the MediaWiki api in json format and save."""
-        commands = self.build_api_command(runner)
-        return runner.save_command(commands, outfile)
-
-    def build_api_command(self, runner):
+    def build_command(self, runner):
         #  https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo
         #         &siprop=namespaces|namespacealiases|magicwords&format=json
         base_url = runner.db_server_info.apibase

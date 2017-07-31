@@ -4,6 +4,7 @@ Jobs that dump sql tables are defined here
 
 import time
 
+import os.path
 from os.path import exists
 
 from dumps.exceptions import BackupError
@@ -16,6 +17,7 @@ class PublicTable(Dump):
     def __init__(self, table, name, desc):
         self._table = table
         self._parts_enabled = False
+        self.private = False
         Dump.__init__(self, name, desc)
 
     def get_dumpname(self):
@@ -27,35 +29,52 @@ class PublicTable(Dump):
     def get_file_ext(self):
         return "gz"
 
+    def build_command(self, runner, output_dfname):
+        commands = runner.db_server_info.build_sqldump_command(self._table, runner.wiki.config.gzip)
+        if self.private or runner.wiki.is_private():
+            command_series = runner.get_save_command_series(
+                commands, self.get_inprogress_name(
+                    runner.dump_dir.filename_private_path(output_dfname)))
+        else:
+            command_series = runner.get_save_command_series(
+                commands, self.get_inprogress_name(
+                    runner.dump_dir.filename_public_path(output_dfname)))
+        return command_series
+
     def run(self, runner):
-        retries = 0
-        # try this initially and see how it goes
-        maxretries = 3
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(dfnames) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
+        if not exists(runner.wiki.config.gzip):
+            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
         output_dfname = dfnames[0]
-        error, broken = self.save_table(
-            self._table, runner.dump_dir.filename_public_path(output_dfname), runner)
+        if self.private:
+            output_dir = runner.wiki.private_dir()
+        else:
+            output_dir = runner.wiki.public_dir()
+        command_series = self.build_command(runner, output_dfname)
+        self.setup_command_info(runner, command_series, [output_dfname],
+                                os.path.join(output_dir, runner.wiki.date))
+
+        retries = 0
+        # try this initially and see how it goes
+        maxretries = 3
+        error, broken = self.save_table(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error, broken = self.save_table(
-                self._table, runner.dump_dir.filename_public_path(output_dfname), runner)
+            error, broken = self.save_table(runner, command_series)
         if error:
             raise BackupError("error dumping table %s" % self._table)
 
     # returns 0 on success, 1 on error
-    def save_table(self, table, outfilepath, runner):
+    def save_table(self, runner, command_series):
         """
         Dump a table from the current DB with mysqldump, save to a gzipped sql file.
         args:
             table name (e.g. "site_stats"), path to output file, Runner
         """
-        if not exists(runner.wiki.config.gzip):
-            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        commands = runner.db_server_info.build_sqldump_command(table, runner.wiki.config.gzip)
-        return runner.save_command(commands, outfilepath)
+        return runner.save_command(command_series, self.command_completion_callback)
 
 
 class PrivateTable(PublicTable):
@@ -63,6 +82,7 @@ class PrivateTable(PublicTable):
 
     def __init__(self, table, name, desc):
         PublicTable.__init__(self, table, name, desc)
+        self.private = True
 
     def check_truncation(self):
         # Truncation checks require output to public dir, hence we
@@ -73,24 +93,6 @@ class PrivateTable(PublicTable):
 
     def description(self):
         return self._desc + " (private)"
-
-    def run(self, runner):
-        retries = 0
-        # try this initially and see how it goes
-        maxretries = 3
-        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(dfnames) > 1:
-            raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
-        output_dfname = dfnames[0]
-        error, broken = self.save_table(
-            self._table, runner.dump_dir.filename_private_path(output_dfname), runner)
-        while error and retries < maxretries:
-            retries = retries + 1
-            time.sleep(5)
-            error, broken = self.save_table(
-                self._table, runner.dump_dir.filename_private_path(output_dfname), runner)
-        if error:
-            raise BackupError("error dumping table %s" % self._table)
 
     def list_outfiles_to_publish(self, dump_dir):
         """Private table won't have public files to list."""
@@ -118,21 +120,30 @@ class TitleDump(Dump):
         if len(dfnames) > 1:
             raise BackupError("page title dump trying to produce more than one output file")
         dfname = dfnames[0]
-        outpath = runner.dump_dir.filename_public_path(dfname)
-        error, broken = self.save_sql(query, outpath, runner)
+        command_series = self.build_command(runner, query, dfname)
+        self.setup_command_info(runner, command_series, [dfname])
+        error, broken = self.save_sql(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error, broken = self.save_sql(query, outpath, runner)
+            error, broken = self.save_sql(runner, command_series)
         if error:
             raise BackupError("error dumping titles list")
 
-    def save_sql(self, query, outfile, runner):
-        """Pass some SQL commands to the server for this DB and save output to a gzipped file."""
+    def build_command(self, runner, query, out_dfname):
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        command = runner.db_server_info.build_sql_command(query, runner.wiki.config.gzip)
-        return runner.save_command(command, outfile)
+        series = runner.db_server_info.build_sql_command(query, runner.wiki.config.gzip)
+        if runner.wiki.is_private():
+            return runner.get_save_command_series(
+                series, self.get_inprogress_name(runner.dump_dir.filename_private_path(out_dfname)))
+        else:
+            return runner.get_save_command_series(
+                series, self.get_inprogress_name(runner.dump_dir.filename_public_path(out_dfname)))
+
+    def save_sql(self, runner, command_series):
+        """Pass some SQL commands to the server for this DB and save output to a gzipped file."""
+        return runner.save_command(command_series, self.command_completion_callback)
 
 
 class AllTitleDump(TitleDump):
@@ -148,11 +159,13 @@ class AllTitleDump(TitleDump):
         if len(dfnames) > 1:
             raise BackupError("all titles dump trying to produce more than one output file")
         dfname = dfnames[0]
-        outpath = runner.dump_dir.filename_public_path(dfname)
-        error, broken = self.save_sql(query, outpath, runner)
+        command_series = self.build_command(runner, query, dfname)
+        self.setup_command_info(runner, command_series, [dfname])
+
+        error, broken = self.save_sql(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error = self.save_sql(query, outpath, runner)
+            error = self.save_sql(runner, command_series)
         if error:
             raise BackupError("error dumping all titles list")

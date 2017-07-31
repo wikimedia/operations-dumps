@@ -70,7 +70,10 @@ class StubProvider(object):
             raise BackupError("writeuptopageid command %s not found" %
                               self.wiki.config.writeuptopageid)
 
-        inputfile_path = runner.dump_dir.filename_public_path(input_dfname)
+        if runner.wiki.is_private():
+            inputfile_path = runner.dump_dir.filename_private_path(input_dfname)
+        else:
+            inputfile_path = runner.dump_dir.filename_public_path(input_dfname)
         output_file_path = os.path.join(self.wiki.config.temp_dir, output_dfname.filename)
         if input_dfname.file_ext == "gz":
             command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
@@ -120,7 +123,10 @@ class StubProvider(object):
         if xmlfile.is_temp_file:
             path = os.path.join(self.wiki.config.temp_dir, xmlfile.filename)
         else:
-            path = runner.dump_dir.filename_public_path(xmlfile, self.wiki.date)
+            if runner.wiki.is_private():
+                path = runner.dump_dir.filename_private_path(xmlfile, self.wiki.date)
+            else:
+                path = runner.dump_dir.filename_public_path(xmlfile, self.wiki.date)
         dcontents = DumpContents(self.wiki, path, xmlfile, self.verbose)
         return bool(dcontents.find_first_page_id_in_file() is None)
 
@@ -153,9 +159,14 @@ class PrefetchFinder(object):
                 if dfname.is_file_part and dfname.partnum_int > maxparts:
                     maxparts = dfname.partnum_int
                 if not dfname.first_page_id:
-                    dcontents = DumpContents(
-                        self.wiki, runner.dump_dir.filename_public_path(dfname, date),
-                        dfname, self.verbose)
+                    if runner.wiki.is_private():
+                        dcontents = DumpContents(
+                            self.wiki, runner.dump_dir.filename_private_path(dfname, date),
+                            dfname, self.verbose)
+                    else:
+                        dcontents = DumpContents(
+                            self.wiki, runner.dump_dir.filename_public_path(dfname, date),
+                            dfname, self.verbose)
                     dfname.first_page_id = dcontents.find_first_page_id_in_file()
 
             # get the files that cover our range
@@ -242,7 +253,10 @@ class PrefetchFinder(object):
             possible_prefetch_dfnames = dfnames
             dfnames = []
             for prefetch_dfname in possible_prefetch_dfnames:
-                possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
+                if runner.wiki.is_private():
+                    possible_path = runner.dump_dir.filename_private_path(prefetch_dfname, date)
+                else:
+                    possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
                 size = os.path.getsize(possible_path)
                 if size < 70000:
                     runner.debug("small %d-byte prefetch dump at %s, skipping" % (
@@ -278,7 +292,10 @@ class PrefetchFinder(object):
                 # otherwise we'll use the all the sourcefiles reported
                 if not dumps.pagerange.chkptfile_in_pagerange(stub_file, sourcefile):
                     continue
-                source_path = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
+                if runner.wiki.is_private():
+                    source_path = runner.dump_dir.filename_private_path(sourcefile, sourcefile.date)
+                else:
+                    source_path = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
                 if exists(source_path):
                     sources.append(source_path)
 
@@ -467,10 +484,16 @@ class XmlDump(Dump):
 
         stub_ranges = []
         for stub_dfname in stub_dfnames:
-            dcontents = DumpContents(self.wiki,
-                                     runner.dump_dir.filename_public_path(
-                                         stub_dfname, stub_dfname.date),
-                                     stub_dfname, self.verbose)
+            if runner.wiki.is_private():
+                dcontents = DumpContents(self.wiki,
+                                         runner.dump_dir.filename_private_path(
+                                             stub_dfname, stub_dfname.date),
+                                         stub_dfname, self.verbose)
+            else:
+                dcontents = DumpContents(self.wiki,
+                                         runner.dump_dir.filename_public_path(
+                                             stub_dfname, stub_dfname.date),
+                                         stub_dfname, self.verbose)
 
             stub_ranges.append((dcontents.find_first_page_id_in_file(),
                                 dcontents.find_last_page_id(runner),
@@ -641,8 +664,14 @@ class XmlDump(Dump):
             output_dfnames = self.get_reg_files_for_filepart_possible(
                 runner.dump_dir, self.get_fileparts_list(), self.list_dumpnames())
             # at least some page ranges are covered, just do those that
-            dfnames_todo = [dfname for dfname in output_dfnames
-                            if not os.path.exists(runner.dump_dir.filename_public_path(dfname))]
+            if runner.wiki.is_private():
+                dfnames_todo = [
+                    dfname for dfname in output_dfnames if not os.path.exists(
+                        runner.dump_dir.filename_private_path(dfname))]
+            else:
+                dfnames_todo = [
+                    dfname for dfname in output_dfnames if not os.path.exists(
+                        runner.dump_dir.filename_public_path(dfname))]
         if self._checkpoints_enabled and do_bitesize:
             dfnames_todo = self.make_bitesize_jobs(dfnames_todo, stub_pageranges)
 
@@ -666,7 +695,15 @@ class XmlDump(Dump):
                     # keep info on how to generate it
                     continue
             # series = self.build_command(runner, entry['stub'], entry['prefetch'])
-            entry['command'] = self.build_command(runner, entry['stub'], entry['prefetch'])
+            output_dfname = DumpFilename(self.wiki, entry['stub'].date, self.get_dumpname(),
+                                         self.get_filetype(), self.file_ext, entry['stub'].partnum,
+                                         DumpFilename.make_checkpoint_string(
+                                             entry['stub'].first_page_id,
+                                             entry['stub'].last_page_id),
+                                         False)
+            entry['command'] = self.build_command(runner, entry['stub'],
+                                                  entry['prefetch'], output_dfname)
+            self.setup_command_info(runner, entry['command'], [output_dfname])
             commands.append(entry['command'])
 
         # don't do them all at once, do only up to _parts commands at the same time
@@ -680,8 +717,10 @@ class XmlDump(Dump):
         retries = 0
         while commands and (retries < max_retries or retries == 0):
             command_batch = commands[:batchsize]
-            error, broken = runner.run_command(command_batch, callback_stderr=self.progress_callback,
-                                               callback_stderr_arg=runner)
+            error, broken = runner.run_command(
+                command_batch, callback_stderr=self.progress_callback,
+                callback_stderr_arg=runner,
+                callback_on_completion=self.command_completion_callback)
             if error:
                 for series in broken:
                     for pipeline in series:
@@ -715,7 +754,10 @@ class XmlDump(Dump):
             Runner, DumpFilename
         """
         # do we need checkpoints? ummm
-        xmlbz2_path = runner.dump_dir.filename_public_path(input_dfname)
+        if runner.wiki.is_private():
+            xmlbz2_path = runner.dump_dir.filename_private_path(input_dfname)
+        else:
+            xmlbz2_path = runner.dump_dir.filename_public_path(input_dfname)
 
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
@@ -723,27 +765,24 @@ class XmlDump(Dump):
             bz2mode = "dbzip2"
         else:
             bz2mode = "bzip2"
-        return "--output=%s:%s" % (bz2mode, xmlbz2_path)
+        return "--output=%s:%s" % (bz2mode, self.get_inprogress_name(xmlbz2_path))
 
-    def build_command(self, runner, stub_dfname, prefetch):
+    def build_command(self, runner, stub_dfname, prefetch, output_dfname):
         """
         Build the command line for the dump, minus output and filter options
         args:
             Runner, stub DumpFilename, ....
         """
-        output_dfname = DumpFilename(self.wiki, stub_dfname.date, self.get_dumpname(),
-                                     self.get_filetype(), self.file_ext, stub_dfname.partnum,
-                                     DumpFilename.make_checkpoint_string(stub_dfname.first_page_id,
-                                                                         stub_dfname.last_page_id),
-                                     False)
-
         stub_path = os.path.join(self.wiki.config.temp_dir, stub_dfname.filename)
         if os.path.exists(stub_path):
             # if this is a pagerange stub file in temp dir, use that
             stub_option = "--stub=gzip:%s" % stub_path
         else:
             # use regular stub file
-            stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(stub_dfname)
+            if runner.wiki.is_private():
+                stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_private_path(stub_dfname)
+            else:
+                stub_option = "--stub=gzip:%s" % runner.dump_dir.filename_public_path(stub_dfname)
         if self.jobinfo['spawn']:
             spawn = "--spawn=%s" % (self.wiki.config.php)
         else:
@@ -765,7 +804,8 @@ class XmlDump(Dump):
         dump_command.extend([self.build_filters(runner, output_dfname), self.build_eta()])
         pipeline = [dump_command]
         # return a command series of one pipeline
-        return [pipeline]
+        series = [pipeline]
+        return series
 
     def get_tmp_files(self, dump_dir, dump_names=None):
         """

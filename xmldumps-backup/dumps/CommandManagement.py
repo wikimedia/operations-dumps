@@ -416,7 +416,8 @@ class CommandSeries(object):
 class ProcessMonitor(threading.Thread):
     def __init__(self, timeout, queue, output_queue, default_callback_interval,
                  callback_stderr, callbackStdout, callback_timed,
-                 callback_stderr_arg, callbackStdoutArg, callback_timed_arg):
+                 callback_stderr_arg, callbackStdoutArg, callback_timed_arg,
+                 callback_on_completion):
         threading.Thread.__init__(self)
         self.timeout = timeout
         self.queue = queue
@@ -428,6 +429,7 @@ class ProcessMonitor(threading.Thread):
         self._callback_stderr_arg = callback_stderr_arg
         self._callback_stdout_arg = callbackStdoutArg
         self._callback_timed_arg = callback_timed_arg
+        self._callback_on_completion = callback_on_completion
 
     # one of these as a thread to monitor each command series.
     def run(self):
@@ -488,6 +490,10 @@ class ProcessMonitor(threading.Thread):
             series.continue_commands()
 
         # completed the whole series. time to go home.
+        if self._callback_on_completion is not None:
+            # let caller do any bookkeeping or other work on command completion
+            self._callback_on_completion(series)
+
         self.queue.task_done()
 
 
@@ -521,7 +527,8 @@ class CommandsInParallel(object):
     Callbackinterval is in milliseconds, defaults is 20 seconds"""
     def __init__(self, command_series_list, callback_stderr=None, callbackStdout=None,
                  callback_timed=None, callback_stderr_arg=None, callbackStdoutArg=None,
-                 callback_timed_arg=None, quiet=False, shell=False, callback_interval=20000):
+                 callback_timed_arg=None, quiet=False, shell=False, callback_interval=20000,
+                 callback_on_completion=None):
         self._command_series_list = command_series_list
         self._command_serieses = []
         for series in self._command_series_list:
@@ -535,6 +542,7 @@ class CommandsInParallel(object):
         self._callback_stderr_arg = callback_stderr_arg
         self._callback_stdout_arg = callbackStdoutArg
         self._callback_timed_arg = callback_timed_arg
+        self._callback_on_completion = callback_on_completion
         self._command_series_queue = Queue.Queue()
         self._output_queue = Queue.Queue()
         self._normal_thread_count = threading.activeCount()
@@ -557,7 +565,8 @@ class CommandsInParallel(object):
                                   self._output_queue, self._default_callback_interval,
                                   self._callback_stderr, self._callback_stdout,
                                   self._callback_timed, self._callback_stderr_arg,
-                                  self._callback_stdout_arg, self._callback_timed_arg)
+                                  self._callback_stdout_arg, self._callback_timed_arg,
+                                  self._callback_on_completion)
             # when the main script dies this thread must too.
             thrd.daemon = True
             thrd.start()

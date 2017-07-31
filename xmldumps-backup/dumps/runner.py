@@ -599,16 +599,19 @@ class Runner(object):
         self.runstatus_updater.write_statusapi_file()
         self.specialfiles_updater.write_specialfilesinfo_file()
 
+    def get_save_command_series(self, commands, outfilepath):
+        commands[-1].extend([">", outfilepath])
+        return [commands]
+
     # returns 0, None on success, 1, commands on error
-    def save_command(self, commands, outfile):
+    def save_command(self, series, completion_callback=None):
         """For one pipeline of commands, redirect output to a given file."""
-        commands[-1].extend([">", outfile])
-        series = [commands]
         if self.dryrun:
             self.pretty_print_commands([series])
             return 0
         else:
-            return self.run_command([series], callback_timed=self.html_update_callback)
+            return self.run_command([series], callback_timed=self.html_update_callback,
+                                    callback_on_completion=completion_callback)
 
     def pretty_print_commands(self, command_series_list):
         for series in command_series_list:
@@ -628,7 +631,8 @@ class Runner(object):
     # defaults to every 5 secs
     def run_command(self, command_series_list, callback_stderr=None,
                     callback_stderr_arg=None, callback_timed=None,
-                    callback_timed_arg=None, shell=False, callback_interval=5000):
+                    callback_timed_arg=None, shell=False, callback_interval=5000,
+                    callback_on_completion=None):
         """Nonzero return code from the shell from any command in any pipeline will cause
         this function to print an error message and return 1, indicating error.
         Returns 0 on success.
@@ -649,7 +653,8 @@ class Runner(object):
                                           callback_stderr_arg=callback_stderr_arg,
                                           callback_timed=callback_timed,
                                           callback_timed_arg=callback_timed_arg,
-                                          shell=shell, callback_interval=callback_interval)
+                                          shell=shell, callback_interval=callback_interval,
+                                          callback_on_completion=callback_on_completion)
             commands.run_commands()
             if commands.exited_successfully():
                 return 0, None

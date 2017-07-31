@@ -626,6 +626,8 @@ class DumpContents(object):
 
 
 class DumpDir(object):
+    BAD = [".truncated", ".empty"]
+
     def __init__(self, wiki, db_name):
         self._wiki = wiki
         self._db_name = db_name
@@ -722,7 +724,8 @@ class DumpDir(object):
         return self._dir_cache[date]
 
     def _get_files_filtered(self, date=None, dump_name=None, file_type=None,
-                            file_ext=None, parts=None, temp=None, checkpoint=None):
+                            file_ext=None, parts=None, temp=None, checkpoint=None,
+                            skip_suffixes=None, required_suffixes=None):
         '''
         list all files that exist, filtering by the given args.
         if we get None for an arg then we accept all values
@@ -744,9 +747,19 @@ class DumpDir(object):
         dfnames = self.get_files_in_dir(date)
         dfnames_matched = []
         for dfname in dfnames:
-            # fixme this is a bit hackish
-            if dfname.filename.endswith("truncated"):
-                continue
+
+            if skip_suffixes:
+                for suffix in skip_suffixes:
+                    if dfname.filename.endswith(suffix):
+                        continue
+
+            if required_suffixes is not None:
+                matches_required = False
+                for suffix in required_suffixes:
+                    if dfname.filename.endswith(suffix):
+                        matches_required = True
+                if not matches_required:
+                    continue
 
             if dump_name and dfname.dumpname != dump_name:
                 continue
@@ -794,12 +807,15 @@ class DumpDir(object):
         parts should be a list of value(s), or True / False / None
         '''
         return self._get_files_filtered(date, dump_name, file_type,
-                                        file_ext, parts, temp, checkpoint=True)
+                                        file_ext, parts, temp, checkpoint=True,
+                                        required_suffixes=None,
+                                        skip_suffixes=self.BAD)
 
-    def get_reg_files(self, date=None, dump_name=None,
-                      file_type=None, file_ext=None, parts=False, temp=False):
+    def get_truncated_empty_checkpt_files(self, date=None, dump_name=None,
+                                          file_type=None, file_ext=None,
+                                          parts=False, temp=False):
         '''
-        list all non-checkpoint files that exist, filtering by the given args.
+        list all checkpoint files that exist, filtering by the given args.
         if we get None for an arg then we accept all values for that arg in the filename
         if we get False for an arg (parts, temp),
         we reject any filename which contains a value for that arg
@@ -808,4 +824,31 @@ class DumpDir(object):
         parts should be a list of value(s), or True / False / None
         '''
         return self._get_files_filtered(date, dump_name, file_type,
-                                        file_ext, parts, temp, checkpoint=False)
+                                        file_ext, parts, temp, checkpoint=True,
+                                        required_suffixes=self.BAD,
+                                        skip_suffixes=None)
+
+    def get_reg_files(self, date=None, dump_name=None,
+                      file_type=None, file_ext=None, parts=False, temp=False, suffix=None):
+        '''
+        list all non-checkpoint files that exist, filtering by the given args.
+        if we get None for an arg then we accept all values for that arg in the filename
+        if we get False for an arg (parts, temp),
+        we reject any filename which contains a value for that arg
+        if we get True for an arg (parts, temp),
+        we accept only filenames which contain a value for the arg
+        parts should be a list of value(s), or True / False / None
+
+        suffix, if passed, is a string that would be tacked on after the
+        end of the filename (after .xml.gz)
+        '''
+        if suffix is not None:
+            skip_suffixes = [entry for entry in self.BAD if entry != suffix]
+            required_suffixes = suffix
+        else:
+            skip_suffixes = self.BAD
+            required_suffixes = None
+        return self._get_files_filtered(date, dump_name, file_type,
+                                        file_ext, parts, temp, checkpoint=False,
+                                        required_suffixes=required_suffixes,
+                                        skip_suffixes=skip_suffixes)

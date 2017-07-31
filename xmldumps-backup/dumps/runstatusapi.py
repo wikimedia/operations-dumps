@@ -13,7 +13,6 @@ from dumps.runnerutils import RunInfo
 from dumps.runnerutils import Report
 from dumps.specialfilesregistry import SpecialFileWriter
 from dumps.fileutils import DumpFilename
-from dumps.fileutils import DumpDir
 
 
 class StatusAPI(SpecialFileWriter):
@@ -100,10 +99,7 @@ class StatusAPI(SpecialFileWriter):
         for hashtype in Checksummer.HASHTYPES:
             dfname = DumpFilename(
                 self.wiki, None, Checksummer.get_checksum_filename_basename(hashtype, "json"))
-            dump_dir = DumpDir(self.wiki, self.wiki.db_name)
-
-            basefilename = dump_dir.filename_public_path(dfname)
-            path = os.path.join(self.wiki.public_dir(), self.wiki.date, basefilename)
+            path = os.path.join(self.wiki.public_dir(), self.wiki.date, dfname.filename)
 
             contents.append(self.get_json_file_contents(path))
         return [item for item in contents if item is not None]
