@@ -266,13 +266,13 @@ class AbstractDump(Dump):
 
     def get_variant_from_dumpname(self, dumpname):
         fields = dumpname.split("-")
-        if fields[0] != self.get_dumpname() or len(fields) > 2:
+        if fields[0] != self.get_dumpname() or len(fields) > 3:
             # got garbage.
             return None
         if len(fields) == 1:
             return ""
         else:
-            return fields[1]
+            return "-".join(fields[1:])
 
     def build_command(self, runner, novariant_dfname, output_dfnames):
         """
@@ -295,8 +295,8 @@ class AbstractDump(Dump):
                     runner.dump_dir.filename_public_path(dfname)))
             variants.append(variant_option)
 
-            command.extend(["--outfiles=%s" % ",".join(output_paths),
-                            "--variants=%s" % ",".join(variants)])
+        command.extend(["--outfiles=%s" % ",".join(output_paths),
+                        "--variants=%s" % ",".join(variants)])
 
         if novariant_dfname.partnum:
             # set up start end end pageids for this piece
