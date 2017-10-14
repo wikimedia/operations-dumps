@@ -511,7 +511,8 @@ class Runner(object):
         self.job_requested = job
 
         if self.job_requested == "latestlinks":
-            for setting in [StatusHtml.NAME, Report.NAME, RunInfo.NAME]:
+            for setting in [StatusHtml.NAME, Report.NAME, RunInfo.NAME, StatusAPI.NAME,
+                            SpecialFileInfo.NAME, "cleanup_old_files", "cleanup_tmp_files"]:
                 if setting in self.enabled:
                     del self.enabled[setting]
 
