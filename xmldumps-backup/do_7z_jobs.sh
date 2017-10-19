@@ -8,7 +8,7 @@
 # does NOT: clean up old dumps, remove old files from run
 
 usage() {
-	echo<<EOF
+	cat<<EOF
 Usage: $0 --config <pathtofile> --wiki <dbname>
   --date <YYYYMMDD> --jobinfo num:num:num,...
  [--skiplock] [--dryrun] [--verbose]
@@ -60,7 +60,7 @@ process_opts () {
 		shift
 	else
 		echo "$0: Unknown option $1"
-		usage
+		usage && exit 1
 	fi
     done
 }
@@ -68,7 +68,7 @@ process_opts () {
 check_opts() {
     if [ -z "$WIKI" -o -z "$JOBINFO" -o -z "$DATE" -o -z "$CONFIGFILE" -o -z "$NUMJOBS" ]; then
         echo "$0: Mandatory options 'wiki', 'jobinfo', 'date', 'numjobs' and 'config' must be specified"
-        usage
+        usage && exit 1
     elif [ ! -f "$CONFIGFILE" ]; then
             echo "Could not find config file: $CONFIGFILE"
             echo "Exiting..."
@@ -78,7 +78,7 @@ check_opts() {
     result=`date -d "$DATE"`
     if [ -z "$result" ]; then
 	echo "bad date given for 'date' arg"
-        usage
+        usage && exit 1
     fi
 }
 
@@ -187,14 +187,14 @@ cleanup_lock() {
 }
 
 WIKIDUMP_BASE=`dirname "$0"`
-set_defaults
-process_opts "$@"
-check_opts
+set_defaults || exit 1
+process_opts "$@" || exit 1
+check_opts || exit 1
 IFS=',' read -a JOBARRAY <<< "$JOBINFO"
 if [ -z "$SKIPLOCK" ]; then
-    lockerup
+    lockerup || exit 1
 fi
-get_dumps_output_dir
+get_dumps_output_dir || exit 1
 for PARTNUM in ${JOBARRAY[*]}; do
     get_bz2files_completed
     do_recompression $NUMJOBS
