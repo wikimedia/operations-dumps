@@ -150,6 +150,7 @@ class DumpFilename(object):
     is_checkpoint_file  filename of form dbname-date-dumpname-pxxxxpxxxx.xml.bz2
     is_file_part        filename of form dbname-date-dumpnamex.xml.gz/bz2/7z
     is_temp_file        filename of form dbname-date-dumpname.xml.gz/bz2/7z-tmp
+    is_inprog           filename of form dbname-date-dumpname.<stuff>.inprog
     first_page_id       for checkpoint files, taken from value in filename
     last_page_id      for checkpoint files, value taken from filename
     filename          full filename
@@ -219,6 +220,7 @@ class DumpFilename(object):
 
         self.is_temp_file = False
         self.temp = None
+        self.is_inprog = False
 
         # example filenames:
         # elwikidb-20110729-all-titles-in-ns0.gz
@@ -231,8 +233,15 @@ class DumpFilename(object):
             self.is_temp_file = True
             self.temp = "-tmp"
 
-        if '.' in self.filename:
-            (file_base, self.file_ext) = self.filename.rsplit('.', 1)
+        if self.filename.endswith(".inprog"):
+            self.is_inprog = True
+
+        if self.is_inprog:
+            splitme = self.filename[:-7]  # get rid of .inprog at end
+        else:
+            splitme = self.filename
+        if '.' in splitme:
+            (file_base, self.file_ext) = splitme.rsplit('.', 1)
             if self.temp:
                 self.file_ext = self.file_ext[:-4]
         else:
@@ -263,6 +272,8 @@ class DumpFilename(object):
         self.checkpoint_pattern = r"-p(?P<first>[0-9]+)p(?P<last>[0-9]+)\." + self.file_ext
         if self.temp is not None:
             self.checkpoint_pattern += self.temp + "$"
+        elif self.is_inprog:
+            self.checkpoint_pattern += ".inprog$"
         else:
             self.checkpoint_pattern += "$"
 
@@ -725,7 +736,7 @@ class DumpDir(object):
 
     def _get_files_filtered(self, date=None, dump_name=None, file_type=None,
                             file_ext=None, parts=None, temp=None, checkpoint=None,
-                            skip_suffixes=None, required_suffixes=None):
+                            skip_suffixes=None, required_suffixes=None, inprog=False):
         '''
         list all files that exist, filtering by the given args.
         if we get None for an arg then we accept all values
@@ -747,7 +758,6 @@ class DumpDir(object):
         dfnames = self.get_files_in_dir(date)
         dfnames_matched = []
         for dfname in dfnames:
-
             if skip_suffixes:
                 for suffix in skip_suffixes:
                     if dfname.filename.endswith(suffix):
@@ -776,6 +786,8 @@ class DumpDir(object):
                 continue
             if (temp is False and dfname.is_temp_file) or (temp and not dfname.is_temp_file):
                 continue
+            if (inprog is False and dfname.is_inprog) or (inprog is True and not dfname.is_inprog):
+                continue
             if ((checkpoint is False and dfname.is_checkpoint_file) or
                     (checkpoint and not dfname.is_checkpoint_file)):
                 continue
@@ -796,7 +808,7 @@ class DumpDir(object):
         return mylist
 
     def get_checkpt_files(self, date=None, dump_name=None,
-                          file_type=None, file_ext=None, parts=False, temp=False):
+                          file_type=None, file_ext=None, parts=False, temp=False, inprog=False):
         '''
         list all checkpoint files that exist, filtering by the given args.
         if we get None for an arg then we accept all values for that arg in the filename
@@ -809,7 +821,7 @@ class DumpDir(object):
         return self._get_files_filtered(date, dump_name, file_type,
                                         file_ext, parts, temp, checkpoint=True,
                                         required_suffixes=None,
-                                        skip_suffixes=self.BAD)
+                                        skip_suffixes=self.BAD, inprog=inprog)
 
     def get_truncated_empty_checkpt_files(self, date=None, dump_name=None,
                                           file_type=None, file_ext=None,
@@ -829,7 +841,8 @@ class DumpDir(object):
                                         skip_suffixes=None)
 
     def get_reg_files(self, date=None, dump_name=None,
-                      file_type=None, file_ext=None, parts=False, temp=False, suffix=None):
+                      file_type=None, file_ext=None, parts=False, temp=False,
+                      suffix=None, inprog=False):
         '''
         list all non-checkpoint files that exist, filtering by the given args.
         if we get None for an arg then we accept all values for that arg in the filename
@@ -851,4 +864,4 @@ class DumpDir(object):
         return self._get_files_filtered(date, dump_name, file_type,
                                         file_ext, parts, temp, checkpoint=False,
                                         required_suffixes=required_suffixes,
-                                        skip_suffixes=skip_suffixes)
+                                        skip_suffixes=skip_suffixes, inprog=inprog)

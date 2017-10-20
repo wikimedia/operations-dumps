@@ -96,9 +96,11 @@ class Dump(object):
             command_info['output_dir'] = output_dir
         else:
             if runner.wiki.is_private():
-                command_info['output_dir'] = os.path.join(runner.wiki.private_dir(), runner.wiki.date)
+                command_info['output_dir'] = os.path.join(runner.wiki.private_dir(),
+                                                          runner.wiki.date)
             else:
-                command_info['output_dir'] = os.path.join(runner.wiki.public_dir(), runner.wiki.date)
+                command_info['output_dir'] = os.path.join(runner.wiki.public_dir(),
+                                                          runner.wiki.date)
         self.commands_submitted.append(command_info)
 
     def check_truncation(self):
@@ -409,7 +411,7 @@ class Dump(object):
                 None, dname, self.file_type, self.file_ext, parts, temp=False))
         return dfnames
 
-    def list_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None):
+    def list_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None, inprog=False):
         '''
         list checkpoint files that have been produced for specified file part(s)
         returns:
@@ -420,10 +422,10 @@ class Dump(object):
             dump_names = [self.dumpname]
         for dname in dump_names:
             dfnames.extend(dump_dir.get_checkpt_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False))
+                None, dname, self.file_type, self.file_ext, parts, temp=False, inprog=inprog))
         return dfnames
 
-    def list_reg_files_for_filepart(self, dump_dir, parts, dump_names=None):
+    def list_reg_files_for_filepart(self, dump_dir, parts, dump_names=None, inprog=False):
         '''
         list noncheckpoint files that have been produced for specified file part(s)
         returns:
@@ -434,7 +436,7 @@ class Dump(object):
             dump_names = [self.dumpname]
         for dname in dump_names:
             dfnames.extend(dump_dir.get_reg_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False))
+                None, dname, self.file_type, self.file_ext, parts, temp=False, inprog=inprog))
         return dfnames
 
     def list_truncated_empty_reg_files_for_filepart(self, dump_dir, parts, dump_names=None):

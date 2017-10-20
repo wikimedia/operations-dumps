@@ -4,6 +4,7 @@ from other dump jobs are defined here
 '''
 
 from os.path import exists
+import os
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
@@ -380,9 +381,36 @@ class XmlRecompressDump(Dump):
         if errors:
             raise BackupError("error recompressing bz2 file(s) %s")
 
+    def toss_inprog_files(self, dump_dir, runner):
+        """
+        delete partially written 7z files from previous failed attempts, if
+        any; 7z will otherwise blithely append onto them
+        """
+        if self.checkpoint_file is not None:
+            # we only rerun this one, so just remove this one
+            if exists(dump_dir.filename_public_path(self.checkpoint_file)):
+                if runner.dryrun:
+                    print "would remove", dump_dir.filename_public_path(self.checkpoint_file)
+                else:
+                    os.remove(dump_dir.filename_public_path(self.checkpoint_file))
+            elif exists(dump_dir.filename_private_path(self.checkpoint_file)):
+                if runner.dryrun:
+                    print "would remove", dump_dir.filename_private_path(self.checkpoint_file)
+                else:
+                    os.remove(dump_dir.filename_private_path(self.checkpoint_file))
+
+        dfnames = self.list_outfiles_for_cleanup(dump_dir)
+        if runner.dryrun:
+            print "would remove ", [dfname.filename for dfname in dfnames]
+        else:
+            for dfname in dfnames:
+                self.remove_output_file(dump_dir, dfname)
+
     def run(self, runner):
         commands = []
         # Remove prior 7zip attempts; 7zip will try to append to an existing archive
+        self.toss_inprog_files(runner.dump_dir, runner)
+
         self.cleanup_old_files(runner.dump_dir, runner)
         if self.checkpoint_file is not None:
             output_dfname = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname,
@@ -489,12 +517,12 @@ class XmlRecompressDump(Dump):
         dfnames = []
         if self.item_for_recompression._checkpoints_enabled:
             dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
             dfnames.extend(self.list_temp_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
             dfnames.extend(self.list_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
         return dfnames
 
     def list_outfiles_for_input(self, dump_dir):
