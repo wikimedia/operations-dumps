@@ -180,7 +180,7 @@ class DumpItemList(object):
                     raise BackupError("Unknown table type in table jobs config: " +
                                       tables_configured[table]['type'] +
                                       " for table " + table)
-            except:
+            except Exception:
                 # whine about missing keys etc
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 sys.stderr.write(repr(traceback.format_exception(

@@ -119,7 +119,7 @@ class Checksummer(Registered):
                     with open(checksum_filename_json, "r") as fhandle:
                         contents = fhandle.read()
                         output = json.loads(contents)
-                except:
+                except Exception:
                     # might be empty file, as at the start of a run
                     pass
                 if not output:
@@ -312,7 +312,7 @@ class Report(Registered):
         """
         try:
             return reportinfo['jobs'][jobname]["files"]
-        except:
+        except Exception:
             return {}
 
     @staticmethod
@@ -342,7 +342,7 @@ class Report(Registered):
             if "files" not in reportinfo["jobs"][jobname]:
                 reportinfo["jobs"][jobname] = {}
             reportinfo["jobs"][jobname]["files"][filename][prop] = value
-        except:
+        except Exception:
             pass
 
     def report_previous_dump_link(self, done):

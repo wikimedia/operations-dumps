@@ -124,32 +124,40 @@ class XmlMultiStreamDump(Dump):
         commands = []
         self.cleanup_old_files(runner.dump_dir, runner)
         if self.checkpoint_file is not None:
-            output_dfname = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname,
-                                         self.checkpoint_file.file_type, self.file_ext,
-                                         self.checkpoint_file.partnum,
-                                         self.checkpoint_file.checkpoint)
-            command_series = self.build_command(runner, output_dfname)
+            content_dfname = DumpFilename(self.wiki, None, self.checkpoint_file.dumpname,
+                                          self.checkpoint_file.file_type, self.file_ext,
+                                          self.checkpoint_file.partnum,
+                                          self.checkpoint_file.checkpoint)
+            command_series = self.build_command(runner, content_dfname)
             commands.append(command_series)
-            self.setup_command_info(runner, command_series, [output_dfname])
+            output_dfnames = [self.get_multistream_dfname(content_dfname),
+                              self.get_multistream_index_dfname(content_dfname)]
+            self.setup_command_info(runner, command_series, output_dfnames)
         elif self._parts_enabled and not self._partnum_todo:
             # must set up each parallel job separately, they may have checkpoint files that
             # need to be processed in series, it's a special case
             for partnum in range(1, len(self._parts) + 1):
-                output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
+                content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
                 command_series_for_part = []
-                for output_dfname in output_dfnames:
-                    command_series = self.build_command(runner, output_dfnames)
+                for content_dfname in content_dfnames:
+                    command_series = self.build_command(runner, content_dfnames)
                     command_series_for_part.extend(command_series)
                 commands.append(command_series_for_part)
                 # this means that only when the whole series is complete do we get to
                 # post-command-completion callbacks and such, bad news for checking
                 # and making available new file content
+                output_dfnames = [self.get_multistream_dfname(content_dfname)
+                                  for content_dfname in content_dfnames]
+                output_dfnames.extend([self.get_multistream_index_dfname(content_dfname)
+                                       for content_dfname in content_dfnames])
                 self.setup_command_info(runner, command_series_for_part, output_dfnames)
         else:
-            output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
-            for output_dfname in output_dfnames:
-                command_series = self.build_command(runner, output_dfname)
-                self.setup_command_info(runner, command_series, [output_dfname])
+            content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+            for content_dfname in content_dfnames:
+                command_series = self.build_command(runner, content_dfname)
+                output_dfnames = [self.get_multistream_dfname(content_dfname),
+                                  self.get_multistream_index_dfname(content_dfname)]
+                self.setup_command_info(runner, command_series, output_dfnames)
                 commands.append(command_series)
 
         error, broken = runner.run_command(commands, callback_timed=self.progress_callback,
