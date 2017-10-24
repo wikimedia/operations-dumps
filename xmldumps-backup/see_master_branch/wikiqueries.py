@@ -14,6 +14,9 @@ from dumps.utils import TimeUtils, RunSimpleCommand, DbServerInfo
 from dumps.fileutils import FileUtils
 
 
+# pylint: disable=W0703
+
+
 class WQDbServerInfo(DbServerInfo):
     def build_sql_command_tofile(self, query, out_file):
         """Put together a command to execute an sql query
@@ -61,7 +64,7 @@ class WikiQuery(object):
                 if not self.dryrun:
                     if not self.run_wiki_query():
                         return False
-            except:
+            except Exception:
                 if self.verbose:
                     traceback.print_exc(file=sys.stdout)
                 return False
@@ -173,7 +176,7 @@ def do_main():
             sys.argv[1:], "", ['configfile=', "date=", 'filenameformat=',
                                "outdir=", "query=", "retries=", 'dryrun',
                                "nooverwrite", 'verbose'])
-    except:
+    except Exception:
         usage("Unknown option specified")
 
     for (opt, val) in options:

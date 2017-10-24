@@ -11,6 +11,9 @@ import sys
 import getopt
 
 
+# pylint: disable=W0703
+
+
 def usage(message=None):
     '''
     display a helpful usage message
@@ -105,7 +108,7 @@ def get_file_contents(path):
         # fixme does this close automagically later?
         contents = open(path, "r").read()
         return contents
-    except:
+    except Exception:
         return None
 
 
@@ -229,7 +232,7 @@ def get_latest_date(wiki, dumpdir):
     '''
     try:
         dates = os.listdir(os.path.join(dumpdir, wiki))
-    except:
+    except Exception:
         return None
     if not dates:
         return None

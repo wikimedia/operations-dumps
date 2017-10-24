@@ -6,6 +6,9 @@ from subprocess import Popen, PIPE
 from dumps.WikiDump import Config
 
 
+# pylint: disable=W0703
+
+
 def get_file_name_format(phase):
     return "{w}-{d}-" + phase + "-wikiqueries.gz"
 
@@ -68,7 +71,7 @@ class MediaPerProject(object):
                 print ("command '%s failed with return code %s and error %s"
                        % (command, proc.returncode, error))
                 sys.exit(1)
-        except:
+        except Exception:
             print "command %s failed" % command
             raise
 
@@ -138,7 +141,7 @@ def do_main():
             "outputdir=", "remotereponame=", "wqconfig=", "wqpath=",
             "remoteonly", "localonly",
             "nooverwrite", "verbose"])
-    except:
+    except Exception:
         usage("Unknown option specified")
 
     for (opt, val) in options:

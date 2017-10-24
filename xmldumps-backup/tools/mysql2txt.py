@@ -7,6 +7,9 @@ import re
 import sys
 
 
+# pylint: disable=W0703
+
+
 class ConverterError(Exception):
     pass
 
@@ -365,7 +368,7 @@ if __name__ == "__main__":
     try:
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "", ['table=', 'columns=', 'values=', 'separator='])
-    except:
+    except Exception:
         usage("Unknown option specified")
 
     for (opt, val) in options:
