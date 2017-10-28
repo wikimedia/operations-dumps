@@ -167,6 +167,8 @@ class ActionHandler(object):
         '''
         do all actions specified at instantiation time
         '''
+        # check if these are actually needed now
+        self.conf.parse_conffile_overrideables()
         self.conf.parse_conffile_globally()
         self.do_global_actions()
         self.undo_global_actions()

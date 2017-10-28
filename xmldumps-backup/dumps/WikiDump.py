@@ -14,12 +14,16 @@ from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand
 
 
 class Config(object):
-    def __init__(self, config_file=False):
-        self.project_name = False
+    def __init__(self, config_file=None):
+        self.project_name = None
         self.db_user = None
         self.db_password = None
+        self.override_section = None
 
         home = os.path.dirname(sys.argv[0])
+        if config_file and ':' in config_file:
+            config_file, self.override_section = config_file.split(':')
+
         if not config_file:
             config_file = "wikidump.conf"
         self.files = [
@@ -43,6 +47,7 @@ class Config(object):
             print "The mandatory setting 'dir' in the section 'wiki' was not defined."
             raise ConfigParser.NoOptionError('wiki', 'dir')
 
+        self.parse_conffile_overrideables()
         self.parse_conffile_globally()
         self.parse_conffile_per_project()
         # get from MW adminsettings file if not set in conf file
@@ -100,46 +105,113 @@ class Config(object):
             db_password = default_dbpassword
         return db_user, db_password
 
-    def parse_conffile_globally(self):
-        self.db_list = MiscUtils.db_list(self.conf.get("wiki", "dblist"))
+    def get_opt_from_sections(self, sections_to_check, item_name, is_int):
+        """
+        for each section name in sections_to_check:
+            if the section isn't None and it exists in the config file,
+            and the config setting is in that section, return the value
+            otherwise move on to the next section in list
+        returns int value if is_int is false, string otherwise, or
+        None if the setting can't be found at all, not even a default
+        """
+        for section in sections_to_check:
+            if section is None or not section:
+                continue
+            if not self.conf.has_section(section):
+                continue
+            if not self.conf.has_option(section, item_name):
+                continue
+            if is_int:
+                return self.conf.getint(section, item_name)
+            else:
+                return self.conf.get(section, item_name)
+        return None
+
+    def get_opt_in_overrides_or_default(self, section_name, item_name, is_int):
+        """
+        look for option in the override section, if one was
+        provided. if not provided or not found, look for it
+        in the global (usual) section.
+        """
+        return self.get_opt_from_sections(
+            [self.override_section, section_name],
+            item_name, is_int)
+
+    def get_opt_for_proj_or_default(self, section_name, item_name, is_int):
+        """
+        look for option in the project name section, if one was
+        provided. if not provided or not found, look for it
+        in the overrides section, if there is one. if there
+        was no overrides section provided, or there is no
+        such section in the config file, or the setting isn't
+        in that section either, look for it in the global (usual)
+        section.
+        """
+        return self.get_opt_from_sections(
+            [self.project_name, self.override_section, section_name],
+            item_name, is_int)
+
+    def get_skipdbs(self, filenames):
+        """
+        permit comma-separated list of files so that eg some script
+        can skip all private and/or closed wikis in addition to some
+        other exclusion list
+        """
+        if ',' in filenames:
+            skipfiles = filenames.split(',')
+        else:
+            skipfiles = [filenames]
+        skip_db_list = []
+        for skipfile in skipfiles:
+            skip_db_list.extend(MiscUtils.db_list(skipfile))
+        return list(set(skip_db_list))
+
+    def parse_conffile_overrideables(self):
+        """
+        globals like entries in 'wiki' or 'output' that can
+        be overriden by a specific named section
+        """
+        self.db_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+            "wiki", "dblist", 0))
 
         # permit comma-separated list of files so that eg some script
         # can skip all private and/or closed wikis in addition to some
         # other exclusion list
-        to_skip = self.conf.get("wiki", "skipdblist")
-        if ',' in to_skip:
-            skipfiles = to_skip.split(',')
-        else:
-            skipfiles = [to_skip]
-        self.skip_db_list = []
-        for skipfile in skipfiles:
-            self.skip_db_list.extend(MiscUtils.db_list(skipfile))
-        self.skip_db_list = list(set(self.skip_db_list))
+        to_skip = self.get_opt_in_overrides_or_default("wiki", "skipdblist", 0)
+        self.skip_db_list = self.get_skipdbs(to_skip)
 
-        self.private_list = MiscUtils.db_list(self.conf.get("wiki", "privatelist"))
-        self.closed_list = MiscUtils.db_list(self.conf.get("wiki", "closedlist"))
-        self.flow_list = MiscUtils.db_list(self.conf.get("wiki", "flowlist"))
-        self.tablejobs = self.conf.get("wiki", "tablejobs")
-        self.apijobs = self.conf.get("wiki", "apijobs")
+        self.private_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+            "wiki", "privatelist", 0))
+        self.closed_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+            "wiki", "closedlist", 0))
+        self.flow_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+            "wiki", "flowlist", 0))
+        self.tablejobs = self.get_opt_in_overrides_or_default(
+            "wiki", "tablejobs", 0)
+        self.apijobs = self.get_opt_in_overrides_or_default(
+            "wiki", "apijobs", 0)
 
         self.db_list = list(set(self.db_list) - set(self.skip_db_list))
+
+        if not self.conf.has_section('output'):
+            self.conf.add_section('output')
+        self.public_dir = self.get_opt_in_overrides_or_default("output", "public", 0)
+        self.private_dir = self.get_opt_in_overrides_or_default("output", "private", 0)
+        self.temp_dir = self.get_opt_in_overrides_or_default("output", "temp", 0)
+        self.web_root = self.get_opt_in_overrides_or_default("output", "webroot", 0)
+        self.index = self.get_opt_in_overrides_or_default("output", "index", 0)
+        self.template_dir = self.get_opt_in_overrides_or_default("output", "templatedir", 0)
+        self.perdump_index = self.get_opt_in_overrides_or_default("output", "perdumpindex", 0)
+        self.log_file = self.get_opt_in_overrides_or_default("output", "logfile", 0)
+        self.fileperms = self.get_opt_in_overrides_or_default("output", "fileperms", 0)
+        self.fileperms = int(self.fileperms, 0)
+
+    def parse_conffile_globally(self):
 
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
 
-        if not self.conf.has_section('output'):
-            self.conf.add_section('output')
-        self.public_dir = self.conf.get("output", "public")
-        self.private_dir = self.conf.get("output", "private")
-        self.temp_dir = self.conf.get("output", "temp")
-        self.web_root = self.conf.get("output", "webroot")
-        self.index = self.conf.get("output", "index")
-        self.template_dir = self.conf.get("output", "templatedir")
-        self.perdump_index = self.conf.get("output", "perdumpindex")
-        self.log_file = self.conf.get("output", "logfile")
-        self.fileperms = self.conf.get("output", "fileperms")
-        self.fileperms = int(self.fileperms, 0)
         if not self.conf.has_section('reporting'):
             self.conf.add_section('reporting')
         self.admin_mail = self.conf.get("reporting", "adminmail")
@@ -164,15 +236,11 @@ class Config(object):
         self.writeuptopageid = self.conf.get("tools", "writeuptopageid")
         self.recompressxml = self.conf.get("tools", "recompressxml")
 
-        if not self.conf.has_section('cleanup'):
-            self.conf.add_section('cleanup')
-        self.keep = self.conf.getint("cleanup", "keep")
-
         if not self.conf.has_section('query'):
             self.conf.add_section('query')
         self.queryfile = self.conf.get("query", "queryfile")
 
-    def parse_conffile_per_project(self, project_name=False):
+    def parse_conffile_per_project(self, project_name=None):
         if project_name:
             self.project_name = project_name
 
@@ -189,6 +257,10 @@ class Config(object):
             "database", "max_allowed_packet", 0)
         if max_allowed_packet:
             self.max_allowed_packet = max_allowed_packet
+
+        if not self.conf.has_section('cleanup'):
+            self.conf.add_section('cleanup')
+        self.keep = self.conf.getint("cleanup", "keep")
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')
@@ -221,7 +293,6 @@ class Config(object):
             self.conf.add_section('otherformats')
         self.multistream_enabled = self.get_opt_for_proj_or_default(
             'otherformats', 'multistream', 1)
-
         if not self.conf.has_section('stubs'):
             self.conf.add_section('stubs')
         self.stubs_orderrevs = self.get_opt_for_proj_or_default(
@@ -234,23 +305,6 @@ class Config(object):
         if not self.conf.has_section('wiki'):
             self.conf.add_section('wiki')
         self.wiki_dir = self.get_opt_for_proj_or_default("wiki", "dir", 0)
-
-    def get_opt_for_proj_or_default(self, section_name, item_name, is_int):
-        # look for option in per project sections
-        if self.conf.has_section(self.project_name):
-            if self.conf.has_option(self.project_name, item_name):
-                if is_int:
-                    return self.conf.getint(self.project_name, item_name)
-                else:
-                    return self.conf.get(self.project_name, item_name)
-
-        # look for option in global sections
-        if self.conf.has_section(section_name):
-            if self.conf.has_option(section_name, item_name):
-                if is_int:
-                    return self.conf.getint(section_name, item_name)
-                else:
-                    return self.conf.get(section_name, item_name)
 
     def db_latest_status(self):
         '''

@@ -129,7 +129,10 @@ class XmlStub(Dump):
             current_filepath = runner.dump_dir.filename_public_path(current_dfname)
 #        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
 
-        command = ["/usr/bin/python", "xmlstubs.py", "--config", runner.wiki.config.files[0],
+        config_file_arg = runner.wiki.config.files[0]
+        if runner.wiki.config.override_section:
+            config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
+        command = ["/usr/bin/python", "xmlstubs.py", "--config", config_file_arg,
                    "--wiki", runner.db_name,
                    "--articles", self.get_inprogress_name(articles_filepath),
                    "--history", self.get_inprogress_name(history_filepath),
@@ -219,8 +222,11 @@ class XmlLogging(Dump):
         else:
             logging_path = runner.dump_dir.filename_public_path(output_dfname)
 
+        config_file_arg = runner.wiki.config.files[0]
+        if runner.wiki.config.override_section:
+            config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
         command = ["/usr/bin/python", "xmllogs.py", "--config",
-                   runner.wiki.config.files[0], "--wiki", runner.db_name,
+                   config_file_arg, "--wiki", runner.db_name,
                    "--outfile", self.get_inprogress_name(logging_path)]
 
         pipeline = [command]
@@ -279,8 +285,11 @@ class AbstractDump(Dump):
         args:
             Runner, DumpFilename for output without any language variant
         """
+        config_file_arg = runner.wiki.config.files[0]
+        if runner.wiki.config.override_section:
+            config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
         command = ["/usr/bin/python", "xmlabstracts.py", "--config",
-                   runner.wiki.config.files[0], "--wiki", self.db_name]
+                   config_file_arg, "--wiki", self.db_name]
 
         output_paths = []
         variants = []

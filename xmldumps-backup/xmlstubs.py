@@ -149,7 +149,7 @@ def usage(message=None):
     usage_message = """
 Usage: xmlstubs.py --wiki wikidbname --articles path --current path
     --history path [--start number] [--end number]
-    [--config path]
+    [--config path[:overrides_section]]
 
 Options:
 
@@ -162,6 +162,8 @@ Options:
   --end (-e):          ending page to dump, exclusive of this page (default: dump all)
 
   --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
+                       if followed by : and a name, this section name in the config file
+                       will be used to override config settings in default sections
   --dryrun (-d):       display the commands that would be run to produce the output but
                        don't actually run them
 """
@@ -234,9 +236,6 @@ def main():
             usage("value for --end must be a number")
         else:
             end = int(end) - 1
-
-    if not os.path.exists(configfile):
-        usage("no such file found: " + configfile)
 
     wikiconf = Config(configfile)
     wikiconf.parse_conffile_per_project(wiki)
