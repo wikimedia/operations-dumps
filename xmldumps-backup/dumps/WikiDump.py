@@ -260,7 +260,7 @@ class Config(object):
 
         if not self.conf.has_section('cleanup'):
             self.conf.add_section('cleanup')
-        self.keep = self.conf.getint("cleanup", "keep")
+        self.keep = self.get_opt_for_proj_or_default("cleanup", "keep", 1)
 
         if not self.conf.has_section('chunks'):
             self.conf.add_section('chunks')
