@@ -139,6 +139,10 @@ def get_args(options):
     '''
     get and return the args passed on command line
     '''
+    configfile = None
+    args = None
+    outformat = "json"
+
     for (opt, val) in options:
         if opt in ["-c", "--configfile"]:
             configfile = val
@@ -156,9 +160,6 @@ def get_args(options):
 def main():
     'main entry point, does all the work'
 
-    configfile = None
-    args = None
-    outformat = "json"
     overrides = None
 
     try:
