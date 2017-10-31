@@ -789,6 +789,10 @@ Usage: dumpadmin.py --<action> [--<action>...]
                      all given by the config file
     configfile  (-c) path to config file
                      default: wikidump.conf in cwd
+                     if the path is followed by :section_name, this
+                     name will be checked in the config file for settings
+                     and values that override the rest (except the
+                     per-project settings)
     dryrun      (-d) don't do it but show what would be done
     verbose     (-v) print many progress messages
     help        (-h) show this message
@@ -803,9 +807,6 @@ def check_options(remainder, configfile):
     '''
     if len(remainder) > 0:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
-
-    if not os.path.exists(configfile):
-        usage("no such file found: " + configfile)
 
 
 def fixup_undo(undo):
