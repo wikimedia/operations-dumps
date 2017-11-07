@@ -12,7 +12,7 @@ import sys
 import getopt
 from dumps.WikiDump import Config
 from dumps.utils import MultiVersion
-from xmlstreams import do_xml_stream, catit
+from xmlstreams import do_xml_stream, gzippit
 
 
 def do_abstractsbackup(wikidb, output_files, variants,
@@ -35,7 +35,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:
-            outfiles[filetype]['compr'] = catit(outfiles[filetype]['name'])
+            outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
 
     script_command = MultiVersion.mw_script_as_array(wikiconf,
                                                      "dumpBackup.php")

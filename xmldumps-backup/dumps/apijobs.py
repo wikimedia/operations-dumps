@@ -17,7 +17,7 @@ class SiteInfoDump(Dump):
         return "json"
 
     def get_file_ext(self):
-        return ""
+        return "gz"
 
     def run(self, runner):
         retries = 0
@@ -53,5 +53,5 @@ class SiteInfoDump(Dump):
         properties = '|'.join(self._properties)
         api_url = "{baseurl}?action=query&meta=siteinfo&siprop={props}&format=json"
         url = api_url.format(baseurl=base_url, props=properties)
-        command = [["/usr/bin/curl", "-s", url]]
+        command = [["/usr/bin/curl", "-s", url], [runner.wiki.config.gzip]]
         return command

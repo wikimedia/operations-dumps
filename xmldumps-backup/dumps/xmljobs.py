@@ -268,7 +268,7 @@ class AbstractDump(Dump):
         return "xml"
 
     def get_file_ext(self):
-        return ""
+        return "gz"
 
     def get_variant_from_dumpname(self, dumpname):
         fields = dumpname.split("-")
