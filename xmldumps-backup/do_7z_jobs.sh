@@ -69,10 +69,6 @@ check_opts() {
     if [ -z "$WIKI" -o -z "$JOBINFO" -o -z "$DATE" -o -z "$CONFIGFILE" -o -z "$NUMJOBS" ]; then
         echo "$0: Mandatory options 'wiki', 'jobinfo', 'date', 'numjobs' and 'config' must be specified"
         usage && exit 1
-    elif [ ! -f "$CONFIGFILE" ]; then
-            echo "Could not find config file: $CONFIGFILE"
-            echo "Exiting..."
-            exit 1
     fi
     # sanity check of date
     result=`date -d "$DATE"`
