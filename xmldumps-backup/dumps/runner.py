@@ -13,7 +13,7 @@ from dumps.fileutils import DumpDir, DumpFilename
 from dumps.apijobs import SiteInfoDump
 from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
-from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
+from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump, RecombineXmlLoggingDump
 from dumps.xmljobs import XmlLogging, XmlStub, AbstractDump
 from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
@@ -266,7 +266,14 @@ class DumpItemList(object):
                 self.find_item_by_name('metacurrentdump')))
 
         self.dump_items.append(
-            XmlLogging("Log events to all pages and users."))
+            XmlLogging("Log events to all pages and users.",
+                       self._get_partnum_todo("xmlpagelogsdump"),
+                       get_int_setting(self.jobsperbatch, "xmlpagelogsdump"),
+                       self.filepart.get_logitems_per_filepart_pagelogs()))
+
+        self.append_job_if_needed(RecombineXmlLoggingDump(
+            "xmlpagelogsdumprecombine", "Recombine Log events to all pages and users",
+            self.find_item_by_name('xmlpagelogsdump')))
 
         self.append_job_if_needed(
             FlowDump("xmlflowdump", "content of flow pages in xml format"))

@@ -195,7 +195,13 @@ class XmlStub(Dump):
 class XmlLogging(Dump):
     """ Create a logging dump of all page activity """
 
-    def __init__(self, desc, parts=False):
+    def __init__(self, desc, partnum_todo, jobsperbatch=None, parts=False):
+        self._partnum_todo = partnum_todo
+        self.jobsperbatch = jobsperbatch
+        self._parts = parts
+        if self._parts:
+            self._parts_enabled = True
+            self.onlyparts = True
         Dump.__init__(self, "xmlpagelogsdump", desc)
 
     def detail(self):
@@ -229,6 +235,19 @@ class XmlLogging(Dump):
                    config_file_arg, "--wiki", runner.db_name,
                    "--outfile", DumpFilename.get_inprogress_name(logging_path)]
 
+        if output_dfname.partnum:
+            # set up start end end pageids for this piece
+            # note there is no item id 0 I guess. so we start with 1
+            start = sum([self._parts[i] for i in range(0, output_dfname.partnum_int - 1)]) + 1
+            startopt = "--start=%s" % start
+            # if we are on the last file part, we should get up to the last log item id,
+            # whatever that is.
+            command.append(startopt)
+            if output_dfname.partnum_int < len(self._parts):
+                end = sum([self._parts[i] for i in range(0, output_dfname.partnum_int)]) + 1
+                endopt = "--end=%s" % end
+                command.append(endopt)
+
         pipeline = [command]
         series = [pipeline]
         return series
@@ -236,14 +255,19 @@ class XmlLogging(Dump):
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
-        if len(dfnames) > 1:
-            raise BackupError("logging table job wants to produce more than one output file")
-        output_dfname = dfnames[0]
-        command_series = self.build_command(runner, output_dfname)
-        self.setup_command_info(runner, command_series, [output_dfname])
-        error, broken = runner.run_command([command_series], callback_stderr=self.progress_callback,
-                                           callback_stderr_arg=runner,
-                                           callback_on_completion=self.command_completion_callback)
+        if self.jobsperbatch is not None:
+            maxjobs = self.jobsperbatch
+        else:
+            maxjobs = len(dfnames)
+        for batch in batcher(dfnames, maxjobs):
+            commands = []
+            for output_dfname in batch:
+                command_series = self.build_command(runner, output_dfname)
+                self.setup_command_info(runner, command_series, [output_dfname])
+                commands.append(command_series)
+            error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
+                                               callback_stderr_arg=runner,
+                                               callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error dumping log files")
 

@@ -282,6 +282,10 @@ class Config(object):
             "chunks", "chunksForAbstract", 0)
         self.pages_per_filepart_abstract = self.get_opt_for_proj_or_default(
             "chunks", "pagesPerChunkAbstract", 0)
+        self.numparts_for_pagelogs = self.get_opt_for_proj_or_default(
+            "chunks", "chunksForPagelogs", 0)
+        self.logitems_per_filepart_pagelogs = self.get_opt_for_proj_or_default(
+            "chunks", "logitemsPerPagelogs", 0)
         self.recombine_history = self.get_opt_for_proj_or_default(
             "chunks", "recombineHistory", 1)
         self.checkpoint_time = self.get_opt_for_proj_or_default(

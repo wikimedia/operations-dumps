@@ -329,3 +329,56 @@ class RecombineAbstractDump(RecombineDump):
                 error = result
         if error:
             raise BackupError("error recombining abstract dump files")
+
+
+class RecombineXmlLoggingDump(RecombineDump):
+    def __init__(self, name, desc, item_for_recombine):
+        # no partnum_todo, no parts generally (False, False), even though input may have it
+        self.item_for_recombine = item_for_recombine
+        self._prerequisite_items = [self.item_for_recombine]
+        super(RecombineXmlLoggingDump, self).__init__(name, desc)
+
+    def get_filetype(self):
+        return self.item_for_recombine.get_filetype()
+
+    def get_file_ext(self):
+        return self.item_for_recombine.get_file_ext()
+
+    def get_dumpname(self):
+        return self.item_for_recombine.get_dumpname()
+
+    def build_command(self, runner, to_recombine_dfnames, output_dfname):
+        input_dfnames = []
+        for in_dfname in to_recombine_dfnames:
+            if in_dfname.dumpname == output_dfname.dumpname:
+                input_dfnames.append(in_dfname)
+        if not len(input_dfnames):
+            self.set_status("failed")
+            raise BackupError("No input files for %s found" % self.name())
+        if not exists(runner.wiki.config.gzip):
+            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
+        compression_command = "%s > " % runner.wiki.config.gzip
+        uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
+        recombine_command_string = self.build_recombine_command_string(
+            runner, input_dfnames, output_dfname, compression_command,
+            uncompression_command)
+        recombine_command = [recombine_command_string]
+        recombine_pipeline = [recombine_command]
+        series = [recombine_pipeline]
+        return series
+
+    def run(self, runner):
+        error = 0
+        to_recombine_dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
+        output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        for output_dfname in output_dfnames:
+            command_series = self.build_command(runner, to_recombine_dfnames, output_dfname)
+            self.setup_command_info(runner, command_series, [output_dfname])
+            result, broken = runner.run_command(
+                [command_series], callback_timed=self.progress_callback,
+                callback_timed_arg=runner, shell=True,
+                callback_on_completion=self.command_completion_callback)
+            if result:
+                error = result
+        if error:
+            raise BackupError("error recombining log event files")

@@ -463,6 +463,7 @@ class RunSimpleCommand(object):
 class PageAndEditStats(object):
     def __init__(self, wiki, db_name, error_callback=None):
         self.total_pages = None
+        self.total_logitems = None
         self.total_edits = None
         self.wiki = wiki
         self.db_name = db_name
@@ -487,6 +488,7 @@ class PageAndEditStats(object):
         lines = results.splitlines()
         if lines and lines[1]:
             self.total_pages = int(lines[1])
+
         query = "select MAX(rev_id) from %srevision;" % self.db_server_info.db_table_prefix
         retries = 0
         results = None
@@ -501,10 +503,29 @@ class PageAndEditStats(object):
         lines = results.splitlines()
         if lines and lines[1]:
             self.total_edits = int(lines[1])
+
+        query = "select MAX(log_id) from %slogging;" % self.db_server_info.db_table_prefix
+        retries = 0
+        results = None
+        results = self.db_server_info.run_sql_and_get_output(query)
+        while results is None and retries < maxretries:
+            retries = retries + 1
+            time.sleep(5)
+            results = self.db_server_info.run_sql_and_get_output(query)
+        if not results:
+            return 1
+
+        lines = results.splitlines()
+        if lines and lines[1]:
+            self.total_logitems = int(lines[1])
+
         return 0
 
     def get_total_pages(self):
         return self.total_pages
+
+    def get_total_logitems(self):
+        return self.total_logitems
 
     def get_total_edits(self):
         return self.total_edits
@@ -548,6 +569,17 @@ class FilePartInfo(object,):
                 self._pages_per_filepart_abstract = self.convert_comma_sep(
                     self.wiki.config.pages_per_filepart_abstract)
 
+            if (self.wiki.config.numparts_for_pagelogs and
+                    self.wiki.config.numparts_for_pagelogs != "0"):
+                # we add 200 padding to cover new log entries that may be added
+                logitems_per_filepart = 200 + self.stats.total_logitems / int(
+                    self.wiki.config.numparts_for_pagelogs)
+                self._logitems_per_filepart_pagelogs = [logitems_per_filepart for i in range(
+                    0, int(self.wiki.config.numparts_for_pagelogs))]
+            else:
+                self._logitems_per_filepart_pagelogs = self.convert_comma_sep(
+                    self.wiki.config.logitems_per_filepart_pagelogs)
+
             self._pages_per_filepart_history = self.convert_comma_sep(
                 self.wiki.config.pages_per_filepart_history)
             self._revs_per_filepart_history = self.convert_comma_sep(
@@ -557,6 +589,7 @@ class FilePartInfo(object,):
             self._pages_per_filepart_history = False
             self._revs_per_filepart_history = False
             self._pages_per_filepart_abstract = False
+            self._logitems_per_filepart_pagelogs = False
             self._recombine_history = False
         if self._parts_enabled:
             if self._revs_per_filepart_history:
@@ -595,6 +628,18 @@ class FilePartInfo(object,):
             else:
                 self._num_parts_abstract = 0
 
+            if self._logitems_per_filepart_pagelogs:
+                if (len(self._logitems_per_filepart_pagelogs) == 1 and
+                        self._logitems_per_filepart_pagelogs[0]):
+                    self._num_parts_pagelogs = self.get_num_parts_for_xml_dumps(
+                        self.stats.total_logitems, self._logitems_per_filepart_pagelogs[0])
+                    self._logitems_per_filepart_pagelogs = [self._logitems_per_filepart_pagelogs[0]
+                                                            for i in range(self._num_parts_pagelogs)]
+                else:
+                    self._num_parts_pagelogs = len(self._logitems_per_filepart_pagelogs)
+            else:
+                self._num_parts_pagelogs = 0
+
     def convert_comma_sep(self, line):
         if line == "":
             return False
@@ -607,6 +652,9 @@ class FilePartInfo(object,):
 
     def get_pages_per_filepart_abstract(self):
         return self._pages_per_filepart_abstract
+
+    def get_logitems_per_filepart_pagelogs(self):
+        return self._logitems_per_filepart_pagelogs
 
     def get_num_parts_abstract(self):
         return self._num_parts_abstract
