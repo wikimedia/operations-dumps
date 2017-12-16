@@ -129,11 +129,11 @@ class RecombineXmlStub(RecombineDump):
         if not len(input_dfnames):
             self.set_status("failed")
             raise BackupError("No input files for %s found" % self.name())
-        if not exists(runner.wiki.config.cat):
-            raise BackupError("cat command %s not found" % runner.wiki.config.cat)
-        compression_command = runner.wiki.config.cat
-        compression_command = "%s > " % runner.wiki.config.cat
-        uncompression_command = ["%s" % runner.wiki.config.cat]
+        if not exists(runner.wiki.config.gzip):
+            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
+        compression_command = runner.wiki.config.gzip
+        compression_command = "%s > " % runner.wiki.config.gzip
+        uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
         recombine_command_string = self.build_recombine_command_string(
             runner, input_dfnames, output_dfname, compression_command, uncompression_command)
         recombine_command = [recombine_command_string]
@@ -301,10 +301,10 @@ class RecombineAbstractDump(RecombineDump):
         if not len(input_dfnames):
             self.set_status("failed")
             raise BackupError("No input files for %s found" % self.name())
-        if not exists(runner.wiki.config.cat):
-            raise BackupError("cat command %s not found" % runner.wiki.config.cat)
-        compression_command = "%s > " % runner.wiki.config.cat
-        uncompression_command = ["%s" % runner.wiki.config.cat]
+        if not exists(runner.wiki.config.gzip):
+            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
+        compression_command = "%s > " % runner.wiki.config.gzip
+        uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
         recombine_command_string = self.build_recombine_command_string(
             runner, input_dfnames, output_dfname, compression_command,
             uncompression_command, "<feed>")
