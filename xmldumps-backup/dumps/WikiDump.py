@@ -171,9 +171,8 @@ class Config(object):
         globals like entries in 'wiki' or 'output' that can
         be overriden by a specific named section
         """
-        self.db_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
-            "wiki", "dblist", 0))
-
+        self.db_list_unsorted = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+            "wiki", "dblist", 0), nosort=True)
         # permit comma-separated list of files so that eg some script
         # can skip all private and/or closed wikis in addition to some
         # other exclusion list
@@ -191,7 +190,9 @@ class Config(object):
         self.apijobs = self.get_opt_in_overrides_or_default(
             "wiki", "apijobs", 0)
 
-        self.db_list = list(set(self.db_list) - set(self.skip_db_list))
+        self.db_list_unsorted = [dbname for dbname in self.db_list_unsorted
+                                 if dbname not in self.skip_db_list]
+        self.db_list = sorted(self.db_list_unsorted)
 
         if not self.conf.has_section('output'):
             self.conf.add_section('output')
@@ -205,6 +206,11 @@ class Config(object):
         self.log_file = self.get_opt_in_overrides_or_default("output", "logfile", 0)
         self.fileperms = self.get_opt_in_overrides_or_default("output", "fileperms", 0)
         self.fileperms = int(self.fileperms, 0)
+
+        if not self.conf.has_section('misc'):
+            self.conf.add_section('misc')
+        self.fixed_dump_order = self.get_opt_in_overrides_or_default("misc", "fixeddumporder", 0)
+        self.fixed_dump_order = int(self.fixed_dump_order, 0)
 
     def parse_conffile_globally(self):
 

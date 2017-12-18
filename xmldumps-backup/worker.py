@@ -39,6 +39,7 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
         return True
 
     wiki.set_date(date)
+    wiki.config.parse_conffile_per_project(wiki.db_name)
 
     runner = Runner(wiki, prefetch=prefetch, prefetchdate=prefetchdate, spawn=spawn, job=job,
                     skip_jobs=skipjobs, restart=restart, notice=html_notice, dryrun=dryrun,
@@ -90,11 +91,26 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
                         date=None, job=None, skipjobs=None, page_id_range=None,
                         partnum_todo=None, checkpoint_file=None, skipdone=False, restart=False,
                         verbose=False):
-    nextdbs = config.db_list_by_age(bystatustime)
-    nextdbs.reverse()
+    # note that fixed_dump_order had better be used only with the skipdone option,
+    # otherwise the first wiki in the list will be run over and over :-P
+    # we like this order because we can put one of the "bigwikis" that takes
+    # forever to finish, at the head of the list,letting it take however many cores
+    # and be slow, while the rest of the wikis run on the other cores one after
+    # another and finish up.  If we start the slowest one lots later, it might
+    # be the only thing running for several days when the rest of the wikis have
+    # already finished, it doesn't expand to use all available cores (this would be
+    # too hard on the db servers)
+    if config.fixed_dump_order:
+        nextdbs = config.db_list_unsorted
+    else:
+        nextdbs = config.db_list_by_age(bystatustime)
+        nextdbs.reverse()
 
     if verbose and not cutoff:
-        sys.stderr.write("Finding oldest unlocked wiki...\n")
+        if config.fixed_dump_order:
+            sys.stderr.write("Finding next unlocked wiki in list...\n")
+        else:
+            sys.stderr.write("Finding oldest unlocked wiki...\n")
 
     # if we skip locked wikis which are missing the prereqs for this job,
     # there are still wikis where this job needs to run

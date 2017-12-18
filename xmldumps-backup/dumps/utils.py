@@ -17,7 +17,7 @@ from dumps.exceptions import BackupError
 
 class MiscUtils(object):
     @staticmethod
-    def db_list(path):
+    def db_list(path, nosort=False):
         """Read database list from a file"""
         if not path:
             return []
@@ -28,7 +28,8 @@ class MiscUtils(object):
             if line != "":
                 dbs.append(line)
         infhandle.close()
-        dbs = sorted(dbs)
+        if not nosort:
+            dbs = sorted(dbs)
         return dbs
 
     @staticmethod
