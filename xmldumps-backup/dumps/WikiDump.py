@@ -316,6 +316,11 @@ class Config(object):
             self.conf.add_section('wiki')
         self.wiki_dir = self.get_opt_for_proj_or_default("wiki", "dir", 0)
 
+        if not self.conf.has_section('misc'):
+            self.conf.add_section('misc')
+        self.sevenzip_prefetch = self.get_opt_in_overrides_or_default("misc", "sevenzipprefetch", 0)
+        self.sevenzip_prefetch = int(self.sevenzip_prefetch, 0)
+
     def db_latest_status(self):
         '''
         return list of tuples for each wiki:

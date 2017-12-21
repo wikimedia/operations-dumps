@@ -198,6 +198,55 @@ class PrefetchFinder(object):
             pagerange['end'] = None
         return pagerange
 
+    def _find_prefetch_files_from_run(self, runner, date, jobinfo,
+                                      pagerange, file_ext):
+        """
+        for a given wiki and date, see if there are dump content
+        files lying about that can be used for prefetch to the
+        current job, with the given file extension (might be bz2s
+        or 7zs or whatever) for the given range of pages
+        """
+        dfnames = get_checkpt_files(
+            runner.dump_dir, [jobinfo['dumpname']], self.jobinfo['ftype'],
+            file_ext, date, parts=None)
+        possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
+            dfnames, pagerange, date, runner)
+        if len(possible_prefetch_dfnames):
+            return possible_prefetch_dfnames
+
+        # ok, let's check for file parts instead, from any run
+        # (may not conform to our numbering for this job)
+        dfnames = get_reg_files(
+            runner.dump_dir, [jobinfo['dumpname']], jobinfo['ftype'],
+            file_ext, date, parts=True)
+        possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
+            dfnames, pagerange, date, runner)
+        if len(possible_prefetch_dfnames):
+            return possible_prefetch_dfnames
+
+        # last shot, get output file that contains all the pages, if there is one
+        dfnames = get_reg_files(
+            runner.dump_dir, [jobinfo['dumpname']],
+            jobinfo['ftype'], file_ext, date, parts=False)
+        # there is only one, don't bother to check for relevance :-P
+        possible_prefetch_dfnames = dfnames
+        dfnames = []
+        for prefetch_dfname in possible_prefetch_dfnames:
+            if runner.wiki.is_private():
+                possible_path = runner.dump_dir.filename_private_path(prefetch_dfname, date)
+            else:
+                possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
+            size = os.path.getsize(possible_path)
+            if size < 70000:
+                runner.debug("small %d-byte prefetch dump at %s, skipping" % (
+                    size, possible_path))
+                continue
+            else:
+                dfnames.append(prefetch_dfname)
+        if len(dfnames):
+            return dfnames
+        return None
+
     def _find_previous_dump(self, runner, partnum=None):
         """
         this finds the content file or files from the first previous successful dump
@@ -226,46 +275,15 @@ class PrefetchFinder(object):
                 runner.debug("skipping incomplete or failed dump for prefetch date %s" % date)
                 continue
 
-            # first check if there are checkpoint files from this run we can use
-            dfnames = get_checkpt_files(
-                runner.dump_dir, [self.jobinfo['dumpname']], self.jobinfo['ftype'],
-                self.jobinfo['fext'], date, parts=None)
-            possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
-                dfnames, pagerange, date, runner)
-            if len(possible_prefetch_dfnames):
-                return possible_prefetch_dfnames
+            # might look first for 7z files, then for bz2,
+            # in any case go through the entire dance for each extension
+            # before giving up and moving to next one
+            for file_ext in self.jobinfo['fexts']:
 
-            # ok, let's check for file parts instead, from any run
-            # (may not conform to our numbering for this job)
-            dfnames = get_reg_files(
-                runner.dump_dir, [self.jobinfo['dumpname']], self.jobinfo['ftype'],
-                self.jobinfo['fext'], date, parts=True)
-            possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
-                dfnames, pagerange, date, runner)
-            if len(possible_prefetch_dfnames):
-                return possible_prefetch_dfnames
-
-            # last shot, get output file that contains all the pages, if there is one
-            dfnames = get_reg_files(
-                runner.dump_dir, [self.jobinfo['dumpname']],
-                self.jobinfo['ftype'], self.jobinfo['fext'], date, parts=False)
-            # there is only one, don't bother to check for relevance :-P
-            possible_prefetch_dfnames = dfnames
-            dfnames = []
-            for prefetch_dfname in possible_prefetch_dfnames:
-                if runner.wiki.is_private():
-                    possible_path = runner.dump_dir.filename_private_path(prefetch_dfname, date)
-                else:
-                    possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
-                size = os.path.getsize(possible_path)
-                if size < 70000:
-                    runner.debug("small %d-byte prefetch dump at %s, skipping" % (
-                        size, possible_path))
-                    continue
-                else:
-                    dfnames.append(prefetch_dfname)
-            if len(dfnames):
-                return dfnames
+                dfnames_found = self._find_prefetch_files_from_run(
+                    runner, date, self.jobinfo, pagerange, file_ext)
+                if dfnames_found:
+                    return dfnames_found
 
         runner.debug("Could not locate a prefetchable dump.")
         return None
@@ -304,7 +322,10 @@ class PrefetchFinder(object):
         else:
             partnum_str = ""
         if len(sources) > 0:
-            source = "bzip2:%s" % (";".join(sources))
+            if sources[0].endswith('7z'):
+                source = "7zip:%s" % (";".join(sources))
+            else:
+                source = "bzip2:%s" % (";".join(sources))
             runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." %
                                      (self.jobinfo['subset'], partnum_str, source))
             prefetch = "--prefetch=%s" % (source)
@@ -676,11 +697,15 @@ class XmlDump(Dump):
             dfnames_todo = self.make_bitesize_jobs(dfnames_todo, stub_pageranges)
 
         if self.jobinfo['prefetch']:
+            if runner.wiki.config.sevenzip_prefetch:
+                file_exts = ['7z', self.file_ext]
+            else:
+                file_exts = [self.file_ext]
             prefetcher = PrefetchFinder(
                 self.wiki,
                 {'name': self.name(), 'desc': self.jobinfo['desc'],
                  'dumpname': self.get_dumpname(),
-                 'ftype': self.file_type, 'fext': self.file_ext,
+                 'ftype': self.file_type, 'fexts': file_exts,
                  'subset': self.jobinfo['subset']},
                 {'date': self.jobinfo['prefetchdate'], 'parts': self._parts},
                 self.verbose)
