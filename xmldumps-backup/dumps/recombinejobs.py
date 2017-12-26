@@ -7,6 +7,7 @@ from os.path import exists
 import signal
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
+from dumps.fileutils import DumpFilename
 from dumps.CommandManagement import CommandPipeline
 
 
@@ -74,7 +75,7 @@ class RecombineDump(Dump):
             recombines.append(recombine)
         recombine_command_string = ("(" + ";".join(recombines) + ")" + "|" +
                                     "%s %s" % (compression_command,
-                                               self.get_inprogress_name(output_filename)))
+                                               DumpFilename.get_inprogress_name(output_filename)))
         return recombine_command_string
 
 

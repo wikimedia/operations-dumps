@@ -110,8 +110,8 @@ class XmlMultiStreamDump(Dump):
             infilepath = runner.dump_dir.filename_public_path(input_dfname)
         command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s" %
                          (self.wiki.config.bzip2, infilepath, self.wiki.config.recompressxml,
-                          self.get_inprogress_name(outfilepath_index),
-                          self.get_inprogress_name(outfilepath))]]
+                          DumpFilename.get_inprogress_name(outfilepath_index),
+                          DumpFilename.get_inprogress_name(outfilepath))]]
         return [command_pipe]
 
     def run(self, runner):
@@ -350,7 +350,7 @@ class XmlRecompressDump(Dump):
             command_pipe = [["%s -dc %s | %s a -mx=4 -si %s" %
                              (self.wiki.config.bzip2, infilepath,
                               self.wiki.config.sevenzip,
-                              self.get_inprogress_name(outfilepath))]]
+                              DumpFilename.get_inprogress_name(outfilepath))]]
             command_series.append(command_pipe)
         return command_series
 

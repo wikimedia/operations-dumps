@@ -765,7 +765,7 @@ class XmlDump(Dump):
             bz2mode = "dbzip2"
         else:
             bz2mode = "bzip2"
-        return "--output=%s:%s" % (bz2mode, self.get_inprogress_name(xmlbz2_path))
+        return "--output=%s:%s" % (bz2mode, DumpFilename.get_inprogress_name(xmlbz2_path))
 
     def build_command(self, runner, stub_dfname, prefetch, output_dfname):
         """

@@ -5,6 +5,7 @@ Dumps of Flow pages
 import os
 from dumps.exceptions import BackupError
 from dumps.utils import MultiVersion
+from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
 
 
@@ -45,7 +46,7 @@ class FlowDump(Dump):
         command.extend(script_command)
         command.extend(["--wiki=%s" % runner.db_name,
                         "--current", "--report=1000",
-                        "--output=bzip2:%s" % self.get_inprogress_name(flow_output_fpath)])
+                        "--output=bzip2:%s" % DumpFilename.get_inprogress_name(flow_output_fpath)])
         if self.history:
             command.append("--full")
         pipeline = [command]

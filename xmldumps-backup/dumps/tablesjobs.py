@@ -9,6 +9,7 @@ from os.path import exists
 
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
+from dumps.fileutils import DumpFilename
 
 
 class PublicTable(Dump):
@@ -33,11 +34,11 @@ class PublicTable(Dump):
         commands = runner.db_server_info.build_sqldump_command(self._table, runner.wiki.config.gzip)
         if self.private or runner.wiki.is_private():
             command_series = runner.get_save_command_series(
-                commands, self.get_inprogress_name(
+                commands, DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_private_path(output_dfname)))
         else:
             command_series = runner.get_save_command_series(
-                commands, self.get_inprogress_name(
+                commands, DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_public_path(output_dfname)))
         return command_series
 
@@ -136,10 +137,12 @@ class TitleDump(Dump):
         series = runner.db_server_info.build_sql_command(query, runner.wiki.config.gzip)
         if runner.wiki.is_private():
             return runner.get_save_command_series(
-                series, self.get_inprogress_name(runner.dump_dir.filename_private_path(out_dfname)))
+                series, DumpFilename.get_inprogress_name(
+                    runner.dump_dir.filename_private_path(out_dfname)))
         else:
             return runner.get_save_command_series(
-                series, self.get_inprogress_name(runner.dump_dir.filename_public_path(out_dfname)))
+                series, DumpFilename.get_inprogress_name(
+                    runner.dump_dir.filename_public_path(out_dfname)))
 
     def save_sql(self, runner, command_series):
         """Pass some SQL commands to the server for this DB and save output to a gzipped file."""

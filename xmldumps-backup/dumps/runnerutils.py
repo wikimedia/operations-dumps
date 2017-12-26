@@ -272,9 +272,18 @@ class Report(Registered):
             status ("in-progress", "missing", ...)
         """
         filename = dump_dir.filename_public_path(dfname)
+        size = None
         if exists(filename):
             size = os.path.getsize(filename)
-        else:
+        elif item_status == "in-progress":
+            # note that because multiple files may be produced for a single dump
+            # job, some may be complete while others are still in progress.
+            # therefore we check the normal name first, falling back to the
+            # inprogress name.
+            filename = filename + DumpFilename.INPROG
+            if exists(filename):
+                size = os.path.getsize(filename)
+        if size is None:
             item_status = "missing"
             size = 0
         pretty_size = FileUtils.pretty_size(size)

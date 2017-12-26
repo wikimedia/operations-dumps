@@ -165,12 +165,18 @@ class DumpFilename(object):
     partnum_int       part number as int
     """
 
+    INPROG = ".inprog"  # extension for dump output files that are in progress (not fully written)
+
     @staticmethod
     def make_checkpoint_string(first_page_id, last_page_id):
         if first_page_id is not None and last_page_id is not None:
             return "p" + first_page_id + "p" + last_page_id
         else:
             return None
+
+    @staticmethod
+    def get_inprogress_name(filename):
+        return filename + DumpFilename.INPROG
 
     def __init__(self, wiki, date=None, dump_name=None, filetype=None,
                  ext=None, partnum=None, checkpoint=None, temp=False):

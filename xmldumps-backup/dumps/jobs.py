@@ -54,8 +54,6 @@ def get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=No
 
 
 class Dump(object):
-    INPROG = ".inprog"  # extension for dump output files that are in progress (not fully written)
-
     def __init__(self, name, desc, verbose=False):
         self._desc = desc
         self.verbose = verbose
@@ -84,14 +82,12 @@ class Dump(object):
         if not hasattr(self, '_parts'):
             self._parts = False
 
-    def get_inprogress_name(self, filename):
-        return filename + self.INPROG
-
     def setup_command_info(self, runner, command_series, output_dfnames, output_dir=None):
         command_info = {}
         command_info['runner'] = runner
         command_info['series'] = command_series
-        command_info['output_files'] = [dfname.filename + self.INPROG for dfname in output_dfnames]
+        command_info['output_files'] = [dfname.filename + DumpFilename.INPROG
+                                        for dfname in output_dfnames]
         if output_dir is not None:
             command_info['output_dir'] = output_dir
         else:
@@ -239,12 +235,12 @@ class Dump(object):
         file_truncated = True
         if runner.wiki.is_private():
             dcontents = DumpContents(runner.wiki,
-                                     self.get_inprogress_name(
+                                     DumpFilename.get_inprogress_name(
                                          runner.dump_dir.filename_private_path(dfname)),
                                      dfname)
         else:
             dcontents = DumpContents(runner.wiki,
-                                     self.get_inprogress_name(
+                                     DumpFilename.get_inprogress_name(
                                          runner.dump_dir.filename_public_path(dfname)),
                                      dfname)
         if exists(dcontents.filename):
@@ -319,10 +315,11 @@ class Dump(object):
                 if not commands['output_files']:
                     return
                 for inprogress_filename in commands['output_files']:
-                    if not inprogress_filename.endswith(self.INPROG):
+                    if not inprogress_filename.endswith(DumpFilename.INPROG):
                         continue
                     final_dfname = DumpFilename(commands['runner'].wiki)
-                    final_dfname.new_from_filename(inprogress_filename[:-1 * len(self.INPROG)])
+                    final_dfname.new_from_filename(
+                        inprogress_filename[:-1 * len(DumpFilename.INPROG)])
 
                     in_progress_path = os.path.join(commands['output_dir'], inprogress_filename)
                     final_path = os.path.join(commands['output_dir'], final_dfname.filename)
@@ -347,10 +344,10 @@ class Dump(object):
             os.remove(dump_dir.filename_public_path(dfname))
         elif exists(dump_dir.filename_private_path(dfname)):
             os.remove(dump_dir.filename_private_path(dfname))
-        if exists(dump_dir.filename_public_path(dfname) + self.INPROG):
-            os.remove(dump_dir.filename_public_path(dfname) + self.INPROG)
-        elif exists(dump_dir.filename_private_path(dfname) + self.INPROG):
-            os.remove(dump_dir.filename_private_path(dfname) + self.INPROG)
+        if exists(dump_dir.filename_public_path(dfname) + DumpFilename.INPROG):
+            os.remove(dump_dir.filename_public_path(dfname) + DumpFilename.INPROG)
+        elif exists(dump_dir.filename_private_path(dfname) + DumpFilename.INPROG):
+            os.remove(dump_dir.filename_private_path(dfname) + DumpFilename.INPROG)
 
     def cleanup_old_files(self, dump_dir, runner):
         if "cleanup_old_files" in runner.enabled:

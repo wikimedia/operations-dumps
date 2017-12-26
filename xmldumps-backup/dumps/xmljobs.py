@@ -134,9 +134,9 @@ class XmlStub(Dump):
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
         command = ["/usr/bin/python", "xmlstubs.py", "--config", config_file_arg,
                    "--wiki", runner.db_name,
-                   "--articles", self.get_inprogress_name(articles_filepath),
-                   "--history", self.get_inprogress_name(history_filepath),
-                   "--current", self.get_inprogress_name(current_filepath)]
+                   "--articles", DumpFilename.get_inprogress_name(articles_filepath),
+                   "--history", DumpFilename.get_inprogress_name(history_filepath),
+                   "--current", DumpFilename.get_inprogress_name(current_filepath)]
 
         if output_dfname.partnum:
             # set up start end end pageids for this piece
@@ -227,7 +227,7 @@ class XmlLogging(Dump):
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
         command = ["/usr/bin/python", "xmllogs.py", "--config",
                    config_file_arg, "--wiki", runner.db_name,
-                   "--outfile", self.get_inprogress_name(logging_path)]
+                   "--outfile", DumpFilename.get_inprogress_name(logging_path)]
 
         pipeline = [command]
         series = [pipeline]
@@ -297,10 +297,10 @@ class AbstractDump(Dump):
             variant = self.get_variant_from_dumpname(dfname.dumpname)
             variant_option = self._variant_option(variant)
             if runner.wiki.is_private():
-                output_paths.append(self.get_inprogress_name(
+                output_paths.append(DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_private_path(dfname)))
             else:
-                output_paths.append(self.get_inprogress_name(
+                output_paths.append(DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_public_path(dfname)))
             variants.append(variant_option)
 

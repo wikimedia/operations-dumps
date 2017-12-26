@@ -1,5 +1,6 @@
 import time
 from dumps.exceptions import BackupError
+from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
 
 
@@ -30,11 +31,11 @@ class SiteInfoDump(Dump):
         commands = self.build_command(runner)
         if runner.wiki.is_private():
             command_series = runner.get_save_command_series(
-                commands, self.get_inprogress_name(
+                commands, DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_private_path(output_dfname)))
         else:
             command_series = runner.get_save_command_series(
-                commands, self.get_inprogress_name(
+                commands, DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_public_path(output_dfname)))
         self.setup_command_info(runner, command_series, [output_dfname])
 
