@@ -930,8 +930,6 @@ class DumpRunJobData(object):
         self.checksummer.prepare_checksums()
 
     def do_after_dump(self, dump_items):
-        self.checksummer.move_chksumfiles_into_place()
-
         # note that it's possible for links in "latest" to point to
         # files from different runs, in which case the checksum files
         # will have accurate checksums for the run for which it was

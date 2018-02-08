@@ -806,6 +806,9 @@ class Runner(object):
             if not os.path.exists(os.path.join(self.wiki.private_dir(), self.wiki.date)):
                 os.makedirs(os.path.join(self.wiki.private_dir(), self.wiki.date))
 
+        # we must do this here before the checksums are used for status reports below
+        self.dumpjobdata.checksummer.move_chksumfiles_into_place()
+
         if self.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
             self.report.update_index_html_and_json("done")
