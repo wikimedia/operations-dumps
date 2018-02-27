@@ -87,9 +87,10 @@ class StubProvider(object):
         else:
             raise BackupError("unknown stub file extension %s" % input_dfname.file_ext)
         if output_dfname.last_page_id is not None and output_dfname.last_page_id is not "00000":
+            last_page_id = str(int(output_dfname.last_page_id) + 1)
             command = [command1 + ("| %s %s %s |" % (self.wiki.config.writeuptopageid,
                                                      output_dfname.first_page_id,
-                                                     output_dfname.last_page_id)) + command2]
+                                                     last_page_id)) + command2]
         else:
             # no lastpageid? read up to eof of the specific stub file that's used for input
             command = [command1 + ("| %s %s |" % (self.wiki.config.writeuptopageid,
