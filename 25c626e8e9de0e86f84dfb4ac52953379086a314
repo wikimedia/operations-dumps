@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "3dbc09e1_c766d615",
+        "filename": "xmldumps-backup/get_images.py",
+        "patchSetId": 2
+      },
+      "lineNbr": 52,
+      "author": {
+        "id": 34
+      },
+      "writtenOn": "2018-03-07T19:37:39Z",
+      "side": 1,
+      "message": "Adding \"xmldumps-backup\" and/or \"operations/dumps\" here would  help narrow it down I think. The current name is specific in its purpose, but vague in its source in terms of team/product.",
+      "range": {
+        "startLine": 52,
+        "startChar": 49,
+        "endLine": 52,
+        "endChar": 59
+      },
+      "revId": "25c626e8e9de0e86f84dfb4ac52953379086a314",
+      "serverId": "e9e9afe9-4712-486d-8885-f54b72dd1951",
+      "unresolved": false
+    }
+  ]
+}
