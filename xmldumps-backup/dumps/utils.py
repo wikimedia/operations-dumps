@@ -129,9 +129,16 @@ class DbServerInfo(object):
             self.get_config_variables()
 
     def get_config_variables(self):
+        '''
+        retrieve settings for certain MW global variables
+        via maintenance script
+        then set the db table prefix, and the base path to
+        the MW api for the wiki
+        '''
         command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getConfiguration.php")
         pull_vars = ["wgDBprefix", "wgCanonicalServer", "wgScriptPath"]
-        command = "{php} {command} --wiki={dbname} --group=dump --format=json --regex='{vars}'".format(
+        command = "{php} {command} --wiki={dbname} --group=dump --format=json --regex='{vars}'"
+        command = command.format(
             php=MiscUtils.shell_escape(self.wiki.config.php),
             command=" ".join(command_list),
             dbname=MiscUtils.shell_escape(self.db_name),
@@ -140,7 +147,9 @@ class DbServerInfo(object):
             command, shell=True, log_callback=self.error_callback).strip()
         settings = json.loads(results)
         if not settings or len(settings) != 3:
-            raise BackupError("Failed to get configuration for %s" % self.wiki.config.php)
+            raise BackupError(
+                "Failed to get values for wgDBprefix, wgCanonicalServer, " +
+                "wgScriptPath for {wiki}".format(wiki=self.db_name))
 
         self.db_table_prefix = settings['wgDBprefix']
         wgcanonserver = settings['wgCanonicalServer']
