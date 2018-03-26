@@ -727,32 +727,50 @@ class SymLinks(object):
     # example: if partnum is False or None then we remove all old values for all file parts
     # "old" means "older than the specified datestring".
     def remove_symlinks_from_old_runs(self, date_string, dump_name=None, partnum=None,
-                                      checkpoint=None, onlyparts=False):
+                                      checkpoint=None, onlyparts=False, keepextra=1):
         # fixme
         # this needs to do more work if there are file parts or checkpoint files linked in here from
         # earlier dates. checkpoint ranges change, and configuration of parallel jobs for file parts
         # changes too, so maybe old files still exist and the links need to be removed because we
         # have newer files for the same phase of the dump.
-
         if SymLinks.NAME in self._enabled:
             latest_dir = self.dump_dir.latest_dir()
             files = os.listdir(latest_dir)
+            dates = []
+
+            files_for_cleanup = []
             for filename in files:
                 link = os.path.join(latest_dir, filename)
                 if os.path.islink(link):
                     realfilepath = os.readlink(link)
                     dfname = DumpFilename(self.dump_dir._wiki)
                     dfname.new_from_filename(os.path.basename(realfilepath))
-                    if dfname.date < date_string:
+                    files_for_cleanup.append({'link': link, 'dfname': dfname, 'path': realfilepath})
+                    dates.append(dfname.date)
+            try:
+                index = dates.index(date_string)
+                prev_run_date = dates[index - 1]
+            except Exception:
+                if len(dates) >= 2:
+                    prev_run_date = dates[-2]
+                else:
+                    prev_run_date = None
+            for item in files_for_cleanup:
+                if item['dfname'].date < date_string:
+                    if dump_name and (item['dfname'].dumpname != dump_name):
+                        continue
+                    if prev_run_date is None or item['dfname'].date == prev_run_date:
+                        # for the previous run, or the only existing run, if different
+                        # from the current one, we are very careful. For all older runs
+                        # we pretty much want to toss everything
+
                         # fixme check that these are ok if the value is None
-                        if dump_name and (dfname.dumpname != dump_name):
+                        if (partnum or onlyparts) and (item['dfname'].partnum != partnum):
                             continue
-                        if (partnum or onlyparts) and (dfname.partnum != partnum):
+                        if checkpoint and (item['dfname'].checkpoint != checkpoint):
                             continue
-                        if checkpoint and (dfname.checkpoint != checkpoint):
-                            continue
-                        self.debugfn("Removing old symlink %s -> %s" % (link, realfilepath))
-                        os.remove(link)
+                    self.debugfn("Removing old symlink %s -> %s" % (item['link'], item['path']))
+                    os.remove(item['link'])
 
 
 class Feeds(object):
