@@ -589,12 +589,14 @@ class FilePartInfo(object,):
                 self.wiki.config.pages_per_filepart_history)
             self._revs_per_filepart_history = self.convert_comma_sep(
                 self.wiki.config.revs_per_filepart_history)
+            self._recombine_metacurrent = self.wiki.config.recombine_metacurrent
             self._recombine_history = self.wiki.config.recombine_history
         else:
             self._pages_per_filepart_history = False
             self._revs_per_filepart_history = False
             self._pages_per_filepart_abstract = False
             self._logitems_per_filepart_pagelogs = False
+            self._recombine_metacurrent = False
             self._recombine_history = False
         if self._parts_enabled:
             if self._revs_per_filepart_history:
@@ -672,6 +674,9 @@ class FilePartInfo(object,):
 
     def parts_enabled(self):
         return self._parts_enabled
+
+    def recombine_metacurrent(self):
+        return self._recombine_metacurrent
 
     def recombine_history(self):
         return self._recombine_history

@@ -286,6 +286,8 @@ class Config(object):
             "chunks", "chunksForPagelogs", 0)
         self.logitems_per_filepart_pagelogs = self.get_opt_for_proj_or_default(
             "chunks", "logitemsPerPagelogs", 0)
+        self.recombine_metacurrent = self.get_opt_for_proj_or_default(
+            "chunks", "recombineMetaCurrent", 1)
         self.recombine_history = self.get_opt_for_proj_or_default(
             "chunks", "recombineHistory", 1)
         self.checkpoint_time = self.get_opt_for_proj_or_default(

@@ -354,7 +354,9 @@ class DumpItemList(object):
     def append_job_if_needed(self, job):
         if job.name().endswith("recombine"):
             if self.filepart.parts_enabled():
-                if 'metahistory' not in job.name() or self.filepart.recombine_history():
+                if (('metahistory' in job.name() and self.filepart.recombine_history()) or
+                        ('metacurrent' in job.name() and self.filepart.recombine_metacurrent()) or
+                        ('metahistory' not in job.name() and 'metacurrent' not in job.name())):
                     self.dump_items.append(job)
         elif 'flow' in job.name():
             if self._has_flow:

@@ -861,6 +861,7 @@ class RunSettings(object):
                 self.wiki.config.numparts_for_abstract,
                 self.wiki.config.numparts_for_pagelogs,
                 self.wiki.config.pages_per_filepart_abstract,
+                self.wiki.config.recombine_metacurrent,
                 self.wiki.config.recombine_history,
                 self.wiki.config.checkpoint_time]
 
@@ -915,8 +916,9 @@ class RunSettings(object):
         self.wiki.config.numparts_for_abstract = settings[3]
         self.wiki.config.numparts_for_pagelogs = settings[4]
         self.wiki.config.pages_per_filepart_abstract = settings[5]
-        self.wiki.config.recombine_history = settings[6]
-        self.wiki.config.checkpoint_time = settings[7]
+        self.wiki.config.recombine_metacurrent = settings[6]
+        self.wiki.config.recombine_history = settings[7]
+        self.wiki.config.checkpoint_time = settings[8]
 
 
 class DumpRunJobData(object):
