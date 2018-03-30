@@ -19,8 +19,10 @@ from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 from dumps.flowjob import FlowDump
 
-from dumps.runnerutils import RunSettings, SymLinks, Feeds, Notice
-from dumps.runnerutils import Checksummer, Report, StatusHtml, FailureHandler
+from dumps.checksummers import Checksummer
+from dumps.report import Report, StatusHtml
+from dumps.symlinks import SymLinks, Feeds
+from dumps.runnerutils import RunSettings, Notice, FailureHandler
 from dumps.runnerutils import Maintenance, RunInfo, DumpRunJobData
 
 from dumps.utils import DbServerInfo, FilePartInfo, TimeUtils

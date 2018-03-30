@@ -8,7 +8,7 @@ import time
 import yaml
 import traceback
 
-from dumps.runnerutils import StatusHtml
+from dumps.report import StatusHtml
 from dumps.fileutils import FileUtils
 from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand
 

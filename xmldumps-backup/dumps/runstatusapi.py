@@ -8,9 +8,9 @@ json format, for downloaders' use
 import os
 import sys
 import traceback
-from dumps.runnerutils import Checksummer
+from dumps.checksummers import Checksummer
 from dumps.runnerutils import RunInfo
-from dumps.runnerutils import Report
+from dumps.report import Report
 from dumps.specialfilesregistry import SpecialFileWriter
 from dumps.fileutils import DumpFilename
 
