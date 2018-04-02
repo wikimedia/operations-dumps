@@ -248,10 +248,14 @@ class Dump(object):
                 # file exists and is empty, move it out of the way
                 dcontents.rename(dcontents.filename + ".empty")
             elif dcontents.check_if_truncated():
-                # The file exists and is truncated, we move it out of the way
+                # The file exists and is truncated, move it out of the way
+                dcontents.rename(dcontents.filename + ".truncated")
+            elif dcontents.check_if_binary_crap():
+                # The file exists and has binary junk in it, move it out of the way
                 dcontents.rename(dcontents.filename + ".truncated")
             else:
-                # The file exists and is not truncated. Heck, it's a good file!
+                # The file exists and is not truncated and doesn't have random crap.
+                # Heck, it's a good file!
                 file_truncated = False
         else:
             # file doesn't exist, move on

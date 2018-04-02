@@ -369,6 +369,7 @@ class DumpContents(object):
         self.first_lines = None
         self.is_truncated = None
         self.is_empty = None
+        self.is_binary = None
         self.first_page_id = None
         self.last_page_id = None
         self.dirname = os.path.dirname(filename)
@@ -624,6 +625,43 @@ class DumpContents(object):
         self.is_empty = bool(not len(proc.output()))
 
         return self.is_empty
+
+    def check_if_binary_crap(self):
+        '''
+        check if the file has binary junk in it
+        Only good for xml files, they are expected to start
+        with the mediawiki tag. Other files (eg sql) start
+        with something else, we don't check those
+        Note we expect real content to be present within the
+        2000 lines arbitrarily chosen as the cutoff
+        '''
+        if 'xml' not in self.dfname.filename:
+            return False
+
+        if self.is_binary:
+            return self.is_binary
+        if self.dfname.file_ext == "bz2":
+            pipeline = [["%s -dc  %s | head -2000 | grep '<mediawiki'" % (
+                self._wiki.config.bzip2, self.filename)]]
+        elif self.dfname.file_ext == "gz":
+            pipeline = [["%s -dc %s | head -2000 | grep '<mediawiki'" % (
+                self._wiki.config.gzip, self.filename)]]
+        elif self.dfname.file_ext == '7z':
+            pipeline = [["%s e -so %s | head -2000 | grep '<mediawiki'" % (
+                self._wiki.config.sevenzip, self.filename)]]
+        elif (self.dfname.file_ext == '' or self.dfname.file_ext == 'txt' or
+              self.dfname.file_ext == 'html'):
+            pipeline = [["head -2000 %s" % self.filename]]
+        else:
+            # we do't know how to handle this type of file.
+            return self.is_binary
+
+        proc = CommandPipeline(pipeline, quiet=True, shell=True)
+        proc.run_pipeline_get_output()
+        # it will display 'Binary file matches' :-P :-P
+        self.is_binary = bool('Binary' in proc.output())
+
+        return self.is_binary
 
     def get_size(self):
         if exists(self.filename):
