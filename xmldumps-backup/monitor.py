@@ -7,7 +7,7 @@ import traceback
 import json
 from dumps.WikiDump import Wiki, Config, Locker
 from dumps.fileutils import FileUtils
-from dumps.runnerutils import StatusHtml
+from dumps.report import StatusHtml
 from dumps.runstatusapi import StatusAPI
 
 
