@@ -396,6 +396,8 @@ class Runner(object):
                 if prereq_job is None:
                     # exception that doesn't have to do with missing prereqs.
                     self.debug("*** exception! " + str(ex))
+                    self.debug(repr(traceback.format_exception(
+                        exc_type, exc_value, exc_traceback)))
                     item.set_status("failed")
 
         if item.status() == "done":
