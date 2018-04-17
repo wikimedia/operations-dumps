@@ -10,6 +10,7 @@ the run.
 import os
 import sys
 import time
+import traceback
 from subprocess import Popen, PIPE
 from dumps.utils import DbServerInfo
 from dumps.WikiDump import Wiki
@@ -214,7 +215,9 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
     while retries < maxretries:
         try:
             result = run_script(command, outfiles, ends_with)
-        except Exception as ex:
+        except Exception:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             result = False
         if result:
             break
@@ -233,17 +236,27 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
                 # don't remove the temp files either, might be useful
                 # for checking the problem later
                 # os.unlink(outfiles[filetype]['temp'])
-            except Exception as ex:
+            except Exception:
                 pass
         sys.exit(1)
 
+    errors = False
     for filetype in outfiles:
         # any exception here means we don't unlink the temp files;
         # this is intentional, might examine them or re-use them
-        catfile(outfiles[filetype]['temp'], outfiles[filetype]['compr'])
+        # we do try to process all of them however.
+        try:
+            catfile(outfiles[filetype]['temp'], outfiles[filetype]['compr'])
+        except Exception:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+            errors = True
+    if errors:
+        sys.exit(1)
 
     for filetype in outfiles:
         try:
             os.unlink(outfiles[filetype]['temp'])
-        except Exception as ex:
-            pass
+        except Exception:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
