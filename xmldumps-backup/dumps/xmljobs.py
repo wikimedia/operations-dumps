@@ -2,8 +2,7 @@
 All xml dump jobs except content dump jobs are defined here
 '''
 
-from os.path import exists
-
+import os
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
@@ -112,11 +111,12 @@ class XmlStub(Dump):
         if dump_names is None:
             dump_names = self.list_dumpnames()
         dfnames = []
-        dfnames.extend(Dump.list_truncated_empty_outfiles_for_input(self, dump_dir, dump_names))
+        dfnames.extend(Dump.list_truncated_empty_outfiles_for_input(
+            self, dump_dir, dump_names))
         return dfnames
 
     def build_command(self, runner, output_dfname, history_dfname, current_dfname):
-        if not exists(runner.wiki.config.php):
+        if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
         if runner.wiki.is_private():
@@ -162,6 +162,7 @@ class XmlStub(Dump):
         # will cover all the other cases, as we generate all three stub file types
         # (article, meta-current, meta-history) at once
         dfnames = [dfname for dfname in dfnames if dfname.dumpname == self.articles_dump_name]
+        output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
         else:
@@ -179,11 +180,20 @@ class XmlStub(Dump):
                     output_dfname.file_type, output_dfname.file_ext,
                     output_dfname.partnum, output_dfname.checkpoint,
                     output_dfname.temp)
+                if (os.path.exists(os.path.join(output_dir, history_dfname.filename)) and
+                        os.path.exists(os.path.join(output_dir, current_dfname.filename)) and
+                        os.path.exists(os.path.join(output_dir, output_dfname.filename))):
+                    # this file in the batch is done, don't rerun it
+                    continue
                 command_series = self.build_command(runner, output_dfname,
                                                     history_dfname, current_dfname)
                 self.setup_command_info(runner, command_series,
                                         [output_dfname, current_dfname, history_dfname])
                 commands.append(command_series)
+
+            if not commands:
+                continue
+
             error, broken = runner.run_command(
                 commands, callback_stderr=self.progress_callback,
                 callback_stderr_arg=runner,
@@ -220,7 +230,7 @@ class XmlLogging(Dump):
         return name + "-" + str(number)
 
     def build_command(self, runner, output_dfname):
-        if not exists(runner.wiki.config.php):
+        if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
         if runner.wiki.is_private():
@@ -255,6 +265,7 @@ class XmlLogging(Dump):
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
         else:
@@ -262,12 +273,20 @@ class XmlLogging(Dump):
         for batch in batcher(dfnames, maxjobs):
             commands = []
             for output_dfname in batch:
+                if os.path.exists(os.path.join(output_dir, output_dfname.filename)):
+                    # this file in the batch was done already, don't redo it
+                    continue
                 command_series = self.build_command(runner, output_dfname)
                 self.setup_command_info(runner, command_series, [output_dfname])
                 commands.append(command_series)
-            error, broken = runner.run_command(commands, callback_stderr=self.progress_callback,
-                                               callback_stderr_arg=runner,
-                                               callback_on_completion=self.command_completion_callback)
+
+            if not commands:
+                continue
+
+            error, broken = runner.run_command(
+                commands, callback_stderr=self.progress_callback,
+                callback_stderr_arg=runner,
+                callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error dumping log files")
 
@@ -353,6 +372,7 @@ class AbstractDump(Dump):
         output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         dumpname0 = self.list_dumpnames()[0]
         wanted_dfnames = [dfname for dfname in output_dfnames if dfname.dumpname == dumpname0]
+        output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
         else:
@@ -368,9 +388,21 @@ class AbstractDump(Dump):
                                      dfname.file_type, dfname.file_ext,
                                      dfname.partnum, dfname.checkpoint))
 
+                fullpaths = [os.path.join(output_dir, produced_dfname.filename)
+                             for produced_dfname in produced_dfnames]
+                do_not_exist = [fullpath for fullpath in fullpaths if not os.path.exists(fullpath)]
+                if not do_not_exist:
+                    # all output files are already there for this command in the batch,
+                    # move on
+                    continue
+
                 command_series = self.build_command(runner, dfname, produced_dfnames)
                 self.setup_command_info(runner, command_series, produced_dfnames)
                 commands.append(command_series)
+
+            if not commands:
+                continue
+
             error, broken = runner.run_command(
                 commands, callback_stderr=self.progress_callback,
                 callback_stderr_arg=runner,

@@ -82,6 +82,12 @@ class Dump(object):
         if not hasattr(self, '_parts'):
             self._parts = False
 
+    def get_output_dir(self, runner):
+        if runner.wiki.is_private():
+            return os.path.join(runner.wiki.private_dir(), runner.wiki.date)
+        else:
+            return os.path.join(runner.wiki.public_dir(), runner.wiki.date)
+
     def setup_command_info(self, runner, command_series, output_dfnames, output_dir=None):
         command_info = {}
         command_info['runner'] = runner
