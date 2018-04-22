@@ -104,9 +104,14 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
     temporary files and shovelling those into gzip's stdin for the
     concatenated compressed output
     '''
-    outfiles = {'history': {'name': history_file},
-                'current': {'name': current_file},
-                'articles': {'name': articles_file}}
+    outfiles = {}
+    if history_file is not None:
+        outfiles['history'] = {'name': history_file}
+    if current_file is not None:
+        outfiles['current'] = {'name': current_file}
+    if articles_file is not None:
+        outfiles['articles'] = {'name': articles_file}
+
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(
             wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
@@ -119,13 +124,16 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
     command = [wikiconf.php] + script_command
 
     command.extend(["--wiki=%s" % wikidb,
-                    "--full", "--stub", "--report=1000",
-                    "--output=file:%s" % outfiles['history']['temp'],
-                    "--output=file:%s" % outfiles['current']['temp'],
-                    "--filter=latest",
-                    "--output=file:%s" % outfiles['articles']['temp'],
-                    "--filter=latest", "--filter=notalk",
-                    "--filter=namespace:!NS_USER"])
+                    "--full", "--stub", "--report=1000"])
+    if history_file is not None:
+        command.append("--output=file:%s" % outfiles['history']['temp'])
+    if current_file is not None:
+        command.extend(["--output=file:%s" % outfiles['current']['temp'],
+                        "--filter=latest"])
+    if articles_file is not None:
+        command.extend(["--output=file:%s" % outfiles['articles']['temp'],
+                        "--filter=latest", "--filter=notalk",
+                        "--filter=namespace:!NS_USER"])
 
     if wikiconf.stubs_orderrevs:
         command.append("--orderrevs")
@@ -218,12 +226,8 @@ def main():
 
     if wiki is None:
         usage("mandatory argument argument missing: --wiki")
-    if articles_file is None:
-        usage("mandatory argument argument missing: --articles")
-    if current_file is None:
-        usage("mandatory argument argument missing: --current")
-    if history_file is None:
-        usage("mandatory argument argument missing: --history")
+    if articles_file is None and current_file is None and history_file is None:
+        usage("At least one of --articles, --current, --history must be specified")
 
     if start is not None:
         if not start.isdigit():

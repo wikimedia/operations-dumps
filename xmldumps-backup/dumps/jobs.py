@@ -93,7 +93,7 @@ class Dump(object):
         command_info['runner'] = runner
         command_info['series'] = command_series
         command_info['output_files'] = [dfname.filename + DumpFilename.INPROG
-                                        for dfname in output_dfnames]
+                                        for dfname in output_dfnames if dfname is not None]
         if output_dir is not None:
             command_info['output_dir'] = output_dir
         else:

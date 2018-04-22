@@ -119,35 +119,39 @@ class XmlStub(Dump):
         if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        if runner.wiki.is_private():
-            articles_filepath = runner.dump_dir.filename_private_path(output_dfname)
-            history_filepath = runner.dump_dir.filename_private_path(history_dfname)
-            current_filepath = runner.dump_dir.filename_private_path(current_dfname)
-        else:
-            articles_filepath = runner.dump_dir.filename_public_path(output_dfname)
-            history_filepath = runner.dump_dir.filename_public_path(history_dfname)
-            current_filepath = runner.dump_dir.filename_public_path(current_dfname)
-#        script_command = MultiVersion.mw_script_as_array(runner.wiki.config, "dumpBackup.php")
-
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
         command = ["/usr/bin/python", "xmlstubs.py", "--config", config_file_arg,
-                   "--wiki", runner.db_name,
-                   "--articles", DumpFilename.get_inprogress_name(articles_filepath),
-                   "--history", DumpFilename.get_inprogress_name(history_filepath),
-                   "--current", DumpFilename.get_inprogress_name(current_filepath)]
+                   "--wiki", runner.db_name]
+        output_dir = self.get_output_dir(runner)
+        if output_dfname is not None:
+            command.extend(["--articles", DumpFilename.get_inprogress_name(
+                os.path.join(output_dir, output_dfname.filename))])
+        if history_dfname is not None:
+            command.extend(["--history", DumpFilename.get_inprogress_name(
+                os.path.join(output_dir, history_dfname.filename))])
+        if current_dfname is not None:
+            command.extend(["--current", DumpFilename.get_inprogress_name(
+                os.path.join(output_dir, current_dfname.filename))])
 
-        if output_dfname.partnum:
+        partnum = None
+        if output_dfname is not None:
+            partnum = output_dfname.partnum
+        elif history_dfname is not None:
+            partnum = history_dfname.partnum
+        elif current_dfname is not None:
+            partnum = current_dfname.partnum
+        if partnum is not None:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, output_dfname.partnum_int - 1)]) + 1
+            start = sum([self._parts[i] for i in range(0, int(partnum) - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if output_dfname.partnum_int < len(self._parts):
-                end = sum([self._parts[i] for i in range(0, output_dfname.partnum_int)]) + 1
+            if int(partnum) < len(self._parts):
+                end = sum([self._parts[i] for i in range(0, int(partnum))]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -180,11 +184,16 @@ class XmlStub(Dump):
                     output_dfname.file_type, output_dfname.file_ext,
                     output_dfname.partnum, output_dfname.checkpoint,
                     output_dfname.temp)
-                if (os.path.exists(os.path.join(output_dir, history_dfname.filename)) and
-                        os.path.exists(os.path.join(output_dir, current_dfname.filename)) and
-                        os.path.exists(os.path.join(output_dir, output_dfname.filename))):
-                    # this file in the batch is done, don't rerun it
+                if os.path.exists(os.path.join(output_dir, history_dfname.filename)):
+                    history_dfname = None
+                if os.path.exists(os.path.join(output_dir, current_dfname.filename)):
+                    current_dfname = None
+                if os.path.exists(os.path.join(output_dir, output_dfname.filename)):
+                    output_dfname = None
+                if history_dfname is None and current_dfname is None and output_dfname is None:
+                    # these files in the batch are done, don't rerun it
                     continue
+                # at least one file in the batch needs to be rerun, do so
                 command_series = self.build_command(runner, output_dfname,
                                                     history_dfname, current_dfname)
                 self.setup_command_info(runner, command_series,
