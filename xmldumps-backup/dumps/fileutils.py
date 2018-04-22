@@ -640,26 +640,28 @@ class DumpContents(object):
 
         if self.is_binary:
             return self.is_binary
+        rest = "| head -2000 | cat -vte | grep '@^@^@' | wc -l"
         if self.dfname.file_ext == "bz2":
-            pipeline = [["%s -dc  %s | head -2000 | grep '<mediawiki'" % (
-                self._wiki.config.bzip2, self.filename)]]
+            pipeline = [["{bzip2} -dc  {fname} {rest}".format(
+                bzip2=self._wiki.config.bzip2, fname=self.filename, rest=rest)]]
         elif self.dfname.file_ext == "gz":
-            pipeline = [["%s -dc %s | head -2000 | grep '<mediawiki'" % (
-                self._wiki.config.gzip, self.filename)]]
+            pipeline = [["{gzip} -dc {fname} {rest}".format(
+                gzip=self._wiki.config.gzip, fname=self.filename, rest=rest)]]
         elif self.dfname.file_ext == '7z':
-            pipeline = [["%s e -so %s | head -2000 | grep '<mediawiki'" % (
-                self._wiki.config.sevenzip, self.filename)]]
+            pipeline = [["{sevenz} e -so {fname} {rest}".format(
+                sevenz=self._wiki.config.sevenzip, fname=self.filename, rest=rest)]]
         elif (self.dfname.file_ext == '' or self.dfname.file_ext == 'txt' or
               self.dfname.file_ext == 'html'):
-            pipeline = [["head -2000 %s" % self.filename]]
+            pipeline = [["{cat} {fname} {rest}".format(
+                cat=self._wiki.config.cat, fname=self.filename, rest=rest)]]
         else:
             # we do't know how to handle this type of file.
             return self.is_binary
 
         proc = CommandPipeline(pipeline, quiet=True, shell=True)
         proc.run_pipeline_get_output()
-        # it will display 'Binary file matches' :-P :-P
-        self.is_binary = bool('Binary' in proc.output())
+        result = proc.output().rstrip()
+        self.is_binary = bool(result != '0')
 
         return self.is_binary
 

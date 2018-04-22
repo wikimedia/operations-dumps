@@ -238,18 +238,13 @@ class Dump(object):
         if "check_trunc_files" not in runner.enabled or not self.check_truncation():
             return
 
-        file_truncated = True
         if runner.wiki.is_private():
-            dcontents = DumpContents(runner.wiki,
-                                     DumpFilename.get_inprogress_name(
-                                         runner.dump_dir.filename_private_path(dfname)),
-                                     dfname)
+            dcontents = DumpContents(runner.wiki, runner.dump_dir.filename_private_path(dfname))
         else:
-            dcontents = DumpContents(runner.wiki,
-                                     DumpFilename.get_inprogress_name(
-                                         runner.dump_dir.filename_public_path(dfname)),
-                                     dfname)
-        if exists(dcontents.filename):
+            dcontents = DumpContents(runner.wiki, runner.dump_dir.filename_public_path(dfname))
+
+        file_truncated = True
+        if os.path.exists(dcontents.filename):
             if dcontents.check_if_empty():
                 # file exists and is empty, move it out of the way
                 dcontents.rename(dcontents.filename + ".empty")
