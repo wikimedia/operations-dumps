@@ -409,7 +409,7 @@ def main():
             # we want the age of the wikis by the latest status update
             # and not the date the run started
 
-            if jobs_requested is not None and jobs_requested[0] == 'createdirs':
+            if jobs_requested is not None and jobs_todo[0] == 'createdirs':
                 check_status_time = False
                 # there won't actually be a status for this job but we want
                 # to ensure that the directory and the status file are present
