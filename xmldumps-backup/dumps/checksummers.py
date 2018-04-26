@@ -40,6 +40,20 @@ class Checksummer(Registered):
             return None
 
     @staticmethod
+    def get_checksum_basename_perfile(htype, filename):
+        '''
+        return the base name of the file where the hash of the
+        specific type will be written for the specified file
+        this is only in txt format.
+        '''
+        if htype == "md5":
+            return "md5sums-{fname}.txt".format(fname=filename)
+        elif htype == "sha1":
+            return "sha1sums-{fname}.txt".format(fname=filename)
+        else:
+            return None
+
+    @staticmethod
     def get_hashinfo(filename, jsoninfo):
         """
         given json output from the checksum json file,
@@ -62,6 +76,36 @@ class Checksummer(Registered):
         """
         return {}
 
+    @staticmethod
+    def is_more_recent(fileone, filetwo):
+        '''
+        return True if fileone is more recent (mtime) than filetwo,
+        False otherwise
+        if fileone or filetwo is not available or stat can't be done,
+        return False then too
+        '''
+        try:
+            mtimeone = os.stat(fileone).st_mtime
+            mtimetwo = os.stat(filetwo).st_mtime
+        except Exception:
+            return False
+        return bool(mtimeone > mtimetwo)
+
+    @staticmethod
+    def get_checksum_from_file(path):
+        '''
+        get the checksum recorded in a file which should have
+        one line, consisting of the checksum, two spaces, and
+        the filename that was checksummed
+        return None on any error
+        '''
+        try:
+            content = FileUtils.read_file(path)
+            checksum, _filename = content.split('  ', 1)
+            return checksum
+        except Exception:
+            return None
+
     def __init__(self, wiki, enabled, dump_dir=None, verbose=False):
         super(Checksummer, self).__init__()
         self.wiki = wiki
@@ -69,6 +113,16 @@ class Checksummer(Registered):
         self.verbose = verbose
         self.timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
         self._enabled = enabled
+
+    def get_per_file_path(self, htype, filename):
+        '''
+        return the full path to the file containing the checksum of
+        the specified type for the given filename. this is only in txt format
+        '''
+        dfname = DumpFilename(self.wiki, None)
+        # fixme check to see if this is right or what
+        dfname.new_from_filename(Checksummer.get_checksum_basename_perfile(htype, filename))
+        return self.dump_dir.filename_public_path(dfname)
 
     def prepare_checksums(self):
         """Create a temporary md5 or other checksum file.
@@ -110,13 +164,30 @@ class Checksummer(Registered):
                     # possibly corrupt file.
                     output = {htype: {"files": {}}}
                 output_json = file(checksum_filename_json, "w")
-                dumpjobdata.debugfn("Checksumming %s via %s" % (dfname.filename, htype))
-                dcontents = DumpContents(
-                    self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
-                    None, self.verbose)
-                checksum = dcontents.checksum(htype)
+                checksum = None
+                update_per_file = False
+
+                per_file_path = self.get_per_file_path(htype, dfname.filename)
+                if os.path.exists(per_file_path) and self.is_more_recent(
+                        per_file_path, dumpjobdata.dump_dir.filename_public_path(dfname)):
+                    dumpjobdata.debugfn("Reading %s checksum for %s from file %s" % (
+                        dfname.filename, htype, per_file_path))
+                    checksum = self.get_checksum_from_file(per_file_path)
+
+                if checksum is None:
+                    dcontents = DumpContents(
+                        self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
+                        None, self.verbose)
+                    dumpjobdata.debugfn("Checksumming %s via %s" % (dfname.filename, htype))
+                    checksum = dcontents.checksum(htype)
+                    update_per_file = True
+
                 if checksum is not None:
                     output_txt.write("%s  %s\n" % (checksum, dfname.filename))
+                    if update_per_file:
+                        output_perfile_txt = file(per_file_path, "wt")
+                        output_perfile_txt.write("%s  %s\n" % (checksum, dfname.filename))
+                        output_perfile_txt.close()
                     output[htype]["files"][dfname.filename] = checksum
                 # always write a json stanza, even if no file info included.
                 output_json.write(json.dumps(output))
