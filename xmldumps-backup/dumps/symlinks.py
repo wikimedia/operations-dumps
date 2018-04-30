@@ -185,15 +185,51 @@ class Feeds(object):
                 self.debugfn("Creating %s ..." % dirname)
                 os.makedirs(dirname)
 
+    def feed_newer_than_file(self, feed_path, dfname):
+        '''
+        given the path to a possibly nonexistent feed file,
+        return True if the file exists and the dump output file
+        described within is more recent (from the date of the
+        dump run directory) than the date of dfname (from the date
+        in dfname filename)
+        in all other cases including various errors, return False
+        '''
+        try:
+            lines = open(feed_path).read().splitlines()
+            links = [line for line in lines if '<link>' in line]
+            # <link>http://download.wikimedia.org/wikidatawiki/20180420</link>
+            datepattern = r"<link>.*/([0-9]{8})</link>"
+            match = re.search(datepattern, links[0])
+            feed_date = match.group(1)
+            if feed_date > dfname.date:
+                return True
+        except Exception:
+            pass
+        return False
+
     def save_feed(self, dfname):
         """
+        produce an rss feed file for the specified dump output file
+        (dfname)
+
+        If there is already such a feed, update it only if
+        the date of the dump output file in the feed is not older
+        than the date of dfname, as indicated in the dump dirs/filenames
+        themselves, NOT via stat
+
         args:
             DumpFilename
         """
         if Feeds.NAME in self._enabled:
+            rss_path = os.path.join(self.dump_dir.latest_dir(),
+                                    self.db_name + "-latest-" + dfname.basename +
+                                    "-rss.xml")
+
             self.make_dir(self.dump_dir.latest_dir())
             filename_and_path = self.dump_dir.web_path(dfname)
             web_path = os.path.dirname(filename_and_path)
+            if self.feed_newer_than_file(rss_path, dfname):
+                return
             rss_text = self.wiki.config.read_template("feed.xml") % {
                 "chantitle": dfname.basename,
                 "chanlink": web_path,
@@ -204,9 +240,6 @@ class Feeds(object):
                     filename_and_path, dfname.filename)),
                 "date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
             }
-            rss_path = os.path.join(self.dump_dir.latest_dir(),
-                                    self.db_name + "-latest-" + dfname.basename +
-                                    "-rss.xml")
             self.debugfn("adding rss feed file %s " % rss_path)
             FileUtils.write_file(self.wiki.config.temp_dir, rss_path,
                                  rss_text, self.wiki.config.fileperms)
