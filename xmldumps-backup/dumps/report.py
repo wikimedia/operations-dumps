@@ -72,7 +72,11 @@ class Report(Registered):
             # inprogress name.
             filename = filename + DumpFilename.INPROG
             if exists(filename):
-                size = os.path.getsize(filename)
+                try:
+                    size = os.path.getsize(filename)
+                except Exception:
+                    # yes, it might be removed in that short interval of time.
+                    pass
         if size is None:
             item_status = "missing"
             size = 0
