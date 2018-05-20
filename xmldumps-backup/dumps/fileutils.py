@@ -3,6 +3,7 @@
 import hashlib
 import os
 from os.path import exists
+import errno
 import re
 import sys
 import time
@@ -122,6 +123,18 @@ class FileUtils(object):
             return (timestamp, size)
         except Exception as ex:
             return(None, None)
+
+    @staticmethod
+    def wiki_tempdir(wikiname, tempdirbase, create=False):
+        """Return path to subdir for temp files for specified wiki"""
+        wikisubdir = os.path.join(tempdirbase, wikiname[0], wikiname)
+        if create:
+            try:
+                os.makedirs(wikisubdir)
+            except OSError as ex:
+                if ex.errno == errno.EEXIST:
+                    pass
+        return wikisubdir
 
 
 class DumpFilename(object):

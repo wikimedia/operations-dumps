@@ -110,8 +110,10 @@ class Notice(object):
                 self.notice = ""
             # addnotice, stuff notice in a file for other jobs etc
             elif self.notice != "":
-                FileUtils.write_file(self.wiki.config.temp_dir, notice_filepath, self.notice,
-                                     self.wiki.config.fileperms)
+                FileUtils.write_file(
+                    FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
+                    notice_filepath, self.notice,
+                    self.wiki.config.fileperms)
             # default case. if there is a file get the contents, otherwise
             # we have empty contents, all good
             else:

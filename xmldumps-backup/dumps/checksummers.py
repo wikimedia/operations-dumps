@@ -221,8 +221,10 @@ class Checksummer(Registered):
                     tmp_filename = self._get_checksum_filename_tmp(htype, fmt)
                     real_filename = self._get_checksum_path(htype, fmt)
                     content = FileUtils.read_file(tmp_filename)
-                    FileUtils.write_file(self.wiki.config.temp_dir, real_filename, content,
-                                         self.wiki.config.fileperms)
+                    FileUtils.write_file(
+                        FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
+                        real_filename, content,
+                        self.wiki.config.fileperms)
 
     def get_all_output_files(self):
         """
@@ -273,7 +275,8 @@ class Checksummer(Registered):
         dfname = DumpFilename(self.wiki, None,
                               Checksummer.get_checksum_filename_basename(htype, fmt) +
                               "." + self.timestamp + ".tmp")
-        return self.dump_dir.filename_public_path(dfname)
+        return os.path.join(FileUtils.wiki_tempdir(
+            self.wiki.db_name, self.wiki.config.temp_dir), dfname.filename)
 
     def _getmd5file_dir_name(self):
         """

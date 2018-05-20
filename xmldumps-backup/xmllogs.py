@@ -11,6 +11,7 @@ import os
 import sys
 import getopt
 from dumps.WikiDump import Config
+from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
 from xmlstreams import gzippit, do_xml_stream
 
@@ -25,7 +26,8 @@ def dologsbackup(wikidb, outfile,
     outfiles = {'logs': {'name': outfile}}
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(
-            wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
+            FileUtils.wiki_tempdir(wikidb, wikiconf.temp_dir),
+            os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:

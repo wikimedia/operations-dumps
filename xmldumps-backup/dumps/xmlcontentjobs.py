@@ -7,7 +7,7 @@ from os.path import exists
 import time
 
 from dumps.exceptions import BackupError
-from dumps.fileutils import DumpContents, DumpFilename
+from dumps.fileutils import DumpContents, DumpFilename, FileUtils
 from dumps.utils import MultiVersion
 from dumps.jobs import Dump
 from dumps.WikiDump import Locker
@@ -74,7 +74,9 @@ class StubProvider(object):
             inputfile_path = runner.dump_dir.filename_private_path(input_dfname)
         else:
             inputfile_path = runner.dump_dir.filename_public_path(input_dfname)
-        output_file_path = os.path.join(self.wiki.config.temp_dir, output_dfname.filename)
+        output_file_path = os.path.join(
+            FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
+            output_dfname.filename)
         if input_dfname.file_ext == "gz":
             command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
             command2 = "%s > %s" % (self.wiki.config.gzip, output_file_path)
@@ -122,7 +124,9 @@ class StubProvider(object):
         see if it has a page id in it or not. no? then return True
         '''
         if xmlfile.is_temp_file:
-            path = os.path.join(self.wiki.config.temp_dir, xmlfile.filename)
+            path = os.path.join(
+                FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
+                xmlfile.filename)
         else:
             if runner.wiki.is_private():
                 path = runner.dump_dir.filename_private_path(xmlfile, self.wiki.date)
@@ -594,7 +598,9 @@ class XmlDump(Dump):
         args:
             Runner, stub DumpFilename, ....
         """
-        stub_path = os.path.join(self.wiki.config.temp_dir, stub_dfname.filename)
+        stub_path = os.path.join(
+            FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
+            stub_dfname.filename)
         if os.path.exists(stub_path):
             # if this is a pagerange stub file in temp dir, use that
             stub_option = "--stub=gzip:%s" % stub_path

@@ -241,8 +241,10 @@ class Feeds(object):
                 "date": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
             }
             self.debugfn("adding rss feed file %s " % rss_path)
-            FileUtils.write_file(self.wiki.config.temp_dir, rss_path,
-                                 rss_text, self.wiki.config.fileperms)
+            FileUtils.write_file(
+                FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
+                rss_path,
+                rss_text, self.wiki.config.fileperms)
 
     def cleanup_feeds(self):
         """

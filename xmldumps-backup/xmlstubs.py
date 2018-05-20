@@ -12,6 +12,7 @@ import sys
 import time
 import getopt
 from dumps.WikiDump import Config
+from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
 from dumps.utils import DbServerInfo
 from xmlstreams import gzippit, do_xml_stream
@@ -114,7 +115,8 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
 
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(
-            wikiconf.temp_dir, os.path.basename(outfiles[filetype]['name']) + "_tmp")
+            FileUtils.wiki_tempdir(wikidb, wikiconf.temp_dir),
+            os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
         else:

@@ -13,7 +13,7 @@ import Queue
 
 from dumps.CommandManagement import CommandsInParallel
 from dumps.exceptions import BackupError
-from dumps.fileutils import DumpDir, DumpFilename
+from dumps.fileutils import DumpDir, DumpFilename, FileUtils
 
 from dumps.checksummers import Checksummer
 from dumps.report import Report, StatusHtml
@@ -449,6 +449,7 @@ class Runner(object):
 
         self.make_dir(os.path.join(self.wiki.public_dir(), self.wiki.date))
         self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
+        FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir, create=True)
 
         self.show_runner_state("Cleaning up old dumps for %s" % self.db_name)
         self.clean_old_dumps()

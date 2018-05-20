@@ -11,6 +11,7 @@ import os
 import sys
 import getopt
 from dumps.WikiDump import Config
+from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
 from xmlstreams import do_xml_stream, gzippit
 
@@ -30,7 +31,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     for filetype in outfiles:
         outfiles[filetype]['temp'] = os.path.join(
-            wikiconf.temp_dir,
+            FileUtils.wiki_tempdir(wikidb, wikiconf.temp_dir),
             os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
             outfiles[filetype]['compr'] = None
