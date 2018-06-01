@@ -11,7 +11,7 @@ import threading
 import traceback
 import Queue
 
-from dumps.CommandManagement import CommandsInParallel
+from dumps.CommandManagement import CommandsInParallel, CommandPipeline
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpDir, DumpFilename, FileUtils
 
@@ -343,6 +343,22 @@ class Runner(object):
                     error_string = error_string + "%s " % cmd
                 self.log_and_print(error_string)
                 return 1, commands.commands_with_errors(stringfmt=False)
+
+    def run_command_pipeline(self, command_pipeline):
+        """
+        run one command pipeline and retrn
+        """
+        commands = CommandPipeline(command_pipeline, quiet=True)
+        if self.dryrun:
+            self.pretty_print_commands([[command_pipeline]])
+            return 0, None
+
+        else:
+            commands.run_pipeline_get_output()
+        if commands.exited_successfully():
+            return 0, None
+        else:
+            return 1, commands
 
     def debug(self, stuff):
         """

@@ -4,7 +4,9 @@ All xml content dump jobs are defined here
 
 import os
 from os.path import exists
+import functools
 import time
+import signal
 
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpContents, DumpFilename, FileUtils
@@ -59,12 +61,36 @@ class StubProvider(object):
             return None
         return input_dfnames[0]
 
-    def write_pagerange_stub(self, input_dfname, output_dfname, runner):
+    def write_pagerange_stubs(self, iofile_pairs, runner, move_if_truncated):
         """
-        write out a stub file corresponding to the page range
-        in the output filename
+        put the io file pairs in ascending order (per part if there
+        are parts), for each pair write out a stub file corresponding
+        to the page range in the output filename, combining up
+        those outputs that require the same input file into
+        one command
 
-        args: DumpFilename, DumpFilename, Runner
+        args: pairs of (DumpFilename, DumpFilename), Runner
+        """
+        if not len(iofile_pairs):
+            return
+
+        # split up into batches where the input file is the same
+        # and the pairs are ordered by output file name
+        in_dfnames = list(set([pair[0] for pair in iofile_pairs]))
+        out_dfnames = {}
+        for in_dfname in in_dfnames:
+            out_dfnames[in_dfname.filename] = sorted([pair[1] for pair in iofile_pairs
+                                                      if pair[0].filename == in_dfname.filename],
+                                                     key=functools.cmp_to_key(DumpFilename.compare))
+
+        for in_dfname in in_dfnames:
+            self.write_pagerange_stubs_per_input(in_dfname, out_dfnames[in_dfname.filename],
+                                                 runner, move_if_truncated)
+
+    def write_pagerange_stubs_per_input(self, input_dfname, output_dfnames,
+                                        runner, move_if_truncated):
+        """
+        for the given input dumpfile (stub), write the requested output file (stub)
         """
         if not exists(self.wiki.config.writeuptopageid):
             raise BackupError("writeuptopageid command %s not found" %
@@ -74,35 +100,74 @@ class StubProvider(object):
             inputfile_path = runner.dump_dir.filename_private_path(input_dfname)
         else:
             inputfile_path = runner.dump_dir.filename_public_path(input_dfname)
-        output_file_path = os.path.join(
-            FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
-            output_dfname.filename)
+
+        output_dir = FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir)
+        argstrings = []
+
+        for output_dfname in output_dfnames:
+            output_fname = output_dfname.filename
+            # don't generate the file if we already have it (i.e. this is a retry)
+            if not os.path.exists(os.path.join(output_dir, output_fname)):
+                first_age_id = output_dfname.first_page_id
+                if (output_dfname.last_page_id is not None and
+                        output_dfname.last_page_id is not "00000"):
+                    last_page_id = str(int(output_dfname.last_page_id) + 1)
+                else:
+                    last_page_id = ""
+                argstrings.append("{outfile}:{firstpage}:{lastpage}".format(
+                    outfile=output_fname, firstpage=first_age_id, lastpage=last_page_id))
+
+        # don't generate an output file if there are no filespecs
+        if not argstrings:
+            return
+
         if input_dfname.file_ext == "gz":
-            command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
-            command2 = "%s > %s" % (self.wiki.config.gzip, output_file_path)
+            # command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
+            command1 = [self.wiki.config.gzip, "-dc", inputfile_path]
         elif input_dfname.file_ext == '7z':
-            command1 = "%s e -si %s" % (self.wiki.config.sevenzip, inputfile_path)
-            command2 = "%s e -so %s" % (self.wiki.config.sevenzip, output_file_path)
+            # command1 = "%s e -si %s" % (self.wiki.config.sevenzip, inputfile_path)
+            command1 = [self.wiki.config.sevenzip, "e", "-si", inputfile_path]
         elif input_dfname.file_ext == 'bz':
-            command1 = "%s -dc %s" % (self.wiki.config.bzip2, inputfile_path)
-            command2 = "%s > %s" % (self.wiki.config.bzip2, output_file_path)
+            # command1 = "%s -dc %s" % (self.wiki.config.bzip2, inputfile_path)
+            command1 = [self.wiki.config.bzip2, "-dc", inputfile_path]
         else:
             raise BackupError("unknown stub file extension %s" % input_dfname.file_ext)
-        if output_dfname.last_page_id is not None and output_dfname.last_page_id is not "00000":
-            last_page_id = str(int(output_dfname.last_page_id) + 1)
-            command = [command1 + ("| %s %s %s |" % (self.wiki.config.writeuptopageid,
-                                                     output_dfname.first_page_id,
-                                                     last_page_id)) + command2]
-        else:
-            # no lastpageid? read up to eof of the specific stub file that's used for input
-            command = [command1 + ("| %s %s |" % (self.wiki.config.writeuptopageid,
-                                                  output_dfname.first_page_id)) + command2]
 
-        pipeline = [command]
-        series = [pipeline]
-        error, broken = runner.run_command([series], shell=True)
+        command2 = [self.wiki.config.writeuptopageid, "--odir", output_dir,
+                    "--fspecs", ";".join(argstrings)]
+
+        pipeline = [command1]
+        pipeline.append(command2)
+
+        error, broken = runner.run_command_pipeline(pipeline)
         if error:
-            raise BackupError("failed to write pagerange stub file %s" % output_dfname.filename)
+            if (broken.get_failed_cmds_with_retcode() ==
+                    [[-signal.SIGPIPE, command1]] or
+                    broken.get_failed_cmds_with_retcode() ==
+                    [[signal.SIGPIPE + 128, command1]]):
+                pass
+            else:
+                raise BackupError("failed to write pagerange stub files " +
+                                  " ".join([output_dfname.filename
+                                            for output_dfname in output_dfnames]))
+
+        if runner.dryrun:
+            return
+
+        # check the output files to see if we like them;
+        # if not, we will move the bad ones out of the way and
+        # whine about them
+        temp_stub_dfnames = output_dfnames
+        bad_dfnames = []
+        for temp_stub_dfname in temp_stub_dfnames:
+            if os.path.exists(os.path.join(output_dir, temp_stub_dfname.filename)):
+                bad = move_if_truncated(runner, temp_stub_dfname, emptycheck=200, tmpdir=True)
+                if bad:
+                    bad_dfnames.append(temp_stub_dfname)
+            if bad_dfnames:
+                error_string = " ".join([bad_dfname.filename for bad_dfname in bad_dfnames])
+                raise BackupError(
+                    "failed to write pagerange stub files (bad contents) " + error_string)
 
     def get_pagerange_stub_dfname(self, wanted, runner):
         """
@@ -116,14 +181,14 @@ class StubProvider(object):
             stub_input_dfname.file_ext,
             stub_input_dfname.partnum,
             DumpFilename.make_checkpoint_string(
-                wanted['outfile'].first_page_id, wanted['outfile'].last_page_id), temp=True)
+                wanted['outfile'].first_page_id, wanted['outfile'].last_page_id), temp=False)
         return stub_output_dfname
 
-    def has_no_pages(self, xmlfile, runner):
+    def has_no_pages(self, xmlfile, runner, tempdir=False):
         '''
         see if it has a page id in it or not. no? then return True
         '''
-        if xmlfile.is_temp_file:
+        if xmlfile.is_temp_file or tempdir:
             path = os.path.join(
                 FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir),
                 xmlfile.filename)
@@ -161,7 +226,8 @@ class XmlDump(Dump):
             self.wiki, {'dumpname': self.get_dumpname(), 'parts': self._parts,
                         'dumpnamebase': self.get_dumpname_base(),
                         'item_for_stubs': item_for_stubs,
-                        'partnum_todo': self.jobinfo['partnum_todo']}, self.verbose)
+                        'partnum_todo': self.jobinfo['partnum_todo']},
+            self.verbose)
         Dump.__init__(self, name, desc, self.verbose)
 
     @classmethod
@@ -511,11 +577,17 @@ class XmlDump(Dump):
                 self.verbose)
 
         wanted = [self.setup_wanted(dfname, runner, prefetcher) for dfname in dfnames_todo]
+
         # FIXME we really should generate a number of these at once.  eh next commit
+        to_generate = []
         for entry in wanted:
             if entry['generate']:
-                self.stubber.write_pagerange_stub(entry['stub_input'], entry['stub'], runner)
-                if self.stubber.has_no_pages(entry['stub'], runner):
+                to_generate.append((entry['stub_input'], entry['stub']))
+        self.stubber.write_pagerange_stubs(to_generate, runner, self.move_if_truncated)
+
+        for entry in wanted:
+            if entry['generate']:
+                if self.stubber.has_no_pages(entry['stub'], runner, tempdir=True):
                     # this page range has no pages in it (all deleted?) so we need not
                     # keep info on how to generate it
                     continue

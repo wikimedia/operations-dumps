@@ -8,7 +8,7 @@ import sys
 import traceback
 
 from dumps.exceptions import BackupError, BackupPrereqError
-from dumps.fileutils import DumpContents, DumpFilename
+from dumps.fileutils import DumpContents, DumpFilename, FileUtils
 from dumps.utils import TimeUtils
 
 
@@ -227,25 +227,57 @@ class Dump(object):
             raise BackupError("Encountered %d truncated files for %s" %
                               (truncated_files_count, self.dumpname))
 
-    def move_if_truncated(self, runner, dfname):
+    def is_larger(self, dfname, numpages):
+        """
+        given a DumpFilename and a number of pages cutoff, return True
+        if the file covers more pages than the cutoff, False otherwise
+
+        page coverage is determined from the filename (first and last
+        page id embedded); if one or both of those are missing, False
+        will always be returned.
+        """
+        if dfname.first_page_id is None or dfname.last_page_id is None:
+            return False
+        return numpages > int(dfname.last_page_id) - int(dfname.first_page_id)
+
+    def move_if_truncated(self, runner, dfname, emptycheck=0, tmpdir=False):
         """
         check if the given file (DumpFile) is truncated or empty
         if so, move it out of the way and return True
         return False otherwise
 
-        This function expects that the file to check for truncation lives in the public dir
+        if emptycheck is set to a number, the file will only be checked to
+        seee if it is empty, if the file covers a page range with more
+        pages than the specific number. Eg a file named
+        elwikivoyage-20180618-pages-meta-history2.xml-p140p150.bz2
+        would be checked for emptycheck = 8 but not for 12; files that
+        don't have page start and end numbers in the filename would not
+        be checked at all.
+
+        if emptycheck is left as 0, the file will be checked to see if
+        it is empty always.
+
+        if file is located in the temp dir, set tmpdir=True for it to
+        be found there; otherwise the public xml/sql dump output dir
+        (or private, if the wiki is private), will be checked for the file.
         """
         if "check_trunc_files" not in runner.enabled or not self.check_truncation():
             return
 
-        if runner.wiki.is_private():
-            dcontents = DumpContents(runner.wiki, runner.dump_dir.filename_private_path(dfname))
+        if tmpdir:
+            path = os.path.join(
+                FileUtils.wiki_tempdir(runner.wiki.db_name, runner.wiki.config.temp_dir),
+                dfname.filename)
+        elif runner.wiki.is_private():
+            path = runner.dump_dir.filename_private_path(dfname)
         else:
-            dcontents = DumpContents(runner.wiki, runner.dump_dir.filename_public_path(dfname))
+            path = runner.dump_dir.filename_public_path(dfname)
+        dcontents = DumpContents(runner.wiki, path)
 
         file_truncated = True
         if os.path.exists(dcontents.filename):
-            if dcontents.check_if_empty():
+            # fixme hardcoded at 200? mmmm. but otoh configurable is kinda dumb
+            if (not emptycheck or self.is_larger(dfname, 200)) and dcontents.check_if_empty():
                 # file exists and is empty, move it out of the way
                 dcontents.rename(dcontents.filename + ".empty")
             elif dcontents.check_if_truncated():

@@ -181,6 +181,64 @@ class DumpFilename(object):
     INPROG = ".inprog"  # extension for dump output files that are in progress (not fully written)
 
     @staticmethod
+    def safe_lessthan(numstring_a, numstring_b):
+        """
+        compare two numeric strings either of which might be None; None is treated as
+        equivalent to 0
+        strings that are not None must be numeric; we're not THAT safe
+        return True if first string is less than the second
+        """
+        if numstring_a is None:
+            return bool(numstring_b is None)
+        if numstring_b is None:
+            return True
+        return bool(int(numstring_a) < int(numstring_b))
+
+    @staticmethod
+    def safe_greaterthan(numstring_a, numstring_b):
+        """
+        compare two numeric strings either of which might be None; None is treated as
+        equivalent to 0
+        strings that are not None must be numeric; we're not THAT safe
+        return True if first string is greater than the second
+        """
+        return DumpFilename.safe_lessthan(numstring_b, numstring_a)
+
+    @staticmethod
+    def compare(dfname1, dfname2):
+        """
+        return -1, 0 or 1 depending on whether dfname1's filename is less than,
+        equal to, or greater than dfname2's filename
+        if the dumpname components of the filenames are not equal, then
+        the appropriate value will be returned based on that comparison
+        otherwise ordering is done by:
+        partnum then page range values, for filenames that contain those
+        a file without a partnum comes before a file that has one
+        a file without a page range comes before a file that has one
+        """
+        if dfname1.dumpname < dfname2.dumpname:
+            return -1
+        elif dfname1.dumpname > dfname2.dumpname:
+            return 1
+
+        if dfname1.partnum_int < dfname2.partnum_int:
+            return -1
+        elif dfname1.partnum_int > dfname2.partnum_int:
+            return 1
+
+        if DumpFilename.safe_lessthan(dfname1.first_page_id, dfname2.first_page_id):
+            return -1
+        elif DumpFilename.safe_greaterthan(dfname1.first_page_id, dfname2.first_page_id):
+            return 1
+
+        if DumpFilename.safe_lessthan(dfname1.last_page_id, dfname2.last_page_id):
+            return -1
+        elif DumpFilename.safe_greaterthan(dfname1.last_page_id, dfname2.last_page_id):
+            return 1
+
+        return 0
+
+    @staticmethod
     def make_checkpoint_string(first_page_id, last_page_id):
         if first_page_id is not None and last_page_id is not None:
             return "p" + first_page_id + "p" + last_page_id
