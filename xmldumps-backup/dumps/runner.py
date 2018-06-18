@@ -282,7 +282,7 @@ class Runner(object):
         """For one pipeline of commands, redirect output to a given file."""
         if self.dryrun:
             self.pretty_print_commands([series])
-            return 0
+            return 0, None
         else:
             return self.run_command([series], callback_timed=self.html_update_callback,
                                     callback_on_completion=completion_callback)
