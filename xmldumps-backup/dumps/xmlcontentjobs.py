@@ -61,7 +61,7 @@ class StubProvider(object):
             return None
         return input_dfnames[0]
 
-    def write_pagerange_stubs(self, iofile_pairs, runner, move_if_truncated):
+    def write_pagerange_stubs(self, iofile_pairs, runner, batchsize, move_if_truncated):
         """
         put the io file pairs in ascending order (per part if there
         are parts), for each pair write out a stub file corresponding
@@ -78,17 +78,59 @@ class StubProvider(object):
         # and the pairs are ordered by output file name
         in_dfnames = list(set([pair[0] for pair in iofile_pairs]))
         out_dfnames = {}
+        output_dfnames_to_check = []
         for in_dfname in in_dfnames:
             out_dfnames[in_dfname.filename] = sorted([pair[1] for pair in iofile_pairs
                                                       if pair[0].filename == in_dfname.filename],
                                                      key=functools.cmp_to_key(DumpFilename.compare))
-
+        commands = []
         for in_dfname in in_dfnames:
-            self.write_pagerange_stubs_per_input(in_dfname, out_dfnames[in_dfname.filename],
-                                                 runner, move_if_truncated)
+            pipeline = self.get_stub_gen_cmd_for_input(
+                in_dfname, out_dfnames[in_dfname.filename], runner)
+            if pipeline is not None:
+                # list of command series. each series is a list of pipelines.
+                commands.append([pipeline])
+                output_dfnames_to_check.extend(out_dfnames[in_dfname.filename])
 
-    def write_pagerange_stubs_per_input(self, input_dfname, output_dfnames,
-                                        runner, move_if_truncated):
+        errors = False
+        while commands:
+            command_batch = commands[:batchsize]
+            error, broken = runner.run_command(command_batch)
+            if error:
+                for series in broken:
+                    for pipeline in series:
+                        failed_cmds_retcodes = pipeline.get_failed_cmds_with_retcode()
+                        for cmd_retcode in failed_cmds_retcodes:
+                            if (cmd_retcode[1] == -signal.SIGPIPE or
+                                    cmd_retcode[1] == signal.SIGPIPE + 128):
+                                pass
+                            else:
+                                runner.log_and_print("error from commands: %s" % " ".join(
+                                    [entry for entry in pipeline]))
+                                errors = True
+            commands = commands[batchsize:]
+        if errors:
+            raise BackupError("failed to write pagerange stub files")
+
+        if runner.dryrun:
+            return
+
+        # check the output files to see if we like them;
+        # if not, we will move the bad ones out of the way and
+        # whine about them
+        bad_dfnames = []
+        output_dir = FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir)
+        for temp_stub_dfname in output_dfnames_to_check:
+            if os.path.exists(os.path.join(output_dir, temp_stub_dfname.filename)):
+                bad = move_if_truncated(runner, temp_stub_dfname, emptycheck=200, tmpdir=True)
+                if bad:
+                    bad_dfnames.append(temp_stub_dfname)
+        if bad_dfnames:
+            error_string = " ".join([bad_dfname.filename for bad_dfname in bad_dfnames])
+            raise BackupError(
+                "failed to write pagerange stub files (bad contents) " + error_string)
+
+    def get_stub_gen_cmd_for_input(self, input_dfname, output_dfnames, runner):
         """
         for the given input dumpfile (stub), write the requested output file (stub)
         """
@@ -119,7 +161,7 @@ class StubProvider(object):
 
         # don't generate an output file if there are no filespecs
         if not argstrings:
-            return
+            return None
 
         if input_dfname.file_ext == "gz":
             # command1 = "%s -dc %s" % (self.wiki.config.gzip, inputfile_path)
@@ -135,39 +177,9 @@ class StubProvider(object):
 
         command2 = [self.wiki.config.writeuptopageid, "--odir", output_dir,
                     "--fspecs", ";".join(argstrings)]
-
         pipeline = [command1]
         pipeline.append(command2)
-
-        error, broken = runner.run_command_pipeline(pipeline)
-        if error:
-            if (broken.get_failed_cmds_with_retcode() ==
-                    [[-signal.SIGPIPE, command1]] or
-                    broken.get_failed_cmds_with_retcode() ==
-                    [[signal.SIGPIPE + 128, command1]]):
-                pass
-            else:
-                raise BackupError("failed to write pagerange stub files " +
-                                  " ".join([output_dfname.filename
-                                            for output_dfname in output_dfnames]))
-
-        if runner.dryrun:
-            return
-
-        # check the output files to see if we like them;
-        # if not, we will move the bad ones out of the way and
-        # whine about them
-        temp_stub_dfnames = output_dfnames
-        bad_dfnames = []
-        for temp_stub_dfname in temp_stub_dfnames:
-            if os.path.exists(os.path.join(output_dir, temp_stub_dfname.filename)):
-                bad = move_if_truncated(runner, temp_stub_dfname, emptycheck=200, tmpdir=True)
-                if bad:
-                    bad_dfnames.append(temp_stub_dfname)
-            if bad_dfnames:
-                error_string = " ".join([bad_dfname.filename for bad_dfname in bad_dfnames])
-                raise BackupError(
-                    "failed to write pagerange stub files (bad contents) " + error_string)
+        return pipeline
 
     def get_pagerange_stub_dfname(self, wanted, runner):
         """
@@ -578,12 +590,15 @@ class XmlDump(Dump):
 
         wanted = [self.setup_wanted(dfname, runner, prefetcher) for dfname in dfnames_todo]
 
-        # FIXME we really should generate a number of these at once.  eh next commit
         to_generate = []
         for entry in wanted:
             if entry['generate']:
                 to_generate.append((entry['stub_input'], entry['stub']))
-        self.stubber.write_pagerange_stubs(to_generate, runner, self.move_if_truncated)
+        if self._parts:
+            batchsize = len(self._parts) / 2
+        else:
+            batchsize = 1
+        self.stubber.write_pagerange_stubs(to_generate, runner, batchsize, self.move_if_truncated)
 
         for entry in wanted:
             if entry['generate']:
