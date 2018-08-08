@@ -137,7 +137,7 @@ class DbServerInfo(object):
         '''
         command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getConfiguration.php")
         pull_vars = ["wgDBprefix", "wgCanonicalServer", "wgScriptPath"]
-        command = "{php} {command} --wiki={dbname} --group=dump --format=json --regex='{vars}'"
+        command = "{php} {command} --wiki={dbname} --format=json --regex='{vars}'"
         command = command.format(
             php=MiscUtils.shell_escape(self.wiki.config.php),
             command=" ".join(command_list),
