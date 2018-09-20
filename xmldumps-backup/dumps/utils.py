@@ -66,7 +66,7 @@ class MultiVersion(object):
 
     @staticmethod
     def mw_script_as_array(config, maintenance_script):
-        mw_script_location = os.path.join(config.wiki_dir, "multiversion", "MWScript.php")
+        mw_script_location = os.path.join(config.multiversion, "MWScript.php")
         if exists(mw_script_location):
             return [mw_script_location, maintenance_script]
         elif maintenance_script.startswith('extensions'):
@@ -76,7 +76,7 @@ class MultiVersion(object):
 
     @staticmethod
     def mw_version(config, db_name):
-        get_version_location = os.path.join(config.wiki_dir, "multiversion", "getMWVersion")
+        get_version_location = os.path.join(config.multiversion, "getMWVersion")
         if exists(get_version_location):
             # run the command for the wiki and get the version
             command = get_version_location + " " + db_name

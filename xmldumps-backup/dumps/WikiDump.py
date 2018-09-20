@@ -214,6 +214,8 @@ class Config(object):
 
     def parse_conffile_globally(self):
 
+        self.multiversion = self.conf.get("wiki", "multiversion")
+
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
