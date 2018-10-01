@@ -426,7 +426,7 @@ class MiscDumpConfig(object):
         self.bzip2 = self.conf.get("tools", "bzip2")
         self.mysql = self.conf.get("tools", "mysql")
         self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
-        self.multiversion = self.conf.get("tools", "multiversion")
+        self.multiversion = self.conf.get("wiki", "multiversion")
         self.adminsettings = self.conf.get("tools", "adminsettings")
 
         if not self.conf.has_section('cleanup'):
