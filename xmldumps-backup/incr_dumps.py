@@ -42,13 +42,20 @@ class MaxRevID(object):
                  "order by rev_timestamp desc limit 1'" % self.cutoff)
         self.max_id = run_simple_query(query, self.wiki)
 
-    def record_max_revid(self):
+    def record_max_revid(self, date=None):
         '''
         get max rev id for wiki from db, save it to file
+        if 'date' is provided, the file saved to will be for the
+        specified date, otherwise for the date of the run
         '''
         self.get_max_revid()
-        if not self.dryrun:
-            file_obj = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+        if date is None:
+            date = self.wiki.date
+        file_obj = MaxRevIDFile(self.wiki.config, date, self.wiki.db_name)
+        if self.dryrun:
+            print "would write file {path} with contents {revid}".format(
+                path=file_obj.get_path(), revid=self.max_id)
+        else:
             FileUtils.write_file_in_place(file_obj.get_path(), self.max_id,
                                           self.wiki.config.fileperms)
 
@@ -210,19 +217,18 @@ class IncrDump(MiscDumpBase):
             for dump in old:
                 if dump == date:
                     return previous
-                else:
-                    if dumpok:
-                        status_info = StatusInfo(self.wiki.config, dump, self.wiki.db_name)
-                        if status_info.get_status(dump) == "done":
-                            previous = dump
-                    elif revidok:
-                        max_revid_file = MaxRevIDFile(self.wiki.config, dump, self.wiki.db_name)
-                        if exists(max_revid_file.get_path()):
-                            revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
-                            if int(revid) > 0:
-                                previous = dump
-                    else:
+                elif dumpok:
+                    status_info = StatusInfo(self.wiki.config, dump, self.wiki.db_name)
+                    if status_info.get_status(dump) == "done":
                         previous = dump
+                elif revidok:
+                    max_revid_file = MaxRevIDFile(self.wiki.config, dump, self.wiki.db_name)
+                    if exists(max_revid_file.get_path()):
+                        revid = FileUtils.read_file(max_revid_file.get_path().rstrip())
+                        if int(revid) > 0:
+                            previous = dump
+                else:
+                    previous = dump
         return previous
 
     def get_prev_revid(self, max_revid):
@@ -243,7 +249,7 @@ class IncrDump(MiscDumpBase):
             if prev_revid is None:
                 log.info("Wiki %s retrieving prevRevId from db.",
                          self.wiki.db_name)
-                id_reader.record_max_revid()
+                id_reader.record_max_revid(prev_date)
                 prev_revid = id_reader.max_id
         else:
             log.info("Wiki %s no previous runs, using %s - 10 ",
@@ -270,9 +276,12 @@ class IncrDump(MiscDumpBase):
 
         a cutoff of some hours is reasonable.
         '''
-        max_id = None
+        max_revid = None
         revidfile = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
-        if not exists(revidfile.get_path()):
+        if exists(revidfile.get_path()):
+            log.info("Wiki %s, max rev id file %s already exists",
+                     self.wiki.db_name, revidfile.get_path())
+        else:
             log.info("Wiki %s retrieving max revid from db.",
                      self.wiki.db_name)
             query = ("select rev_id from revision where rev_timestamp < \"%s\" "
@@ -282,16 +291,21 @@ class IncrDump(MiscDumpBase):
             if results:
                 lines = results.splitlines()
                 if lines and lines[1] and lines[1].isdigit():
-                    max_id = lines[1]
-                    FileUtils.write_file_in_place(revidfile.get_path(),
-                                                  max_id, self.wiki.config.fileperms)
-        try:
-            file_obj = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
-            max_revid = FileUtils.read_file(file_obj.get_path().rstrip())
-        except Exception as ex:
-            log.info("Error encountered reading maxrevid from %s ", file_obj.get_path(),
-                     exc_info=ex)
-            max_revid = None
+                    max_revid = lines[1]
+                    if self.dryrun:
+                        print "would write file {path} with contents {revid}".format(
+                            path=revidfile.get_path(), revid=max_revid)
+                    else:
+                        FileUtils.write_file_in_place(revidfile.get_path(),
+                                                      max_revid, self.wiki.config.fileperms)
+        if not max_revid:
+            try:
+                file_obj = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
+                max_revid = FileUtils.read_file(file_obj.get_path().rstrip())
+            except Exception as ex:
+                log.info("Error encountered reading maxrevid from %s ", file_obj.get_path(),
+                         exc_info=ex)
+                max_revid = None
 
         # end rev id is not included in dump
         if max_revid is not None:

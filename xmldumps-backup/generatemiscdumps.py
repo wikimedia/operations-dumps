@@ -30,19 +30,21 @@ class Index(object):
     generate index.html page containing information for the dump
     run of the specified date for all wikis
     '''
-    def __init__(self, args):
+    def __init__(self, dryrun, args):
         '''
         pass a dict of the standard args
         (config, date, dumptype, args)
         '''
         self.args = args
+        self.dryrun = dryrun
         self.indexfile = IndexFile(self.args['config'])
         self.dumpdir = MiscDumpDir(self.args['config'])
 
     def do_all_wikis(self):
         '''
         generate index.html file for all wikis for the given date.
-        FIXME maybe this should be for the latest run date? Hrm.
+        This should only be done if the run is the most recent, otherwise
+        your nice fresh index.html file willbe replaced with old data.
         '''
         text = ""
         for wikiname in self.args['config'].all_wikis_list:
@@ -52,8 +54,11 @@ class Index(object):
                 text = text + "<li>" + result + "</li>\n"
         index_text = (self.args['config'].read_template(self.args['config'].indextmpl)
                       % {"items": text})
-        FileUtils.write_file_in_place(self.indexfile.get_path(),
-                                      index_text, self.args['config'].fileperms)
+        if self.dryrun:
+            print "would write {path} with index text".format(path=self.indexfile.get_path())
+        else:
+            FileUtils.write_file_in_place(self.indexfile.get_path(),
+                                          index_text, self.args['config'].fileperms)
 
     def get_outputfile_indextxt(self, filenames_tocheck, expected, wikiname, dump_date):
         '''
@@ -189,6 +194,17 @@ class MiscDumpOne(object):
         self.dumper = dump_class(self.wiki, flags['dryrun'],
                                  self.args['args'])
 
+    def is_most_recent(self):
+        '''
+        return True if there are no runs for the given wiki more recent
+        than the current run date, otherwise False
+        '''
+        dumps_dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
+        dirs = dumps_dirs.get_misc_dumpdirs()
+        if not dirs or dirs[-1] > self.wiki.date:
+            return False
+        return True
+
     def do_one_wiki(self):
         '''
         run dump of specified type for one wiki, for given date
@@ -199,7 +215,7 @@ class MiscDumpOne(object):
         if not skip_wiki(self.wiki.db_name, self.wiki.config):
 
             dumpdir = MiscDumpDir(self.args['config'], self.args['date'])
-            if not exists(dumpdir.get_dumpdir(self.wiki.db_name)):
+            if not exists(dumpdir.get_dumpdir(self.wiki.db_name)) and not self.flags['dryrun']:
                 os.makedirs(dumpdir.get_dumpdir(self.wiki.db_name))
 
             status_info = StatusInfo(self.args['config'], self.wiki.date, self.wiki.db_name)
@@ -241,8 +257,8 @@ class MiscDumpOne(object):
                     status_info.set_status("done:" + self.dumper.get_steps_done())
                     lock.unlock_if_owner()
 
-                if self.flags['do_index']:
-                    index = Index(self.args)
+                if self.flags['do_index'] and self.is_most_recent():
+                    index = Index(self.flags['dryrun'], self.args)
                     index.do_all_wikis()
             except Exception as ex:
                 log.warning("error from dump run"
@@ -371,7 +387,7 @@ def get_secondary_args(remainder):
     turn them into name/value pairs or name/True flags
     '''
     args = {}
-    if len(remainder) > 0:
+    if remainder:
         for opt in remainder:
             if ':' in opt:
                 name, value = opt.split(':', 1)
@@ -435,7 +451,7 @@ def main():
     '''
     config_file = False
     wikiname = None
-    logging.basicConfig(level=logging.WARNING)
+    loglevel = None
 
     try:
         (options, remainder) = getopt.gnu_getopt(
@@ -457,13 +473,19 @@ def main():
         elif opt == "--wiki":
             wikiname = val
         elif opt == "--verbose":
-            logging.basicConfig(level=logging.INFO)
+            loglevel = 'verbose'
+
+    if loglevel == 'verbose':
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
     check_usage(flags, standard_args)
 
     standard_args['config'] = get_config(config_file, standard_args['dumptype'])
     if not standard_args['date']:
         standard_args['date'] = TimeUtils.today()
+
     standard_args['args'] = get_secondary_args(remainder)
 
     if wikiname is not None:
