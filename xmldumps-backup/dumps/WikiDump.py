@@ -233,6 +233,7 @@ class Config(object):
         self.php = self.conf.get("tools", "php")
         self.gzip = self.conf.get("tools", "gzip")
         self.bzip2 = self.conf.get("tools", "bzip2")
+        self.lbzip2 = self.conf.get("tools", "lbzip2")
         self.sevenzip = self.conf.get("tools", "sevenzip")
         self.mysql = self.conf.get("tools", "mysql")
         self.mysqldump = self.conf.get("tools", "mysqldump")
@@ -302,6 +303,8 @@ class Config(object):
             "chunks", "retryWait", 1)
         self.revs_margin = self.get_opt_for_proj_or_default(
             "chunks", "revsMargin", 1)
+        self.lbzip2threads = self.get_opt_for_proj_or_default(
+            "chunks", "lbzip2threads", 0)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')

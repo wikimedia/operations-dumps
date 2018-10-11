@@ -184,12 +184,18 @@ class RecombineXmlDump(RecombineDump):
         return self.item_for_xml_dumps.get_dumpname()
 
     def build_command(self, runner, input_dfnames, output_dfname):
-        if not exists(runner.wiki.config.bzip2):
-            raise BackupError("bzip2 command %s not found" %
-                              runner.wiki.config.bzip2)
-        compression_command = runner.wiki.config.bzip2
-        compression_command = "%s > " % runner.wiki.config.bzip2
-        uncompression_command = ["%s" % runner.wiki.config.bzip2, "-dc"]
+        if runner.wiki.config.lbzip2threads:
+            if not exists(runner.wiki.config.lbzip2):
+                raise BackupError("lbzip2 command %s not found" %
+                                  runner.wiki.config.lbzip2)
+            compression_command = "{lbzip2} -n {threads} > ".format(
+                lbzip2=runner.wiki.config.lbzip2, threads=runner.wiki.config.lbzip2threads)
+        else:
+            if not exists(runner.wiki.config.bzip2):
+                raise BackupError("bzip2 command %s not found" %
+                                  runner.wiki.config.bzip2)
+            compression_command = "{bzip2} > ".format(bzip2=runner.wiki.config.bzip2)
+        uncompression_command = [runner.wiki.config.bzip2, "-dc"]
         recombine_command_string = self.build_recombine_command_string(
             runner, input_dfnames, output_dfname, compression_command, uncompression_command)
         recombine_command = [recombine_command_string]
