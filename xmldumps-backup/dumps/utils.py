@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 misc utils for dumps
 '''
@@ -7,15 +8,13 @@ import os
 from os.path import exists
 import time
 import socket
-import select
-import errno
 
-from subprocess import Popen, PIPE, _eintr_retry_call
-from dumps.CommandManagement import CommandPipeline
+from subprocess import Popen, PIPE
+from dumps.commandmanagement import CommandPipeline
 from dumps.exceptions import BackupError
 
 
-class MiscUtils(object):
+class MiscUtils():
     @staticmethod
     def db_list(path, nosort=False):
         """Read database list from a file"""
@@ -35,16 +34,15 @@ class MiscUtils(object):
     @staticmethod
     def shell_escape(param):
         """Escape a string parameter, or set of strings, for the shell."""
-        if isinstance(param, basestring):
+        if isinstance(param, str):
             return "'" + param.replace("'", "'\\''") + "'"
-        elif param is None:
+        if param is None:
             # A blank string might actually be needed; None means we can leave it out
             return ""
-        else:
-            return tuple([MiscUtils.shell_escape(x) for x in param])
+        return tuple([MiscUtils.shell_escape(x) for x in param])
 
 
-class TimeUtils(object):
+class TimeUtils():
     @staticmethod
     def today():
         return time.strftime("%Y%m%d", time.gmtime())
@@ -59,7 +57,7 @@ class TimeUtils(object):
         return "-".join((key[0:4], key[4:6], key[6:8]))
 
 
-class MultiVersion(object):
+class MultiVersion():
     @staticmethod
     def mw_script_as_string(config, maintenance_script):
         return " ".join(MultiVersion.mw_script_as_array(config, maintenance_script))
@@ -69,10 +67,9 @@ class MultiVersion(object):
         mw_script_location = os.path.join(config.multiversion, "MWScript.php")
         if exists(mw_script_location):
             return [mw_script_location, maintenance_script]
-        elif maintenance_script.startswith('extensions'):
+        if maintenance_script.startswith('extensions'):
             return ["%s/%s" % (config.wiki_dir, maintenance_script)]
-        else:
-            return ["%s/maintenance/%s" % (config.wiki_dir, maintenance_script)]
+        return ["%s/maintenance/%s" % (config.wiki_dir, maintenance_script)]
 
     @staticmethod
     def mw_version(config, db_name):
@@ -82,12 +79,12 @@ class MultiVersion(object):
             command = get_version_location + " " + db_name
             version = RunSimpleCommand.run_with_output(command, shell=True)
             if version:
-                version = version.rstrip()
+                version = version.rstrip().decode('utf-8')
                 return version
         return None
 
 
-class DbServerInfo(object):
+class DbServerInfo():
     def __init__(self, wiki, db_name, error_callback=None):
         self.wiki = wiki
         self.db_name = db_name
@@ -119,7 +116,7 @@ class DbServerInfo(object):
                               "information for %s, bailing." % self.wiki.config.php)
         # first line is the server, the second is an array of the globals (if any), we need
         # the db table prefix out of those
-        lines = results.splitlines()
+        lines = results.decode('utf-8').splitlines()
         self.db_server = lines[0]
         self.db_port = None
         if ':' in self.db_server:
@@ -145,7 +142,7 @@ class DbServerInfo(object):
             vars="|".join(pull_vars))
         results = RunSimpleCommand.run_with_output(
             command, shell=True, log_callback=self.error_callback).strip()
-        settings = json.loads(results)
+        settings = json.loads(results.decode('utf-8'))
         if not settings or len(settings) != 3:
             raise BackupError(
                 "Failed to get values for wgDBprefix, wgCanonicalServer, " +
@@ -207,8 +204,7 @@ class DbServerInfo(object):
         # fixme best to put the return code someplace along with any errors....
         if proc.exited_successfully() and (proc.output()):
             return proc.output()
-        else:
-            return None
+        return None
 
     def run_sql_query_with_retries(self, query, maxretries=3):
         """
@@ -235,163 +231,13 @@ class DbServerInfo(object):
         but if you pass '-p' it prompts. Sigh."""
         if self.wiki.config.db_password == "":
             return None
-        else:
-            return "-p" + self.wiki.config.db_password
+        return "-p" + self.wiki.config.db_password
 
 
-class MyPopen(Popen):
-    '''
-    add communicate call with timeout.  proper way to use this is
-    to call it repeatedly, retrieving stderr and stdout,
-    until the process' returncode is not None, at which point the process will
-    have completed and best of all an os.waitpid will have been
-    done on it.
-
-    Code here is taken from subprocess.Popen, python 2.7.12, and modified.
-    The Popen code was released under the Python Software Foundation License 2.0,
-    see https://www.python.org/download/releases/2.7/license/
-    for details.
-    '''
-    def communicate_with_timeout(self, timeout=None):
-        '''
-        do what communicate() does but wait only until timeout
-        specified, return whatever we have read from stdout/stderr
-
-        if timeout is None, then this acts like
-        the regular Popen.communicate() call
-
-        note that no input is specified or used
-
-        this is posix/poll specific. too bad.
-        '''
-        stdout, stderr, timeleft = self._communicate_with_timeout(timeout)
-        if stdout is not None:
-            stdout = ''.join(stdout)
-        if stderr is not None:
-            stderr = ''.join(stderr)
-
-        if timeout is not None:
-            if timeleft > 0:
-                # willing to wait up to the remaining time for the process
-                self.wait_with_timeout(timeleft)
-            else:
-                # no time left, so...
-                # immediate return if process not complete
-                self.wait_with_timeout(None)
-        else:
-            # standard behavior without timeout
-            # block waiting for process to finish up
-            self.wait()
-        return (stdout, stderr)
-
-    def _communicate_with_timeout(self, timeout=None):
-        '''
-        read stdout/stderr lines from process until
-        timout expires, return them
-
-        if timeout is None, read til process completes
-
-        this is posix/poll specific. too bad.
-        '''
-        stdout = None
-        stderr = None
-        fd2file = {}
-        fd2output = {}
-
-        poller = select.poll()
-
-        def register_and_append(fhandle, eventmask):
-            """
-            args:
-
-            """
-            if fhandle.closed:
-                return
-            poller.register(fhandle.fileno(), eventmask)
-            fd2file[fhandle.fileno()] = fhandle
-
-        def close_unregister_and_remove(fdesc):
-            poller.unregister(fdesc)
-            fd2file[fdesc].close()
-            fd2file.pop(fdesc)
-
-        select_pollin_pollpri = select.POLLIN | select.POLLPRI
-        if self.stdout and not self.stdout.closed:
-            register_and_append(self.stdout, select_pollin_pollpri)
-            fd2output[self.stdout.fileno()] = stdout = []
-        if self.stderr and not self.stderr.closed:
-            register_and_append(self.stderr, select_pollin_pollpri)
-            fd2output[self.stderr.fileno()] = stderr = []
-
-        timeleft = timeout
-        while fd2file:
-            try:
-                if timeout is not None:
-                    before = time.time()
-                ready = poller.poll(timeleft)
-                if timeout is not None:
-                    after = time.time()
-                    elapsed = after - before
-                    # timeout is in milliseconds
-                    timeleft = timeleft - (elapsed * 1000)
-            except select.error, exc:
-                if exc.args[0] == errno.EINTR:
-                    continue
-                raise
-
-            for fdesc, mode in ready:
-                if mode & select_pollin_pollpri:
-                    data = os.read(fdesc, 4096)
-                    if not data:
-                        close_unregister_and_remove(fdesc)
-                        fd2output[fdesc].append(data)
-                else:
-                    # Ignore hang up or errors.
-                    close_unregister_and_remove(fdesc)
-            if timeleft is not None and timeleft < 0:
-                return(stdout, stderr, timeleft)
-
-        return (stdout, stderr, timeleft)
-
-    def wait_with_timeout(self, timeout):
-        '''
-        Wait until timeout for child process to terminate.
-        Returns returncode attribute.
-        If timeout is None, don't wait at all, check if process
-        terminated and return returncode (or None) immediately.
-        '''
-        if self.returncode is None:
-            self._wait_nohang()
-            if self.returncode is None and timeout is not None:
-                # wait around some, and try again
-                seconds = int(timeout + 1000) / 1000
-                time.sleep(seconds)
-                self._wait_nohang()
-        return self.returncode
-
-    def _wait_nohang(self):
-        pid = None
-        try:
-            pid, sts = _eintr_retry_call(os.waitpid, self.pid, os.WNOHANG)
-        except OSError as exc:
-            if exc.errno != errno.ECHILD:
-                raise
-            # This happens if SIGCLD is set to be ignored or waiting
-            # for child processes has otherwise been disabled for our
-            # process.  This child is dead, we can't get the status.
-            pid = self.pid
-            sts = 0
-            # Check the pid and loop as waitpid has been known to return
-            # 0 even without WNOHANG in odd situations.  issue14396.
-        if pid == self.pid:
-            self._handle_exitstatus(sts)  # pylint: disable=no-member
-        return self.returncode
-
-
-class RunSimpleCommand(object):
+class RunSimpleCommand():
     @staticmethod
     def run_with_output(command, maxtries=3, shell=False, log_callback=None,
-                        retry_delay=5, verbose=False):
+                        retry_delay=5):
         """Run a command and return the output as a string.
         Raises BackupError on non-zero return code."""
 
@@ -439,15 +285,20 @@ class RunSimpleCommand(object):
         else:
             command_string = command
         if verbose:
-            print "command to be run with no output: ", command_string
+            print("command to be run with no output: ", command_string)
         success = False
         error = "unknown"
         tries = 0
         while (not success) and tries < maxtries:
-            proc = MyPopen(command, shell=shell, stderr=PIPE)
+            proc = Popen(command, shell=shell, stderr=PIPE)
             returncode = None
             while returncode is None:
-                output, error = proc.communicate_with_timeout(timeout)
+                output, error = proc.communicate(timeout=timeout)
+                if error is not None:
+                    error = error.decode('utf-8')
+                if output is not None:
+                    output = output.decode('utf-8')
+                # FIXME we need to catch errors n stuff
                 returncode = proc.returncode
                 if timeout_callback is not None:
                     timeout_callback(output, error)
@@ -465,7 +316,7 @@ class RunSimpleCommand(object):
         return success
 
 
-class PageAndEditStats(object):
+class PageAndEditStats():
     def __init__(self, wiki, db_name, error_callback=None):
         self.total_pages = None
         self.total_logitems = None
@@ -538,9 +389,10 @@ class PageAndEditStats(object):
 
 # so if the pages/revs_per_filepart_abstr/_history are just one number it means
 # use that number for all the parts, figure out yourself how many.
-# otherwise we get passed alist that says "here's now many for each filepart and it's this many parts.
+# otherwise we get passed a list that says "here's now many for each filepart
+# and it's this many parts.
 # extra pages/revs go in the last filepart, stuck on the end. too bad. :-P
-class FilePartInfo(object,):
+class FilePartInfo():
     '''
     when we split a job into a set of subjobs to be run in parallel, each
     producing one part of the output, these parts of the output file could
@@ -640,8 +492,9 @@ class FilePartInfo(object,):
                         self._logitems_per_filepart_pagelogs[0]):
                     self._num_parts_pagelogs = self.get_num_parts_for_xml_dumps(
                         self.stats.total_logitems, self._logitems_per_filepart_pagelogs[0])
-                    self._logitems_per_filepart_pagelogs = [self._logitems_per_filepart_pagelogs[0]
-                                                            for i in range(self._num_parts_pagelogs)]
+                    self._logitems_per_filepart_pagelogs = [
+                        self._logitems_per_filepart_pagelogs[0]
+                        for i in range(self._num_parts_pagelogs)]
                 else:
                     self._num_parts_pagelogs = len(self._logitems_per_filepart_pagelogs)
             else:
@@ -686,11 +539,10 @@ class FilePartInfo(object,):
         if not total:
             # default: no file parts.
             return 0
-        else:
-            parts = int(total / per_filepart)
-            # more smaller parts are better, we want speed
-            if (total - (parts * per_filepart)) > 0:
-                parts = parts + 1
-            if parts == 1:
-                return 0
-            return parts
+        parts = int(total / per_filepart)
+        # more smaller parts are better, we want speed
+        if (total - (parts * per_filepart)) > 0:
+            parts = parts + 1
+        if parts == 1:
+            return 0
+        return parts

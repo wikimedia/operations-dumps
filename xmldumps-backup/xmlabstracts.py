@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 generate an xml dump via multiple runs of a php script instead of one
 long run.
@@ -10,7 +11,7 @@ the run.
 import os
 import sys
 import getopt
-from dumps.WikiDump import Config
+from dumps.wikidump import Config
 from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
 from xmlstreams import do_xml_stream, gzippit
@@ -53,10 +54,10 @@ def do_abstractsbackup(wikidb, output_files, variants,
                     "--current", "--report=1000"])
 
     for filetype in outfiles:
-            command.extend(["--output=file:%s" % outfiles[filetype]['temp'],
-                            "--filter=namespace:NS_MAIN",
-                            "--filter=noredirect",
-                            "--filter=abstract%s" % filetype])
+        command.extend(["--output=file:%s" % outfiles[filetype]['temp'],
+                        "--filter=namespace:NS_MAIN",
+                        "--filter=noredirect",
+                        "--filter=abstract%s" % filetype])
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
@@ -140,7 +141,7 @@ def main():
         else:
             usage("Unknown option specified: <%s>" % opt)
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
     if wiki is None:
@@ -165,8 +166,8 @@ def main():
     output_files = output_files.split(",")
     variants = variants.split(",")
     if len(output_files) != len(variants):
-            usage("each variant must correspond to outfile, "
-                  "different number supplied")
+        usage("each variant must correspond to outfile, "
+              "different number supplied")
 
     wikiconf = Config(configfile)
     wikiconf.parse_conffile_per_project(wiki)

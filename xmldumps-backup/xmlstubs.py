@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 generate an xml dump via multiple runs of a php script instead of one
 long run.
@@ -11,7 +12,7 @@ import os
 import sys
 import time
 import getopt
-from dumps.WikiDump import Config
+from dumps.wikidump import Config
 from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
 from dumps.utils import DbServerInfo
@@ -223,7 +224,7 @@ def main():
         else:
             usage("Unknown option specified: <%s>" % opt)
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
     if wiki is None:

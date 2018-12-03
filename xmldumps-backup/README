@@ -52,10 +52,10 @@ worker.py
 monitor.py
 - Generates the site-wide index summary and removes stale locks.
 
-WikiDump.py
+wikidump.py
 - Shared classes and functions
 
-CommandManagement.py
+commandmanagement.py
 - Classes for running multiple commands at the same time, used for running some phases
   of the dumps in multiple pieces at the same time, for speed
 

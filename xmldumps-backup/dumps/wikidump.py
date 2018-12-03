@@ -1,19 +1,20 @@
-import ConfigParser
+#!/usr/bin/python3
+import configparser
 import os
 import re
 import socket
 import sys
 import threading
 import time
-import yaml
 import traceback
+import yaml
 
 from dumps.report import StatusHtml
 from dumps.fileutils import FileUtils
 from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand
 
 
-class Config(object):
+class Config():
     def __init__(self, config_file=None):
         self.project_name = None
         self.db_user = None
@@ -35,17 +36,18 @@ class Config(object):
             self.files.append(os.path.join(os.getenv("HOME"),
                                            ".wikidump.conf"))
 
-        self.conf = ConfigParser.SafeConfigParser()
-        self.conf.readfp(open('defaults.conf', "rb"))
+        self.conf = configparser.ConfigParser(strict=False)
+        with open('defaults.conf') as defaults_fp:
+            self.conf.read_file(defaults_fp)
         self.conf.read(self.files)
 
         if not self.conf.has_section("wiki"):
-            print "The mandatory configuration section 'wiki' was not defined."
-            raise ConfigParser.NoSectionError('wiki')
+            print("The mandatory configuration section 'wiki' was not defined.")
+            raise configparser.NoSectionError('wiki')
 
         if not self.conf.has_option("wiki", "dir"):
-            print "The mandatory setting 'dir' in the section 'wiki' was not defined."
-            raise ConfigParser.NoOptionError('wiki', 'dir')
+            print("The mandatory setting 'dir' in the section 'wiki' was not defined.")
+            raise configparser.NoOptionError('wiki', 'dir')
 
         self.parse_conffile_overrideables()
         self.parse_conffile_globally()
@@ -64,8 +66,7 @@ class Config(object):
         result = re.search(equalspattern, line)
         if result:
             return result.group(2)
-        else:
-            return ""
+        return ""
 
     @staticmethod
     def get_db_user_and_password(conf, wiki_dir):
@@ -123,8 +124,7 @@ class Config(object):
                 continue
             if is_int:
                 return self.conf.getint(section, item_name)
-            else:
-                return self.conf.get(section, item_name)
+            return self.conf.get(section, item_name)
         return None
 
     def get_opt_in_overrides_or_default(self, section_name, item_name, is_int):
@@ -179,12 +179,21 @@ class Config(object):
         to_skip = self.get_opt_in_overrides_or_default("wiki", "skipdblist", 0)
         self.skip_db_list = self.get_skipdbs(to_skip)
 
-        self.private_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
-            "wiki", "privatelist", 0))
-        self.closed_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
-            "wiki", "closedlist", 0))
-        self.flow_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
-            "wiki", "flowlist", 0))
+        try:
+            self.private_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+                "wiki", "privatelist", 0))
+        except FileNotFoundError:
+            self.private_list = []
+        try:
+            self.closed_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+                "wiki", "closedlist", 0))
+        except FileNotFoundError:
+            self.closed_list = []
+        try:
+            self.flow_list = MiscUtils.db_list(self.get_opt_in_overrides_or_default(
+                "wiki", "flowlist", 0))
+        except FileNotFoundError:
+            self.flow_list = []
         self.tablejobs = self.get_opt_in_overrides_or_default(
             "wiki", "tablejobs", 0)
         self.apijobs = self.get_opt_in_overrides_or_default(
@@ -411,7 +420,7 @@ class Config(object):
                     age = FileUtils.file_age(dump_status)
                     status = FileUtils.read_file(dump_status)
                 except Exception as ex:
-                    print "dump dir missing status file %s?" % dump_status
+                    print("dump dir missing status file %s?" % dump_status)
             dump_failed = (status == '') or ('dump aborted' in status)
             available.append((dump_failed, date, age, dbname))
         available = sorted(available)
@@ -448,7 +457,7 @@ class Config(object):
             return {}
 
 
-class Wiki(object):
+class Wiki():
     def __init__(self, config, db_name):
         self.config = config
         self.db_name = db_name
@@ -469,8 +478,7 @@ class Wiki(object):
     def public_dir(self):
         if self.is_private():
             return self.private_dir()
-        else:
-            return os.path.join(self.config.public_dir, self.db_name)
+        return os.path.join(self.config.public_dir, self.db_name)
 
     def private_dir(self):
         return os.path.join(self.config.private_dir, self.db_name)
@@ -506,10 +514,8 @@ class Wiki(object):
         if dirs:
             if return_all:
                 return dirs
-            else:
-                return dirs[index]
-        else:
-            return None
+            return dirs[index]
+        return None
 
     def date_touched_latest_dump(self):
         mtime = 0
@@ -546,10 +552,10 @@ class Wiki(object):
         mysqlcmd = commands[1]
         to_run = " ".join(echocmd) + " | " + " ".join(mysqlcmd) + " --silent"
         results = RunSimpleCommand.run_with_output(to_run, shell=True)
-        return results.splitlines()
+        return results.decode('utf-8').splitlines()
 
 
-class Locker(object):
+class Locker():
     def __init__(self, wiki, date=None):
         self.wiki = wiki
         self.watchdog = None
@@ -575,11 +581,9 @@ class Locker(object):
         '''
         if all_locks:
             return self.get_locks()
-        else:
-            if os.path.exists(self.get_lock_file_path()):
-                return [self.get_lock_file_path()]
-            else:
-                return []
+        if os.path.exists(self.get_lock_file_path()):
+            return [self.get_lock_file_path()]
+        return []
 
     def get_locks(self):
         '''
@@ -712,8 +716,7 @@ class Locker(object):
     def lock_age(self, lockfile=None):
         if lockfile is not None:
             return FileUtils.file_age(lockfile)
-        else:
-            return FileUtils.file_age(self.get_lock_file_path())
+        return FileUtils.file_age(self.get_lock_file_path())
 
 
 class LockWatchdog(threading.Thread):
@@ -760,5 +763,5 @@ def cleanup():
 
 
 if __name__ == "__main__":
-    config_unused = Config()
-    print "Config load ok!"
+    _CONFIG = Config()
+    print("Config load ok!")

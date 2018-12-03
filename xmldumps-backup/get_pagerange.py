@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 quickie standalone test of page range job generation, given
 an arbitrary start and end point
@@ -5,7 +6,7 @@ an arbitrary start and end point
 import sys
 import getopt
 import json
-from dumps.WikiDump import Config
+from dumps.wikidump import Config
 from dumps.pagerange import jsonify
 from dumps.pagerange import PageRange
 from dumps.pagerange import QueryRunner
@@ -20,13 +21,13 @@ def usage(message=None):
         sys.stderr.write(message)
         sys.stderr.write("\n")
     usage_message = """
-Usage: check_pagerange.py --wiki <wikiname>
+Usage: python3 get_pagerange.py --wiki <wikiname>
         --start <int> --end <int>
         [--configfile <path>] [--verbose] [--help]
 
 --wiki       (-w):  name of db of wiki for which to run
---start      (-s):  page id start for --revs option
---end        (-e):  page id end for --revs option
+--start      (-s):  page id start
+--end        (-e):  page id end
 --configfile (-c):  path to config file
 --verbose    (-v):  display messages about what the script is doing
 --help       (-h):  display this help message
@@ -73,7 +74,7 @@ def do_main():
     if not start or not end or not wikiname:
         usage("one of the mandatory arguments 'start', 'end' or 'wiki' was not specified")
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: %s" % remainder[0])
 
     wiki_config = Config(configpath)
@@ -83,7 +84,7 @@ def do_main():
     prange = PageRange(QueryRunner(wikiname, wiki_config, verbose), verbose)
     ranges = prange.get_pageranges_for_revs(start, end, wiki_config.revs_per_job)
 
-    print json.dumps(jsonify(ranges, 0))  # skip zero-padding, who cares
+    print(json.dumps(jsonify(ranges, 0)))  # skip zero-padding, who cares
 
 
 if __name__ == "__main__":

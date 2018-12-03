@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 shared classes for misc dumps (incrementals, html, etc)
 '''
@@ -10,10 +11,10 @@ import shutil
 import time
 import hashlib
 import fcntl
-import ConfigParser
+import configparser
 import logging
 import logging.config
-from dumps.WikiDump import FileUtils, MiscUtils, Config
+from dumps.wikidump import FileUtils, MiscUtils, Config
 from dumps.utils import DbServerInfo, RunSimpleCommand
 
 
@@ -57,8 +58,7 @@ def safe(item):
     '''
     if item is not None:
         return item
-    else:
-        return "None"
+    return "None"
 
 
 def make_link(path, link_text):
@@ -68,7 +68,7 @@ def make_link(path, link_text):
     return '<a href = "' + path + '">' + link_text + "</a>"
 
 
-class ContentFile(object):
+class ContentFile():
     '''
     manage dump output file for given wiki and date
     '''
@@ -129,7 +129,7 @@ class MD5File(ContentFile):
         return "%s-%s-md5sums.txt" % (self.wikiname, self.date)
 
 
-class IndexFile(object):
+class IndexFile():
     '''
     for index.html file for dumps of all wikis for all dates
     '''
@@ -156,7 +156,7 @@ def md5sum_one_file(filename):
     generate and return md5 sum of specified file
     '''
     summer = hashlib.md5()
-    infile = file(filename, "rb")
+    infile = open(filename, "rb")
     bufsize = 4192 * 32
     buff = infile.read(bufsize)
     while buff:
@@ -190,7 +190,7 @@ def md5sums(wiki, fileperms, files, mandatory):
     return not errors
 
 
-class StatusInfo(object):
+class StatusInfo():
     '''
     manage dump status for the given wiki and date
     '''
@@ -217,7 +217,7 @@ class StatusInfo(object):
         FileUtils.write_file_in_place(self.status_file.get_path(), status, self._config.fileperms)
 
 
-class MiscDumpLock(object):
+class MiscDumpLock():
     '''
     lock handling for the dump runs, in case more than one process on one
     or more servers runs dump at the same time
@@ -367,7 +367,7 @@ class MiscDumpLock(object):
         os.utime(self.lockfile.get_path(), (now, now))
 
 
-class MiscDumpConfig(object):
+class MiscDumpConfig():
     '''
     configuration information for dumps
     '''
@@ -382,16 +382,16 @@ class MiscDumpConfig(object):
             "/etc/miscdumps.conf",
             os.path.join(os.getenv("HOME"), ".miscdumps.conf")]
 
-        self.conf = ConfigParser.SafeConfigParser(defaults)
+        self.conf = configparser.ConfigParser(defaults, strict=False)
         self.conf.read(self.files)
 
         if not self.conf.has_section("wiki"):
-            print "The mandatory configuration section 'wiki' was not defined."
-            raise ConfigParser.NoSectionError('wiki')
+            print("The mandatory configuration section 'wiki' was not defined.")
+            raise configparser.NoSectionError('wiki')
 
         if not self.conf.has_option("wiki", "mediawiki"):
-            print "The mandatory setting 'mediawiki' in the section 'wiki' was not defined."
-            raise ConfigParser.NoOptionError('wiki', 'mediawiki')
+            print("The mandatory setting 'mediawiki' in the section 'wiki' was not defined.")
+            raise configparser.NoOptionError('wiki', 'mediawiki')
 
         self.db_user = None
         self.db_password = None
@@ -455,7 +455,7 @@ class MiscDumpConfig(object):
         return FileUtils.read_file(template)
 
 
-class MiscDumpDir(object):
+class MiscDumpDir():
     '''
     info about dump directory for a given date, wiki, and config settings
     '''
@@ -481,11 +481,10 @@ class MiscDumpDir(object):
         '''
         if date is None:
             return os.path.join(self.get_dumpdir_base(), wikiname, self.date)
-        else:
-            return os.path.join(self.get_dumpdir_base(), wikiname, date)
+        return os.path.join(self.get_dumpdir_base(), wikiname, date)
 
 
-class MiscDumpDirs(object):
+class MiscDumpDirs():
     '''
     info about all the directories of dumps for all dates for a given wiki
     '''
@@ -544,8 +543,7 @@ class MiscDumpDirs(object):
                         return dump
             else:
                 return dirs[-1]
-        else:
-            return None
+        return None
 
 
 def get_config_defaults():
@@ -566,7 +564,7 @@ def get_config_defaults():
         "indextmpl": "miscdumps-index.tmpl",
         "temp": "/dumps/temp",
         "webroot": "http://localhost/dumps/misc",
-        "fileperms": "0640",
+        "fileperms": "0o640",
         "delay": "3600",
         "lockstale": "300",
         # "database": {
@@ -605,18 +603,18 @@ def run_simple_query(query, wiki):
     echocmd = commands[0]
     mysqlcmd = commands[1]
     to_run = " ".join(echocmd) + " | " + " ".join(mysqlcmd) + " --silent"
-    log.info("running with no output: " + to_run)
+    log.info("running with no output: %s", to_run)
     return RunSimpleCommand.run_with_output(to_run, shell=True)
 
 
-class MiscDumpBase(object):
+class MiscDumpBase():
     '''
     base class for misc dumps to inherit from
     override the methods marked 'override this'
     '''
     def __init__(self, wiki, dryrun=False, args=None):
         '''
-        wiki:     WikiDump object with date set
+        wiki:     wikidump.wiki object with date set
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'revsonly' and/or 'stubsonly'
                   indicating whether or not to dump rev content and/or stubs
@@ -667,10 +665,9 @@ class MiscDumpBase(object):
                 steps_done.append(dump_step)
         if len(steps_done) == len(self.steps):
             return 'all'
-        elif len(steps_done):
+        if steps_done:
             return ','.join(steps_done)
-        else:
-            return ''
+        return ''
 
     def get_output_files(self):
         '''

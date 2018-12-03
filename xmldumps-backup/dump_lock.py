@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 get a lock on the specified wiki and date,
 touch it every so often so it doesn't get stale,
@@ -13,12 +14,12 @@ import sys
 import signal
 import getopt
 import time
-from dumps.WikiDump import Locker
-from dumps.WikiDump import Config
-from dumps.WikiDump import Wiki
+from dumps.wikidump import Locker
+from dumps.wikidump import Config
+from dumps.wikidump import Wiki
 
 
-class StandaloneLocker(object):
+class StandaloneLocker():
     """
     lock a wiki run for a given date
     return True if lock acquired, False otherwise
@@ -45,7 +46,7 @@ class StandaloneLocker(object):
         except Exception as ex:
             return False
 
-    def handle_hup(self, signo, dummy_frame):
+    def handle_hup(self, _signo, _dummy_frame):
         """
         ignore any more hups
         stop the lock refresher and remove the lock
@@ -109,7 +110,7 @@ def get_args():
     if not date.isdigit or len(date) != 8:
         usage("'date' must be in format YYYYMMDD")
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option specified")
 
     if not wiki or not date or not configfile:

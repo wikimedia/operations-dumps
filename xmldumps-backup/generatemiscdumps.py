@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 for every wiki, run the specific dump type for today
 or the given date
@@ -17,15 +18,15 @@ from miscdumplib import MiscDumpLock, StatusInfo
 from miscdumplib import log, safe, make_link, skip_wiki
 from miscdumpfactory import MiscDumpFactory
 
-from dumps.WikiDump import Wiki
+from dumps.wikidump import Wiki
 from dumps.exceptions import BackupError
-from dumps.WikiDump import FileUtils, TimeUtils
+from dumps.wikidump import FileUtils, TimeUtils
 
 
 # pylint: disable=broad-except
 
 
-class Index(object):
+class Index():
     '''
     generate index.html page containing information for the dump
     run of the specified date for all wikis
@@ -55,7 +56,7 @@ class Index(object):
         index_text = (self.args['config'].read_template(self.args['config'].indextmpl)
                       % {"items": text})
         if self.dryrun:
-            print "would write {path} with index text".format(path=self.indexfile.get_path())
+            print("would write {path} with index text".format(path=self.indexfile.get_path()))
         else:
             FileUtils.write_file_in_place(self.indexfile.get_path(),
                                           index_text, self.args['config'].fileperms)
@@ -137,14 +138,14 @@ class Index(object):
             dumps_dirs = MiscDumpDirs(self.args['config'], wikiname)
             if not exists(self.dumpdir.get_dumpdir_no_date(wikiname)):
                 log.info("No dump for wiki %s", wikiname)
-                return
+                return None
             if date is not None:
                 dump_date = date
             else:
                 dump_date = dumps_dirs.get_latest_dump_date(True)
             if not dump_date:
                 log.info("No dump for wiki %s", wikiname)
-                return
+                return None
 
             other_runs_text = "other runs: %s<br />" % make_link(wikiname, wikiname)
 
@@ -174,9 +175,10 @@ class Index(object):
                         " for wiki %s" % wikiname)
 
             return wiki_info
+        return None
 
 
-class MiscDumpOne(object):
+class MiscDumpOne():
     '''
     run dump of specified name on all wikis, or if do_dump
     is False, only generate the index.html file containing
@@ -221,8 +223,8 @@ class MiscDumpOne(object):
             status_info = StatusInfo(self.args['config'], self.wiki.date, self.wiki.db_name)
             status = status_info.get_status()
             if status == "done:all" and not self.flags['forcerun']:
-                log.info("wiki %s skipped, adds/changes dump already"
-                         " complete", self.wiki.db_name)
+                log.info("wiki %s skipped, %s dump already"
+                         " complete", self.wiki.db_name, self.args['dumptype'])
                 return STATUS_GOOD
 
             if not self.flags['dryrun']:
@@ -271,7 +273,7 @@ class MiscDumpOne(object):
         return STATUS_GOOD
 
 
-class MiscDumpLoop(object):
+class MiscDumpLoop():
     '''
     do the specified dumptype for all wikis for the given date, including
     regeneration of the index.html file, with various dump phases optionally
@@ -334,9 +336,9 @@ def usage(message=None):
     displayed first.
     '''
     if message:
-        print message
+        print(message)
     usage_message = (
-        """Usage: python generatemiscdumps.py --dumptype <type> [options] [args]
+        """Usage: python3 generatemiscdumps.py --dumptype <type> [options] [args]
 
 Options: --configfile, --date, --dumponly, --indexonly,
          --dryrun, --forcerun, --verbose, --wiki

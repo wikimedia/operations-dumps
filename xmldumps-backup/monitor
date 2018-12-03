@@ -26,9 +26,9 @@ fi
 while true; do
 #    echo ""
 #    echo "Sweeping!"
-#    echo python ${pythonargs[@]}
+#    echo python3 ${pythonargs[@]}
     cd ${WIKIDUMP_BASE}
-    python ${pythonargs[@]}
+    python3 ${pythonargs[@]}
 #    echo "sleeping"
     sleep 15
 done

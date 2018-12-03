@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 generate an xml dump via multiple runs of a php script instead of one
 long run.
@@ -13,7 +14,7 @@ import time
 import traceback
 from subprocess import Popen, PIPE
 from dumps.utils import DbServerInfo
-from dumps.WikiDump import Wiki
+from dumps.wikidump import Wiki
 
 
 # fix all the error returns and make subroutines out of stuff
@@ -42,7 +43,7 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
 
     if interval is None:
         # hope this is not too awful a guess
-        interval = (int(end) - int(start)) / 50
+        interval = int((int(end) - int(start)) / 50)
         if interval == 0:
             interval = 1
         elif interval > max_interval:
@@ -105,9 +106,9 @@ def run_script(command, outfiles, shouldendwith=None):
                 # file could be empty (all pages in the range deleted)
                 if os.path.getsize(outfile) > 0:
                     if shouldendwith is not None:
-                        with open(outfile, 'r') as outfd:
+                        with open(outfile, 'rb') as outfd:
                             outfd.seek(len(shouldendwith) * -1, os.SEEK_END)
-                            remainder = outfd.read()
+                            remainder = outfd.read().decode('utf-8')
                             outfd.close()
                             if remainder != shouldendwith:
                                 os.unlink(outfile)
@@ -117,8 +118,7 @@ def run_script(command, outfiles, shouldendwith=None):
 
     if failed:
         return False
-    else:
-        return True
+    return True
 
 
 def catfile(inputfile, process):
@@ -132,7 +132,7 @@ def catfile(inputfile, process):
             if not content:
                 fhandle.close()
                 break
-            process.stdin.write(content)
+            process.stdin.write(content.encode('utf-8'))
 
 
 def gzippit(outfile):

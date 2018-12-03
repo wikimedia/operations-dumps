@@ -2,7 +2,7 @@ import os
 import sys
 import select
 import signal
-import Queue
+import queue
 import fcntl
 import threading
 
@@ -11,7 +11,7 @@ from subprocess import Popen, PIPE
 # FIXME no explicit stderr handling, is this ok?
 
 
-class CommandPipeline(object):
+class CommandPipeline():
     """Run a series of commands in a pipeline, e.g.  ps -ef | grep convert
     The pipeline can be one command long (in which case nothing special happens)
     It takes as args: list of commands in the pipeline (each command is a list:
@@ -115,8 +115,10 @@ class CommandPipeline(object):
 
             stderr_opt = PIPE
 
-            process = Popen(command, stdout=stdout_opt, stdin=stdin_opt, stderr=stderr_opt,
-                            preexec_fn=self.subprocess_setup, shell=self._shell)
+            process = Popen(command, stdout=stdout_opt,    # pylint: disable=subprocess-popen-preexec-fn
+                            stdin=stdin_opt, stderr=stderr_opt,
+                            preexec_fn=self.subprocess_setup,
+                            shell=self._shell)
 
             if command == self._commands[0]:
                 self._first_process_in_pipe = process
@@ -127,7 +129,7 @@ class CommandPipeline(object):
                 previous_process.stdout.close()
 
             if not self._quiet:
-                print "command %s (%s) started... " % (command_string, process.pid)
+                print("command %s (%s) started... " % (command_string, process.pid))
             self._processes.append(process)
             previous_process = process
 
@@ -147,7 +149,7 @@ class CommandPipeline(object):
         self._processes.reverse()
         for proc in self._processes:
             self._exit_values.append(proc.wait())
-            retcode = proc.poll()
+            proc.poll()
         self._exit_values.reverse()
         self._processes.reverse()
         if self.save_file():
@@ -159,8 +161,7 @@ class CommandPipeline(object):
         # is not completed, or some value (may be 0) otherwise
         if self._last_process_in_pipe.poll() is None:
             return True
-        else:
-            return False
+        return False
 
     def save_filename(self):
         return self._save_filename
@@ -177,8 +178,7 @@ class CommandPipeline(object):
             # see it in the error report instead of the specific issue in the pipe.
             if stringfmt:
                 return self.pipeline_string()
-            else:
-                return self._commands
+            return self._commands
         return None
 
     # Checks the exit values of the individual commands in the
@@ -195,7 +195,7 @@ class CommandPipeline(object):
             if exit_value != 0:
                 failed_commands.append([exit_value, self._commands[index]])
 
-        if len(failed_commands):
+        if failed_commands:
             return failed_commands
 
         return None
@@ -216,8 +216,7 @@ class CommandPipeline(object):
             return False
         if self._last_poll_state & (select.POLLIN | select.POLLPRI):
             return True
-        else:
-            return False
+        return False
 
     def check_for_poll_errors(self):
         if not self._last_poll_state:
@@ -228,10 +227,9 @@ class CommandPipeline(object):
                 self._last_poll_state & select.POLLNVAL or
                 self._last_poll_state & select.POLLERR):
             return True
-        else:
-            return False
+        return False
 
-    def readline_alarm_handler(self, signum, frame):
+    def readline_alarm_handler(self, _signum, _frame):
         raise IOError("Hung in the middle of reading a line")
 
     def get_output_line_with_timeout(self, timeout=None):
@@ -277,12 +275,11 @@ class CommandPipeline(object):
 
                     signal.alarm(0)
                     return out
-                elif self.check_for_poll_errors():
+                if self.check_for_poll_errors():
                     self._poller.unregister(fdesc)
                     return None
-                else:
-                    # it wasn't ready for read but no errors...
-                    return 0
+                # it wasn't ready for read but no errors...
+                return 0
         # no poll events
         return 0
 
@@ -301,7 +298,7 @@ class CommandPipeline(object):
 
     def get_all_output(self):
         # gather output (from end of pipeline) and record array of exit values
-        (stdout, stderr) = self.process_to_poll().communicate()
+        (stdout, _stderr) = self.process_to_poll().communicate()
         self._output = stdout
 
     def run_pipeline_get_output(self):
@@ -313,7 +310,7 @@ class CommandPipeline(object):
         self.set_return_codes()
 
 
-class CommandSeries(object):
+class CommandSeries():
     """Run a list of command pipelines in serial (e.g.
     tar cvfp distro/ distro.tar; chmod 644 distro.tar  )
     It takes as args: series of pipelines (each pipeline is a list of commands)"""
@@ -344,8 +341,7 @@ class CommandSeries(object):
         This is the one we would be collecting output from"""
         if self._in_progress_pipeline:
             return self._in_progress_pipeline.process_to_poll()
-        else:
-            return None
+        return None
 
     def exited_successfully(self):
         for pipeline in self._command_pipelines:
@@ -372,10 +368,9 @@ class CommandSeries(object):
                 not self._in_progress_pipeline.check_poll_ready_for_read()):
             return True
         # there is no output to read, it's all going somewhere to a file.
-        elif not self.in_progress_pipeline()._last_process_in_pipe.stdout:
+        if not self.in_progress_pipeline()._last_process_in_pipe.stdout:
             return True
-        else:
-            return False
+        return False
 
     def continue_commands(self, read_input_from_caller=False):
         if self._in_progress_pipeline:
@@ -414,13 +409,13 @@ class CommandSeries(object):
 
 
 class ProcessMonitor(threading.Thread):
-    def __init__(self, timeout, queue, output_queue, default_callback_interval,
+    def __init__(self, timeout, cmdqueue, output_queue, default_callback_interval,
                  callback_stderr, callbackStdout, callback_timed,
                  callback_stderr_arg, callbackStdoutArg, callback_timed_arg,
                  callback_on_completion):
         threading.Thread.__init__(self)
         self.timeout = timeout
-        self.queue = queue
+        self.cmdqueue = cmdqueue
         self.output_queue = output_queue
         self._default_callback_interval = default_callback_interval
         self._callback_stderr = callback_stderr
@@ -433,7 +428,7 @@ class ProcessMonitor(threading.Thread):
 
     # one of these as a thread to monitor each command series.
     def run(self):
-        series = self.queue.get()
+        series = self.cmdqueue.get()
         while series.process_producing_output():
             proc = series.process_producing_output()
             poller = select.poll()
@@ -475,7 +470,7 @@ class ProcessMonitor(threading.Thread):
                             # we will get no updates here...
                             proc.wait()
                             # FIXME put the returncode someplace?
-                            print "returned from %s with %s" % (proc.pid, proc.returncode)
+                            print("returned from %s with %s" % (proc.pid, proc.returncode))
                             command_completed = True
 
                 waited = waited + self.timeout
@@ -494,27 +489,26 @@ class ProcessMonitor(threading.Thread):
             # let caller do any bookkeeping or other work on command completion
             self._callback_on_completion(series)
 
-        self.queue.task_done()
+        self.cmdqueue.task_done()
 
 
-class OutputQueueItem(object):
+class OutputQueueItem():
     def __init__(self, channel, contents):
         self.channel = channel
         self.contents = contents
         self.stdout_channel = OutputQueueItem.get_stdout_channel()
         self.stderr_channel = OutputQueueItem.get_stderr_channel()
 
+    @staticmethod
     def get_stdout_channel():
         return 1
 
+    @staticmethod
     def get_stderr_channel():
         return 2
 
-    get_stdout_channel = staticmethod(get_stdout_channel)
-    get_stderr_channel = staticmethod(get_stderr_channel)
 
-
-class CommandsInParallel(object):
+class CommandsInParallel():
     """Run a pile of commandSeries in parallel (e.g. dump articles 1 to 100K,
     dump articles 100K+1 to 200K, ...).  This takes as arguments: a list of series
     of pipelines (each pipeline is a list of commands, each series is a list of
@@ -543,8 +537,8 @@ class CommandsInParallel(object):
         self._callback_stdout_arg = callbackStdoutArg
         self._callback_timed_arg = callback_timed_arg
         self._callback_on_completion = callback_on_completion
-        self._command_series_queue = Queue.Queue()
-        self._output_queue = Queue.Queue()
+        self._command_series_queue = queue.Queue()
+        self._output_queue = queue.Queue()
         self._normal_thread_count = threading.activeCount()
 
         # number millisecs we will wait for select.poll()
@@ -611,7 +605,7 @@ class CommandsInParallel(object):
                         else:
                             self._callback_stdout(output.contents)
                     else:
-                        sys.stderr.write(output.contents)
+                        sys.stderr.write(output.contents.decode('utf-8'))
                 else:  # output channel is stderr
                     if self._callback_stderr:
                         if self._callback_stderr_arg:
@@ -619,7 +613,7 @@ class CommandsInParallel(object):
                         else:
                             self._callback_stderr(output.contents)
                     else:
-                        sys.stderr.write(output.contents)
+                        sys.stderr.write(output.contents.decode('utf-8'))
 
     def run_commands(self):
         self.start_commands()
@@ -663,9 +657,9 @@ def main():
     commands = CommandsInParallel(parallel, callbackStdout=testcallback)
     commands.run_commands()
     if commands.exited_successfully():
-        print "w00t!"
+        print("w00t!")
     else:
-        print "big bummer!"
+        print("big bummer!")
 
 
 if __name__ == "__main__":

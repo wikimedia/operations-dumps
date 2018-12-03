@@ -8,7 +8,7 @@ import os
 from os.path import exists
 import time
 import calendar
-from dumps.WikiDump import FileUtils
+from dumps.wikidump import FileUtils
 from dumps.utils import RunSimpleCommand
 from dumps.utils import DbServerInfo
 from dumps.utils import MultiVersion
@@ -24,7 +24,7 @@ from miscdumplib import log, safe, run_simple_query
 # pylint: disable=broad-except
 
 
-class MaxRevID(object):
+class MaxRevID():
     '''
     retrieve, read, write max revid from database/file
     '''
@@ -40,7 +40,7 @@ class MaxRevID(object):
         '''
         query = ("'select rev_id from revision where rev_timestamp < \"%s\" "
                  "order by rev_timestamp desc limit 1'" % self.cutoff)
-        self.max_id = run_simple_query(query, self.wiki)
+        self.max_id = run_simple_query(query, self.wiki).decode('utf-8')
 
     def record_max_revid(self, date=None):
         '''
@@ -53,8 +53,8 @@ class MaxRevID(object):
             date = self.wiki.date
         file_obj = MaxRevIDFile(self.wiki.config, date, self.wiki.db_name)
         if self.dryrun:
-            print "would write file {path} with contents {revid}".format(
-                path=file_obj.get_path(), revid=self.max_id)
+            print("would write file {path} with contents {revid}".format(
+                path=file_obj.get_path(), revid=self.max_id))
         else:
             FileUtils.write_file_in_place(file_obj.get_path(), self.max_id,
                                           self.wiki.config.fileperms)
@@ -131,7 +131,7 @@ class IncrDumpConfig(MiscDumpConfig):
     def __init__(self, config_file=None):
         defaults = get_config_defaults()
         defaults['delay'] = "43200"
-        super(IncrDumpConfig, self).__init__(defaults, config_file)
+        super().__init__(defaults, config_file)
         delay = self.conf.get("output", "delay")
         self.delay = int(delay, 0)
 
@@ -145,12 +145,12 @@ class IncrDump(MiscDumpBase):
     # overrides base class
     def __init__(self, wiki, dryrun=False, args=None):
         '''
-        wiki:     WikiDump object with date set
+        wiki:     wikidump.wiki object with date set
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'revsonly' and/or 'stubsonly'
                   indicating whether or not to dump rev content and/or stubs
         '''
-        super(IncrDump, self).__init__(wiki, dryrun, args)
+        super().__init__(wiki, dryrun, args)
         self.cutoff = cutoff_from_date(self.wiki.date, self.wiki.config)
 
         if 'revsonly' in args:
@@ -217,7 +217,7 @@ class IncrDump(MiscDumpBase):
             for dump in old:
                 if dump == date:
                     return previous
-                elif dumpok:
+                if dumpok:
                     status_info = StatusInfo(self.wiki.config, dump, self.wiki.db_name)
                     if status_info.get_status(dump) == "done":
                         previous = dump
@@ -293,11 +293,12 @@ class IncrDump(MiscDumpBase):
                 if lines and lines[1] and lines[1].isdigit():
                     max_revid = lines[1]
                     if self.dryrun:
-                        print "would write file {path} with contents {revid}".format(
-                            path=revidfile.get_path(), revid=max_revid)
+                        print("would write file {path} with contents {revid}".format(
+                            path=revidfile.get_path(), revid=max_revid))
                     else:
-                        FileUtils.write_file_in_place(revidfile.get_path(),
-                                                      max_revid, self.wiki.config.fileperms)
+                        FileUtils.write_file_in_place(
+                            revidfile.get_path(), max_revid.decode('utf-8'),
+                            self.wiki.config.fileperms)
         if not max_revid:
             try:
                 file_obj = MaxRevIDFile(self.wiki.config, self.wiki.date, self.wiki.db_name)
@@ -335,9 +336,9 @@ class IncrDump(MiscDumpBase):
                         "--revrange", "--revstart=%s" % start_revid,
                         "--revend=%s" % end_revid])
         if self.dryrun:
-            print "would run command for stubs dump:", command
+            print("would run command for stubs dump:", command)
         else:
-            log.info("running with no output: " + " ".join(command))
+            log.info("running with no output: %s", " ".join(command))
             success = RunSimpleCommand.run_with_no_output(
                 command, shell=False, timeout=self.get_lock_timeout_interval(),
                 timeout_callback=self.periodic_callback)
@@ -369,9 +370,9 @@ class IncrDump(MiscDumpBase):
                         "--spawn=%s" % self.wiki.config.php,
                         "--output=bzip2:%s" % os.path.join(outputdir, outputfile)])
         if self.dryrun:
-            print "would run command for revs dump:", command
+            print("would run command for revs dump:", command)
         else:
-            log.info("running with no output: " + " ".join(command))
+            log.info("running with no output: %s", " ".join(command))
             success = RunSimpleCommand.run_with_no_output(
                 command, shell=False, timeout=self.get_lock_timeout_interval(),
                 timeout_callback=self.periodic_callback)

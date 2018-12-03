@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 Handle creation, updating and moving the files that
 contain md5 or other checksums of dumps content
@@ -34,10 +35,9 @@ class Checksummer(Registered):
 
         if htype == "md5":
             return "md5sums." + ext
-        elif htype == "sha1":
+        if htype == "sha1":
             return "sha1sums." + ext
-        else:
-            return None
+        return None
 
     @staticmethod
     def get_checksum_basename_perfile(htype, filename):
@@ -48,10 +48,9 @@ class Checksummer(Registered):
         '''
         if htype == "md5":
             return "md5sums-{fname}.txt".format(fname=filename)
-        elif htype == "sha1":
+        if htype == "sha1":
             return "sha1sums-{fname}.txt".format(fname=filename)
-        else:
-            return None
+        return None
 
     @staticmethod
     def get_hashinfo(filename, jsoninfo):
@@ -107,7 +106,7 @@ class Checksummer(Registered):
             return None
 
     def __init__(self, wiki, enabled, dump_dir=None, verbose=False):
-        super(Checksummer, self).__init__()
+        super().__init__()
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.verbose = verbose
@@ -147,7 +146,7 @@ class Checksummer(Registered):
             for htype in Checksummer.HASHTYPES:
                 checksum_filename_txt = self._get_checksum_filename_tmp(htype, "txt")
                 checksum_filename_json = self._get_checksum_filename_tmp(htype, "json")
-                output_txt = file(checksum_filename_txt, "a")
+                output_txt = open(checksum_filename_txt, "a")
                 # for txt file, append our new line. for json file, must read
                 # previous contents, stuff our new info into the dict, write it
                 # back out
@@ -163,7 +162,7 @@ class Checksummer(Registered):
                     # at least let's not write new bad content into a
                     # possibly corrupt file.
                     output = {htype: {"files": {}}}
-                output_json = file(checksum_filename_json, "w")
+                output_json = open(checksum_filename_json, "w")
                 checksum = None
                 update_per_file = False
 
@@ -185,7 +184,7 @@ class Checksummer(Registered):
                 if checksum is not None:
                     output_txt.write("%s  %s\n" % (checksum, dfname.filename))
                     if update_per_file:
-                        output_perfile_txt = file(per_file_path, "wt")
+                        output_perfile_txt = open(per_file_path, "wt")
                         output_perfile_txt.write("%s  %s\n" % (checksum, dfname.filename))
                         output_perfile_txt.close()
                     output[htype]["files"][dfname.filename] = checksum

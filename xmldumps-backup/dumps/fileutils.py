@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Worker process, does the actual dumping
 
 import hashlib
@@ -12,12 +13,11 @@ import traceback
 import tempfile
 import shutil
 
-from dumps.utils import MiscUtils
-from dumps.CommandManagement import CommandPipeline
+from dumps.commandmanagement import CommandPipeline
 from dumps.exceptions import BackupError
 
 
-class FileUtils(object):
+class FileUtils():
 
     @staticmethod
     def file_age(filepath):
@@ -45,7 +45,7 @@ class FileUtils(object):
                               "a directory nor can it be created" % dirname)
 
         (fdesc, temp_filepath) = tempfile.mkstemp("_txt", "wikidump_", dirname)
-        os.write(fdesc, text)
+        os.write(fdesc, text.encode('utf-8'))
         os.close(fdesc)
         if perms:
             os.chmod(temp_filepath, perms)
@@ -96,7 +96,7 @@ class FileUtils(object):
         while base and path[0] == base[0]:
             path.pop(0)
             base.pop(0)
-        for prefix_unused in base:
+        for _prefix in base:
             path.insert(0, "..")
         return os.path.join(*path)
 
@@ -110,8 +110,7 @@ class FileUtils(object):
     def _pretty_size(size, quanta):
         if size < 1024 or len(quanta) == 1:
             return quanta[0] % size
-        else:
-            return FileUtils._pretty_size(size / 1024.0, quanta[1:])
+        return FileUtils._pretty_size(size / 1024.0, quanta[1:])
 
     @staticmethod
     def file_info(path):
@@ -137,7 +136,7 @@ class FileUtils(object):
         return wikisubdir
 
 
-class DumpFilename(object):
+class DumpFilename():
     """
     filename without directory name, and the methods that go with it,
     primarily for filenames that follow the standard naming convention, i.e.
@@ -218,22 +217,22 @@ class DumpFilename(object):
         """
         if dfname1.dumpname < dfname2.dumpname:
             return -1
-        elif dfname1.dumpname > dfname2.dumpname:
+        if dfname1.dumpname > dfname2.dumpname:
             return 1
 
         if dfname1.partnum_int < dfname2.partnum_int:
             return -1
-        elif dfname1.partnum_int > dfname2.partnum_int:
+        if dfname1.partnum_int > dfname2.partnum_int:
             return 1
 
         if DumpFilename.safe_lessthan(dfname1.first_page_id, dfname2.first_page_id):
             return -1
-        elif DumpFilename.safe_greaterthan(dfname1.first_page_id, dfname2.first_page_id):
+        if DumpFilename.safe_greaterthan(dfname1.first_page_id, dfname2.first_page_id):
             return 1
 
         if DumpFilename.safe_lessthan(dfname1.last_page_id, dfname2.last_page_id):
             return -1
-        elif DumpFilename.safe_greaterthan(dfname1.last_page_id, dfname2.last_page_id):
+        if DumpFilename.safe_greaterthan(dfname1.last_page_id, dfname2.last_page_id):
             return 1
 
         return 0
@@ -242,8 +241,7 @@ class DumpFilename(object):
     def make_checkpoint_string(first_page_id, last_page_id):
         if first_page_id is not None and last_page_id is not None:
             return "p" + first_page_id + "p" + last_page_id
-        else:
-            return None
+        return None
 
     @staticmethod
     def get_inprogress_name(filename):
@@ -264,7 +262,7 @@ class DumpFilename(object):
             self.new_from_filename(filename)
 
     def is_ext(self, ext):
-        return bool(ext == "gz" or ext == "bz2" or ext == "7z" or ext == "html" or ext == "txt")
+        return bool(ext in ["gz", "bz2", "7z", "html", "txt"])
 
     def new_from_filename(self, filename):
         '''
@@ -397,7 +395,7 @@ class DumpFilename(object):
         return filename
 
 
-class DumpContents(object):
+class DumpContents():
     """Methods for dealing with dump contents in a file containing output
     created by any job of a jump run.  This includes
     any file that follows the standard naming convention, i.e.
@@ -455,7 +453,7 @@ class DumpContents(object):
     def _checksum(self, summer):
         if not self.filename:
             return None
-        infhandle = file(self.filename, "rb")
+        infhandle = open(self.filename, "rb")
         bufsize = 4192 * 32
         fbuffer = infhandle.read(bufsize)
         while fbuffer:
@@ -475,10 +473,9 @@ class DumpContents(object):
     def checksum(self, htype):
         if htype == "md5":
             return self.md5sum()
-        elif htype == "sha1":
+        if htype == "sha1":
             return self.sha1sum()
-        else:
-            return None
+        return None
 
     def get_first_500_lines(self):
         if self.first_lines:
@@ -492,7 +489,6 @@ class DumpContents(object):
         if not exists(self._wiki.config.head):
             raise BackupError("head command %s not found" % self._wiki.config.head)
         head = self._wiki.config.head
-        head_esc = MiscUtils.shell_escape(head)
         pipeline.append([head, "-500"])
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
@@ -503,7 +499,7 @@ class DumpContents(object):
                 (proc.get_failed_cmds_with_retcode() ==
                  [[signal.SIGPIPE + 128, pipeline[0]]])):
             self.first_lines = proc.output()
-        return self.first_lines
+        return self.first_lines.decode('utf-8')
 
     # unused
     # xml, sql, text
@@ -559,7 +555,7 @@ class DumpContents(object):
                 self.first_page_id = result.group('pageid')
         return self.first_page_id
 
-    def get_last_lines(self, runner, count):
+    def get_last_lines(self, count):
         """
         read last count lines from compressed file,
         using tail to get the lines, and return the content
@@ -572,7 +568,6 @@ class DumpContents(object):
         tail = self._wiki.config.tail
         if not exists(tail):
             raise BackupError("tail command %s not found" % tail)
-        tail_esc = MiscUtils.shell_escape(tail)
         pipeline.append([tail, "-n", "+%s" % count])
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
@@ -584,14 +579,12 @@ class DumpContents(object):
                 (proc.get_failed_cmds_with_retcode() ==
                  [[signal.SIGPIPE + 128, pipeline[0]]])):
             last_lines = proc.output()
-        return last_lines
+        return last_lines.decode('utf-8')
 
-    def get_lineno_last_page(self, runner):
+    def get_lineno_last_page(self):
         """
         find and return the line number of the last page tag
         in the file
-
-        args: Runner
         """
         pipeline = self.setup_uncompression_command()
         grep = self._wiki.config.grep
@@ -610,7 +603,7 @@ class DumpContents(object):
                  [[-signal.SIGPIPE, pipeline[0]]]) or
                 (proc.get_failed_cmds_with_retcode() ==
                  [[signal.SIGPIPE + 128, pipeline[0]]])):
-            output = proc.output()
+            output = proc.output().decode('utf-8')
             # 339915646:  <page>
             if ':' in output:
                 linecount = output.split(':')[0]
@@ -618,7 +611,7 @@ class DumpContents(object):
                     return linecount
         return None
 
-    def find_last_page_id(self, runner):
+    def find_last_page_id(self):
         """
         find and return the last page id in a compressed
         stub or page content xml file, using uncompression
@@ -628,8 +621,8 @@ class DumpContents(object):
         """
         if self.last_page_id:
             return self.last_page_id
-        count = self.get_lineno_last_page(runner)
-        lastlines = self.get_last_lines(runner, count)
+        count = self.get_lineno_last_page()
+        lastlines = self.get_last_lines(count)
         # now look for the last page id in here. eww
         if not lastlines:
             return None
@@ -668,11 +661,10 @@ class DumpContents(object):
                 # we do't know how to handle this type of file.
                 return self.is_truncated
 
-        # Run the perpared pipeline
+        # Run the prepared pipeline
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
         self.is_truncated = not proc.exited_successfully()
-
         return self.is_truncated
 
     def check_if_empty(self):
@@ -693,7 +685,7 @@ class DumpContents(object):
 
         proc = CommandPipeline(pipeline, quiet=True, shell=True)
         proc.run_pipeline_get_output()
-        self.is_empty = bool(not len(proc.output()))
+        self.is_empty = bool(not proc.output())
 
         return self.is_empty
 
@@ -732,15 +724,14 @@ class DumpContents(object):
         proc = CommandPipeline(pipeline, quiet=True, shell=True)
         proc.run_pipeline_get_output()
         result = proc.output().rstrip()
-        self.is_binary = bool(result != '0')
+        self.is_binary = bool(result != b'0')
 
         return self.is_binary
 
     def get_size(self):
         if exists(self.filename):
             return os.path.getsize(self.filename)
-        else:
-            return None
+        return None
 
     def rename(self, newname):
         try:
@@ -753,7 +744,7 @@ class DumpContents(object):
         self.filename = os.path.join(self.dirname, newname)
 
 
-class DumpDir(object):
+class DumpDir():
     BAD = [".truncated", ".empty"]
 
     def __init__(self, wiki, db_name):
@@ -810,8 +801,7 @@ class DumpDir(object):
         if exists(directory):
             dir_time_stamp = os.stat(directory).st_mtime
             return bool(date not in self._dir_cache or dir_time_stamp > self._dir_cache_time[date])
-        else:
-            return True
+        return True
 
     # warning: date can also be "latest"
     def get_files_in_dir(self, date=None):

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 Handle creation of symlinks from the 'latest' directory for a wiki,
 pointing to current dump content files, plus rss feed files for these
@@ -18,7 +19,7 @@ def xml_escape(text):
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-class SymLinks(object):
+class SymLinks():
     """
     management of links in the 'latest' directory to dump content files
     from the latest run, so that downloaders can download these links directly;
@@ -159,7 +160,7 @@ class SymLinks(object):
                     os.remove(item['link'])
 
 
-class Feeds(object):
+class Feeds():
     """
     manage rss feed files
     """

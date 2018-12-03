@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import os
 import sys
 import getopt
@@ -5,7 +6,7 @@ import operator
 import time
 
 
-class RuntimeRetriever(object):
+class RuntimeRetriever():
     '''
     manage retrieval of runtimes for dumps of wikis
     '''
@@ -20,7 +21,7 @@ class RuntimeRetriever(object):
 
     @staticmethod
     def get_desired_jobs(jobs_wanted, jobs_known):
-        types_known = list(set([job['type'] for job in jobs_known if 'type' in job]))
+        types_known = list({job['type'] for job in jobs_known if 'type' in job})
         to_return = []
         for job in jobs_wanted:
             wanted_basename = job
@@ -89,8 +90,7 @@ class RuntimeRetriever(object):
         dirdates = sorted([dirname for dirname in dirs if dirname.isdigit() and len(dirname) == 8])
         if dirdates:
             return dirdates[-1]
-        else:
-            return None
+        return None
 
     def get_runtimes(self, wikiname):
         '''
@@ -178,7 +178,7 @@ def check_args(dumpsdir, wikilist, wikinames, remainder):
     if wikilist is None and wikinames is None:
         usage("One of the options 'wikilist' or 'wikinames' must be specified")
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
 
@@ -234,7 +234,7 @@ def get_nicetime(timestamp):
 
 def display_job_runtimes(runtimes, slowjobs):
     if not runtimes:
-        print "No job runtimes available."
+        print("No job runtimes available.")
         return
 
     # all the wikis have the same jobs listed, so we look at any entry to get the list
@@ -247,9 +247,9 @@ def display_job_runtimes(runtimes, slowjobs):
                 jobinfo.append((wikiname, get_job_info_printable(runtimes[wikiname][job], wikiname),
                                 get_job_duration(runtimes[wikiname][job])))
         jobinfo_sorted = sorted(jobinfo, key=lambda entry: entry[2], reverse=True)
-        print "Job:", job
+        print("Job:", job)
         for entry in jobinfo_sorted[0:slowjobs]:
-            print "  ", entry[1]
+            print("  ", entry[1])
 
 
 def get_job_duration(runtime):
@@ -274,13 +274,12 @@ def get_job_info_printable(runtime, wikiname):
                     hours=hours, mins=mins,
                     s_mtime=start, s_nicetime=get_nicetime(start),
                     e_mtime=end, e_nicetime=get_nicetime(end)))
-    else:
-        return ("   Wiki: {wiki:<20} Duration: Unknown, Start: Unknown, End: Unknown".format(
-            wiki=wikiname))
+    return ("   Wiki: {wiki:<20} Duration: Unknown, Start: Unknown, End: Unknown".format(
+        wiki=wikiname))
 
 
 def display_runtimes(runtimes, wikiname):
-    print "Wiki:", wikiname
+    print("Wiki:", wikiname)
     for job in sorted(runtimes.keys()):
         runtime = runtimes[job]
         start = runtime['start'] if 'start' in runtime else 'Unknown'
@@ -288,16 +287,16 @@ def display_runtimes(runtimes, wikiname):
         if 'start' in runtime and 'end' in runtime:
             interval = end - start
             hours = int(interval / 3600)
-            mins = int(interval - (hours * 3600)) / 60
-            print ("   Job: {job:<20} Start: {s_mtime:.0f} ({s_nicetime}),"
-                   " End: {e_mtime:.0f} ({e_nicetime}), Duration: {hours}h, {mins}m".format(
-                       job=job,
-                       s_mtime=start, s_nicetime=get_nicetime(start),
-                       e_mtime=end, e_nicetime=get_nicetime(end),
-                       hours=hours, mins=mins))
+            mins = int(int(interval - (hours * 3600)) / 60)
+            print("   Job: {job:<20} Start: {s_mtime:.0f} ({s_nicetime}),"
+                  " End: {e_mtime:.0f} ({e_nicetime}), Duration: {hours}h, {mins}m".format(
+                      job=job,
+                      s_mtime=start, s_nicetime=get_nicetime(start),
+                      e_mtime=end, e_nicetime=get_nicetime(end),
+                      hours=hours, mins=mins))
         else:
-            print "   Job: {job:<20} Start: Unknown, End: Unknown, Duration: Unknown".format(
-                job=job)
+            print("   Job: {job:<20} Start: Unknown, End: Unknown, Duration: Unknown".format(
+                job=job))
 
 
 def do_main():

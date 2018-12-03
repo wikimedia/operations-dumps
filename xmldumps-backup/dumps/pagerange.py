@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 given either number of jobs desired, or number
 of revs (approx) per job desired, generate a list
@@ -17,7 +18,7 @@ import getopt
 import sys
 import json
 
-from dumps.WikiDump import Config, Wiki
+from dumps.wikidump import Config, Wiki
 from dumps.utils import DbServerInfo
 import xmlstreams
 
@@ -45,8 +46,8 @@ def get_estimate_from_output(sqloutput):
         fields = lines[1].split()
         # id | select_type | table | type | possible_keys | key | key_len | ref | rows
         if not fields[8].isdigit():
-            print "unexpected output from sql query, giving up:"
-            print sqloutput
+            print("unexpected output from sql query, giving up:")
+            print(sqloutput)
             sys.exit(1)
         return int(fields[8])
     return None
@@ -64,7 +65,7 @@ def adjust(count, adj, sign):
     return count
 
 
-class QueryRunner(object):
+class QueryRunner():
     """
     runs various db queries related to page, revision count, etc.
     """
@@ -81,10 +82,9 @@ class QueryRunner(object):
         """
         if idtype == 'page':
             return xmlstreams.get_max_id(self.config, self.dbname, 'page_id', 'page')
-        elif idtype == 'rev':
+        if idtype == 'rev':
             return xmlstreams.get_max_id(self.config, self.dbname, 'rev_id', 'revision')
-        else:
-            return None
+        return None
 
     def get_count(self, page_start, page_end):
         """
@@ -97,14 +97,14 @@ class QueryRunner(object):
                      start=page_start, end=page_end))
         queryout = self.db_info.run_sql_query_with_retries(query)
         if queryout is None:
-            print "unexpected output from sql query, giving up:"
-            print query, queryout
+            print("unexpected output from sql query, giving up:")
+            print(query, queryout)
             sys.exit(1)
 
         revcount = get_count_from_output(queryout)
         if revcount is None:
-            print "unexpected output from sql query, giving up:"
-            print query, queryout
+            print("unexpected output from sql query, giving up:")
+            print(query, queryout)
             sys.exit(1)
         return revcount
 
@@ -119,13 +119,13 @@ class QueryRunner(object):
                      start=page_start, end=page_end))
         queryout = self.db_info.run_sql_query_with_retries(query)
         if queryout is None:
-            print "unexpected output from sql query, giving up:"
-            print query, queryout
+            print("unexpected output from sql query, giving up:")
+            print(query, queryout)
             sys.exit(1)
         return get_estimate_from_output(queryout)
 
 
-class PageRange(object):
+class PageRange():
     '''
     Methods for getting number of revisions for a page range.
     We use this for splitting up history runs into small chunks to be run in
@@ -155,7 +155,7 @@ class PageRange(object):
 
         ranges = []
         page_start = 1
-        numrevs = self.total_revs / numjobs + 1
+        numrevs = int(self.total_revs / numjobs) + 1
         # actually this is ok for the start but it varies right afterwards
         # interval = ((self.total_pages - page_start)/numjobs_left) + 1
         prevguess = 0
@@ -165,7 +165,7 @@ class PageRange(object):
                 ranges.append((page_start, self.total_pages))
                 break
             numjobs_left = numjobs - jobnum + 1
-            interval = ((self.total_pages - page_start) / numjobs_left) + 1
+            interval = int((self.total_pages - page_start) / numjobs_left) + 1
             (start, end) = self.get_pagerange(page_start, numrevs,
                                               page_start + interval, prevguess)
             page_start = end + 1
@@ -198,14 +198,14 @@ class PageRange(object):
             page_end = self.total_pages
         prevguess = page_start
         if page_start == 1 and page_end == self.total_pages:
-            numjobs = self.total_revs / numrevs + 1
+            numjobs = int(self.total_revs / numrevs) + 1
         else:
             estimate = self.qrunner.get_estimate(page_start, page_end)
             revs_for_range = self.get_revcount(int(page_start), int(page_end), estimate)
-            numjobs = revs_for_range / numrevs + 1
+            numjobs = int(revs_for_range / numrevs) + 1
             if self.verbose:
-                print ("DEBUG***: page_start, page_end, estimate, revs_for_range, numjobs:",
-                       page_start, page_end, estimate, revs_for_range, numjobs)
+                print("DEBUG***: page_start, page_end, estimate, revs_for_range, numjobs:",
+                      page_start, page_end, estimate, revs_for_range, numjobs)
         jobnum = 1
         while True:
             jobnum += 1
@@ -216,7 +216,7 @@ class PageRange(object):
                 # and getting ranges until we've gotten up through
                 # the endpoint returned
                 numjobs_left = 1
-            interval = (page_end - page_start) / numjobs_left + 1
+            interval = int((page_end - page_start) / numjobs_left) + 1
             (start, end) = self.get_pagerange(page_start, numrevs,
                                               page_start + interval, prevguess)
             page_start = end + 1
@@ -246,12 +246,12 @@ class PageRange(object):
         total = 0
         maxtodo = 50000
 
-        runstodo = estimate / maxtodo + 1
+        runstodo = int(estimate / maxtodo) + 1
         # let's say minimum pages per job is 1, that's
         # quite reasonable (in the case where some pages
         # have many many revisions
-        step = ((page_end - page_start) / runstodo) + 1
-        ends = range(page_start, page_end, step)
+        step = int((page_end - page_start) / runstodo) + 1
+        ends = list(range(page_start, page_end, step))
 
         if ends[-1] != page_end:
             ends.append(page_end)
@@ -272,25 +272,25 @@ class PageRange(object):
         as tuple (start, end)
         """
         if self.verbose:
-            print ("get_pagerange called with page_start", page_start,
-                   "numrevs", numrevs, "badguess", badguess, "prevguess", prevguess)
+            print("get_pagerange called with page_start", page_start,
+                  "numrevs", numrevs, "badguess", badguess, "prevguess", prevguess)
         interval_start = page_start
         interval_end = badguess
         revcount = 0
         while True:
             if self.verbose:
-                print ("page range loop, start page_id",
-                       interval_start, "end page_id:", interval_end)
+                print("page range loop, start page_id",
+                      interval_start, "end page_id:", interval_end)
 
             estimate = self.qrunner.get_estimate(interval_start, interval_end)
             revcount_adj = self.get_revcount(interval_start, interval_end, estimate)
             revcount = adjust(revcount, revcount_adj, badguess - prevguess)
 
             if self.verbose:
-                print ("estimate is", estimate, "revcount is", revcount,
-                       "and numrevs is", numrevs)
+                print("estimate is", estimate, "revcount is", revcount,
+                      "and numrevs is", numrevs)
 
-            interval = abs(prevguess - badguess) / 2
+            interval = int(abs(prevguess - badguess) / 2)
             if not interval:
                 return (page_start, badguess)
 
@@ -304,7 +304,7 @@ class PageRange(object):
             if margin <= self.qrunner.wiki.config.revs_margin:
                 return (page_start, badguess)
             if self.verbose:
-                print "revcount is greater than allowed margin from numrevs"
+                print("revcount is greater than allowed margin from numrevs")
 
             badguess = adjust(badguess, interval, numrevs - revcount)
 
@@ -315,7 +315,7 @@ class PageRange(object):
                 interval_start = prevguess
                 interval_end = badguess
             if self.verbose:
-                print "new interval:", interval_start, interval_end
+                print("new interval:", interval_start, interval_end)
 
 
 def check_range_overlap(first_a, last_a, first_b, last_b):
@@ -405,12 +405,11 @@ def compare_partial_ranges(first_a, last_a, first_b, last_b):
     # one or both end values are missing:
     if not last_a and not last_b:
         return True
-    elif not last_a and int(last_b) < int(first_a):
+    if not last_a and int(last_b) < int(first_a):
         return True
-    elif not last_b and int(last_a) < int(first_b):
+    if not last_b and int(last_a) < int(first_b):
         return True
-    else:
-        return False
+    return False
 
 
 def compare_full_ranges(first_a, last_a, first_b, last_b):
@@ -422,11 +421,10 @@ def compare_full_ranges(first_a, last_a, first_b, last_b):
     if (int(first_a) <= int(first_b) and
             int(first_b) <= int(last_a)):
         return True
-    elif (int(first_b) <= int(first_a) and
-          int(first_a) <= int(last_b)):
+    if (int(first_b) <= int(first_a) and
+            int(first_a) <= int(last_b)):
         return True
-    else:
-        return False
+    return False
 
 
 def chkptfile_in_pagerange(dfname, chkpt_dfname):
@@ -444,10 +442,9 @@ def chkptfile_in_pagerange(dfname, chkpt_dfname):
         # one or both end values are missing:
         return compare_partial_ranges(dfname.first_page_id, dfname.last_page_id,
                                       chkpt_dfname.first_page_id, chkpt_dfname.last_page_id)
-    else:
-        # have end values for both files:
-        return compare_full_ranges(dfname.first_page_id, dfname.last_page_id,
-                                   chkpt_dfname.first_page_id, chkpt_dfname.last_page_id)
+    # have end values for both files:
+    return compare_full_ranges(dfname.first_page_id, dfname.last_page_id,
+                               chkpt_dfname.first_page_id, chkpt_dfname.last_page_id)
 
 
 def get_pagerange_missing_before(needed_range, have_range):
@@ -461,10 +458,9 @@ def get_pagerange_missing_before(needed_range, have_range):
     """
     if have_range is None:
         return needed_range
-    elif needed_range is None or int(have_range[0]) <= int(needed_range[0]):
+    if needed_range is None or int(have_range[0]) <= int(needed_range[0]):
         return None
-    else:
-        return (needed_range[0], str(int(have_range[0]) - 1), needed_range[2])
+    return (needed_range[0], str(int(have_range[0]) - 1), needed_range[2])
 
 
 def find_missing_pageranges(needed, have):
@@ -567,7 +563,7 @@ def check_args(remainder, wiki, revs, jobs):
     whine if there are command line arg problems,
     and exit
     """
-    if len(remainder) > 0:
+    if remainder > 0:
         usage("Unknown option specified")
 
     if wiki is None:
@@ -621,23 +617,23 @@ def do_pageranges(prange, range_opts, pad, jsonfmt):
         # convert ranges into the output we need for the pagesperchunkhistory config
         pages_per_job = [page_end - page_start for (page_start, page_end) in ranges]
         if jsonfmt:
-            print json.dumps(jsonify(ranges, pad))
-            print json.dumps(pages_per_job, pad)
+            print(json.dumps(jsonify(ranges, pad)))
+            print(json.dumps(jsonify(pages_per_job, pad)))
         else:
-            print "for {jobs} jobs, have ranges:".format(jobs=range_opts['jobs'])
-            print ranges
-            print "for {jobs} jobs, have config setting:".format(jobs=range_opts['jobs'])
-            print pages_per_job
+            print("for {jobs} jobs, have ranges:".format(jobs=range_opts['jobs']))
+            print(ranges)
+            print("for {jobs} jobs, have config setting:".format(jobs=range_opts['jobs']))
+            print(pages_per_job)
     else:
         ranges = prange.get_pageranges_for_revs(range_opts['start'], range_opts['end'],
                                                 range_opts['revs'])
         if jsonfmt:
-            print json.dumps(jsonify(ranges, pad))
+            print(json.dumps(jsonify(ranges, pad)))
         else:
-            print ("for start", range_opts['start'], "and end",
-                   range_opts['end'] if range_opts['end'] is not None else "last page")
-            print "for {revs} revs, have ranges:".format(revs=range_opts['revs'])
-            print ranges
+            print(("for start", range_opts['start'], "and end",
+                   range_opts['end'] if range_opts['end'] is not None else "last page"))
+            print("for {revs} revs, have ranges:".format(revs=range_opts['revs']))
+            print(ranges)
 
 
 def do_main():

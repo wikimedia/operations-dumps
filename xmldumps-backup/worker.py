@@ -1,11 +1,12 @@
+#!/usr/bin/python3
 # Worker process, does the actual dumping
 
 import getopt
 import os
+from os.path import exists
 import sys
 
-from os.path import exists
-from dumps.WikiDump import Wiki, Config, cleanup, Locker
+from dumps.wikidump import Wiki, Config, cleanup, Locker
 from dumps.jobs import DumpFilename
 from dumps.runner import Runner
 from dumps.utils import TimeUtils
@@ -70,23 +71,23 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
             if item.to_run():
                 return False
         return True
-    else:
-        # get the list of prereqs, see if they are all status done, if so
-        # return True, otherwise False (still some to do)
-        prereq_items = []
-        for item in runner.dump_item_list.dump_items:
-            if item.name() == job:
-                prereq_items = item._prerequisite_items
-                break
 
-        for item in prereq_items:
-            if item.status() != "done":
-                return False
-        return True
+    # get the list of prereqs, see if they are all status done, if so
+    # return True, otherwise False (still some to do)
+    prereq_items = []
+    for item in runner.dump_item_list.dump_items:
+        if item.name() == job:
+            prereq_items = item._prerequisite_items
+            break
+
+    for item in prereq_items:
+        if item.status() != "done":
+            return False
+    return True
 
 
 def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
-                        spawn, dryrun, html_notice, bystatustime=False,
+                        spawn, html_notice, bystatustime=False,
                         check_job_status=False, check_prereq_status=False,
                         date=None, job=None, skipjobs=None, page_id_range=None,
                         partnum_todo=None, checkpoint_file=None, skipdone=False, restart=False,
@@ -150,14 +151,13 @@ def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
             continue
     if missing_prereqs:
         return False
-    else:
-        return None
+    return None
 
 
 def usage(message=None):
     if message:
         sys.stderr.write("%s\n" % message)
-    usage_text = """Usage: python worker.py [options] [wikidbname]
+    usage_text = """Usage: python3 worker.py [options] [wikidbname]
 Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job,
          --skipjobs, --addnotice, --delnotice, --force, --noprefetch,
          --prefetchdate, --nospawn, --restartfrom, --log, --cleanup, --cutoff\n")
@@ -317,7 +317,7 @@ def main():
         else:
             jobs_todo = []
 
-        if dryrun and (len(remainder) == 0):
+        if dryrun and not remainder:
             usage("--dryrun requires the name of a wikidb to be specified")
         if restart and not jobs_requested:
             usage("--restartfrom requires --job and the job from which to restart")
@@ -327,7 +327,7 @@ def main():
             usage("--partnum option requires specific job(s) for which to rerun that part")
         if partnum_todo is not None and restart:
             usage("--partnum option can be specified only for a specific list of jobs")
-        if checkpoint_file is not None and (len(remainder) == 0):
+        if checkpoint_file is not None and not remainder:
             usage("--checkpoint option requires the name of a wikidb to be specified")
         if checkpoint_file is not None and not jobs_requested:
             usage("--checkpoint option requires --job")
@@ -384,11 +384,11 @@ def main():
             locks_enabled = True
 
         if dryrun:
-            print "***"
-            print "Dry run only, no files will be updated."
-            print "***"
+            print("***")
+            print("Dry run only, no files will be updated.")
+            print("***")
 
-        if len(remainder) > 0:
+        if remainder:
             wiki = Wiki(config, remainder[0])
             if cutoff:
                 # fixme if we asked for a specific job then check that job only
@@ -422,9 +422,9 @@ def main():
                 check_prereq_status = bool(jobs_requested is not None and skipdone)
             wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch,
                                        prefetchdate, spawn,
-                                       dryrun, html_notice, check_status_time,
+                                       html_notice, check_status_time,
                                        check_job_status, check_prereq_status, date,
-                                       jobs_todo[0] if len(jobs_todo) else None,
+                                       jobs_todo[0] if jobs_todo else None,
                                        skip_jobs, page_id_range,
                                        partnum_todo, checkpoint_file, skipdone, restart, verbose)
 
@@ -473,7 +473,7 @@ def main():
                 sys.stderr.write("Running %s...\n" % wiki.db_name)
 
             # no specific jobs requested, runner will do them all
-            if not len(jobs_todo):
+            if not jobs_todo:
                 runner = Runner(wiki, prefetch, prefetchdate, spawn, None, skip_jobs,
                                 restart, html_notice, dryrun, enabled,
                                 partnum_todo, checkpoint_file, page_id_range, skipdone,

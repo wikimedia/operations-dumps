@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 manage a list of dump jobs for a dump run
 for a particular wiki, choosing the right
@@ -13,7 +14,8 @@ from dumps.exceptions import BackupError
 from dumps.apijobs import SiteInfoDump
 from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
-from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump, RecombineXmlLoggingDump
+from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
+from dumps.recombinejobs import RecombineXmlLoggingDump
 from dumps.xmljobs import XmlLogging, XmlStub, AbstractDump
 from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
@@ -47,8 +49,7 @@ def get_int_setting(settings, setting_name):
     value = get_setting(settings, setting_name)
     if value is not None and value.isdigit():
         return int(value)
-    else:
-        return None
+    return None
 
 
 def normalize_tablejob_name(jobname):
@@ -59,11 +60,10 @@ def normalize_tablejob_name(jobname):
     """
     if jobname.endswith("table"):
         return jobname
-    else:
-        return jobname + "table"
+    return jobname + "table"
 
 
-class DumpItemList(object):
+class DumpItemList():
     """
     manage a list of dump items (jobs) to be possibly run
     """
@@ -348,15 +348,14 @@ class DumpItemList(object):
                     elif not skipgood or item.status() != "done":
                         item.set_to_run(True)
             return True
-        else:
-            for item in self.dump_items:
-                if item.name() == job:
-                    if item.name in self.skip_jobs:
-                        item.set_skipped()
-                    elif not skipgood or item.status() != "done":
-                        item.set_to_run(True)
-                    return True
-        if job == "noop" or job == "latestlinks" or job == "createdirs":
+        for item in self.dump_items:
+            if item.name() == job:
+                if item.name in self.skip_jobs:
+                    item.set_skipped()
+                elif not skipgood or item.status() != "done":
+                    item.set_to_run(True)
+                return True
+        if job in ["noop", "latestlinks", "createdirs"]:
             return True
         sys.stderr.write("No job of the name specified exists. Choose one of the following:\n")
         sys.stderr.write("noop (runs no job but rewrites checksums files and"

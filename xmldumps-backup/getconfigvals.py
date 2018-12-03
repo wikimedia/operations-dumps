@@ -1,4 +1,5 @@
-import ConfigParser
+#!/usr/bin/python3
+import configparser
 import getopt
 import sys
 import os
@@ -43,20 +44,20 @@ def display(confs, outformat):
     display them in the requested format
     '''
     if outformat == "json":
-        print json.dumps(confs)
+        print(json.dumps(confs))
     elif outformat == "txt":
         for section in confs:
-            print "section:%s" % section
+            print("section:{sect}".format(sect=section))
             for item in confs[section]:
-                print "item:%s:%s" % (item, confs[section][item])
+                print("item:{item}:{value}".format(item=item, value=confs[section][item]))
     elif outformat == "values":
         for section in confs:
             for item in sorted(confs[section]):
-                print "%s" % confs[section][item]
+                print(confs[section][item])
     else:
         for section in confs:
             for item in confs[section]:
-                print "%s %s" % (item, confs[section][item])
+                print("{item} {value}".format(item=item, value=confs[section][item]))
 
 
 def getconfs(configfile, overrides, args, outformat):
@@ -69,7 +70,7 @@ def getconfs(configfile, overrides, args, outformat):
     in this list of sections will override the values
     in the specific section requested.
     '''
-    conf = ConfigParser.SafeConfigParser()
+    conf = configparser.ConfigParser(strict=False)
     conf.read(configfile)
     confs = {}
     sections = get_sections_settingnames(args)
@@ -171,7 +172,7 @@ def main():
 
     (configfile, args, outformat) = get_args(options)
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
     if configfile is None:

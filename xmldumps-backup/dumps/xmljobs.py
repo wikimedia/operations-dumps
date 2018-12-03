@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 All xml dump jobs except content dump jobs are defined here
 '''
@@ -17,7 +18,7 @@ def batcher(items, batchsize):
     '''
     if batchsize == 0:
         return [items]
-    return (items[pos:pos + batchsize] for pos in xrange(0, len(items), batchsize))
+    return (items[pos:pos + batchsize] for pos in range(0, len(items), batchsize))
 
 
 class XmlStub(Dump):
@@ -122,7 +123,7 @@ class XmlStub(Dump):
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
-        command = ["/usr/bin/python", "xmlstubs.py", "--config", config_file_arg,
+        command = ["/usr/bin/python3", "xmlstubs.py", "--config", config_file_arg,
                    "--wiki", runner.db_name]
         output_dir = self.get_output_dir(runner)
         if output_dfname is not None:
@@ -145,13 +146,13 @@ class XmlStub(Dump):
         if partnum is not None:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, int(partnum) - 1)]) + 1
+            start = sum([int(self._parts[i]) for i in range(0, int(partnum) - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
             if int(partnum) < len(self._parts):
-                end = sum([self._parts[i] for i in range(0, int(partnum))]) + 1
+                end = sum([int(self._parts[i]) for i in range(0, int(partnum))]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -203,7 +204,7 @@ class XmlStub(Dump):
             if not commands:
                 continue
 
-            error, broken = runner.run_command(
+            error, _broken = runner.run_command(
                 commands, callback_stderr=self.progress_callback,
                 callback_stderr_arg=runner,
                 callback_on_completion=self.command_completion_callback)
@@ -250,20 +251,20 @@ class XmlLogging(Dump):
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
-        command = ["/usr/bin/python", "xmllogs.py", "--config",
+        command = ["/usr/bin/python3", "xmllogs.py", "--config",
                    config_file_arg, "--wiki", runner.db_name,
                    "--outfile", DumpFilename.get_inprogress_name(logging_path)]
 
         if output_dfname.partnum:
             # set up start end end pageids for this piece
             # note there is no item id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, output_dfname.partnum_int - 1)]) + 1
+            start = sum([int(self._parts[i]) for i in range(0, output_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last log item id,
             # whatever that is.
             command.append(startopt)
             if output_dfname.partnum_int < len(self._parts):
-                end = sum([self._parts[i] for i in range(0, output_dfname.partnum_int)]) + 1
+                end = sum([int(self._parts[i]) for i in range(0, output_dfname.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -279,6 +280,7 @@ class XmlLogging(Dump):
             maxjobs = self.jobsperbatch
         else:
             maxjobs = len(dfnames)
+        error = None
         for batch in batcher(dfnames, maxjobs):
             commands = []
             for output_dfname in batch:
@@ -292,7 +294,7 @@ class XmlLogging(Dump):
             if not commands:
                 continue
 
-            error, broken = runner.run_command(
+            error, _broken = runner.run_command(
                 commands, callback_stderr=self.progress_callback,
                 callback_stderr_arg=runner,
                 callback_on_completion=self.command_completion_callback)
@@ -329,8 +331,7 @@ class AbstractDump(Dump):
             return None
         if len(fields) == 1:
             return ""
-        else:
-            return "-".join(fields[1:])
+        return "-".join(fields[1:])
 
     def build_command(self, runner, novariant_dfname, output_dfnames):
         """
@@ -340,7 +341,7 @@ class AbstractDump(Dump):
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
-        command = ["/usr/bin/python", "xmlabstracts.py", "--config",
+        command = ["/usr/bin/python3", "xmlabstracts.py", "--config",
                    config_file_arg, "--wiki", self.db_name]
 
         output_paths = []
@@ -362,13 +363,14 @@ class AbstractDump(Dump):
         if novariant_dfname.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([self._parts[i] for i in range(0, novariant_dfname.partnum_int - 1)]) + 1
+            start = sum([int(self._parts[i])
+                         for i in range(0, novariant_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
             if novariant_dfname.partnum_int < len(self._parts):
-                end = sum([self._parts[i] for i in range(0, novariant_dfname.partnum_int)]) + 1
+                end = sum([int(self._parts[i]) for i in range(0, novariant_dfname.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
         pipeline = [command]
@@ -412,7 +414,7 @@ class AbstractDump(Dump):
             if not commands:
                 continue
 
-            error, broken = runner.run_command(
+            error, _broken = runner.run_command(
                 commands, callback_stderr=self.progress_callback,
                 callback_stderr_arg=runner,
                 callback_on_completion=self.command_completion_callback)
@@ -432,15 +434,13 @@ class AbstractDump(Dump):
     def _variant_option(self, variant):
         if variant == "":
             return ""
-        else:
-            return ":variant=%s" % variant
+        return ":variant=%s" % variant
 
     def dumpname_from_variant(self, variant):
         dumpname_base = 'abstract'
         if variant == "":
             return dumpname_base
-        else:
-            return dumpname_base + "-" + variant
+        return dumpname_base + "-" + variant
 
     def list_dumpnames(self):
         # need this first for build_command and other such

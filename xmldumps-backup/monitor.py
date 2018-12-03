@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Wiki dump-generation monitor
 
 import os
@@ -5,7 +6,7 @@ from os.path import exists
 import sys
 import traceback
 import json
-from dumps.WikiDump import Wiki, Config, Locker
+from dumps.wikidump import Wiki, Config, Locker
 from dumps.fileutils import FileUtils
 from dumps.report import StatusHtml
 from dumps.runstatusapi import StatusAPI
@@ -72,7 +73,6 @@ def generate_json(config):
     contents from the dumpstatusapi file, and shovel them into
     one ginormous json object and scribble that out. heh.
     """
-    running = False
     json_out = {"wikis": {}}
 
     dbs = config.db_list
@@ -120,6 +120,13 @@ def update_json(config):
 def main():
     # can specify name of alternate config file
     if len(sys.argv) >= 2:
+        if sys.argv[1] in ['--help', '-h']:
+            message = """Usage: python3 monitor.py [<configfilepath>]
+Writes main index.html file for xml/sql dump tree, covering most
+recent dump run for each wiki; also cleans up stale locks
+            """
+            sys.stderr.write(message)
+            sys.exit(1)
         config = Config(sys.argv[1])
     else:
         config = Config()

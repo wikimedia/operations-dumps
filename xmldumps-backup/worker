@@ -1,10 +1,10 @@
 #!/bin/bash
 
 usage() {
-    echo "$0: Unknown option $1"
+    echo "$0: Unknown option '$1'"
     echo "Usage: $0 [--configfile filename] [--log] [--maxfails num] [--basedir dir] [--wiki wikiname]"
     echo "          [--cutoff date] [--date date] [--job job] [--skipjobs joblist] [--skipdone]"
-    echo "          [--exclusive] [--onepass] [--sleep] [--prereqs]"
+    echo "          [--exclusive] [--onepass] [--sleep] [--prereqs] [--verbose]"
     echo "--configfile   use specified file for config file (default: wikidump.conf)"
     echo "--log          write log of (almost) everything written to stderr (default: no logging)"
     echo "--maxfails     if more than this many dumps fail in a row, exit (default: 3)"
@@ -24,6 +24,7 @@ usage() {
     echo "--prereqs      do prereqs missing for a job rather than failing out"
     echo "--force        steal the lock for the specified wiki if necessary -- dangerous!"
     echo "               requires the --wiki argument"
+    echo "--verbose      write many progress messages"
     echo
     echo "If the file maintenance.txt is present, no more jobs will be run, and"
     echo "this script will check the status again in 5 minutes."
@@ -60,6 +61,8 @@ set_defaults() {
     PREREQS=""
     # default: don't steal locks
     FORCE=""
+    # default: verbose processing off
+    VERBOSE=""
 }
 
 process_opts() {
@@ -109,8 +112,11 @@ process_opts() {
 	elif [ $1 == "--force" ]; then
 	    FORCE=true
 	    shift
+	elif [ $1 == "--verbose" ]; then
+	    VERBOSE=true
+	    shift
 	else
-	    usage
+	    usage $1
 	fi
     done
 }
@@ -145,6 +151,9 @@ setup_python_args() {
            exit 1
 	fi
 	pythonargs=( "${pythonargs[@]}" "--force" )
+    fi
+    if [ ! -z "$VERBOSE" ]; then
+	pythonargs=( "${pythonargs[@]}" "--verbose" )
     fi
     if [ ! -z "$DATE" ]; then
 	if [ "$DATE" == "today" ]; then
@@ -182,8 +191,8 @@ setup_python_args() {
 }
 
 dump_wiki() {
-    echo python ${pythonargs[@]}
-    python ${pythonargs[@]}
+    echo python3 ${pythonargs[@]}
+    python3 ${pythonargs[@]}
     result=$?
     if [ $result -eq 255 ]; then
 	if [ ! -z "$ONEPASS" -o  ! -z "$CUTOFF" ]; then

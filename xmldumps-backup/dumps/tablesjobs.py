@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 Jobs that dump sql tables are defined here
 '''
@@ -60,11 +61,11 @@ class PublicTable(Dump):
         retries = 0
         # try this initially and see how it goes
         maxretries = 3
-        error, broken = self.save_table(runner, command_series)
+        error, _broken = self.save_table(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error, broken = self.save_table(runner, command_series)
+            error, _broken = self.save_table(runner, command_series)
         if error:
             raise BackupError("error dumping table %s" % self._table)
 
@@ -123,11 +124,11 @@ class TitleDump(Dump):
         dfname = dfnames[0]
         command_series = self.build_command(runner, query, dfname)
         self.setup_command_info(runner, command_series, [dfname])
-        error, broken = self.save_sql(runner, command_series)
+        error, _broken = self.save_sql(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error, broken = self.save_sql(runner, command_series)
+            error, _broken = self.save_sql(runner, command_series)
         if error:
             raise BackupError("error dumping titles list")
 
@@ -139,10 +140,9 @@ class TitleDump(Dump):
             return runner.get_save_command_series(
                 series, DumpFilename.get_inprogress_name(
                     runner.dump_dir.filename_private_path(out_dfname)))
-        else:
-            return runner.get_save_command_series(
-                series, DumpFilename.get_inprogress_name(
-                    runner.dump_dir.filename_public_path(out_dfname)))
+        return runner.get_save_command_series(
+            series, DumpFilename.get_inprogress_name(
+                runner.dump_dir.filename_public_path(out_dfname)))
 
     def save_sql(self, runner, command_series):
         """Pass some SQL commands to the server for this DB and save output to a gzipped file."""
@@ -165,7 +165,7 @@ class AllTitleDump(TitleDump):
         command_series = self.build_command(runner, query, dfname)
         self.setup_command_info(runner, command_series, [dfname])
 
-        error, broken = self.save_sql(runner, command_series)
+        error, _broken = self.save_sql(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)

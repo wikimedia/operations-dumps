@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 All dump jobs that recompress the output
 from other dump jobs are defined here
@@ -160,9 +161,9 @@ class XmlMultiStreamDump(Dump):
                 self.setup_command_info(runner, command_series, output_dfnames)
                 commands.append(command_series)
 
-        error, broken = runner.run_command(commands, callback_timed=self.progress_callback,
-                                           callback_timed_arg=runner, shell=True,
-                                           callback_on_completion=self.command_completion_callback)
+        error, _broken = runner.run_command(commands, callback_timed=self.progress_callback,
+                                            callback_timed_arg=runner, shell=True,
+                                            callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
@@ -398,18 +399,18 @@ class XmlRecompressDump(Dump):
             # we only rerun this one, so just remove this one
             if exists(dump_dir.filename_public_path(self.checkpoint_file)):
                 if runner.dryrun:
-                    print "would remove", dump_dir.filename_public_path(self.checkpoint_file)
+                    print("would remove", dump_dir.filename_public_path(self.checkpoint_file))
                 else:
                     os.remove(dump_dir.filename_public_path(self.checkpoint_file))
             elif exists(dump_dir.filename_private_path(self.checkpoint_file)):
                 if runner.dryrun:
-                    print "would remove", dump_dir.filename_private_path(self.checkpoint_file)
+                    print("would remove", dump_dir.filename_private_path(self.checkpoint_file))
                 else:
                     os.remove(dump_dir.filename_private_path(self.checkpoint_file))
 
         dfnames = self.list_outfiles_for_cleanup(dump_dir)
         if runner.dryrun:
-            print "would remove ", [dfname.filename for dfname in dfnames]
+            print("would remove ", [dfname.filename for dfname in dfnames])
         else:
             for dfname in dfnames:
                 self.remove_output_file(dump_dir, dfname)
@@ -437,9 +438,9 @@ class XmlRecompressDump(Dump):
             commands.append(series)
             self.setup_command_info(runner, series, output_dfnames)
 
-        error, broken = runner.run_command(commands, callback_timed=self.progress_callback,
-                                           callback_timed_arg=runner, shell=True,
-                                           callback_on_completion=self.command_completion_callback)
+        error, _broken = runner.run_command(commands, callback_timed=self.progress_callback,
+                                            callback_timed_arg=runner, shell=True,
+                                            callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 

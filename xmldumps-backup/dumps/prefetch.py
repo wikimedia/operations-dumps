@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 All xml content dump jobs are defined here
 '''
@@ -10,7 +11,7 @@ from dumps.jobs import get_checkpt_files, get_reg_files
 import dumps.pagerange
 
 
-class PrefetchFinder(object):
+class PrefetchFinder():
     """
     finding appropriate prefetch files for a page
     content dump
@@ -31,7 +32,7 @@ class PrefetchFinder(object):
         returns: list of DumpFilename
         """
         possibles = []
-        if len(file_list):
+        if file_list:
             # (a) nasty hack, see below (b)
             maxparts = 0
             for dfname in file_list:
@@ -90,7 +91,7 @@ class PrefetchFinder(object):
             file_ext, date, parts=None)
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
-        if len(possible_prefetch_dfnames):
+        if possible_prefetch_dfnames:
             return possible_prefetch_dfnames
 
         # ok, let's check for file parts instead, from any run
@@ -100,7 +101,7 @@ class PrefetchFinder(object):
             file_ext, date, parts=True)
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
-        if len(possible_prefetch_dfnames):
+        if possible_prefetch_dfnames:
             return possible_prefetch_dfnames
 
         # last shot, get output file that contains all the pages, if there is one
@@ -122,7 +123,7 @@ class PrefetchFinder(object):
                 continue
             else:
                 dfnames.append(prefetch_dfname)
-        if len(dfnames):
+        if dfnames:
             return dfnames
         return None
 
@@ -200,7 +201,7 @@ class PrefetchFinder(object):
             partnum_str = "%s" % stub_file.partnum
         else:
             partnum_str = ""
-        if len(sources) > 0:
+        if sources:
             if sources[0].endswith('7z'):
                 source = "7zip:%s" % (";".join(sources))
             else:

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import time
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
@@ -39,15 +40,19 @@ class SiteInfoDump(Dump):
                     runner.dump_dir.filename_public_path(output_dfname)))
         self.setup_command_info(runner, command_series, [output_dfname])
 
-        error, broken = runner.save_command(command_series, self.command_completion_callback)
+        error, _broken = runner.save_command(command_series, self.command_completion_callback)
         while error and retries < maxretries:
             retries = retries + 1
             time.sleep(5)
-            error, broken = runner.save_command(command_series)
+            error, _broken = runner.save_command(command_series)
         if error:
             raise BackupError("error dumping siteinfo props %s" % ','.join(self._properties))
 
     def build_command(self, runner):
+        """
+        assemble the command that will retrieve the appropriate properties
+        for the wiki via the MediaWiki ai
+        """
         #  https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo
         #         &siprop=namespaces|namespacealiases|magicwords&format=json
         base_url = runner.db_server_info.apibase

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 classes and methods for writing out file
 with information about the current dump run in
@@ -15,19 +16,18 @@ class SpecialFilesRegistry(type):
     """
     SPECIALFILES_REGISTRY = {}
 
-    def __new__(mcs, clsname, base_classes, attrs):
-        newclass = super(SpecialFilesRegistry, mcs).__new__(mcs, clsname, base_classes, attrs)
+    def __new__(cls, clsname, base_classes, attrs):
+        newclass = super().__new__(cls, clsname, base_classes, attrs)
         if clsname not in ['SpecialFilesRegistry', 'Registered']:
             SpecialFilesRegistry.SPECIALFILES_REGISTRY[clsname] = newclass
         return newclass
 
 
-class Registered(object):
+class Registered(metaclass=SpecialFilesRegistry):
     """
     base class for all dump classes that write special files that don't
     contain dump job output.
     """
-    __metaclass__ = SpecialFilesRegistry
 
     @staticmethod
     def list_special_files(classname, wiki):
@@ -65,11 +65,10 @@ class SpecialFileWriter(Registered):
                 contents = infile.read()
                 infile.close()
             return json.loads(contents)
-        else:
-            return {}
+        return {}
 
     def __init__(self, wiki, fileformat="json", error_callback=None, verbose=False):
-        super(SpecialFileWriter, self).__init__()
+        super().__init__()
         self.wiki = wiki
         self.fileformat = fileformat
         self.filepath = self.get_output_filepath()
@@ -130,6 +129,7 @@ class SpecialFileWriter(Registered):
             return None
         if self.fileformat == "json":
             return self.write_contents_json(contents)
+        return None
 
     def get_all_output_files(self):
         """

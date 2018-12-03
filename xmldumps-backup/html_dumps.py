@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 for every wiki, dump revision content as HTML from RESTBase,
 stored an an sqlite3 compressed database.
@@ -21,8 +22,8 @@ class HTMLFile(ContentFile):
     file containing revision content in html format
     from RESTBase, for given wiki and date
     '''
-    def get_filename(self, ns):
-        return "%s-%s-html.ns%s.sqlite3.xz" % (self.wikiname, self.date, ns)
+    def get_filename(self, namespace):
+        return "%s-%s-html.ns%s.sqlite3.xz" % (self.wikiname, self.date, namespace)
 
 
 # required for misc dump factory
@@ -35,7 +36,7 @@ class HTMLDumpConfig(MiscDumpConfig):
         defaults['nodejs'] = "/usr/bin/nodejs"
         # yeah whatever.  we'll override this with something sensible anyhow
         defaults['scriptpath'] = "/srv/htmldumper/bin/dump_wiki"
-        super(HTMLDumpConfig, self).__init__(defaults, config_file)
+        super().__init__(defaults, config_file)
         self.nodejs = self.conf.get("tools", "nodejs")
         self.scriptpath = self.conf.get("tools", "scriptpath")
 
@@ -47,12 +48,12 @@ class HTMLDump(MiscDumpBase):
     '''
     def __init__(self, wiki, dryrun=False, args=None):
         '''
-        wiki:     WikiDump object with date set
+        wiki:     wikidump.wiki object with date set
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'ns' and the namespace number (in string
                   format) to dump
         '''
-        super(HTMLDump, self).__init__(wiki, dryrun, args)
+        super().__init__(wiki, dryrun, args)
         self.wiki = wiki
         self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
         self.dryrun = dryrun
@@ -89,13 +90,13 @@ class HTMLDump(MiscDumpBase):
         command.extend(script_command)
         command.append(self.wiki.db_name)
         command_text = " ".join(command)
-        log.info("running with no output: " + command_text)
+        log.info("running with no output: %s", command_text)
         output = RunSimpleCommand.run_with_output(command_text, shell=True)
         if not output:
             log.warning("error retrieving domain for wiki %s", self.wiki.db_name)
             return None
         # rstrip gets rid of any trailing newlines from eval.php
-        return output.split('//')[1].rstrip()
+        return output.decode('utf-8').split('//')[1].rstrip()
 
     def dump_html(self):
         '''
@@ -121,7 +122,7 @@ class HTMLDump(MiscDumpBase):
                         "--output=gzip:%s" % os.path.join(outputdir, outputfile)])
 
         if self.dryrun:
-            print "would run command for html dump:", command
+            print("would run command for html dump:", command)
         else:
             success = RunSimpleCommand.run_with_no_output(
                 command, shell=False,

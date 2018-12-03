@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 All dump jobs that recombine output from other
 dump jobs are defined here
@@ -8,7 +9,7 @@ import signal
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
 from dumps.fileutils import DumpFilename
-from dumps.CommandManagement import CommandPipeline
+from dumps.commandmanagement import CommandPipeline
 
 
 class RecombineDump(Dump):
@@ -56,7 +57,7 @@ class RecombineDump(Dump):
                      [[-signal.SIGPIPE, uncompression_todo]] or
                      proc.get_failed_cmds_with_retcode() ==
                      [[signal.SIGPIPE + 128, uncompression_todo]])):
-                (header_end_num, junk_unused) = proc.output().split(":", 1)
+                (header_end_num, _junk) = proc.output().decode('utf-8').split(":", 1)
                 # get header_end_num
             else:
                 raise BackupError("Could not find 'end of header' marker for %s" % fpath)
@@ -83,7 +84,7 @@ class RecombineXmlStub(RecombineDump):
     def __init__(self, name, desc, item_for_xml_stubs):
         self.item_for_xml_stubs = item_for_xml_stubs
         self._prerequisite_items = [self.item_for_xml_stubs]
-        super(RecombineXmlStub, self).__init__(name, desc)
+        super().__init__(name, desc)
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
 
@@ -127,7 +128,7 @@ class RecombineXmlStub(RecombineDump):
         for in_dfname in dfnames:
             if in_dfname.dumpname == output_dfname.dumpname:
                 input_dfnames.append(in_dfname)
-        if not len(input_dfnames):
+        if not input_dfnames:
             self.set_status("failed")
             raise BackupError("No input files for %s found" % self.name())
         if not exists(runner.wiki.config.gzip):
@@ -151,7 +152,7 @@ class RecombineXmlStub(RecombineDump):
             command_series = self.build_command(runner, dfnames, output_dfname)
 
             self.setup_command_info(runner, command_series, [output_dfname])
-            result, broken = runner.run_command(
+            result, _broken = runner.run_command(
                 [command_series], callback_timed=self.progress_callback,
                 callback_timed_arg=runner, shell=True,
                 callback_on_completion=self.command_completion_callback)
@@ -167,7 +168,7 @@ class RecombineXmlDump(RecombineDump):
         self.item_for_xml_dumps = item_for_xml_dumps
         self._detail = detail
         self._prerequisite_items = [self.item_for_xml_dumps]
-        super(RecombineXmlDump, self).__init__(name, desc)
+        super().__init__(name, desc)
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
 
@@ -214,7 +215,7 @@ class RecombineXmlDump(RecombineDump):
         self.setup_command_info(runner, command_series, [output_dfnames[0]])
 
         error = 0
-        error, broken = runner.run_command(
+        error, _broken = runner.run_command(
             [command_series], callback_timed=self.progress_callback,
             callback_timed_arg=runner, shell=True,
             callback_on_completion=self.command_completion_callback)
@@ -230,7 +231,7 @@ class RecombineXmlRecompressDump(RecombineDump):
         self.wiki = wiki
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
-        super(RecombineXmlRecompressDump, self).__init__(name, desc)
+        super().__init__(name, desc)
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
         self._parts_enabled = False
@@ -250,7 +251,7 @@ class RecombineXmlRecompressDump(RecombineDump):
         for in_dfname in dfnames:
             if in_dfname.dumpname == output_dfname.dumpname:
                 input_dfnames.append(in_dfname)
-        if not len(input_dfnames):
+        if not input_dfnames:
             self.set_status("failed")
             raise BackupError("No input files for %s found" % self.name())
         if not exists(self.wiki.config.sevenzip):
@@ -272,7 +273,7 @@ class RecombineXmlRecompressDump(RecombineDump):
         for output_dfname in output_dfnames:
             command_series = self.build_command(runner, output_dfname)
             self.setup_command_info(runner, command_series, [output_dfname])
-            result, broken = runner.run_command(
+            result, _broken = runner.run_command(
                 [command_series], callback_timed=self.progress_callback,
                 callback_timed_arg=runner, shell=True,
                 callback_on_completion=self.command_completion_callback)
@@ -287,7 +288,7 @@ class RecombineAbstractDump(RecombineDump):
         # no partnum_todo, no parts generally (False, False), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
-        super(RecombineAbstractDump, self).__init__(name, desc)
+        super().__init__(name, desc)
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
 
@@ -305,7 +306,7 @@ class RecombineAbstractDump(RecombineDump):
         for in_dfname in to_recombine_dfnames:
             if in_dfname.dumpname == output_dfname.dumpname:
                 input_dfnames.append(in_dfname)
-        if not len(input_dfnames):
+        if not input_dfnames:
             self.set_status("failed")
             raise BackupError("No input files for %s found" % self.name())
         if not exists(runner.wiki.config.gzip):
@@ -327,7 +328,7 @@ class RecombineAbstractDump(RecombineDump):
         for output_dfname in output_dfnames:
             command_series = self.build_command(runner, to_recombine_dfnames, output_dfname)
             self.setup_command_info(runner, command_series, [output_dfname])
-            result, broken = runner.run_command(
+            result, _broken = runner.run_command(
                 [command_series], callback_timed=self.progress_callback,
                 callback_timed_arg=runner, shell=True,
                 callback_on_completion=self.command_completion_callback)
@@ -342,7 +343,7 @@ class RecombineXmlLoggingDump(RecombineDump):
         # no partnum_todo, no parts generally (False, False), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
-        super(RecombineXmlLoggingDump, self).__init__(name, desc)
+        super().__init__(name, desc)
 
     def get_filetype(self):
         return self.item_for_recombine.get_filetype()
@@ -358,7 +359,7 @@ class RecombineXmlLoggingDump(RecombineDump):
         for in_dfname in to_recombine_dfnames:
             if in_dfname.dumpname == output_dfname.dumpname:
                 input_dfnames.append(in_dfname)
-        if not len(input_dfnames):
+        if not input_dfnames:
             self.set_status("failed")
             raise BackupError("No input files for %s found" % self.name())
         if not exists(runner.wiki.config.gzip):
@@ -380,7 +381,7 @@ class RecombineXmlLoggingDump(RecombineDump):
         for output_dfname in output_dfnames:
             command_series = self.build_command(runner, to_recombine_dfnames, output_dfname)
             self.setup_command_info(runner, command_series, [output_dfname])
-            result, broken = runner.run_command(
+            result, _broken = runner.run_command(
                 [command_series], callback_timed=self.progress_callback,
                 callback_timed_arg=runner, shell=True,
                 callback_on_completion=self.command_completion_callback)

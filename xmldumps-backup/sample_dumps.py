@@ -1,7 +1,8 @@
+#!/usr/bin/python3
 '''
-sample dump
+sample dump illustrating the use of the misc dumps library
 '''
-from dumps.WikiDump import FileUtils
+from dumps.wikidump import FileUtils
 from miscdumplib import ContentFile
 from miscdumplib import MiscDumpConfig
 from miscdumplib import MiscDumpBase
@@ -25,7 +26,7 @@ class SampleDumpConfig(MiscDumpConfig):
     def __init__(self, config_file=None):
         defaults = get_config_defaults()
         defaults['testme'] = "11111"  # same as on my luggage!
-        super(SampleDumpConfig, self).__init__(defaults, config_file)
+        super().__init__(defaults, config_file)
         testme = self.conf.get("output", "testme")
         self.testme = int(testme, 0)
 
@@ -56,12 +57,12 @@ class SampleDump(MiscDumpBase):
     # overrides base class
     def __init__(self, wiki, dryrun=False, args=None):
         '''
-        wiki:     WikiDump object with date set
+        wiki:     wikidump.wiki object with date set
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'revsonly' and/or 'stubsonly'
                   indicating whether or not to dump rev content and/or stubs
         '''
-        super(SampleDump, self).__init__(wiki, dryrun, args)
+        super().__init__(wiki, dryrun, args)
         # self.moretest = FIXME(self.wiki.date, self.wiki.config)
         if 'nsonly' in args:
             self.steps['aliases']['run'] = False

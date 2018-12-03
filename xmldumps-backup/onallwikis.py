@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 for every wiki, run a specified maintenance script
 or mysql query, output to the specified directory
@@ -12,13 +13,13 @@ import sys
 import time
 import traceback
 
-from dumps.WikiDump import Config, Wiki
+from dumps.wikidump import Config, Wiki
 from dumps.utils import MultiVersion, TimeUtils, RunSimpleCommand, DbServerInfo
 from dumps.exceptions import BackupError
 from dumps.fileutils import FileUtils
 
 
-class Runner(object):
+class Runner():
     '''
     base classs for script, query or other runners on a specified
     wiki, no retries, option to skip wiki run if output already exists
@@ -40,8 +41,8 @@ class Runner(object):
         if not overwrite and os.path.exists(outfile_path):
             # don't overwrite existing file, just return a happy value
             if self.verbose:
-                print ("Skipping wiki %s, file %s exists already"
-                       % (wiki.db_name, outfile_path))
+                print("Skipping wiki %s, file %s exists already"
+                      % (wiki.db_name, outfile_path))
             return None, None
         return(outfile_base, outfile_path)
 
@@ -59,7 +60,7 @@ class ScriptRunner(Runner):
     def __init__(self, scriptname, args, dryrun, verbose):
         self.scriptname = scriptname
         self.args = args
-        super(ScriptRunner, self).__init__(dryrun, verbose)
+        super().__init__(dryrun, verbose)
 
     def get_command(self, wiki, output_dir, outfile_base, base):
         '''
@@ -97,12 +98,10 @@ class ScriptRunner(Runner):
             return True
         command = self.get_command(wiki, outfile_path, outfile_base, base)
         if self.dryrun:
-            print "Would run:",
-            print command
+            print("Would run:", command)
             return True
-        else:
-            return RunSimpleCommand.run_with_output(
-                command, maxtries=1, shell=False, verbose=self.verbose)
+        return RunSimpleCommand.run_with_output(
+            command, maxtries=1, shell=False)
 
 
 class QueryRunner(Runner):
@@ -111,7 +110,7 @@ class QueryRunner(Runner):
     '''
     def __init__(self, query, dryrun, verbose):
         self.query = query
-        super(QueryRunner, self).__init__(dryrun, verbose)
+        super().__init__(dryrun, verbose)
 
     def get_command(self, wiki, outfile_path, outfile_base, base):
         '''
@@ -149,21 +148,19 @@ class QueryRunner(Runner):
         command = self.get_command(wiki, outfile_path,
                                    outfile_base, base)
 
-        if not isinstance(command, basestring):
-            # see if the list elts are lists tht need to be turned into strings
-            command = [element if isinstance(element, basestring)
+        if not isinstance(command, str):
+            # see if the list elts are lists that need to be turned into strings
+            command = [element if isinstance(element, str)
                        else ' '.join(element) for element in command]
             command = '|'.join(command)
         if self.dryrun:
-            print "Would run:",
-            print command
+            print("Would run:", command)
             return True
-        else:
-            return RunSimpleCommand.run_with_no_output(
-                command, maxtries=1, shell=True, verbose=self.verbose)
+        return RunSimpleCommand.run_with_no_output(
+            command, maxtries=1, shell=True, verbose=self.verbose)
 
 
-class WikiRunner(object):
+class WikiRunner():
     '''
     methods for running a script once on one wiki
     '''
@@ -193,9 +190,9 @@ class WikiRunner(object):
             try:
                 if self.runner.verbose:
                     if self.base is not None:
-                        print "Doing run for wiki: ", self.wiki.db_name, "on", self.base.db_name
+                        print("Doing run for wiki: ", self.wiki.db_name, "on", self.base.db_name)
                     else:
-                        print "Doing run for wiki: ", self.wiki.db_name
+                        print("Doing run for wiki: ", self.wiki.db_name)
                 if not self.runner.dryrun:
                     if not os.path.exists(self.get_output_dir()):
                         os.makedirs(self.get_output_dir())
@@ -209,11 +206,11 @@ class WikiRunner(object):
                     traceback.print_exc(file=sys.stdout)
                 return False
         if self.runner.verbose:
-            print "Success!  Wiki", self.wiki.db_name, "Run complete."
+            print("Success!  Wiki", self.wiki.db_name, "Run complete.")
         return True
 
 
-class WikiRunnerLoop(object):
+class WikiRunnerLoop():
     '''
     methods for running a script across all wikis, with retries
     '''
@@ -248,7 +245,7 @@ class WikiRunnerLoop(object):
         fails = 0
         while 1:
             self.do_all_wikis(overwrite, date)
-            if not len(self.wikis_todo):
+            if not self.wikis_todo:
                 break
             fails = fails + 1
             if fails > num_fails:
@@ -264,7 +261,7 @@ def usage(message=None):
     '''
     if message:
         sys.stderr.write(message + "\n")
-    usage_message = """Usage: python onallwikis.py [options] [script-args]
+    usage_message = """Usage: python3 onallwikis.py [options] [script-args]
 
 This script runs a mysql query or a php maintenance script or any
 other specified script across all wikis, stashing the outputs in files
@@ -290,7 +287,7 @@ of query results, if a query is run.
 
 Examples:
 
-python onallwikis.py -c confs/wikidump.conf   \\
+python3 onallwikis.py -c confs/wikidump.conf   \\
     -f "{d}"                                  \\
     -o `pwd`                                  \\
     -s generateSitemap.php                    \\
@@ -302,7 +299,7 @@ instead of a file, the output lands in {DIR}/variousfiles.gz; it's up
 to the enduser to make sure the terms {DIR} and {FILE} are used properly
 in the script args.
 
-python onallwikis.py -c confs/wikidump.conf                    \\
+python3 onallwikis.py -c confs/wikidump.conf                    \\
     -f "{w}-{d}-all-titles-in-ns-0.gz"                         \\
     -o '/home/tester/wmf/dumps/xmldumps/{d}'                   \\
     -q "'select page_title from page where page_namespace=0;'" \\
@@ -401,7 +398,7 @@ def get_args():
              'verbose', 'help'])
 
     except getopt.GetoptError as err:
-        print str(err)
+        print(str(err))
         usage("Unknown option specified")
 
     for (opt, val) in options:

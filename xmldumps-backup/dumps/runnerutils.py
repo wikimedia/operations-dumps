@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 Misc utils and classes needed primarily for dump Runner class
 """
@@ -16,7 +17,7 @@ from dumps.utils import TimeUtils
 from dumps.specialfilesregistry import Registered
 
 
-class Maintenance(object):
+class Maintenance():
     """
     setting and notifying about maintenance mode
     via existence of a file in current working directory
@@ -41,7 +42,7 @@ class Maintenance(object):
                 raise BackupError("In maintenance mode, exiting.")
 
 
-class FailureHandler(object):
+class FailureHandler():
     '''
     do the right thing on notification of a failure for a dump step
     '''
@@ -78,11 +79,11 @@ class FailureHandler(object):
                             message.as_string())
             server.close()
         except Exception:
-            print "MAIL SEND FAILED! GODDAMIT! Was sending this mail:"
-            print message
+            print("MAIL SEND FAILED! GODDAMIT! Was sending this mail:")
+            print(message)
 
 
-class Notice(object):
+class Notice():
     """
     management of notice file, the contents of which will be inserted in
     dump run index.html file for the given wiki, if it exists
@@ -140,7 +141,7 @@ class Notice(object):
         return os.path.join(self.wiki.public_dir(), self.wiki.date, "notice.txt")
 
 
-class RunSettings(object):
+class RunSettings():
     """
     management of cache file containing certain config settings for
     the dump run for the specific wiki, so that if the config file
@@ -236,7 +237,7 @@ class RunSettings(object):
         self.wiki.config.checkpoint_time = settings[8]
 
 
-class DumpRunJobData(object):
+class DumpRunJobData():
     """
     management of all metadata around a dump run for the specified wiki
     this includes info about the jobs run (dumpruninfo files),
@@ -384,7 +385,7 @@ class RunInfo(Registered):
         content['txt'] = txt_content + "\n"
         # {"jobs": {name: {"status": stuff, "updated": stuff}}, othername: {...}, ...}
         content_json = {"jobs": {}}
-        for item in sorted(dump_items, reverse=True):
+        for item in sorted(dump_items, reverse=True, key=lambda job: job.name()):
             content_json["jobs"][item.name()] = {'status': item.status(), 'updated': item.updated()}
         content['json'] = json.dumps(content_json)
         return content
@@ -418,11 +419,10 @@ class RunInfo(Registered):
         """
         if "jobs" not in dumpruninfo:
             return []
-        else:
-            return dumpruninfo["jobs"].keys()
+        return dumpruninfo["jobs"].keys()
 
     def __init__(self, wiki, enabled, verbose=False):
-        super(RunInfo, self).__init__()
+        super().__init__()
         self.wiki = wiki
         self._enabled = enabled
         self.verbose = verbose
@@ -451,7 +451,7 @@ class RunInfo(Registered):
         status = self._get_status_from_runinfo(old_dump_runinfo_filename, job_name)
         if status == "done":
             return 1
-        elif status is not None:
+        if status is not None:
             # failure, in progress, some other useless thing
             return 0
 
@@ -461,8 +461,7 @@ class RunInfo(Registered):
         status = self._get_status_from_html(index_filename, job_desc)
         if status == "done":
             return 1
-        else:
-            return 0
+        return 0
 
     def get_old_runinfo_from_file(self):
         """
@@ -510,15 +509,13 @@ class RunInfo(Registered):
         if date:
             return os.path.join(self.wiki.public_dir(), date,
                                 RunInfo.get_runinfo_basename() + "." + ext)
-        else:
-            return os.path.join(self.wiki.public_dir(), self.wiki.date,
-                                RunInfo.get_runinfo_basename() + "." + ext)
+        return os.path.join(self.wiki.public_dir(), self.wiki.date,
+                            RunInfo.get_runinfo_basename() + "." + ext)
 
     def _get_dump_runinfo_dirname(self, date=None):
         if date:
             return os.path.join(self.wiki.public_dir(), date)
-        else:
-            return os.path.join(self.wiki.public_dir(), self.wiki.date)
+        return os.path.join(self.wiki.public_dir(), self.wiki.date)
 
     # format: name:%; updated:%; status:%
     def _get_old_runinfo_from_line(self, line):
@@ -555,6 +552,7 @@ class RunInfo(Registered):
                     return None
             elif fieldname == "status":
                 return field_value
+        return None
 
     def _get_status_from_runinfo(self, filename, job_name=""):
         # read the dump run info file in, if there is one, and find out whether
@@ -582,8 +580,7 @@ class RunInfo(Registered):
             return None
         if "<li class='done'>" in line:
             return "done"
-        else:
-            return "other"
+        return "other"
 
     def _get_status_from_html(self, filename, desc):
         # read the index file in, if there is one, and find out whether

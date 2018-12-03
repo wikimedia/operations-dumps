@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 run a set of commands in a given order,
 given information about how many free slots
@@ -14,7 +15,7 @@ import traceback
 from dumps.runnerutils import Notice, RunInfo
 from dumps.fileutils import DumpDir
 from dumps.runner import Runner
-from dumps.WikiDump import Wiki, Config, Locker
+from dumps.wikidump import Wiki, Config, Locker
 from dumps.utils import TimeUtils
 
 
@@ -37,7 +38,7 @@ def command_has_wiki(pid, wikiname):
         if line:
             fields = line.split("\x00")
             for field in fields:
-                if field == wikiname or field == "--wiki=" + wikiname:
+                if field in[wikiname, "--wiki=" + wikiname]:
                     process_command.close()
                     return True
     process_command.close()
@@ -96,9 +97,8 @@ def get_lockfile_content(filename):
         lines = content.splitlines()
         if len(lines) != 1:
             return(None, None)
-        else:
-            host, pid = lines[0].split(" ", 1)
-            return(host, pid)
+        host, pid = lines[0].split(" ", 1)
+        return(host, pid)
 
 
 def create_file(filename):
@@ -118,7 +118,7 @@ def remove_file(filename):
         pass
 
 
-class ActionHandler(object):
+class ActionHandler():
     '''
     methods for all actions, whether on one wiki or on all
     '''
@@ -207,7 +207,8 @@ class ActionHandler(object):
                 for wiki in self.wikiconfs:
                     self.do_notice(wiki)
             elif item == "mark":
-                self.do_mark(self.wikiname)
+                if self.wikiname:
+                    self.do_mark(self.wikiname)
 
     def undo_global_actions(self):
         '''
@@ -280,10 +281,10 @@ class ActionHandler(object):
         '''
         pids = self.get_dump_pids()
         if self.dryrun:
-            print "would kill processes", pids
+            print("would kill processes", pids)
             return
-        elif self.verbose:
-            print "killing these processes:", pids
+        if self.verbose:
+            print("killing these processes:", pids)
 
         for pid in pids:
             os.kill(int(pid), signal.SIGTERM)
@@ -303,7 +304,7 @@ class ActionHandler(object):
                           "for wiki", wiki)
                 else:
                     if self.verbose:
-                        print "removing lock for", wiki
+                        print("removing lock for", wiki)
                     os.unlink(lockfile_content['filename'])
 
     def find_failed_dumps_for_wiki(self, wikiname):
@@ -344,7 +345,7 @@ class ActionHandler(object):
                 failed_dumps[wiki][date] = results
 
         if self.verbose:
-            print "failed dumps info:", failed_dumps
+            print("failed dumps info:", failed_dumps)
         return failed_dumps
 
     def do_rerun(self):
@@ -389,7 +390,7 @@ class ActionHandler(object):
 
         if not failed_jobs:
             if self.verbose:
-                print "no failed jobs for wiki", wiki
+                print("no failed jobs for wiki", wiki)
             return
 
         if not self.dryrun:
@@ -401,10 +402,10 @@ class ActionHandler(object):
             files = get_job_output_files(wiki, job, runner.dump_item_list.dump_items)
             paths = [runner.dump_dir.filename_public_path(fileinfo) for fileinfo in files]
             if self.verbose:
-                print "for job", job, "these are the output files:", paths
+                print("for job", job, "these are the output files:", paths)
             for filename in paths:
                 if self.dryrun:
-                    print "would unlink", filename
+                    print("would unlink", filename)
                 else:
                     try:
                         os.unlink(filename)
@@ -417,14 +418,14 @@ class ActionHandler(object):
                     runner.dumpjobdata.do_after_job(item, runner.dump_item_list.dump_items)
 
         if self.dryrun:
-            print "would update dumpruninfo file, checksums file, ",
-            print "status file, index.html file and symlinks to latest dir"
+            print("would update dumpruninfo file, checksums file, ",)
+            print("status file, index.html file and symlinks to latest dir")
             return
 
         runner.dumpjobdata.do_after_dump(runner.dump_item_list.dump_items)
 
         if self.verbose:
-            print "updating status files for wiki", wiki.db_name
+            print("updating status files for wiki", wiki.db_name)
 
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
@@ -509,10 +510,10 @@ class ActionHandler(object):
         run on the given host
         '''
         if self.dryrun:
-            print "would create maintenance file"
+            print("would create maintenance file")
             return
-        elif self.verbose:
-            print "creating maintenance file"
+        if self.verbose:
+            print("creating maintenance file")
         create_file("maintenance.txt")
 
     def do_exit(self):
@@ -524,10 +525,10 @@ class ActionHandler(object):
         run on the given host
         '''
         if self.dryrun:
-            print "would create exit file"
+            print("would create exit file")
             return
-        elif self.verbose:
-            print "creating exit file"
+        if self.verbose:
+            print("creating exit file")
         create_file("exit.txt")
 
     def do_show(self):
@@ -538,29 +539,29 @@ class ActionHandler(object):
             dbinfo = self.conf.db_latest_status()
             dbdates = [date for (_dbname, _status, date) in dbinfo if date is not None]
             dbdates = sorted(dbdates)
-            if not len(dbdates):
-                print ""
+            if not dbdates:
+                print("")
             else:
-                print dbdates[-1]
+                print(dbdates[-1])
         elif self.show == "alldone":
             dbinfo = self.conf.db_latest_status()
             # skip cases where there is no status file. maybe we will revisit this later
             statuses = [status for (_dbname, status, _date) in dbinfo if status is not None]
             for status in statuses:
                 if status != "complete":
-                    print ""
+                    print("")
                     break
             else:
-                print "True"
+                print("True")
         elif (self.show in ["failed", "aborted", "missing", "progress",
                             "partial", "complete", "not yet"]):
             dbinfo = self.conf.db_latest_status()
             # skip cases where there is no status file. maybe we will revisit this later
             dbs_to_show = [dbname for (dbname, status, date) in dbinfo if status == self.show]
             if dbs_to_show:
-                print dbs_to_show
+                print(dbs_to_show)
         else:
-            print "No such known element for 'show'"
+            print("No such known element for 'show'")
 
     def do_notice(self, wikiname):
         '''
@@ -571,33 +572,32 @@ class ActionHandler(object):
         wiki = Wiki(self.wikiconfs[wikiname], wikiname)
         date = wiki.latest_dump()
         if date is None:
-            print "dump never run, not adding notice file for wiki", wikiname
+            print("dump never run, not adding notice file for wiki", wikiname)
             return
 
         if self.dryrun:
-            print "would add notice.txt for wiki", wikiname, "date", date
+            print("would add notice.txt for wiki", wikiname, "date", date)
             return
-        elif self.verbose:
-            print "creating notice file for wiki", wikiname, "date", date
+        if self.verbose:
+            print("creating notice file for wiki", wikiname, "date", date)
 
         wiki.set_date(date)
-        Notice(wiki, self.message, True)
+        Notice(wiki, self.message, [Notice.NAME])
 
     def do_mark(self, wikiname):
         '''
         mark the specified job with the specified status.
         '''
-
         wiki = Wiki(self.wikiconfs[wikiname], wikiname)
         date = wiki.latest_dump()
         if date is None:
-            print "dump never run, not marking job for wiki", wikiname
+            print("dump never run, not marking job for wiki", wikiname)
             return
         wiki.set_date(date)
 
         runner = Runner(wiki, prefetch=True, spawn=True, job=None,
                         skip_jobs=[], restart=False, notice="", dryrun=False,
-                        enabled=None, partnum_todo=False, checkpoint_file=None,
+                        enabled=None, partnum_todo=None, checkpoint_file=None,
                         page_id_range=None, skipdone=[], cleanup=False, verbose=self.verbose)
 
         known_jobs = [item.name() for item in runner.dump_item_list.dump_items] + ['tables']
@@ -608,9 +608,9 @@ class ActionHandler(object):
             if job not in known_jobs:
                 job = None
         if job is None or status is None:
-            print "bad or no job/status specified", self.job_status
+            print("bad or no job/status specified", self.job_status)
             if self.verbose:
-                print "known jobs", known_jobs
+                print("known jobs", known_jobs)
             return
 
         runner.dumpjobdata.do_before_dump()
@@ -623,8 +623,14 @@ class ActionHandler(object):
             elif item.status() not in ["done", "waiting", "skipped"]:
                 runner.failurehandler.failure_count += 1
 
+        if self.dryrun:
+            print("would update status files for wiki", wiki.db_name, "date", date,
+                  "job", job, "status", status)
+            return
         if self.verbose:
-            print "updating status files for wiki", wiki.db_name
+            print("updating status files for wiki", wiki.db_name, "date", date,
+                  "job", job, "status", status)
+        runner.dumpjobdata.checksummer.move_chksumfiles_into_place()
         if runner.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
             runner.report.update_index_html_and_json("done")
@@ -642,10 +648,10 @@ class ActionHandler(object):
         resumes normal operations
         '''
         if self.dryrun:
-            print "would remove maintenance file"
+            print("would remove maintenance file")
             return
-        elif self.verbose:
-            print "removing maintenance file"
+        if self.verbose:
+            print("removing maintenance file")
         remove_file("maintenance.txt")
 
     def undo_exit(self):
@@ -654,10 +660,10 @@ class ActionHandler(object):
         resumes normal operations
         '''
         if self.dryrun:
-            print "would remove exit file"
+            print("would remove exit file")
             return
-        elif self.verbose:
-            print "removing exit file"
+        if self.verbose:
+            print("removing exit file")
         remove_file("exit.txt")
 
     def undo_notice(self, wikiname):
@@ -668,17 +674,17 @@ class ActionHandler(object):
         wiki = Wiki(self.wikiconfs[wikiname], wikiname)
         date = wiki.latest_dump()
         if date is None:
-            print "dump never run, no notice file to remove for wiki", wikiname
+            print("dump never run, no notice file to remove for wiki", wikiname)
             return
 
         if self.dryrun:
-            print "would remove notice.txt for wiki", wikiname, "date", date
+            print("would remove notice.txt for wiki", wikiname, "date", date)
             return
-        elif self.verbose:
-            print "removing notice file for wiki", wikiname, "date", date
+        if self.verbose:
+            print("removing notice file for wiki", wikiname, "date", date)
 
         wiki.set_date(date)
-        Notice(wiki, False, True)
+        Notice(wiki, False, [Notice.NAME])
 
     def find_dump_lockinfo(self):
         '''
@@ -716,8 +722,7 @@ class ActionHandler(object):
             # wikiname/lock_...
             wikiname = filename.split(os.path.sep)[0]
             return wikiname
-        else:
-            return None
+        return None
 
 
 def usage(message=None):
@@ -801,11 +806,11 @@ Usage: dumpadmin.py --<action> [--<action>...]
     sys.exit(1)
 
 
-def check_options(remainder, configfile):
+def check_options(remainder):
     '''
     whine if these options have problems
     '''
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
 
@@ -835,7 +840,7 @@ def check_actions(undo, actions):
 
 def get_action_opt(option):
     '''
-    return action correspodning to command line option
+    return action corresponding to command line option
     '''
     action_options = ['kill', 'unlock', 'remove', 'rerun', 'mark',
                       'maintenance', 'exit', 'show']
@@ -883,6 +888,8 @@ def main():
         elif opt in ["-s", "--show"]:
             actions.append("show")
             show = val
+        elif opt in ["-m", "--maintenance"]:
+            actions.append("maintenance")
         elif opt in ["-M", "--mark"]:
             actions.append("mark")
             status = val
@@ -903,7 +910,7 @@ def main():
             else:
                 usage("Unknown option specified: <%s>" % opt)
 
-    check_options(remainder, configfile)
+    check_options(remainder)
     undo = fixup_undo(undo)
     check_actions(undo, actions)
     if status is not None and wiki is None:

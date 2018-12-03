@@ -1,10 +1,11 @@
+#!/usr/bin/python3
 """
 generate new set of values for PagesPerChunkHistory based
 on current state of a given wiki
 """
 import sys
 import getopt
-from dumps.WikiDump import Config
+from dumps.wikidump import Config
 from dumps.pagerange import PageRange
 from dumps.pagerange import QueryRunner
 
@@ -64,7 +65,7 @@ def do_main():
     if not jobs or not wikiname:
         usage("one of the mandatory arguments 'jobs' or 'wiki' was not specified")
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: %s" % remainder[0])
 
     wiki_config = Config(configpath)
@@ -75,10 +76,10 @@ def do_main():
     ranges = prange.get_pageranges_for_jobs(jobs)
     # convert ranges into the output we need for the pagesperchunkhistory config
     pages_per_job = [page_end - page_start for (page_start, page_end) in ranges]
-    print "for {jobs} jobs, have ranges:".format(jobs=jobs)
-    print ranges
-    print "for {jobs} jobs, have config setting:".format(jobs=jobs)
-    print pages_per_job
+    print("for {jobs} jobs, have ranges:".format(jobs=jobs))
+    print(ranges)
+    print("for {jobs} jobs, have config setting:".format(jobs=jobs))
+    print(pages_per_job)
 
 
 if __name__ == "__main__":

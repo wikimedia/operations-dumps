@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 Classes and methods for managing the run of
 dump jobs for a given wiki, and logging about
@@ -9,9 +10,9 @@ import sys
 import shutil
 import threading
 import traceback
-import Queue
+import queue
 
-from dumps.CommandManagement import CommandsInParallel, CommandPipeline
+from dumps.commandmanagement import CommandsInParallel, CommandPipeline
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpDir, DumpFilename, FileUtils
 
@@ -39,7 +40,7 @@ class Logger(threading.Thread):
             self.log_fhandle = open(log_filepath, "a")
         else:
             self.log_fhandle = None
-        self.queue = Queue.Queue()
+        self.queue = queue.Queue()
         self.jobs_done = "JOBSDONE"
 
     def log_write(self, line=None):
@@ -66,13 +67,18 @@ class Logger(threading.Thread):
         if line == self.jobs_done:
             self.log_close()
             return 1
-        else:
+        if isinstance(line, str):
             self.log_write(line)
-            return 0
+        else:
+            self.log_write(line.decode('utf-8'))
+        return 0
 
     def add_to_log_queue(self, line=None):
         '''
         add entry to be logged, to logging queue
+        line really should be a str, not bytes,
+        though the logger does the right thing
+        in both cases.
         '''
         if line:
             self.queue.put_nowait(line)
@@ -94,7 +100,7 @@ class Logger(threading.Thread):
             done = self.do_job_on_log_queue()
 
 
-class Runner(object):
+class Runner():
     """
     running one or many dump jobs for a given wiki
     """
@@ -131,7 +137,7 @@ class Runner(object):
             elif (self._partnum_todo is not None and dfname.partnum_int and
                   self._partnum_todo != dfname.partnum_int):
                 raise BackupError("specifed partnum to do does not match part number "
-                                  "of checkpoint file %s to redo", self.checkpoint_file)
+                                  "of checkpoint file %s to redo: " + self.checkpoint_file)
             self.checkpoint_file = dfname
 
         if self.enabled is None:
@@ -283,9 +289,8 @@ class Runner(object):
         if self.dryrun:
             self.pretty_print_commands([series])
             return 0, None
-        else:
-            return self.run_command([series], callback_timed=self.html_update_callback,
-                                    callback_on_completion=completion_callback)
+        return self.run_command([series], callback_timed=self.html_update_callback,
+                                callback_on_completion=completion_callback)
 
     def pretty_print_commands(self, command_series_list):
         """
@@ -298,7 +303,7 @@ class Runner(object):
                 for command in pipeline:
                     command_strings.append(" ".join(command))
                 pipeline_string = " | ".join(command_strings)
-                print "Command to run: ", pipeline_string
+                print("Command to run: ", pipeline_string)
 
     # command series list: list of (commands plus args)
     # is one pipeline. list of pipelines = 1 series.
@@ -326,23 +331,21 @@ class Runner(object):
             self.pretty_print_commands(command_series_list)
             return 0, None
 
-        else:
-            commands = CommandsInParallel(command_series_list, callback_stderr=callback_stderr,
-                                          callback_stderr_arg=callback_stderr_arg,
-                                          callback_timed=callback_timed,
-                                          callback_timed_arg=callback_timed_arg,
-                                          shell=shell, callback_interval=callback_interval,
-                                          callback_on_completion=callback_on_completion)
-            commands.run_commands()
-            if commands.exited_successfully():
-                return 0, None
-            else:
-                problem_commands = commands.commands_with_errors()
-                error_string = "Error from command(s): "
-                for cmd in problem_commands:
-                    error_string = error_string + "%s " % cmd
-                self.log_and_print(error_string)
-                return 1, commands.commands_with_errors(stringfmt=False)
+        commands = CommandsInParallel(command_series_list, callback_stderr=callback_stderr,
+                                      callback_stderr_arg=callback_stderr_arg,
+                                      callback_timed=callback_timed,
+                                      callback_timed_arg=callback_timed_arg,
+                                      shell=shell, callback_interval=callback_interval,
+                                      callback_on_completion=callback_on_completion)
+        commands.run_commands()
+        if commands.exited_successfully():
+            return 0, None
+        problem_commands = commands.commands_with_errors()
+        error_string = "Error from command(s): "
+        for cmd in problem_commands:
+            error_string = error_string + "%s " % cmd
+            self.log_and_print(error_string)
+            return 1, commands.commands_with_errors(stringfmt=False)
 
     def run_command_pipeline(self, command_pipeline):
         """
@@ -353,12 +356,11 @@ class Runner(object):
             self.pretty_print_commands([[command_pipeline]])
             return 0, None
 
-        else:
-            commands.run_pipeline_get_output()
+        commands.run_pipeline_get_output()
+
         if commands.exited_successfully():
             return 0, None
-        else:
-            return 1, commands
+        return 1, commands
 
     def debug(self, stuff):
         """
@@ -443,10 +445,10 @@ class Runner(object):
                 # so we can't rerun a step and keep all the status information
                 # about the old run around.
                 # In this case ask the user if they reeeaaally want to go ahead
-                print "No information about the previous run for this date could be retrieved."
-                print "This means that the status information about the old run will be lost, and"
-                print "only the information about the current (and future) runs will be kept."
-                reply = raw_input("Continue anyways? [y/N]: ")
+                print("No information about the previous run for this date could be retrieved.")
+                print("This means that the status information about the old run will be lost, and")
+                print("only the information about the current (and future) runs will be kept.")
+                reply = input("Continue anyways? [y/N]: ")
                 if reply not in ["y", "Y"]:
                     raise RuntimeError("No run information available for previous dump, exiting")
 
@@ -503,8 +505,8 @@ class Runner(object):
                         doing.insert(0, new_item)
                 # back up the stack and do the dependents if stack isn't too long.
                 if len(doing) < 5:
-                    for item in doing:
-                        self.do_run_item(item)
+                    for subitem in doing:
+                        self.do_run_item(subitem)
 
         # special case
         if self.job_requested == "createdirs":
@@ -553,8 +555,7 @@ class Runner(object):
         # let caller know if this was a successful run
         if sum(1 for item in self.dump_item_list.dump_items if item.status() == "failed"):
             return False
-        else:
-            return True
+        return True
 
     def clean_old_dumps(self, private=False):
         """Removes all but the wiki.config.keep last dumps of this wiki.

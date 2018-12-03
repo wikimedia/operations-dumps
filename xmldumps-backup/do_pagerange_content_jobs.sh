@@ -94,9 +94,9 @@ setup_pagerange_args() {
 
 get_ranges() {
     if [ -n "$VERBOSE" ]; then
-	echo "/usr/bin/python ${pagerangeargs[@]} | ${grepargs[@]} | ${jqargs[@]}"
+	echo "/usr/bin/python3 ${pagerangeargs[@]} | ${grepargs[@]} | ${jqargs[@]}"
     fi
-    ranges=( $(/usr/bin/python ${pagerangeargs[@]} | ${grepargs[@]} | ${jqargs[@]}) )
+    ranges=( $(/usr/bin/python3 ${pagerangeargs[@]} | ${grepargs[@]} | ${jqargs[@]}) )
     result=$?
     if [ $result -ne 0 ]; then
 	echo "Failed to get page ranges, dumping them here"
@@ -148,7 +148,7 @@ run_workers() {
 		echo "${workerargs[@]}"
 	    fi
 	    if [ -z "$DRYRUN" ]; then
-	        /usr/bin/python ${workerargs[@]} &
+	        /usr/bin/python3 ${workerargs[@]} &
 	        wait_pids+=($!)
 		files+=("$outputfile")
             fi
@@ -167,7 +167,7 @@ run_workers() {
 
 lockerup() {
     if [ -z "$DRYRUN" ]; then
-        /usr/bin/python "$WIKIDUMP_BASE/dump_lock.py" --wiki $WIKI --date $DATE --configfile $CONFIGFILE &
+        /usr/bin/python3 "$WIKIDUMP_BASE/dump_lock.py" --wiki $WIKI --date $DATE --configfile $CONFIGFILE &
         lockerpid=$!
 	sleep 2  #  wait a bit, give the process time to finish up if it failed
 	# see if it's still running (which means it got the lock)

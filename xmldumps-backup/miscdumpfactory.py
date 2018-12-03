@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from incr_dumps import IncrDump, IncrDumpConfig, get_incrdump_usage
 from sample_dumps import SampleDump, SampleDumpConfig, get_sampledump_usage
 from html_dumps import HTMLDump, HTMLDumpConfig, get_htmldump_usage
@@ -10,7 +11,7 @@ NAMES_CLASSES = {
 }
 
 
-class MiscDumpFactory(object):
+class MiscDumpFactory():
     '''
     using the NAMES_CLASSES dict, retrieve the appropriate class
     or method for the specified dumptype
@@ -40,7 +41,7 @@ class MiscDumpFactory(object):
         concat them together with newlines in between and return them
         '''
         text = ""
-        for dumptype in NAMES_CLASSES.keys():
+        for dumptype in NAMES_CLASSES:
             text = text + MiscDumpFactory.get_usage(dumptype)() + "\n"
         return text
 

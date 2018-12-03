@@ -79,7 +79,7 @@ check_opts() {
 }
 
 get_dumps_output_dir() {
-    DUMPS_OUTPUT_ROOT=$( /usr/bin/python $WIKIDUMP_BASE/getconfigvals.py --configfile "$CONFIGFILE" --args 'output:public' --format values )
+    DUMPS_OUTPUT_ROOT=$( /usr/bin/python3 $WIKIDUMP_BASE/getconfigvals.py --configfile "$CONFIGFILE" --args 'output:public' --format values )
     if [ -z "$DUMPS_OUTPUT_ROOT" ]; then
 	echo "Failed to get dumps output root dir from config file, giving up"
 	exit 1
@@ -157,7 +157,7 @@ do_recompression() {
 
 lockerup() {
     if [ -z "$DRYRUN" ]; then
-        /usr/bin/python "$WIKIDUMP_BASE/dump_lock.py" --wiki $WIKI --date $DATE --configfile $CONFIGFILE &
+        /usr/bin/python3 "$WIKIDUMP_BASE/dump_lock.py" --wiki $WIKI --date $DATE --configfile $CONFIGFILE &
         lockerpid=$!
 	sleep 2  #  wait a bit, give the process time to finish up if it failed
 	# see if it's still running (which means it got the lock)

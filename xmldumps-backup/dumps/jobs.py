@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 base class dump job is defined here
 '''
@@ -15,14 +16,16 @@ from dumps.utils import TimeUtils
 def get_truncated_empty_checkpt_files(dump_dir, dump_names, file_type, file_ext,
                                       date=None, parts=None):
     '''
-    return all checkpoint files that exist
+    return all truncated checkpoint files that exist
     returns:
         list of DumpFilename
     '''
     dfnames = []
     for dump_name in dump_names:
         dfnames.extend(dump_dir.get_checkpt_files(
-            date, dump_name, file_type, file_ext, parts, temp=False))
+            date, dump_name, file_type, file_ext, parts, temp=False, suffix=".truncated"))
+        dfnames.extend(dump_dir.get_checkpt_files(
+            date, dump_name, file_type, file_ext, parts, temp=False, suffix=".empty"))
     return dfnames
 
 
@@ -53,7 +56,7 @@ def get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=No
     return dfnames
 
 
-class Dump(object):
+class Dump():
     def __init__(self, name, desc, verbose=False):
         self._desc = desc
         self.verbose = verbose
@@ -85,8 +88,7 @@ class Dump(object):
     def get_output_dir(self, runner):
         if runner.wiki.is_private():
             return os.path.join(runner.wiki.private_dir(), runner.wiki.date)
-        else:
-            return os.path.join(runner.wiki.public_dir(), runner.wiki.date)
+        return os.path.join(runner.wiki.public_dir(), runner.wiki.date)
 
     def setup_command_info(self, runner, command_series, output_dfnames, output_dir=None):
         command_info = {}
@@ -115,26 +117,22 @@ class Dump(object):
     def name(self):
         if "name" in self.runinfo:
             return self.runinfo["name"]
-        else:
-            return None
+        return None
 
     def status(self):
         if "status" in self.runinfo:
             return self.runinfo["status"]
-        else:
-            return None
+        return None
 
     def updated(self):
         if "updated" in self.runinfo:
             return self.runinfo["updated"]
-        else:
-            return None
+        return None
 
     def to_run(self):
         if "to_run" in self.runinfo:
             return self.runinfo["to_run"]
-        else:
-            return None
+        return None
 
     def set_name(self, name):
         self.runinfo["name"] = name
@@ -262,7 +260,7 @@ class Dump(object):
         (or private, if the wiki is private), will be checked for the file.
         """
         if "check_trunc_files" not in runner.enabled or not self.check_truncation():
-            return
+            return False
 
         if tmpdir:
             path = os.path.join(
@@ -313,8 +311,8 @@ class Dump(object):
         # pass through...
         if line:
             if runner.log:
-                runner.log.add_to_log_queue(line)
-            sys.stderr.write(line)
+                runner.log.add_to_log_queue(line.decode('utf-8'))
+            sys.stderr.write(line.decode('utf-8'))
         self.progress = line.strip()
         runner.report.update_index_html_and_json()
         runner.statushtml.update_status_file()
@@ -402,10 +400,8 @@ class Dump(object):
         if self._parts_enabled:
             if self._partnum_todo:
                 return [self._partnum_todo]
-            else:
-                return range(1, len(self._parts) + 1)
-        else:
-            return False
+            return range(1, len(self._parts) + 1)
+        return False
 
     def list_reg_files(self, dump_dir, dump_names=None, date=None, parts=None):
         '''
@@ -617,8 +613,11 @@ class Dump(object):
             dump_names = [self.dumpname]
         dfnames = []
         if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
+            problems = self.get_truncated_empty_reg_files_for_filepart(
+                dump_dir, self.get_fileparts_list(), dump_names)
+            if self.checkpoint_file.filename in [problem.filename for problem in problems]:
+                dfnames.append(self.checkpoint_file)
+                return dfnames
 
         if self._checkpoints_enabled:
             dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(

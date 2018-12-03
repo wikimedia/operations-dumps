@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 Dumps of Flow pages
 '''
@@ -28,8 +29,7 @@ class FlowDump(Dump):
     def get_dumpname(self):
         if self.history:
             return 'flowhistory'
-        else:
-            return 'flow'
+        return 'flow'
 
     def build_command(self, runner, output_dfname):
         if not os.path.exists(runner.wiki.config.php):
@@ -61,8 +61,9 @@ class FlowDump(Dump):
         output_dfname = dfnames[0]
         command_series = self.build_command(runner, output_dfname)
         self.setup_command_info(runner, command_series, [output_dfname])
-        error, broken = runner.run_command([command_series], callback_stderr=self.progress_callback,
-                                           callback_stderr_arg=runner,
-                                           callback_on_completion=self.command_completion_callback)
+        error, _broken = runner.run_command([command_series],
+                                            callback_stderr=self.progress_callback,
+                                            callback_stderr_arg=runner,
+                                            callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error dumping flow page files")

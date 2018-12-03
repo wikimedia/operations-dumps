@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 All xml content dump jobs are defined here
 '''
@@ -12,13 +13,13 @@ from dumps.exceptions import BackupError
 from dumps.fileutils import DumpContents, DumpFilename, FileUtils
 from dumps.utils import MultiVersion
 from dumps.jobs import Dump
-from dumps.WikiDump import Locker
+from dumps.wikidump import Locker
 import dumps.pagerange
 from dumps.pagerange import PageRange, QueryRunner
 from dumps.prefetch import PrefetchFinder
 
 
-class StubProvider(object):
+class StubProvider():
     """
     make or find stub files for use in page content dump
     """
@@ -71,12 +72,12 @@ class StubProvider(object):
 
         args: pairs of (DumpFilename, DumpFilename), Runner
         """
-        if not len(iofile_pairs):
+        if not iofile_pairs:
             return
 
         # split up into batches where the input file is the same
         # and the pairs are ordered by output file name
-        in_dfnames = list(set([pair[0] for pair in iofile_pairs]))
+        in_dfnames = list({pair[0] for pair in iofile_pairs})
         out_dfnames = {}
         output_dfnames_to_check = []
         for in_dfname in in_dfnames:
@@ -152,7 +153,7 @@ class StubProvider(object):
             if not os.path.exists(os.path.join(output_dir, output_fname)):
                 first_age_id = output_dfname.first_page_id
                 if (output_dfname.last_page_id is not None and
-                        output_dfname.last_page_id is not "00000"):
+                        output_dfname.last_page_id != "00000"):
                     last_page_id = str(int(output_dfname.last_page_id) + 1)
                 else:
                     last_page_id = ""
@@ -353,7 +354,7 @@ class XmlDump(Dump):
                            for dfname in chkpt_dfnames]
         done_pageranges = sorted(done_pageranges, key=lambda x: int(x[0]))
         if self.verbose:
-            print "done_pageranges:", done_pageranges
+            print("done_pageranges:", done_pageranges)
         return done_pageranges
 
     def get_nochkpt_outputfiles(self, runner):
@@ -395,7 +396,7 @@ class XmlDump(Dump):
                                          stub_dfname, self.verbose)
 
             stub_ranges.append((dcontents.find_first_page_id_in_file(),
-                                dcontents.find_last_page_id(runner),
+                                dcontents.find_last_page_id(),
                                 stub_dfname.partnum))
         return stub_ranges
 
@@ -455,8 +456,8 @@ class XmlDump(Dump):
             # strictly speaking this splits up the pages-articles
             # dump more than is needed but who cares
             ranges = [(str(n), str(min(n + self.wiki.config.revs_per_job, int(page_end))))
-                      for n in xrange(int(page_start), int(page_end),
-                                      self.wiki.config.revs_per_job)]
+                      for n in range(int(page_start), int(page_end),
+                                     self.wiki.config.revs_per_job)]
         for pagerange in ranges:
             dfname = self.make_dfname_from_pagerange(pagerange, output_dfname.partnum)
             if dfname is not None:
@@ -595,7 +596,7 @@ class XmlDump(Dump):
             if entry['generate']:
                 to_generate.append((entry['stub_input'], entry['stub']))
         if self._parts:
-            batchsize = len(self._parts) / 2
+            batchsize = int(len(self._parts) / 2)
         else:
             batchsize = 1
         self.stubber.write_pagerange_stubs(to_generate, runner, batchsize, self.move_if_truncated)

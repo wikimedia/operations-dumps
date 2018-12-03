@@ -1,6 +1,6 @@
 ===Dependencies
 
-* Python 2.5 or greater, with the select module on an OS that supports
+* Python 3.5 or greater, with the select module on an OS that supports
   polling on pipes (this excludes Windows).
 * PHP 5.3 or greater, with the following enabled, at minimum: 
     --with-mysql --with-zlib --with-bz2 --with-iconv --enable-mbstring
@@ -55,7 +55,7 @@ Copy the dumps scripts, templates and the sample configuration to the location f
 where you'll be running them. 
 
 Scripts:
-CommandManagement.py WikiDump.py worker.py monitor.py
+commandmanagement.py wikidump.py worker.py monitor.py
 Templates:
 download-index.html dvd.html legal.html progress.html report.html errormail.txt
 Sample config:
@@ -69,7 +69,7 @@ for information on the format of the configuration file and the options specifie
 
 Test it: 
 
-python ./worker.py name-of-db-here
+python3 ./worker.py name-of-db-here
 
 and see if it runs.  If you have a web server set up which includes somewhere
 underneath its document root the directory specified for the configuration

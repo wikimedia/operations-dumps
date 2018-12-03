@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Worker process, does the actual dumping
 import os
 from os.path import exists
@@ -104,8 +105,7 @@ class Report(Registered):
         """
         if jsoninfo is None or "jobs" not in jsoninfo:
             return []
-        else:
-            return jsoninfo['jobs'].keys()
+        return jsoninfo['jobs'].keys()
 
     @staticmethod
     def get_fileinfo_for_job(jobname, reportinfo):
@@ -128,7 +128,7 @@ class Report(Registered):
 
     def __init__(self, wiki, enabled, dump_dir=None, items=None, dumpjobdata=None,
                  failhandler=None, error_callback=None, verbose=False):
-        super(Report, self).__init__()
+        super().__init__()
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.items = items
@@ -364,7 +364,7 @@ class StatusHtml(Registered):
 
     def __init__(self, wiki, enabled, dump_dir=None, items=None, dumpjobdata=None,
                  failhandler=None, error_callback=None, verbose=False):
-        super(StatusHtml, self).__init__()
+        super().__init__()
         self.wiki = wiki
         self.dump_dir = dump_dir
         self.items = items
@@ -405,8 +405,7 @@ class StatusHtml(Registered):
             return html + "<ul>" + "\n".join([
                 Report.report_dump_step_status(self.dump_dir, x)['html']
                 for x in active_items]) + "</ul>"
-        else:
-            return html
+        return html
 
     def get_all_output_files(self):
         '''

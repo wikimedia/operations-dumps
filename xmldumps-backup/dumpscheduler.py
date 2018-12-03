@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 run a set of commands in a given order,
 given information about how many free slots
@@ -33,7 +34,7 @@ def line_to_entry(line, total_slots):
     if count == 'max':
         # figure out how many jobs can run at once given the
         # total slots available
-        count = str(total_slots / int(slots))
+        count = str(int(total_slots / int(slots)))
 
     return {'slots': int(slots),
             'count': int(count),
@@ -53,7 +54,10 @@ def json_obj_dump(obj):
     try:
         return obj.toJSON()
     except AttributeError as ex:
-        return obj.__dict__
+        try:
+            return obj.__dict__
+        except AttributeError as ex:
+            return {}
 
 
 def format_convert(names_values):
@@ -72,7 +76,7 @@ def format_convert(names_values):
     return converted
 
 
-class Cacher(object):
+class Cacher():
     '''
     save and restore from command cache
     '''
@@ -149,7 +153,7 @@ def get_email_templ():
 '''
 
 
-class Mailer(object):
+class Mailer():
     '''
     send email about command results as required
     '''
@@ -198,7 +202,7 @@ class Mailer(object):
             LOG.error(message.as_string())
 
 
-class ResourceAllocator(object):
+class ResourceAllocator():
     '''
     manage resources (for now, cpus available)
     '''
@@ -242,7 +246,7 @@ class ResourceAllocator(object):
                   str(self.free_slots), str(self.total_slots))
 
 
-class CommandChecker(object):
+class CommandChecker():
     '''
     deal with results from one command
     '''
@@ -259,10 +263,8 @@ class CommandChecker(object):
             process.poll()
             if process.returncode is not None:
                 return (True, process.returncode)
-            else:
-                return (False, None)
-        else:
-            return (self.check_pid(pid), None)
+            return (False, None)
+        return (self.check_pid(pid), None)
 
     def check_pid(self, pid):
         '''
@@ -349,7 +351,7 @@ def update_retries(process, pid, entry):
             # next failure there will be no more retries
 
 
-class Scheduler(object):
+class Scheduler():
     '''
     handle running a sequence of commands, each command possibly to
     be run multiple times, each command possibly using more than
@@ -375,7 +377,7 @@ class Scheduler(object):
         self.mailer = plugables['mailer']
         self.formatvars = format_convert(formatvars)
 
-    def handle_hup(self, signo, dummy_frame):
+    def handle_hup(self, signo, _frame):
         """
         ignore any more hups
         shoot all children
@@ -578,7 +580,7 @@ class Scheduler(object):
                      str(entry['slots']), entry['command'])
             # we need setpgrp here so that kills to our children will
             # propagate through to any subprocesses that might be forked
-            process = Popen(entry['command'],
+            process = Popen(entry['command'],  # pylint: disable=subprocess-popen-preexec-fn
                             shell=True, bufsize=-1, preexec_fn=os.setpgrp)
             entry['processes'].append(process)
             entry['processids'].append(process.pid)
@@ -784,7 +786,7 @@ def main():
         else:
             set_opt(opts, opt, val)
 
-    if len(remainder) > 0:
+    if remainder:
         usage("Unknown option(s) specified: <%s>" % remainder[0])
 
     if opts['slots'] is None:

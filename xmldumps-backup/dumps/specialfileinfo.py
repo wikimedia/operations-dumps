@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 classes and methods for writing out file
 with information about the status, hash, html
@@ -51,8 +52,8 @@ class SpecialFileInfo(SpecialFileWriter):
         return files
 
     def __init__(self, wiki, enabled, fileformat="json", error_callback=None, verbose=False):
-        super(SpecialFileInfo, self).__init__(wiki, fileformat="json",
-                                              error_callback=None, verbose=False)
+        super().__init__(wiki, fileformat="json",
+                         error_callback=None, verbose=False)
         self._enabled = enabled
 
     def get_special_filenames(self):
