@@ -238,7 +238,7 @@ def display_job_runtimes(runtimes, slowjobs):
         return
 
     # all the wikis have the same jobs listed, so we look at any entry to get the list
-    some_entry = runtimes.itervalues().next()
+    some_entry = next(iter(runtimes.items()))[1]
     jobs = sorted(some_entry.keys())
     jobinfo = []
     for job in jobs:
@@ -266,7 +266,7 @@ def get_job_info_printable(runtime, wikiname):
     if 'start' in runtime and 'end' in runtime:
         interval = end - start
         hours = int(interval / 3600)
-        mins = int(interval - (hours * 3600)) / 60
+        mins = int(int(interval - (hours * 3600)) / 60)
         return ("   Wiki: {wiki:<20} Duration: {hours}h, {mins}m,"
                 " Start: {s_mtime:.0f} ({s_nicetime}),"
                 " End: {e_mtime:.0f} ({e_nicetime})".format(
