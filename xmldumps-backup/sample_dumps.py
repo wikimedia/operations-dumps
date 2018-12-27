@@ -7,7 +7,6 @@ from miscdumplib import ContentFile
 from miscdumplib import MiscDumpConfig
 from miscdumplib import MiscDumpBase
 from miscdumplib import get_config_defaults
-from miscdumplib import log
 
 
 # pylint: disable=broad-except
@@ -55,14 +54,14 @@ class SampleDump(MiscDumpBase):
     dump namespaces, aliases for one wiki
     '''
     # overrides base class
-    def __init__(self, wiki, dryrun=False, args=None):
+    def __init__(self, wiki, log, dryrun=False, args=None):
         '''
         wiki:     wikidump.wiki object with date set
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'revsonly' and/or 'stubsonly'
                   indicating whether or not to dump rev content and/or stubs
         '''
-        super().__init__(wiki, dryrun, args)
+        super().__init__(wiki, log, dryrun, args)
         # self.moretest = FIXME(self.wiki.date, self.wiki.config)
         if 'nsonly' in args:
             self.steps['aliases']['run'] = False
@@ -87,15 +86,17 @@ class SampleDump(MiscDumpBase):
         dump namespaces, namespace aliases for given wiki and date
         '''
         try:
-            log.info("dumping namespaces for wiki %s", self.wiki.db_name)
+            self.log.info("dumping namespaces for wiki %s", self.wiki.db_name)
+            self.log.warning("log message at warning level for testing")
+            self.log.error("log message at error level for testing")
             if not self.dump_namespaces():
                 return False
-            log.info("dumping aliases for wiki %s", self.wiki.db_name)
+            self.log.info("dumping aliases for wiki %s", self.wiki.db_name)
             if not self.dump_aliases():
                 return False
         except Exception as ex:
-            log.info("Error encountered runing dump for %s ", self.wiki.db_name,
-                     exc_info=ex)
+            self.log.info("Error encountered runing dump for %s ", self.wiki.db_name,
+                          exc_info=ex)
             return False
         return True
 
@@ -114,8 +115,8 @@ class SampleDump(MiscDumpBase):
                                           contents, self.wiki.config.fileperms)
             return True
         except Exception as ex:
-            log.info("Error encountered dumping namespaces for %s ", self.wiki.db_name,
-                     exc_info=ex)
+            self.log.info("Error encountered dumping namespaces for %s ", self.wiki.db_name,
+                          exc_info=ex)
             raise
 
     # dump step
@@ -133,8 +134,8 @@ class SampleDump(MiscDumpBase):
                                           contents, self.wiki.config.fileperms)
             return True
         except Exception as ex:
-            log.info("Error encountered dumping namespaces for %s ", self.wiki.db_name,
-                     exc_info=ex)
+            self.log.info("Error encountered dumping namespaces for %s ", self.wiki.db_name,
+                          exc_info=ex)
             raise
 
 

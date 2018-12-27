@@ -26,30 +26,64 @@ STATUS_FAILED = -1
 STATUS_GOOD = 0
 
 
-log = logging.getLogger(__name__)    # pylint: disable=invalid-name
-logging.config.dictConfig({
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'standard': {
-            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-        },
-    },
-    'handlers': {
-        'default': {
-            'level': 'INFO',
+def setup_logging(logfile, console_level):
+    if not console_level:
+        console_level = 'ERROR'
+
+    handlers = {
+        'console': {
+            'level': console_level,
             'class': 'logging.StreamHandler',
-            'formatter': 'standard'
+            'stream': sys.stderr,
+            'formatter': 'simple'
+        }
+    }
+    loggers = {
+        'verbose': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True
         },
-    },
-    'loggers': {
-        'root': {
-            'handlers': ['default'],
+        'normal': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': True
+        },
+    }
+    if logfile:
+        handlers['file'] = {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': logfile,
+            'formatter': 'simple'
+        }
+        loggers['verbose_file'] = {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': True
         }
-    }
-})
+        loggers['normal_file'] = {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True
+        }
+        loggers['quiet_file'] = {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True
+        }
+
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'simple': {
+                'format': "[%(levelname)s]: %(message)s"
+            },
+        },
+        'handlers': handlers,
+        'loggers': loggers
+    })
 
 
 def safe(item):
@@ -166,7 +200,7 @@ def md5sum_one_file(filename):
     return summer.hexdigest()
 
 
-def md5sums(wiki, fileperms, files, mandatory):
+def md5sums(wiki, fileperms, files, mandatory, log):
     '''
     generate md5sums for specified files for dump of
     given wiki and specific date, and save them to
@@ -230,11 +264,12 @@ class MiscDumpLock():
 
     works with: unix (linux). nfs3 or local fs. nothing else guaranteed.
     '''
-    def __init__(self, config, date, wikiname):
+    def __init__(self, config, date, wikiname, log):
         self._config = config
         self.date = date
         self.wikiname = wikiname
         self.lockfile = MiscDumpLockFile(self._config, self.date, self.wikiname)
+        self.log = log
 
     def get_lock(self):
         '''
@@ -251,7 +286,7 @@ class MiscDumpLock():
             fhandle.close()
             return True
         except Exception as ex:
-            log.info("Error encountered getting lock", exc_info=ex)
+            self.log.info("Error encountered getting lock", exc_info=ex)
             return False
 
     def _get_lockfile_contents(self):
@@ -488,9 +523,10 @@ class MiscDumpDirs():
     '''
     info about all the directories of dumps for all dates for a given wiki
     '''
-    def __init__(self, config, wikiname):
+    def __init__(self, config, wikiname, log):
         self._config = config
         self.wikiname = wikiname
+        self.log = log
         self.dump_dir = MiscDumpDir(self._config)
 
     def get_misc_dumpdirs(self):
@@ -507,7 +543,7 @@ class MiscDumpDirs():
                 if digits.match(dirname):
                     dates.append(dirname)
         except OSError as ex:
-            log.warning("Error encountered listing %s", base, exc_info=ex)
+            self.log.warning("Error encountered listing %s", base, exc_info=ex)
             return []
         dates = sorted(dates)
         return dates
@@ -592,7 +628,7 @@ def skip_wiki(wikiname, config):
             wikiname in config.skip_wikis_list)
 
 
-def run_simple_query(query, wiki):
+def run_simple_query(query, wiki, log):
     '''
     run a mysql query which returns only one field from
     one row.
@@ -612,15 +648,17 @@ class MiscDumpBase():
     base class for misc dumps to inherit from
     override the methods marked 'override this'
     '''
-    def __init__(self, wiki, dryrun=False, args=None):
+    def __init__(self, wiki, log, dryrun=False, args=None):
         '''
         wiki:     wikidump.wiki object with date set
+        log:      logger object
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'revsonly' and/or 'stubsonly'
                   indicating whether or not to dump rev content and/or stubs
         '''
         self.wiki = wiki
-        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
+        self.log = log
+        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name, self.log)
         self.dryrun = dryrun
         self.args = args
         self.steps = self.get_steps()
@@ -696,9 +734,9 @@ class MiscDumpBase():
         log any output or error messages if there are any
         '''
         if output:
-            log.info(output)
+            self.log.info(output)
         if error:
-            log.warning(error)
+            self.log.warning(error)
         self.lock.refresh()
 
     def get_lock_timeout_interval(self):

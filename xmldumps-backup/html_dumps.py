@@ -6,7 +6,6 @@ stored an an sqlite3 compressed database.
 import os
 from miscdumplib import MiscDumpDir
 from miscdumplib import MiscDumpDirs
-from miscdumplib import log
 from miscdumplib import ContentFile
 from miscdumplib import MiscDumpConfig
 from miscdumplib import MiscDumpBase
@@ -46,16 +45,17 @@ class HTMLDump(MiscDumpBase):
     given a wiki object with date, config all set up,
     generate HTML (RESTBase) dump for this one wiki
     '''
-    def __init__(self, wiki, dryrun=False, args=None):
+    def __init__(self, wiki, log, dryrun=False, args=None):
         '''
         wiki:     wikidump.wiki object with date set
+        log:      logger object
         dryrun:   whether or not to run commands or display what would have been done
         args:     dict of additional args 'ns' and the namespace number (in string
                   format) to dump
         '''
-        super().__init__(wiki, dryrun, args)
+        super().__init__(wiki, log, dryrun, args)
         self.wiki = wiki
-        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name)
+        self.dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name, self.log)
         self.dryrun = dryrun
         self.args = args
 
@@ -69,12 +69,12 @@ class HTMLDump(MiscDumpBase):
         dump html from RESTBase of revision content, for given wiki and date
         '''
         try:
-            log.info("dumping html for wiki %s", self.wiki.db_name)
+            self.log.info("dumping html for wiki %s", self.wiki.db_name)
             if not self.dump_html():
                 return False
         except Exception as ex:
-            log.warning("Error encountered runing dump for %s ", self.wiki.db_name,
-                        exc_info=ex)
+            self.log.warning("Error encountered runing dump for %s ", self.wiki.db_name,
+                             exc_info=ex)
             return False
         return True
 
@@ -90,10 +90,10 @@ class HTMLDump(MiscDumpBase):
         command.extend(script_command)
         command.append(self.wiki.db_name)
         command_text = " ".join(command)
-        log.info("running with no output: %s", command_text)
+        self.log.info("running with no output: %s", command_text)
         output = RunSimpleCommand.run_with_output(command_text, shell=True)
         if not output:
-            log.warning("error retrieving domain for wiki %s", self.wiki.db_name)
+            self.log.warning("error retrieving domain for wiki %s", self.wiki.db_name)
             return None
         # rstrip gets rid of any trailing newlines from eval.php
         return output.decode('utf-8').split('//')[1].rstrip()
@@ -129,7 +129,7 @@ class HTMLDump(MiscDumpBase):
                 timeout=self.get_lock_timeout_interval(),
                 timeout_callback=self.periodic_callback)
             if not success:
-                log.warning("error producing html files for wiki %s", self.wiki.db_name)
+                self.log.warning("error producing html files for wiki %s", self.wiki.db_name)
                 return False
         return True
 
