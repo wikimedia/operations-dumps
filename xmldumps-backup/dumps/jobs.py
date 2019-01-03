@@ -342,7 +342,7 @@ class Dump():
         args: CommandSeries for which all commands have
               completed
         """
-        if not series.exited_successfully:
+        if not series.exited_successfully():
             return
 
         for commands in self.commands_submitted:
