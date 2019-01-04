@@ -251,6 +251,7 @@ class Config():
         self.cat = self.conf.get("tools", "cat")
         self.grep = self.conf.get("tools", "grep")
         self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
+        self.dumplastbz2block = self.conf.get("tools", "dumplastbz2block")
         self.writeuptopageid = self.conf.get("tools", "writeuptopageid")
         self.recompressxml = self.conf.get("tools", "recompressxml")
 

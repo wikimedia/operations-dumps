@@ -636,35 +636,58 @@ class DumpContents():
             self.last_page_id = result.group('pageid')
         return self.last_page_id
 
-    def check_if_truncated(self):
+    def check_if_truncated(self, last_tag=None):
+        '''
+        NOTE: last_tag, if set, must be a b' type, so that we can compare it
+        to output retrieved from a command run by Popen
+        '''
         if self.is_truncated:
             return self.is_truncated
+
+        shell = bool(last_tag)
 
         # Setting up the pipeline depending on the file extension
         if self.dfname.file_ext == "bz2":
             if not exists(self._wiki.config.checkforbz2footer):
                 raise BackupError("checkforbz2footer command %s not found" %
                                   self._wiki.config.checkforbz2footer)
-            checkforbz2footer = self._wiki.config.checkforbz2footer
-            pipeline = []
-            pipeline.append([checkforbz2footer, self.filename])
-        else:
-            if self.dfname.file_ext == 'gz':
-                pipeline = [[self._wiki.config.gzip, "-dc", self.filename,
-                             ">", "/dev/null"]]
-            elif self.dfname.file_ext == '7z':
-                # Note that 7z does return 0, if archive contains
-                # garbage /after/ the archive end
-                pipeline = [[self._wiki.config.sevenzip, "e", "-so",
-                             self.filename, ">", "/dev/null"]]
+            if last_tag:
+                # see if file is compressed right AND has appropriate last tag
+                pipeline = [self._wiki.config.dumplastbz2block, self.filename, '|',
+                            self._wiki.config.tail, '-1']
             else:
-                # we do't know how to handle this type of file.
-                return self.is_truncated
+                pipeline = [self._wiki.config.checkforbz2footer, self.filename]
+        elif self.dfname.file_ext == 'gz':
+            if last_tag:
+                pipeline = [self._wiki.config.gzip, "-dc", self.filename,
+                            "|", self._wiki.config.tail, '-1']
+            else:
+                pipeline = [self._wiki.config.gzip, "-dc", self.filename,
+                            ">", "/dev/null"]
+        elif self.dfname.file_ext == '7z':
+            # Note that 7z does return 0, if archive contains
+            # garbage /after/ the archive end
+            if last_tag:
+                pipeline = [self._wiki.config.sevenzip, "e", "-so",
+                            self.filename, "|", self._wiki.config.tail, '-1']
+            else:
+                pipeline = [self._wiki.config.sevenzip, "e", "-so",
+                            self.filename, ">", "/dev/null"]
+        else:
+            # we do't know how to handle this type of file.
+            return self.is_truncated
 
+        if shell:
+            pipeline = ' '.join(pipeline)
+        pipeline = [pipeline]
         # Run the prepared pipeline
-        proc = CommandPipeline(pipeline, quiet=True)
+        proc = CommandPipeline(pipeline, shell=shell, quiet=True)
         proc.run_pipeline_get_output()
         self.is_truncated = not proc.exited_successfully()
+        if last_tag and not self.is_truncated:
+            # there might be a newline or something after the tag, so 'startswith' is good enough
+            output = proc.output()
+            self.is_truncated = bool(not output or not output.startswith(last_tag))
         return self.is_truncated
 
     def check_if_empty(self):

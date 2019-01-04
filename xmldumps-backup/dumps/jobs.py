@@ -274,11 +274,17 @@ class Dump():
 
         file_truncated = True
         if os.path.exists(dcontents.filename):
+            # for some file types we will check that the file has the right closing tag
+            last_tag = None
+            if ('.xml' in dcontents.filename and
+                    ('.bz2' in dcontents.filename or '.gz' in dcontents.filename)):
+                last_tag = b'</mediawiki>'
+
             # fixme hardcoded at 200? mmmm. but otoh configurable is kinda dumb
             if (not emptycheck or self.is_larger(dfname, 200)) and dcontents.check_if_empty():
                 # file exists and is empty, move it out of the way
                 dcontents.rename(dcontents.filename + ".empty")
-            elif dcontents.check_if_truncated():
+            elif dcontents.check_if_truncated(last_tag):
                 # The file exists and is truncated, move it out of the way
                 dcontents.rename(dcontents.filename + ".truncated")
             elif dcontents.check_if_binary_crap():
