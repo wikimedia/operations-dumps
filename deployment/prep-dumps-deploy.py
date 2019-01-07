@@ -33,8 +33,7 @@ def date_to_digits(date_string):
     if not month.isdigit():
         if month not in MONTHNAMES:
             return None
-        else:
-            month = int(MONTHNAMES.index(month)) + 1
+        month = int(MONTHNAMES.index(month)) + 1
         day = int(day)
     return "%s%02d%02d" % (year, month, day)
 
@@ -42,7 +41,7 @@ def date_to_digits(date_string):
 def get_latest_depl_date(deploydir):
     try:
         subdirs = os.listdir(deploydir)
-    except:
+    except Exception:
         sys.stderr.write("Failed to read contents of %s\n" % deploydir)
         raise
     deploy_dates = {}
@@ -54,7 +53,7 @@ def get_latest_depl_date(deploydir):
         if not canonical_dirname:
             continue
         deploy_dates[canonical_dirname] = dname
-    if not len(deploy_dates.keys()):
+    if not deploy_dates.keys():
         return None
     dates = deploy_dates.keys()
     dates.sort(reverse=True)
@@ -76,7 +75,7 @@ def do_copy(sourcedir, targetdir):
         try:
             os.makedirs(targetdir)
         # fixme is this the right set of errors?
-        except (IOError, os.error), why:
+        except (IOError, os.error) as why:
             errors.append((sourcedir, targetdir, str(why)))
             raise Error(errors)
 
@@ -88,7 +87,7 @@ def do_copy(sourcedir, targetdir):
         if os.path.isfile(targetpath) or os.path.islink(targetpath):
             try:
                 os.unlink(targetpath)
-            except (IOError, os.error), why:
+            except (IOError, os.error) as why:
                 errors.append((sourcepath, targetpath, str(why)))
                 continue
         # do the copy
@@ -101,16 +100,16 @@ def do_copy(sourcedir, targetdir):
             elif os.path.isfile(sourcepath):
                 shutil.copy2(sourcepath, targetpath)
             else:
-                errors.append("refusingto remove %s, not file or dir or symlink\n")
-        except (IOError, os.error), why:
+                errors.append("refusing to remove %s, not file or dir or symlink\n")
+        except (IOError, os.error) as why:
             errors.append((sourcepath, targetpath, str(why)))
         # catch the Error from the recursive do_copy so that we can
         # continue with other files
-        except Error, err:
+        except Error as err:
             errors.extend(err.args[0])
     try:
         shutil.copystat(sourcedir, targetdir)
-    except OSError, why:
+    except OSError as why:
         errors.extend((sourcedir, targetdir, str(why)))
     if errors:
         raise Error(errors)
@@ -121,7 +120,7 @@ def set_conf_perms(path):
     by owner"""
     conf_dir = os.path.join(path, CONFS)
     for fname in os.listdir(conf_dir):
-        os.chmod(os.path.join(conf_dir, fname), 0600)
+        os.chmod(os.path.join(conf_dir, fname), 0o600)
 
 
 def usage(message=None):
@@ -152,7 +151,7 @@ def main():
 
     today = time.strftime("%m-%d-%Y", time.gmtime())
     month, day, year = today.split('-')
-    today_dir = "%s-%s-%s" % (MONTHNAMES[int(month)-1], day, year)
+    today_dir = "%s-%s-%s" % (MONTHNAMES[int(month) - 1], day, year)
 
     if len(sys.argv) > 1:
         new_date = sys.argv[1]
@@ -160,7 +159,7 @@ def main():
         if not re.match("^[0-9][0-9]-20[0-9][0-9]$", rest):
             usage("bad date format")
         if month.isdigit():
-            subdir = "%s-%s" % (MONTHNAMES[int(month)-1], rest)
+            subdir = "%s-%s" % (MONTHNAMES[int(month) - 1], rest)
         elif month not in MONTHNAMES:
             usage("bad date format")
         else:
@@ -189,26 +188,27 @@ def main():
 
     full_path_src = os.path.join(deploydir, latest_deploy_date)
 
-    print "Setting up deployment dir", full_path_dest, "from", latest_deploy_date
+    print("Setting up deployment dir", full_path_dest, "from", latest_deploy_date)
 
     if os.path.isdir(full_path_dest):
-        print ("New deployment dir already exists. overwrite,"
-               "remove and copy, or skip [O/r/s]? "),
+        print(("New deployment dir already exists. overwrite,"
+               "remove and copy, or skip [O/r/s]? "),)
         reply = sys.stdin.readline().strip()
-        if reply == 'O' or reply == 'o':
+        if reply in ['O', 'o']:
             do_copy(full_path_src, full_path_dest)
-        elif reply == 'r' or reply == 'R':
+        elif reply in ['r', 'R']:
             shutil.rmtree(full_path_dest)
             do_copy(full_path_src, full_path_dest)
-        elif reply == 's' or reply == 'S':
-            print "Skipping at user's request"
+        elif reply in ['s', 'S']:
+            print("Skipping at user's request")
             sys.exit(0)
         else:
-            print "Unknown response, giving up."
+            print("Unknown response, giving up.")
             sys.exit(1)
     else:
         do_copy(full_path_src, full_path_dest)
     set_conf_perms(full_path_dest)
+
 
 if __name__ == "__main__":
     main()

@@ -62,17 +62,16 @@ def check_date(date):
     or return today's date in that format if no user date is specified
     '''
     if date is None:
-        print "No date specified, using today's date"
+        print("No date specified, using today's date")
         date = time.strftime("%b-%d-%Y", time.gmtime(time.time()))
         return date[0].lower() + date[1:]
-    else:
-        # check the user's date for sanity
-        date_regexp = ('^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
-                       '-[0-9][0-9]-20[0-9][0-9]$')
-        if not re.match(date, date_regexp):
-            usage(None, "Bad format for datestring; expecting mon-dd-yyyy,"
-                  " example: mar-12-2012")
-        return date
+    # check the user's date for sanity
+    date_regexp = ('^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
+                   '-[0-9][0-9]-20[0-9][0-9]$')
+    if not re.match(date, date_regexp):
+        usage(None, "Bad format for datestring; expecting mon-dd-yyyy,"
+              " example: mar-12-2012")
+    return date
 
 
 def get_tmp_filename(filename):
@@ -106,14 +105,12 @@ class LocalClientPlus(salt.client.LocalClient):
 
         if not pub_data:
             return []
-        elif expr_form in ('glob', 'pcre', 'list'):
+        if expr_form in ('glob', 'pcre', 'list'):
             return pub_data['minions']
-        else:
-            raise SaltInvocationError(
-                'expanded minion list unavailable for expr_form {0}'.format(
-                    expr_form
-                )
-            )
+        raise SaltInvocationError(
+            'expanded minion list unavailable for expr_form {0}'.format(
+                expr_form
+            ))
 
     def mycp(self, tgt, filename, dest, timeout=None):
         '''
@@ -134,7 +131,7 @@ class LocalClientPlus(salt.client.LocalClient):
                         expr_form='glob')
 
 
-class Conf(object):
+class Conf():
     '''
     manage configuration dict from python file
     '''
@@ -177,13 +174,13 @@ class Conf(object):
                 usage(None, "service named not listed in config setup")
             self.services = list(set(services_found))
         for service in self.services:
-            if ('files' in self.conf['services'][service]
-                    and 'destdir' not in self.conf['services'][service]):
-                usage(None, "files specified for service %s but no destdir"
-                      % service)
+            if ('files' in self.conf['services'][service] and
+                    'destdir' not in self.conf['services'][service]):
+                usage(None, "files specified for service %s but no destdir" %
+                      service)
 
 
-class Prep(object):
+class Prep():
     '''
     set up/manage files in prep/staging area
     '''
@@ -223,10 +220,10 @@ class Prep(object):
         errs = 0
         self.prepdir = os.path.join(self.prepdirbase, service, self.date)
         if os.path.isdir(self.prepdir):
-            result = raw_input("directory %s" % self.prepdir +
-                               " already exists, are you sure? y/n: ")
+            result = input("directory %s" % self.prepdir +
+                           " already exists, are you sure? y/n: ")
             if not result.startswith('y'):
-                print "exiting at user request"
+                print("exiting at user request")
             sys.exit(1)
         else:
             try:
@@ -290,15 +287,15 @@ class Prep(object):
             sys.exit(1)
 
         for service in self.conf.services:
-            print "prepping for", service
+            print("prepping for", service)
             if self.make_prepdir(service):
                 sys.exit(1)
             if self.copy_files(service):
                 sys.exit(1)
-            print "prepped in", self.prepdir, "done"
+            print("prepped in", self.prepdir, "done")
 
 
-class Deploy(object):
+class Deploy():
     '''
     deploy files from local prep dir to remote host staging area
     and from there to final location
@@ -592,8 +589,8 @@ class Deploy(object):
                 self.targetbase, self.conf.conf['services'][service]['destdir'])):
             sys.exit(1)
 
-        print "deploying %s" % service + " to hosts (doing copies): ",
-        print ", ".join(self.expanded_deploy_hosts)
+        print("deploying %s" % service + " to hosts (doing copies): ",)
+        print(", ".join(self.expanded_deploy_hosts))
         for finfo in files:
             errs += self.deploy_file_for_service_docopy(service, finfo['name'])
 
@@ -606,8 +603,8 @@ class Deploy(object):
             sys.stderr.write("giving up\n")
             sys.exit(1)
 
-        print "deploying %s" % service + " to hosts (doing moves): ",
-        print ", ".join(self.expanded_deploy_hosts)
+        print("deploying %s" % service + " to hosts (doing moves): ",)
+        print(", ".join(self.expanded_deploy_hosts))
         for finfo in files:
             errs += self.deploy_file_for_service_domove(service, finfo['name'])
 
@@ -615,10 +612,10 @@ class Deploy(object):
             sys.stderr.write("giving up\n")
             sys.exit(1)
 
-        print "updating RELEASE"
+        print("updating RELEASE")
         self.salt_update_release(service)
 
-        print "done!"
+        print("done!")
         return 0
 
     def deploy(self):
@@ -724,7 +721,7 @@ def do_main():
 
     if sys.argv[2] == 'prep':
         prepper = Prep(conf, prepdir_date)
-        errors = prepper.prepare()
+        prepper.prepare()
     elif sys.argv[2] == 'deploy':
         deployer = Deploy(conf, deploy_hosts, prepdir_date)
         errors = deployer.deploy()
@@ -732,6 +729,7 @@ def do_main():
     if errors:
         sys.stderr.write("Errors encountered\n")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     do_main()
