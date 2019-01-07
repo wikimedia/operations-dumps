@@ -93,7 +93,7 @@ class MysqlFile:
 
     def setupColumnRetrieval(self):
         self.columnsInTable = []
-        columnNameExpr = re.compile('\s+`([^`]+)`')
+        columnNameExpr = re.compile(r'\s+`([^`]+)`')
         line = self.getLine()
         while (line and not self.eof and line[0] != ')'):
             columnNameMatch = columnNameExpr.match(line)
