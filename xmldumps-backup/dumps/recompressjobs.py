@@ -109,7 +109,7 @@ class XmlMultiStreamDump(Dump):
             outfilepath_index = runner.dump_dir.filename_public_path(
                 self.get_multistream_index_dfname(output_dfname))
             infilepath = runner.dump_dir.filename_public_path(input_dfname)
-        command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s > %s" %
+        command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s -o %s" %
                          (self.wiki.config.bzip2, infilepath, self.wiki.config.recompressxml,
                           DumpFilename.get_inprogress_name(outfilepath_index),
                           DumpFilename.get_inprogress_name(outfilepath))]]
