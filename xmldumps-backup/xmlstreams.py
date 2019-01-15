@@ -24,11 +24,14 @@ from dumps.wikidump import Wiki
 def do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, id_field, table,
                   small_interval, max_interval, ends_with,
-                  callback=None):
+                  verbose=False, callback=None, header=False, footer=False):
     '''
     do an xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
     concatenated compressed output
+
+    if header is True, write only the header
+    if footer is True, write only the footer
     '''
     if start is None:
         start = 1
@@ -50,43 +53,69 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
             interval = max_interval
 
     interval_save = interval
-    # get just the header
-    piece_command = [field for field in command]
-    piece_command.extend(["--skip-footer", "--start=1", "--end=1"])
-    do_xml_piece(piece_command, outfiles, dryrun=dryrun)
-
-    if callback is not None:
-        wiki = Wiki(wikiconf, wikidb)
-        db_info = DbServerInfo(wiki, wikidb)
-
-    upto = start
-    while upto <= end:
-        if callback is not None:
-            interval = callback(upto, interval_save, wiki, db_info)
+    if header:
+        # get just the header
         piece_command = [field for field in command]
-        piece_command.append("--skip-header")
-        piece_command.extend(["--start=%s" % str(upto)])
-        piece_command.append("--skip-footer")
-        if upto + interval <= end:
-            piece_command.extend(["--end", str(upto + interval)])
-        else:
-            piece_command.extend(["--end", str(end + 1)])
-        upto = upto + interval
-        do_xml_piece(piece_command, outfiles, ends_with, dryrun)
+        piece_command.extend(["--skip-footer", "--start=1", "--end=1"])
+        if not dryrun:
+            for filetype in outfiles:
+                outfiles[filetype]['process'] = outfiles[filetype]['compr'][0](
+                    outfiles[filetype]['compr'][1])
 
-    # get just the footer
-    piece_command = [field for field in command]
-    piece_command.extend(["--skip-header", "--start=1", "--end=1"])
-    do_xml_piece(piece_command, outfiles, dryrun=dryrun)
+        do_xml_piece(piece_command, outfiles, dryrun=dryrun, verbose=verbose)
+        if not dryrun:
+            for filetype in outfiles:
+                outfiles[filetype]['process'].stdin.close()
+            for filetype in outfiles:
+                outfiles[filetype]['process'].wait()
+    elif footer:
+        # get just the footer
+        piece_command = [field for field in command]
+        piece_command.extend(["--skip-header", "--start=1", "--end=1"])
+        if not dryrun:
+            for filetype in outfiles:
+                outfiles[filetype]['process'] = outfiles[filetype]['compr'][0](
+                    outfiles[filetype]['compr'][1])
+
+        do_xml_piece(piece_command, outfiles, dryrun=dryrun, verbose=verbose)
+        if not dryrun:
+            for filetype in outfiles:
+                outfiles[filetype]['process'].stdin.close()
+            for filetype in outfiles:
+                outfiles[filetype]['process'].wait()
+    else:
+        if not dryrun:
+            for filetype in outfiles:
+                outfiles[filetype]['process'] = outfiles[filetype]['compr'][0](
+                    outfiles[filetype]['compr'][1])
+
+        if callback is not None:
+            wiki = Wiki(wikiconf, wikidb)
+            db_info = DbServerInfo(wiki, wikidb)
+
+        upto = start
+        while upto <= end:
+            if callback is not None:
+                interval = callback(upto, interval_save, wiki, db_info)
+            piece_command = [field for field in command]
+            piece_command.append("--skip-header")
+            piece_command.extend(["--start=%s" % str(upto)])
+            piece_command.append("--skip-footer")
+            if upto + interval <= end:
+                piece_command.extend(["--end", str(upto + interval)])
+            else:
+                piece_command.extend(["--end", str(end + 1)])
+            upto = upto + interval
+            do_xml_piece(piece_command, outfiles, ends_with, dryrun=dryrun, verbose=verbose)
+
+        if not dryrun:
+            for filetype in outfiles:
+                outfiles[filetype]['process'].stdin.close()
+            for filetype in outfiles:
+                outfiles[filetype]['process'].wait()
 
     if dryrun:
         return
-
-    for filetype in outfiles:
-        outfiles[filetype]['compr'].stdin.close()
-
-    for filetype in outfiles:
-        outfiles[filetype]['compr'].wait()
 
 
 def run_script(command, outfiles, shouldendwith=None):
@@ -133,6 +162,15 @@ def catfile(inputfile, process):
                 fhandle.close()
                 break
             process.stdin.write(content.encode('utf-8'))
+
+
+def gzippit_append(outfile):
+    '''
+    start a gzip process that reads from stdin
+    and appends to the specified file
+    '''
+    process = Popen("gzip >> %s" % outfile, stdin=PIPE, shell=True, bufsize=-1)
+    return process
 
 
 def gzippit(outfile):
@@ -194,7 +232,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
         return end
 
 
-def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
+def do_xml_piece(command, outfiles, ends_with=None, dryrun=False, verbose=False):
     '''
     do one piece of a logs dump, output going uncompressed
     to a temporary file and the that file being shovelled
@@ -208,6 +246,9 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
     if dryrun:
         sys.stderr.write("would run command: %s\n" % " ".join(command))
         return
+
+    if verbose:
+        sys.stderr.write("running command: %s\n" % " ".join(command))
 
     retries = 0
     maxretries = 3
@@ -228,35 +269,38 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False):
         sys.stderr.write("failed job after max retries\n")
         for filetype in outfiles:
             try:
-                # these partial output files can be used later with a
-                # run that dumps the rest of the pages, and a recombine
-                # so we don't remove them
+                # don't bother to save partial files, cleanup everything
                 outfiles[filetype]['compr'].stdin.close()
-
-                # don't remove the temp files either, might be useful
-                # for checking the problem later
-                # os.unlink(outfiles[filetype]['temp'])
+                os.unlink(outfiles[filetype]['temp'])
             except Exception:
+                # files might not be there, we don't care
                 pass
         sys.exit(1)
 
     errors = False
     for filetype in outfiles:
-        # any exception here means we don't unlink the temp files;
-        # this is intentional, might examine them or re-use them
-        # we do try to process all of them however.
         try:
-            catfile(outfiles[filetype]['temp'], outfiles[filetype]['compr'])
+            catfile(outfiles[filetype]['temp'], outfiles[filetype]['process'])
         except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             errors = True
-    if errors:
-        sys.exit(1)
+            try:
+                # get rid of the final output file, it's crap now
+                os.unlink(outfiles[filetype]['compr'][1])
+            except Exception:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                sys.stderr.write(repr(traceback.format_exception(
+                    exc_type, exc_value, exc_traceback)))
 
+    # get rid of all temp files, regardless
     for filetype in outfiles:
         try:
             os.unlink(outfiles[filetype]['temp'])
         except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+
+    if errors:
+        # consider ourselves screwed. the parent process can start over
+        sys.exit(1)

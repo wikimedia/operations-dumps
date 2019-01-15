@@ -16,7 +16,7 @@ from dumps.wikidump import Config
 from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
 from dumps.utils import DbServerInfo
-from xmlstreams import gzippit, do_xml_stream
+from xmlstreams import gzippit_append, do_xml_stream
 
 
 def get_revs_per_page_interval(page_id_start, interval, wiki, db_info):
@@ -100,7 +100,7 @@ def get_page_interval(page_id_start, interval_guess, wiki, db_info):
 
 
 def dostubsbackup(wikidb, history_file, current_file, articles_file,
-                  wikiconf, start, end, dryrun):
+                  wikiconf, start, end, dryrun, verbose):
     '''
     do a stubs xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -119,9 +119,9 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
             FileUtils.wiki_tempdir(wikidb, wikiconf.temp_dir),
             os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
-            outfiles[filetype]['compr'] = None
+            outfiles[filetype]['compr'] = [None, outfiles[filetype]['name']]
         else:
-            outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
+            outfiles[filetype]['compr'] = [gzippit_append, outfiles[filetype]['name']]
 
     script_command = MultiVersion.mw_script_as_array(wikiconf, "dumpBackup.php")
     command = [wikiconf.php] + script_command
@@ -144,9 +144,19 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
     else:
         callback = None
 
+    # the xml header, the body, and the xml footer should be separate gzipped
+    # streams all concatted together
+    # note that do_xml_stream exits on failure after cleaning up all output files
+    # so the parent process must simply retry later
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
-                  5000, 20000, '</page>\n', callback)
+                  5000, 20000, '</page>\n', verbose=verbose, callback=callback, header=True)
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
+                  start, end, dryrun, 'page_id', 'page',
+                  5000, 20000, '</page>\n', verbose=verbose, callback=callback)
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
+                  start, end, dryrun, 'page_id', 'page',
+                  5000, 20000, '</page>\n', verbose=verbose, callback=callback, footer=True)
 
 
 def usage(message=None):
@@ -160,23 +170,24 @@ def usage(message=None):
     usage_message = """
 Usage: xmlstubs.py --wiki wikidbname --articles path --current path
     --history path [--start number] [--end number]
-    [--config path[:overrides_section]]
+    [--config path[:overrides_section]] [--dryrun] [--verbose]
 
 Options:
 
-  --wiki (-w):         wiki db name, e.g. enwiki
+  --wiki     (-w):     wiki db name, e.g. enwiki
   --articles (-a):     full path of articles xml stub dump that will be created
-  --current (-c):      full path of current pages xml stub dump that will be created
-  --history (-h):      full path of xml stub dump with full history that will be created
+  --current  (-c):     full path of current pages xml stub dump that will be created
+  --history  (-h):     full path of xml stub dump with full history that will be created
 
-  --start (-s):        starting page to dump (default: 1)
-  --end (-e):          ending page to dump, exclusive of this page (default: dump all)
+  --start    (-s):     starting page to dump (default: 1)
+  --end      (-e):     ending page to dump, exclusive of this page (default: dump all)
 
-  --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
+  --config   (-C):     path to wikidump configfile (default: "wikidump.conf" in current dir)
                        if followed by : and a name, this section name in the config file
                        will be used to override config settings in default sections
-  --dryrun (-d):       display the commands that would be run to produce the output but
+  --dryrun   (-d):     display the commands that would be run to produce the output but
                        don't actually run them
+  --verbose  (-v):     display extra progress messages during the run
 """
     sys.stderr.write(usage_message)
     sys.exit(1)
@@ -191,14 +202,15 @@ def main():
     start = None
     end = None
     dryrun = False
+    verbose = False
     configfile = "wikidump.conf"
 
     try:
         (options, remainder) = getopt.gnu_getopt(
-            sys.argv[1:], "w:a:c:h:s:e:C:fhd",
+            sys.argv[1:], "w:a:c:h:s:e:C:v:fhd",
             ["wiki=", "articles=", "current=", "history=",
              "start=", "end=", "config=",
-             "help", "dryrun"])
+             "help", "dryrun", "verbose"])
 
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
@@ -219,6 +231,8 @@ def main():
             configfile = val
         elif opt in ["-d", "--dryrun"]:
             dryrun = True
+        elif opt in ["-v", "--verbose"]:
+            verbose = True
         elif opt in ["-h", "--help"]:
             usage('Help for this script\n')
         else:
@@ -246,7 +260,8 @@ def main():
 
     wikiconf = Config(configfile)
     wikiconf.parse_conffile_per_project(wiki)
-    dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf, start, end, dryrun)
+    dostubsbackup(wiki, history_file, current_file, articles_file, wikiconf,
+                  start, end, dryrun, verbose)
 
 
 if __name__ == '__main__':

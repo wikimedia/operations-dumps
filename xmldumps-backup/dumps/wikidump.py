@@ -244,6 +244,7 @@ class Config():
         self.bzip2 = self.conf.get("tools", "bzip2")
         self.lbzip2 = self.conf.get("tools", "lbzip2")
         self.sevenzip = self.conf.get("tools", "sevenzip")
+        self.dd = self.conf.get("tools", "dd")
         self.mysql = self.conf.get("tools", "mysql")
         self.mysqldump = self.conf.get("tools", "mysqldump")
         self.head = self.conf.get("tools", "head")

@@ -4,6 +4,7 @@ All dump jobs that recombine output from other
 dump jobs are defined here
 '''
 
+import os
 from os.path import exists
 import signal
 from dumps.exceptions import BackupError
@@ -13,6 +14,73 @@ from dumps.commandmanagement import CommandPipeline
 
 
 class RecombineDump(Dump):
+    GZIPMARKER = b'\x1f\x8b\x08\x00'
+
+    @staticmethod
+    def get_file_size(filename):
+        try:
+            filesize = os.stat(filename).st_size
+        except Exception:
+            return None
+        return filesize
+
+    def get_header_offset(self, filename):
+        with open(filename, "rb") as infile:
+            # skip the first byte
+            try:
+                infile.seek(1, os.SEEK_SET)
+                max_offset = 1000000
+                buffer = infile.read(max_offset)
+            except IOError:
+                return None
+            buffer_offset = buffer.find(self.GZIPMARKER)
+            if buffer_offset >= 0:
+                # because we skipped the first byte, add that here
+                return buffer_offset + 1
+        return None
+
+    def get_footer_offset(self, filename):
+        with open(filename, "rb") as infile:
+            # empty files or files with only a footer will return None
+            # here (too short) and that's ok, we might as well fail out on them
+            # by now they should have already been moved out of the way
+            # by the previous job but, just in case...
+            max_offset = 100
+            try:
+                filesize = infile.seek(0, os.SEEK_END)
+                infile.seek(filesize - max_offset, os.SEEK_SET)
+                buffer = infile.read()
+            except IOError:
+                return None
+            buffer_offset = buffer.find(self.GZIPMARKER)
+            if buffer_offset >= 0:
+                return filesize - (len(buffer) - buffer_offset)
+        return None
+
+    @staticmethod
+    def get_dd_command(runner, filename, outfile, header_offset, footer_offset):
+        # return it as a CommandPipeline with one command in it
+        return [[runner.wiki.config.dd, 'if=' + filename, 'of=' + outfile,
+                 'skip=' + str(header_offset),
+                 'count=' + str(footer_offset - header_offset),
+                 'iflag=skip_bytes,count_bytes',
+                 'oflag=append',
+                 'conv=notrunc', 'bs=256k']]
+
+    def get_dump_body_command(self, runner, filename, outfile):
+        header_offset = self.get_header_offset(filename)
+        footer_offset = self.get_footer_offset(filename)
+        return self.get_dd_command(runner, filename, outfile, header_offset, footer_offset)
+
+    def get_dump_header_command(self, runner, filename, outfile):
+        header_offset = self.get_header_offset(filename)
+        return self.get_dd_command(runner, filename, outfile, 0, header_offset)
+
+    def get_dump_footer_command(self, runner, filename, outfile):
+        footer_offset = self.get_footer_offset(filename)
+        infile_size = self.get_file_size(filename)
+        return self.get_dd_command(runner, filename, outfile, footer_offset, infile_size)
+
     def build_recombine_command_string(self, runner, dfnames, output_file, compression_command,
                                        uncompression_command, end_header_marker="</siteinfo>"):
         """
@@ -79,6 +147,68 @@ class RecombineDump(Dump):
                                                DumpFilename.get_inprogress_name(output_filename)))
         return recombine_command_string
 
+    def build_command_for_dd(self, runner, dfnames, output_dfname):
+        """
+        args:
+            Runner, list of DumpFilename, ...
+        """
+        if runner.wiki.is_private():
+            output_filename = runner.dump_dir.filename_private_path(output_dfname)
+        else:
+            output_filename = runner.dump_dir.filename_public_path(output_dfname)
+        partnum = 0
+
+        if not dfnames:
+            raise BackupError("No files for the recombine step found in %s." % self.name())
+
+        if not exists(runner.wiki.config.dd):
+            raise BackupError("dd command %s not found" %
+                              runner.wiki.config.dd)
+
+        outpath_inprog = DumpFilename.get_inprogress_name(output_filename)
+
+        series = []
+        for dfname in dfnames:
+            if runner.wiki.is_private():
+                fpath = runner.dump_dir.filename_private_path(dfname)
+            else:
+                fpath = runner.dump_dir.filename_public_path(dfname)
+            partnum = partnum + 1
+            if partnum == 1:
+                # first file, put header, body
+                series.append(self.get_dump_header_command(runner, fpath, outpath_inprog))
+                series.append(self.get_dump_body_command(runner, fpath, outpath_inprog))
+            elif partnum == len(dfnames):
+                # last file, put body, footer
+                series.append(self.get_dump_body_command(runner, fpath, outpath_inprog))
+                series.append(self.get_dump_footer_command(runner, fpath, outpath_inprog))
+            else:
+                # put contents only
+                series.append(self.get_dump_body_command(runner, fpath, outpath_inprog))
+        return series
+
+    def dd_recombine(self, runner, dfnames, output_dfnames, dumptype):
+        error = 0
+        for output_dfname in output_dfnames:
+            input_dfnames = []
+            for in_dfname in dfnames:
+                if in_dfname.dumpname == output_dfname.dumpname:
+                    input_dfnames.append(in_dfname)
+            if not input_dfnames:
+                self.set_status("failed")
+                raise BackupError("No input files for %s found" % self.name())
+            command_series = self.build_command_for_dd(runner, input_dfnames, output_dfname)
+
+            self.setup_command_info(runner, command_series, [output_dfname])
+            result, _broken = runner.run_command(
+                [command_series], callback_timed=self.progress_callback,
+                callback_timed_arg=runner, shell=False,
+                callback_on_completion=self.command_completion_callback)
+            if result:
+                error = result
+        if error:
+            raise BackupError("error recombining {dumptype} files".format(dumptype=dumptype))
+
 
 class RecombineXmlStub(RecombineDump):
     def __init__(self, name, desc, item_for_xml_stubs):
@@ -123,43 +253,11 @@ class RecombineXmlStub(RecombineDump):
     def get_dumpname(self):
         return self.item_for_xml_stubs.get_dumpname()
 
-    def build_command(self, runner, dfnames, output_dfname):
-        input_dfnames = []
-        for in_dfname in dfnames:
-            if in_dfname.dumpname == output_dfname.dumpname:
-                input_dfnames.append(in_dfname)
-        if not input_dfnames:
-            self.set_status("failed")
-            raise BackupError("No input files for %s found" % self.name())
-        if not exists(runner.wiki.config.gzip):
-            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        compression_command = runner.wiki.config.gzip
-        compression_command = "%s > " % runner.wiki.config.gzip
-        uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
-        recombine_command_string = self.build_recombine_command_string(
-            runner, input_dfnames, output_dfname, compression_command, uncompression_command)
-        recombine_command = [recombine_command_string]
-        recombine_pipeline = [recombine_command]
-        series = [recombine_pipeline]
-        return series
-
     def run(self, runner):
-        error = 0
         dfnames = self.item_for_xml_stubs.list_outfiles_for_input(runner.dump_dir)
         output_dfnames = self.list_outfiles_for_build_command(
             runner.dump_dir, self.list_dumpnames())
-        for output_dfname in output_dfnames:
-            command_series = self.build_command(runner, dfnames, output_dfname)
-
-            self.setup_command_info(runner, command_series, [output_dfname])
-            result, _broken = runner.run_command(
-                [command_series], callback_timed=self.progress_callback,
-                callback_timed_arg=runner, shell=True,
-                callback_on_completion=self.command_completion_callback)
-            if result:
-                error = result
-        if error:
-            raise BackupError("error recombining stub files")
+        self.dd_recombine(runner, dfnames, output_dfnames, 'stubs')
 
 
 class RecombineXmlDump(RecombineDump):
@@ -301,41 +399,10 @@ class RecombineAbstractDump(RecombineDump):
     def get_dumpname(self):
         return self.item_for_recombine.get_dumpname()
 
-    def build_command(self, runner, to_recombine_dfnames, output_dfname):
-        input_dfnames = []
-        for in_dfname in to_recombine_dfnames:
-            if in_dfname.dumpname == output_dfname.dumpname:
-                input_dfnames.append(in_dfname)
-        if not input_dfnames:
-            self.set_status("failed")
-            raise BackupError("No input files for %s found" % self.name())
-        if not exists(runner.wiki.config.gzip):
-            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        compression_command = "%s > " % runner.wiki.config.gzip
-        uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
-        recombine_command_string = self.build_recombine_command_string(
-            runner, input_dfnames, output_dfname, compression_command,
-            uncompression_command, "<feed>")
-        recombine_command = [recombine_command_string]
-        recombine_pipeline = [recombine_command]
-        series = [recombine_pipeline]
-        return series
-
     def run(self, runner):
-        error = 0
-        to_recombine_dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
+        dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
         output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
-        for output_dfname in output_dfnames:
-            command_series = self.build_command(runner, to_recombine_dfnames, output_dfname)
-            self.setup_command_info(runner, command_series, [output_dfname])
-            result, _broken = runner.run_command(
-                [command_series], callback_timed=self.progress_callback,
-                callback_timed_arg=runner, shell=True,
-                callback_on_completion=self.command_completion_callback)
-            if result:
-                error = result
-        if error:
-            raise BackupError("error recombining abstract dump files")
+        self.dd_recombine(runner, dfnames, output_dfnames, 'abstract')
 
 
 class RecombineXmlLoggingDump(RecombineDump):
@@ -354,38 +421,7 @@ class RecombineXmlLoggingDump(RecombineDump):
     def get_dumpname(self):
         return self.item_for_recombine.get_dumpname()
 
-    def build_command(self, runner, to_recombine_dfnames, output_dfname):
-        input_dfnames = []
-        for in_dfname in to_recombine_dfnames:
-            if in_dfname.dumpname == output_dfname.dumpname:
-                input_dfnames.append(in_dfname)
-        if not input_dfnames:
-            self.set_status("failed")
-            raise BackupError("No input files for %s found" % self.name())
-        if not exists(runner.wiki.config.gzip):
-            raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
-        compression_command = "%s > " % runner.wiki.config.gzip
-        uncompression_command = ["%s" % runner.wiki.config.gzip, "-dc"]
-        recombine_command_string = self.build_recombine_command_string(
-            runner, input_dfnames, output_dfname, compression_command,
-            uncompression_command)
-        recombine_command = [recombine_command_string]
-        recombine_pipeline = [recombine_command]
-        series = [recombine_pipeline]
-        return series
-
     def run(self, runner):
-        error = 0
-        to_recombine_dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
+        dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
         output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
-        for output_dfname in output_dfnames:
-            command_series = self.build_command(runner, to_recombine_dfnames, output_dfname)
-            self.setup_command_info(runner, command_series, [output_dfname])
-            result, _broken = runner.run_command(
-                [command_series], callback_timed=self.progress_callback,
-                callback_timed_arg=runner, shell=True,
-                callback_on_completion=self.command_completion_callback)
-            if result:
-                error = result
-        if error:
-            raise BackupError("error recombining log event files")
+        self.dd_recombine(runner, dfnames, output_dfnames, 'log event')

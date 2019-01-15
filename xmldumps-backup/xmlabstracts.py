@@ -14,11 +14,11 @@ import getopt
 from dumps.wikidump import Config
 from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
-from xmlstreams import do_xml_stream, gzippit
+from xmlstreams import do_xml_stream, gzippit_append
 
 
 def do_abstractsbackup(wikidb, output_files, variants,
-                       wikiconf, start, end, dryrun):
+                       wikiconf, start, end, dryrun, verbose):
     '''
     do an abstracts xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -35,9 +35,9 @@ def do_abstractsbackup(wikidb, output_files, variants,
             FileUtils.wiki_tempdir(wikidb, wikiconf.temp_dir),
             os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
-            outfiles[filetype]['compr'] = None
+            outfiles[filetype]['compr'] = [None, outfiles[filetype]['name']]
         else:
-            outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
+            outfiles[filetype]['compr'] = [gzippit_append, outfiles[filetype]['name']]
 
     script_command = MultiVersion.mw_script_as_array(wikiconf,
                                                      "dumpBackup.php")
@@ -61,7 +61,13 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
-                  5000, 10000, '</doc>\n')
+                  5000, 10000, '</doc>\n', verbose=verbose, header=True)
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
+                  start, end, dryrun, 'page_id', 'page',
+                  5000, 10000, '</doc>\n', verbose=verbose)
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
+                  start, end, dryrun, 'page_id', 'page',
+                  5000, 10000, '</doc>\n', verbose=verbose, footer=True)
 
 
 # fixme must take a list of ouput files and a list of
@@ -78,25 +84,26 @@ def usage(message=None):
     usage_message = """
 Usage: xmlabstracts.py --wiki wikidbname --outfile path
     [--start number] [--end number]
-    [--config path[:overrides_section]]
+    [--config path[:overrides_section]] [--dryrun] [--verbose]
 
 Options:
 
-  --wiki (-w):         wiki db name, e.g. enwiki
+  --wiki     (-w):     wiki db name, e.g. enwiki
   --outfiles (-o):     comma separated list of full paths to xml abstracts dumps that
                        will be created, one per language variant
   --variants (-V):     comma separated list of language variants for which abstracts
                        dumps will be produced, in the same order as the list of
                        output files, each variant corresponding to one file
 
-  --start (-s):        starting page id to dump (default: 1)
-  --end (-e):          ending page id to dump, exclusive of this page (default: dump all)
+  --start    (-s):     starting page id to dump (default: 1)
+  --end      (-e):     ending page id to dump, exclusive of this page (default: dump all)
 
-  --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
+  --config   (-C):     path to wikidump configfile (default: "wikidump.conf" in current dir)
                        if followed by : and a name, this section name in the config file
                        will be used to override config settings in default sections
-  --dryrun (-d):       display the commands that would be run to produce the output but
+  --dryrun   (-d):     display the commands that would be run to produce the output but
                        don't actually run them
+  --verbose  (-v):     write various progress messages
 """
     sys.stderr.write(usage_message)
     sys.exit(1)
@@ -111,13 +118,14 @@ def main():
     end = None
     configfile = "wikidump.conf"
     dryrun = False
+    verbose = False
 
     try:
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "w:o:V:s:e:C:fhv",
             ["wiki=", "outfiles=", "variants=",
              "start=", "end=", "config=",
-             "help", "dryrun"])
+             "help", "dryrun", "verbose"])
 
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
@@ -136,6 +144,8 @@ def main():
             configfile = val
         elif opt in ["-d", "--dryrun"]:
             dryrun = True
+        elif opt in ["-v", "--verbose"]:
+            verbose = True
         elif opt in ["-h", "--help"]:
             usage('Help for this script\n')
         else:
@@ -172,7 +182,7 @@ def main():
     wikiconf = Config(configfile)
     wikiconf.parse_conffile_per_project(wiki)
     do_abstractsbackup(wiki, output_files, variants, wikiconf,
-                       start, end, dryrun)
+                       start, end, dryrun, verbose)
 
 
 if __name__ == '__main__':

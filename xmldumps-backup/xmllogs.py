@@ -14,11 +14,11 @@ import getopt
 from dumps.wikidump import Config
 from dumps.fileutils import FileUtils
 from dumps.utils import MultiVersion
-from xmlstreams import gzippit, do_xml_stream
+from xmlstreams import gzippit_append, do_xml_stream
 
 
 def dologsbackup(wikidb, outfile,
-                 wikiconf, start, end, dryrun):
+                 wikiconf, start, end, dryrun, verbose):
     '''
     do a logs xml dump one piece at a time, writing into uncompressed
     temporary files and shovelling those into gzip's stdin for the
@@ -30,9 +30,9 @@ def dologsbackup(wikidb, outfile,
             FileUtils.wiki_tempdir(wikidb, wikiconf.temp_dir),
             os.path.basename(outfiles[filetype]['name']) + "_tmp")
         if dryrun:
-            outfiles[filetype]['compr'] = None
+            outfiles[filetype]['compr'] = [None, outfiles[filetype]['name']]
         else:
-            outfiles[filetype]['compr'] = gzippit(outfiles[filetype]['name'])
+            outfiles[filetype]['compr'] = [gzippit_append, outfiles[filetype]['name']]
 
     script_command = MultiVersion.mw_script_as_array(wikiconf, "dumpBackup.php")
     command = [wikiconf.php] + script_command
@@ -44,7 +44,13 @@ def dologsbackup(wikidb, outfile,
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'log_id', 'logging',
-                  50000, 100000, '</logitem>\n')
+                  50000, 100000, '</logitem>\n', verbose=verbose, header=True)
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
+                  start, end, dryrun, 'log_id', 'logging',
+                  50000, 100000, '</logitem>\n', verbose=verbose)
+    do_xml_stream(wikidb, outfiles, command, wikiconf,
+                  start, end, dryrun, 'log_id', 'logging',
+                  50000, 100000, '</logitem>\n', verbose=verbose, footer=True)
 
 
 def usage(message=None):
@@ -58,20 +64,22 @@ def usage(message=None):
     usage_message = """
 Usage: xmllogs.py --wiki wikidbname --outfile path
     [--start number] [--end number]
-    [--config path[:overrides]]
+    [--config path[:overrides]] [--dryrun] [--verbose]
 
 Options:
 
-  --wiki (-w):         wiki db name, e.g. enwiki
+  --wiki    (-w):      wiki db name, e.g. enwiki
   --outfile (-o):      full path to xml logs dump that will be created
 
-  --start (-s):        starting log id to dump (default: 1)
-  --end (-e):          ending log id to dump, exclusive of this entry (default: dump all)
+  --start   (-s):      starting log id to dump (default: 1)
+  --end     (-e):      ending log id to dump, exclusive of this entry (default: dump all)
 
-  --config (-C):       path to wikidump configfile (default: "wikidump.conf" in current dir)
+  --config  (-C):      path to wikidump configfile (default: "wikidump.conf" in current dir)
                        if followed by : and a name, this section name in the config file
                        will be used to override config settings in default sections
-  --dryrun (-d):       display the commands that would be run to produce the output but
+  --dryrun  (-d):      display the commands that would be run to produce the output but
+                       don't actually run them
+  --verbose (-v):      display the commands that would be run to produce the output but
                        don't actually run them
 """
     sys.stderr.write(usage_message)
@@ -86,13 +94,14 @@ def main():
     end = None
     configfile = "wikidump.conf"
     dryrun = False
+    verbose = False
 
     try:
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "w:o:s:e:C:fhv",
             ["wiki=", "outfile=",
              "start=", "end=", "config=",
-             "help", "dryrun"])
+             "help", "dryrun", "verbose"])
 
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
@@ -109,6 +118,8 @@ def main():
             configfile = val
         elif opt in ["-d", "--dryrun"]:
             dryrun = True
+        elif opt in ["-v", "--verbose"]:
+            verbose = True
         elif opt in ["-h", "--help"]:
             usage('Help for this script\n')
         else:
@@ -136,7 +147,7 @@ def main():
 
     wikiconf = Config(configfile)
     wikiconf.parse_conffile_per_project(wiki)
-    dologsbackup(wiki, output_file, wikiconf, start, end, dryrun)
+    dologsbackup(wiki, output_file, wikiconf, start, end, dryrun, verbose)
 
 
 if __name__ == '__main__':

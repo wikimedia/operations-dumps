@@ -86,6 +86,15 @@ class XmlStub(Dump):
         dfnames.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
         return dfnames
 
+    def list_inprog_files_for_cleanup(self, dump_dir):
+        """
+        returns: list of DumpFilename
+        """
+        dump_names = self.list_dumpnames()
+        dfnames = []
+        dfnames.extend(Dump.list_inprog_files_for_cleanup(self, dump_dir, dump_names))
+        return dfnames
+
     def list_outfiles_for_cleanup(self, dump_dir):
         """
         returns: list of DumpFilename
@@ -162,6 +171,7 @@ class XmlStub(Dump):
 
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
+        self.cleanup_inprog_files(runner.dump_dir, runner)
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         # pick out the articles_dump files, setting up the stubs command for these
         # will cover all the other cases, as we generate all three stub file types
@@ -273,7 +283,7 @@ class XmlLogging(Dump):
         return series
 
     def run(self, runner):
-        self.cleanup_old_files(runner.dump_dir, runner)
+        self.cleanup_inprog_files(runner.dump_dir, runner)
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
@@ -378,6 +388,8 @@ class AbstractDump(Dump):
         return series
 
     def run(self, runner):
+        self.cleanup_old_files(runner.dump_dir, runner)
+        self.cleanup_inprog_files(runner.dump_dir, runner)
         commands = []
         # choose the empty variant to pass to buildcommand, it will fill in the rest if needed
         output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
@@ -475,6 +487,15 @@ class AbstractDump(Dump):
         dump_names = self.list_dumpnames()
         dfnames = []
         dfnames.extend(Dump.list_outfiles_for_build_command(self, dump_dir, dump_names))
+        return dfnames
+
+    def list_inprog_files_for_cleanup(self, dump_dir):
+        """
+        returns: list of DumpFilename
+        """
+        dump_names = self.list_dumpnames()
+        dfnames = []
+        dfnames.extend(Dump.list_inprog_files_for_cleanup(self, dump_dir, dump_names))
         return dfnames
 
     def list_outfiles_for_cleanup(self, dump_dir):

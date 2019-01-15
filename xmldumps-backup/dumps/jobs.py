@@ -402,6 +402,31 @@ class Dump():
             for dfname in dfnames:
                 self.remove_output_file(dump_dir, dfname)
 
+    def cleanup_inprog_files(self, dump_dir, runner):
+        if self.checkpoint_file is not None:
+            # we only rerun this one, so just remove this one
+            pub_path = DumpFilename.get_inprogress_name(
+                dump_dir.filename_public_path(self.checkpoint_file))
+            priv_path = DumpFilename.get_inprogress_name(
+                dump_dir.filename_private_path(self.checkpoint_file))
+            if os.path.exists(pub_path):
+                if runner.dryrun:
+                    print("would remove", pub_path)
+                else:
+                    os.remove(pub_path)
+            elif os.path.exists(priv_path):
+                if runner.dryrun:
+                    print("would remove", priv_path)
+                else:
+                    os.remove(priv_path)
+
+        dfnames = self.list_inprog_files_for_cleanup(dump_dir)
+        if runner.dryrun:
+            print("would remove ", [dfname.filename for dfname in dfnames])
+        else:
+            for dfname in dfnames:
+                self.remove_output_file(dump_dir, dfname)
+
     def get_fileparts_list(self):
         if self._parts_enabled:
             if self._partnum_todo:
@@ -710,6 +735,30 @@ class Dump():
         else:
             dfnames.extend(self.list_reg_files_for_filepart(
                 dump_dir, self.get_fileparts_list(), dump_names))
+        return dfnames
+
+    def list_inprog_files_for_cleanup(self, dump_dir, dump_names=None):
+        """
+        list output files 'in progress' generated from a dump step,
+        presumably left lying around from an earlier failed attempt
+        at the step.
+
+        returns: list of DumpFilename
+        """
+        dump_names = self.list_dumpnames()
+        if dump_names is None:
+            dump_names = [self.dumpname]
+        dfnames = []
+        if self.checkpoint_file is not None:
+            dfnames.append(self.checkpoint_file)
+            return dfnames
+
+        if self._checkpoints_enabled:
+            dfnames.extend(self.list_checkpt_files_for_filepart(
+                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
+        else:
+            dfnames.extend(self.list_reg_files_for_filepart(
+                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
         return dfnames
 
     def list_outfiles_for_input(self, dump_dir, dump_names=None):
