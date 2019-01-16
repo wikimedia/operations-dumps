@@ -15,6 +15,17 @@ from dumps.commandmanagement import CommandPipeline
 
 class RecombineDump(Dump):
     GZIPMARKER = b'\x1f\x8b\x08\x00'
+    BZIP2MARKER = b'\x42\x5a\x68\x39\x31\x41\x59\x26\x53\x59'
+
+    def __init__(self, name, desc, compresstype=None):
+        if compresstype == 'gz':
+            self.marker = self.GZIPMARKER
+        elif compresstype == 'bz2':
+            self.marker = self.BZIP2MARKER
+        else:
+            self.marker = None
+
+        super().__init__(name, desc)
 
     @staticmethod
     def get_file_size(filename):
@@ -33,7 +44,7 @@ class RecombineDump(Dump):
                 buffer = infile.read(max_offset)
             except IOError:
                 return None
-            buffer_offset = buffer.find(self.GZIPMARKER)
+            buffer_offset = buffer.find(self.marker)
             if buffer_offset >= 0:
                 # because we skipped the first byte, add that here
                 return buffer_offset + 1
@@ -52,7 +63,7 @@ class RecombineDump(Dump):
                 buffer = infile.read()
             except IOError:
                 return None
-            buffer_offset = buffer.find(self.GZIPMARKER)
+            buffer_offset = buffer.find(self.marker)
             if buffer_offset >= 0:
                 return filesize - (len(buffer) - buffer_offset)
         return None
@@ -214,7 +225,7 @@ class RecombineXmlStub(RecombineDump):
     def __init__(self, name, desc, item_for_xml_stubs):
         self.item_for_xml_stubs = item_for_xml_stubs
         self._prerequisite_items = [self.item_for_xml_stubs]
-        super().__init__(name, desc)
+        super().__init__(name, desc, 'gz')
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
 
@@ -386,7 +397,7 @@ class RecombineAbstractDump(RecombineDump):
         # no partnum_todo, no parts generally (False, False), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
-        super().__init__(name, desc)
+        super().__init__(name, desc, 'gz')
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
 
@@ -410,7 +421,7 @@ class RecombineXmlLoggingDump(RecombineDump):
         # no partnum_todo, no parts generally (False, False), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
-        super().__init__(name, desc)
+        super().__init__(name, desc, 'gz')
 
     def get_filetype(self):
         return self.item_for_recombine.get_filetype()
@@ -425,3 +436,188 @@ class RecombineXmlLoggingDump(RecombineDump):
         dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
         output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         self.dd_recombine(runner, dfnames, output_dfnames, 'log event')
+
+
+class RecombineXmlMultiStreamDump(RecombineDump):
+    def __init__(self, name, desc, item_for_recombine):
+        # no partnum_todo, no parts generally (False, False), even though input may have it
+        self.item_for_recombine = item_for_recombine
+        self._prerequisite_items = [self.item_for_recombine]
+        super().__init__(name, desc, 'bz2')
+
+    def get_filetype(self):
+        return self.item_for_recombine.get_filetype()
+
+    def get_file_ext(self):
+        return self.item_for_recombine.get_file_ext()
+
+    def get_dumpname(self):
+        return self.item_for_recombine.get_dumpname()
+
+    def get_dumpname_multistream(self, name):
+        return name + "-multistream"
+
+    def get_dumpname_multistream_index(self, name):
+        return self.get_dumpname_multistream(name) + "-index"
+
+    def get_index_filetype(self):
+        return "txt"
+
+    def get_multistream_content_dfname(self, runner, dfname, suffix=None):
+        """
+        assuming that dfname is an input file,
+        return the name of the associated multistream output file
+        args:
+            DumpFilename
+        returns:
+            DumpFilename
+        """
+        if suffix is not None:
+            file_ext = self.file_ext + suffix
+        else:
+            file_ext = self.file_ext
+        return DumpFilename(runner.wiki, dfname.date,
+                            self.get_dumpname_multistream(dfname.dumpname),
+                            dfname.file_type, file_ext, dfname.partnum,
+                            dfname.checkpoint, dfname.temp)
+
+    def get_multistream_index_dfname(self, runner, dfname):
+        """
+        assuming that dfname is a multistream output file,
+        return the name of the associated index file
+        args:
+            DumpFilename
+        returns:
+            DumpFilename
+        """
+        return DumpFilename(runner.wiki, dfname.date,
+                            self.get_dumpname_multistream_index(dfname.dumpname),
+                            self.get_index_filetype(), self.file_ext, dfname.partnum,
+                            dfname.checkpoint, dfname.temp)
+
+    def get_filepath(self, runner, dfname):
+        if runner.wiki.is_private():
+            return runner.dump_dir.filename_private_path(dfname)
+        return runner.dump_dir.filename_public_path(dfname)
+
+    def get_content_dfname_from_index(self, runner, index_dfname):
+        '''
+        given a multistream index dfname, return the corresponding
+        multistream content dfname
+        '''
+        content_dfname = DumpFilename(
+            runner.wiki, index_dfname.date,
+            self.get_dumpname_multistream(self.get_dumpname()),
+            'xml', index_dfname.file_ext,
+            index_dfname.partnum, index_dfname.checkpoint,
+            index_dfname.temp)
+        return content_dfname
+
+    def get_new_offset(self, runner, input_dfname, offset):
+        footer_marker = self.get_footer_offset(self.get_filepath(runner, input_dfname))
+        header_marker = self.get_header_offset(self.get_filepath(runner, input_dfname))
+        body_size = footer_marker - header_marker
+        # offset in index file is relative to the specific file and includes its header
+        # we are modifying it. we must add the relative amount from the previous files
+        # (first header, all bodies)
+        # plus the current offset - the current file's header
+        # the filter (mawk) command just adds something to the offset listed in that index file
+        return offset + body_size
+
+    def get_index_filter_command(self, runner, input_dfname, offset):
+        bzip2_cmd = "{bzip2} -dc {infile}".format(
+            bzip2=runner.wiki.config.bzip2, infile=self.get_filepath(runner, input_dfname))
+
+        mawk_cmd = "/usr/bin/mawk -F: 'BEGIN {{OFS=\":\"}} {{$1+={offset}; print $0 }}'".format(
+            offset=offset)
+        return "( {bzip2_cmd} | {mawk_cmd} )".format(bzip2_cmd=bzip2_cmd, mawk_cmd=mawk_cmd)
+
+    def build_index_recombine_command(self, runner, input_dfnames, output_dfname):
+        commands = []
+        offset = 0
+
+        first_content_dfname = self.get_content_dfname_from_index(runner, input_dfnames[0])
+        first_header_size = self.get_header_offset(self.get_filepath(runner, first_content_dfname))
+        for infile_counter, input_dfname in enumerate(input_dfnames):
+            content_dfname = self.get_content_dfname_from_index(runner, input_dfname)
+            if infile_counter == 1:
+                offset += first_header_size
+            if infile_counter:
+                header_size = self.get_header_offset(self.get_filepath(runner, content_dfname))
+            else:
+                # include the header count from the first file, it gets written
+                header_size = 0
+            commands.append(self.get_index_filter_command(
+                runner, input_dfname, offset - header_size))
+            offset = self.get_new_offset(runner, content_dfname, offset)
+        recombine_command_string = "( " + " ; ".join(commands) + ") | {bzip2} > {output}".format(
+            bzip2=runner.wiki.config.bzip2, output=self.get_filepath(runner, output_dfname))
+        recombine_command = [recombine_command_string]
+        recombine_pipeline = [recombine_command]
+        series = [recombine_pipeline]
+        return series
+
+    def index_files_recombine(self, runner, dfnames, output_dfnames):
+        if not exists(runner.wiki.config.bzip2):
+            raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2)
+        error = 0
+        for output_dfname in output_dfnames:
+            input_dfnames = []
+            if 'index' in output_dfname.filename:
+                for in_dfname in dfnames:
+                    if in_dfname.dumpname == output_dfname.dumpname:
+                        input_dfnames.append(in_dfname)
+                if not input_dfnames:
+                    self.set_status("failed")
+                    raise BackupError("No input files for %s found" % self.name())
+            command_series = self.build_index_recombine_command(
+                runner, input_dfnames, output_dfname)
+
+            self.setup_command_info(runner, command_series, [output_dfname])
+            result, _broken = runner.run_command(
+                [command_series], callback_timed=self.progress_callback,
+                callback_timed_arg=runner, shell=True,
+                callback_on_completion=self.command_completion_callback)
+            if result:
+                error = result
+        if error:
+            raise BackupError("error recombining multistream files")
+
+    def list_outfiles_for_build_command(self, dump_dir, dump_names=None):
+        '''
+        called when the job command is generated.
+        Includes: parts, whole files, temp files.
+        This includes only the files that should be produced from this specific
+        run, so if only one file part (subjob) is being redone, then only those files
+        will be listed.
+        returns:
+            list of DumpFilename
+        '''
+        if dump_names is None:
+            dump_names = [self.dumpname]
+        dfnames = []
+        if self.checkpoint_file is not None:
+            dfnames.append(self.checkpoint_file)
+            return dfnames
+
+        if self._checkpoints_enabled:
+            dfnames.extend(self.list_temp_files_for_filepart(
+                dump_dir, self.get_fileparts_list(), dump_names))
+        else:
+            dfnames.extend(self.get_reg_files_for_filepart_possible(
+                dump_dir, self.get_fileparts_list(), dump_names))
+        return dfnames
+
+    def run(self, runner):
+        dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
+        content_dfnames = [dfname for dfname in dfnames if 'index' not in dfname.filename]
+        index_dfnames = [dfname for dfname in dfnames if 'index' in dfname.filename]
+        content_output_dfnames = self.list_outfiles_for_build_command(
+            runner.dump_dir, [self.get_dumpname_multistream(self.dumpname)])
+        # FIXME this is really gross
+        self.file_type = self.get_index_filetype()
+        index_output_dfnames = self.list_outfiles_for_build_command(
+            runner.dump_dir, [self.get_dumpname_multistream_index(self.dumpname)])
+        self.file_type = self.get_filetype()
+        self.dd_recombine(runner, content_dfnames, content_output_dfnames, 'multistream')
+        self.index_files_recombine(runner, index_dfnames, index_output_dfnames)

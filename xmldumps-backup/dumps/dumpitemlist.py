@@ -15,7 +15,7 @@ from dumps.apijobs import SiteInfoDump
 from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
-from dumps.recombinejobs import RecombineXmlLoggingDump
+from dumps.recombinejobs import RecombineXmlLoggingDump, RecombineXmlMultiStreamDump
 from dumps.xmljobs import XmlLogging, XmlStub, AbstractDump
 from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
@@ -281,10 +281,7 @@ class DumpItemList():
                 self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
         if self.wiki.config.multistream_enabled:
-            if self.filepart.parts_enabled():
-                input_for_multistream = "articlesdumprecombine"
-            else:
-                input_for_multistream = "articlesdump"
+            input_for_multistream = "articlesdump"
             self.dump_items.append(
                 XmlMultiStreamDump(
                     "articles",
@@ -296,6 +293,9 @@ class DumpItemList():
                     "index of page titles/ids and offsets into the file.  " +
                     "Useful for offline readers, or for parallel processing of pages.",
                     self.find_item_by_name(input_for_multistream), self.wiki, None))
+            self.append_job_if_needed(RecombineXmlMultiStreamDump(
+                "articlesmultistreamdumprecombine", "Recombine multiple bz2 streams",
+                self.find_item_by_name('articlesmultistreamdump')))
 
         results = self.dumpjobdata.runinfo.get_old_runinfo_from_file()
         if results:

@@ -11,9 +11,8 @@ from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
 
 
-class XmlMultiStreamDump(Dump):
-    """Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
-
+class RecompressDump(Dump):
+    """Given bz2 input files, recompress them in various ways."""
     def __init__(self, subset, name, desc, detail, item_for_recompression,
                  wiki, partnum_todo, parts=False, checkpoints=False, checkpoint_file=None):
         self._subset = subset
@@ -30,6 +29,33 @@ class XmlMultiStreamDump(Dump):
         self._prerequisite_items = [self.item_for_recompression]
         Dump.__init__(self, name, desc)
 
+    def get_filetype(self):
+        return "xml"
+
+    def list_outfiles_for_build_command(self, dump_dir, partnum=None):
+        '''
+        shows all files possible if we don't have checkpoint files. no temp files.
+        only the parts we are actually supposed to do (if there is a limit)
+        returns:
+            list of DumpFilename
+        '''
+        dfnames = []
+        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
+        for inp_dfname in input_dfnames:
+            # if this param is set it takes priority
+            if partnum and inp_dfname.partnum_int != partnum:
+                continue
+            elif self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
+                continue
+            dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
+                                        inp_dfname.file_type, self.file_ext,
+                                        inp_dfname.partnum, inp_dfname.checkpoint, inp_dfname.temp))
+        return dfnames
+
+
+class XmlMultiStreamDump(RecompressDump):
+    """Take a .bz2 and recompress it as multistream bz2, 100 pages per stream."""
+
     def get_dumpname(self):
         return "pages-" + self._subset
 
@@ -37,9 +63,6 @@ class XmlMultiStreamDump(Dump):
         dname = self.get_dumpname()
         return [self.get_dumpname_multistream(dname),
                 self.get_dumpname_multistream_index(dname)]
-
-    def get_filetype(self):
-        return "xml"
 
     def get_index_filetype(self):
         return "txt"
@@ -89,8 +112,7 @@ class XmlMultiStreamDump(Dump):
         '''
         arguments:
         runner: Runner object
-        output_dfname: output file that will be produced, whether one of
-                       a series of checkpoint files or a regular file
+        output_dfname: output file that will be produced
         '''
 
         input_dfname = DumpFilename(self.wiki, None, output_dfname.dumpname,
@@ -115,6 +137,41 @@ class XmlMultiStreamDump(Dump):
                           DumpFilename.get_inprogress_name(outfilepath))]]
         return [command_pipe]
 
+    def run_in_batches(self, runner):
+        '''
+        generate one multistream content/index file pair for each numbered
+        or numbered/checkpointed content input file, doing batches of these
+        at a time
+        '''
+        # new code cobbled together
+        commands = []
+        for partnum in range(1, len(self._parts) + 1):
+            content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
+            for content_dfname in content_dfnames:
+                command_series = self.build_command(runner, [content_dfname])
+                commands.append(command_series)
+                output_dfnames = [self.get_multistream_dfname(content_dfname),
+                                  self.get_multistream_index_dfname(content_dfname)]
+                self.setup_command_info(runner, command_series, output_dfnames)
+        # now we have all the commands, run them in batches til we are done
+        batchsize = len(self._parts)
+        errors = False
+        while commands:
+            command_batch = commands[:batchsize]
+            error, broken = runner.run_command(
+                command_batch, callback_timed=self.progress_callback,
+                callback_timed_arg=runner, shell=True,
+                callback_on_completion=self.command_completion_callback)
+            if error:
+                for series in broken:
+                    for pipeline in series:
+                        runner.log_and_print("error from commands: %s" % " ".join(
+                            [entry for entry in pipeline]))
+                errors = True
+            commands = commands[batchsize:]
+        if errors:
+            raise BackupError("error recompressing bz2 file(s)")
+
     def run(self, runner):
         if not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
@@ -135,23 +192,8 @@ class XmlMultiStreamDump(Dump):
                               self.get_multistream_index_dfname(content_dfname)]
             self.setup_command_info(runner, command_series, output_dfnames)
         elif self._parts_enabled and not self._partnum_todo:
-            # must set up each parallel job separately, they may have checkpoint files that
-            # need to be processed in series, it's a special case
-            for partnum in range(1, len(self._parts) + 1):
-                content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
-                command_series_for_part = []
-                for content_dfname in content_dfnames:
-                    command_series = self.build_command(runner, content_dfnames)
-                    command_series_for_part.extend(command_series)
-                commands.append(command_series_for_part)
-                # this means that only when the whole series is complete do we get to
-                # post-command-completion callbacks and such, bad news for checking
-                # and making available new file content
-                output_dfnames = [self.get_multistream_dfname(content_dfname)
-                                  for content_dfname in content_dfnames]
-                output_dfnames.extend([self.get_multistream_index_dfname(content_dfname)
-                                       for content_dfname in content_dfnames])
-                self.setup_command_info(runner, command_series_for_part, output_dfnames)
+            self.run_in_batches(runner)
+            return
         else:
             content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
             for content_dfname in content_dfnames:
@@ -215,29 +257,6 @@ class XmlMultiStreamDump(Dump):
             dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
-    def list_outfiles_for_build_command(self, dump_dir, partnum=None):
-        '''
-        shows all files possible if we don't have checkpoint files. no temp files.
-        only the parts we are actually supposed to do (if there is a limit)
-        returns:
-            list of DumpFilename
-        '''
-        dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
-        for inp_dfname in input_dfnames:
-            # if this param is set it takes priority
-            if partnum and inp_dfname.partnum_int != partnum:
-                continue
-            elif self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
-                continue
-            # we don't convert these names to the final output form,
-            # we'll do that in the build command
-            # (i.e. add "multistream" and "index" to them)
-            dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
-                                        inp_dfname.file_type, self.file_ext,
-                                        inp_dfname.partnum, inp_dfname.checkpoint, inp_dfname.temp))
-        return dfnames
-
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         '''
         shows all files possible if we don't have checkpoint files. should include temp files
@@ -293,30 +312,11 @@ class XmlMultiStreamDump(Dump):
         return dfnames
 
 
-class XmlRecompressDump(Dump):
+class XmlRecompressDump(RecompressDump):
     """Take a .bz2 and recompress it as 7-Zip."""
-
-    def __init__(self, subset, name, desc, detail, item_for_recompression, wiki,
-                 partnum_todo, parts=False, checkpoints=False, checkpoint_file=None):
-        self._subset = subset
-        self._detail = detail
-        self._parts = parts
-        if self._parts:
-            self._parts_enabled = True
-        self._partnum_todo = partnum_todo
-        self.wiki = wiki
-        self.item_for_recompression = item_for_recompression
-        if checkpoints:
-            self._checkpoints_enabled = True
-        self.checkpoint_file = checkpoint_file
-        self._prerequisite_items = [self.item_for_recompression]
-        Dump.__init__(self, name, desc)
 
     def get_dumpname(self):
         return "pages-" + self._subset
-
-    def get_filetype(self):
-        return "xml"
 
     def get_file_ext(self):
         return "7z"
@@ -488,26 +488,6 @@ class XmlRecompressDump(Dump):
         input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_dfname in input_dfnames:
             if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
-                continue
-            dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
-                                        inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
-                                        inp_dfname.checkpoint, inp_dfname.temp))
-        return dfnames
-
-    def list_outfiles_for_build_command(self, dump_dir, partnum=None):
-        '''
-        shows all files possible if we don't have checkpoint files. no temp files.
-        only the parts we are actually supposed to do (if there is a limit)
-        returns:
-            list of DumpFilename
-        '''
-        dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
-        for inp_dfname in input_dfnames:
-            # if this param is set it takes priority
-            if partnum and inp_dfname.partnum_int != partnum:
-                continue
-            elif self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
                 continue
             dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
                                         inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
