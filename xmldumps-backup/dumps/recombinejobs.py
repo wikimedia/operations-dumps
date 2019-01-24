@@ -608,6 +608,20 @@ class RecombineXmlMultiStreamDump(RecombineDump):
                 dump_dir, self.get_fileparts_list(), dump_names))
         return dfnames
 
+    def list_outfiles_to_publish(self, dump_dir):
+        """
+        returns:
+            list of DumpFilename
+        """
+        dfnames = []
+        dfnames.extend(Dump.list_outfiles_to_publish(
+            self, dump_dir, [self.get_dumpname_multistream(self.dumpname)]))
+        self.file_type = self.get_index_filetype()
+        dfnames.extend(Dump.list_outfiles_to_publish(
+            self, dump_dir, [self.get_dumpname_multistream_index(self.dumpname)]))
+        self.file_type = self.get_filetype()
+        return dfnames
+
     def run(self, runner):
         dfnames = self.item_for_recombine.list_outfiles_for_input(runner.dump_dir)
         content_dfnames = [dfname for dfname in dfnames if 'index' not in dfname.filename]
