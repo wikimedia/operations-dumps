@@ -297,13 +297,13 @@ class MiscDumpLoop():
 
         the number of failures and pending wikis are returned.
         '''
-        failures = 0
+        failures = []
         todos = 0
         for wikiname in self.args['config'].all_wikis_list:
             dump = MiscDumpOne(self.args, wikiname, self.flags, self.log)
             result = dump.do_one_wiki()
             if result == STATUS_FAILED:
-                failures = failures + 1
+                failures.append(wikiname)
             elif result == STATUS_TODO:
                 todos = todos + 1
         return (failures, todos)
@@ -326,8 +326,9 @@ class MiscDumpLoop():
                 break
             fails = fails + 1
             if fails > num_fails:
-                raise BackupError("Too many consecutive failures,"
-                                  "giving up")
+                raise BackupError("Too many consecutive failures, "
+                                  "giving up: last failures on "
+                                  ",".join(failures))
             time.sleep(300)
 
 
