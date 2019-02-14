@@ -6,6 +6,7 @@ dump jobs are defined here
 
 import os
 from os.path import exists
+import bz2
 import signal
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
@@ -463,38 +464,6 @@ class RecombineXmlMultiStreamDump(RecombineDump):
     def get_index_filetype(self):
         return "txt"
 
-    def get_multistream_content_dfname(self, runner, dfname, suffix=None):
-        """
-        assuming that dfname is an input file,
-        return the name of the associated multistream output file
-        args:
-            DumpFilename
-        returns:
-            DumpFilename
-        """
-        if suffix is not None:
-            file_ext = self.file_ext + suffix
-        else:
-            file_ext = self.file_ext
-        return DumpFilename(runner.wiki, dfname.date,
-                            self.get_dumpname_multistream(dfname.dumpname),
-                            dfname.file_type, file_ext, dfname.partnum,
-                            dfname.checkpoint, dfname.temp)
-
-    def get_multistream_index_dfname(self, runner, dfname):
-        """
-        assuming that dfname is a multistream output file,
-        return the name of the associated index file
-        args:
-            DumpFilename
-        returns:
-            DumpFilename
-        """
-        return DumpFilename(runner.wiki, dfname.date,
-                            self.get_dumpname_multistream_index(dfname.dumpname),
-                            self.get_index_filetype(), self.file_ext, dfname.partnum,
-                            dfname.checkpoint, dfname.temp)
-
     def get_filepath(self, runner, dfname):
         if runner.wiki.is_private():
             return runner.dump_dir.filename_private_path(dfname)
@@ -524,20 +493,34 @@ class RecombineXmlMultiStreamDump(RecombineDump):
         # the filter (mawk) command just adds something to the offset listed in that index file
         return offset + body_size
 
-    def get_index_filter_command(self, runner, input_dfname, offset):
-        bzip2_cmd = "{bzip2} -dc {infile}".format(
-            bzip2=runner.wiki.config.bzip2, infile=self.get_filepath(runner, input_dfname))
+    def do_one_indexfile_recombine(self, runner, input_dfnames, output_dfname):
+        '''
+        recombine index files to produce the specified output file
+        with the combined index file having the correct offsets into the
+        combined content file that is produced separately
 
-        mawk_cmd = "/usr/bin/mawk -F: 'BEGIN {{OFS=\":\"}} {{$1+={offset}; print $0 }}'".format(
-            offset=offset)
-        return "( {bzip2_cmd} | {mawk_cmd} )".format(bzip2_cmd=bzip2_cmd, mawk_cmd=mawk_cmd)
+        we do this without the usual progress callback that shows the file
+        size as it grows, because a) it's easier and b) as of this writing
+        it takes all of 2 minutes to write the combined index file so who cares.
 
-    def build_index_recombine_command(self, runner, input_dfnames, output_dfname):
-        commands = []
+        return False on error, True otherwise
+        '''
+        if not exists(runner.wiki.config.bzip2):
+            raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2)
+
+        # initially the offset into the combined page content file is 0 plus whatever
+        # the first index file says, for any page; this will change as we move into the
+        # part of the combined page content file that has the contents of the second
+        # page content part and the corresponding index file that has offsets starting
+        # again from 0, etc.
         offset = 0
 
         first_content_dfname = self.get_content_dfname_from_index(runner, input_dfnames[0])
         first_header_size = self.get_header_offset(self.get_filepath(runner, first_content_dfname))
+        output_prog_path = DumpFilename.get_inprogress_name(
+            self.get_filepath(runner, output_dfname))
+        combined_indexfile_inprog = bz2.open(output_prog_path, 'wt', encoding='utf-8')
+
         for infile_counter, input_dfname in enumerate(input_dfnames):
             content_dfname = self.get_content_dfname_from_index(runner, input_dfname)
             if infile_counter == 1:
@@ -547,20 +530,29 @@ class RecombineXmlMultiStreamDump(RecombineDump):
             else:
                 # include the header count from the first file, it gets written
                 header_size = 0
-            commands.append(self.get_index_filter_command(
-                runner, input_dfname, offset - header_size))
+            input_path = self.get_filepath(runner, input_dfname)
+            with bz2.open(input_path, mode='rt', encoding='utf-8') as partial_indexfile:
+                added_offset = offset - header_size
+                for line in partial_indexfile:
+                    if line:
+                        partial_offset, title = line.split(':', 1)
+                        partial_offset = str(int(partial_offset) + added_offset)
+                        # title will still have the newline on the end of it
+                        combined_indexfile_inprog.write(partial_offset + ":" + title)
             offset = self.get_new_offset(runner, content_dfname, offset)
-        recombine_command_string = "( " + " ; ".join(commands) + ") | {bzip2} > {output}".format(
-            bzip2=runner.wiki.config.bzip2, output=self.get_filepath(runner, output_dfname))
-        recombine_command = [recombine_command_string]
-        recombine_pipeline = [recombine_command]
-        series = [recombine_pipeline]
-        return series
+        combined_indexfile_inprog.close()
+        os.rename(output_prog_path, self.get_filepath(runner, output_dfname))
+        if self.move_if_truncated(runner, output_dfname):
+            return False
+        return True
 
     def index_files_recombine(self, runner, dfnames, output_dfnames):
-        if not exists(runner.wiki.config.bzip2):
-            raise BackupError("bzip2 command %s not found" % runner.wiki.config.bzip2)
-        error = 0
+        '''
+        recombine index files to produce specified output files
+        with the combined index file having the correct offsets into the
+        combined content file that is produced separately
+        '''
+        error = False
         for output_dfname in output_dfnames:
             input_dfnames = []
             if 'index' in output_dfname.filename:
@@ -570,16 +562,8 @@ class RecombineXmlMultiStreamDump(RecombineDump):
                 if not input_dfnames:
                     self.set_status("failed")
                     raise BackupError("No input files for %s found" % self.name())
-            command_series = self.build_index_recombine_command(
-                runner, input_dfnames, output_dfname)
-
-            self.setup_command_info(runner, command_series, [output_dfname])
-            result, _broken = runner.run_command(
-                [command_series], callback_timed=self.progress_callback,
-                callback_timed_arg=runner, shell=True,
-                callback_on_completion=self.command_completion_callback)
-            if result:
-                error = result
+            if not self.do_one_indexfile_recombine(runner, input_dfnames, output_dfname):
+                error = True
         if error:
             raise BackupError("error recombining multistream files")
 
