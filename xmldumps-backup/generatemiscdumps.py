@@ -90,7 +90,6 @@ class Index():
             if file_date:
                 files_text.append(
                     "%s: %s (size %s)<br />"
-                    # FIXME check that this link is correct
                     % (make_link(
                         os.path.join(
                             wikiname, dump_date,
@@ -326,8 +325,8 @@ class MiscDumpLoop():
                 break
             fails = fails + 1
             if fails > num_fails:
-                raise BackupError("Too many consecutive failures, "
-                                  "giving up: last failures on "
+                raise BackupError("Too many consecutive failures, " +
+                                  "giving up: last failures on " +
                                   ",".join(failures))
             time.sleep(300)
 
@@ -459,6 +458,28 @@ def get_flags(options):
     return flags
 
 
+def get_logger(logfile, loglevel):
+    '''
+    given a logfile name (may be None) and log level indicating
+    verbosity, get and return the logger we want
+    '''
+    if loglevel == 'verbose':
+        log_type = 'verbose'
+        console_level = 'INFO'
+    elif loglevel == 'quiet':
+        log_type = 'normal'
+        console_level = 'ERROR'
+    else:
+        log_type = 'normal'
+        console_level = 'WARNING'
+
+    setup_logging(logfile, console_level)
+    if logfile:
+        log_type += '_file'
+
+    return logging.getLogger(log_type)    # pylint: disable=invalid-name
+
+
 def main():
     '''
     entry point:
@@ -498,21 +519,7 @@ def main():
                 usage("Only one of --quiet or --verbose may be specified")
             loglevel = 'quiet'
 
-    if loglevel == 'verbose':
-        log_type = 'verbose'
-        console_level = 'INFO'
-    elif loglevel == 'quiet':
-        log_type = 'normal'
-        console_level = 'ERROR'
-    else:
-        log_type = 'normal'
-        console_level = 'WARNING'
-
-    setup_logging(standard_args['logfile'], console_level)
-    if standard_args['logfile']:
-        log_type += '_file'
-
-    log = logging.getLogger(log_type)    # pylint: disable=invalid-name
+    log = get_logger(standard_args['logfile'], loglevel)
 
     check_usage(flags, standard_args)
 
