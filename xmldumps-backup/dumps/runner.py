@@ -345,7 +345,7 @@ class Runner():
         for cmd in problem_commands:
             error_string = error_string + "%s " % cmd
             self.log_and_print(error_string)
-            return 1, commands.commands_with_errors(stringfmt=False)
+        return 1, commands.commands_with_errors(stringfmt=False)
 
     def run_command_pipeline(self, command_pipeline):
         """
