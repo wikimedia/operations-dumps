@@ -626,7 +626,8 @@ class XmlDump(Dump):
             batchsize = 1
         errors = False
         failed_commands = []
-        max_retries = self.wiki.config.max_retries
+        # max_retries = self.wiki.config.max_retries
+        max_retries = 3
         retries = 0
         while commands and (retries < max_retries or retries == 0):
             command_batch = commands[:batchsize]
@@ -642,9 +643,9 @@ class XmlDump(Dump):
                 failed_commands.append(broken)
                 errors = True
             commands = commands[batchsize:]
-            if not commands:
-                if failed_commands:
-                    retries += 1
+            if not commands and failed_commands:
+                retries += 1
+                if retries < max_retries:
                     # retry failed commands
                     commands = failed_commands
                     failed_commands = []
