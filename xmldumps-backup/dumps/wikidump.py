@@ -308,8 +308,6 @@ class Config():
             "chunks", "checkpointTime", 1)
         self.revs_per_job = self.get_opt_for_proj_or_default(
             "chunks", "revsPerJob", 1)
-        self.max_retries = self.get_opt_for_proj_or_default(
-            "chunks", "maxRetries", 1)
         self.retry_wait = self.get_opt_for_proj_or_default(
             "chunks", "retryWait", 1)
         self.revs_margin = self.get_opt_for_proj_or_default(
@@ -338,6 +336,7 @@ class Config():
             self.conf.add_section('misc')
         self.sevenzip_prefetch = self.get_opt_in_overrides_or_default("misc", "sevenzipprefetch", 0)
         self.sevenzip_prefetch = int(self.sevenzip_prefetch, 0)
+        self.max_retries = self.get_opt_for_proj_or_default("misc", "maxRetries", 1)
 
     def db_latest_status(self):
         '''

@@ -59,8 +59,7 @@ class PublicTable(Dump):
                                 os.path.join(output_dir, runner.wiki.date))
 
         retries = 0
-        # try this initially and see how it goes
-        maxretries = 3
+        maxretries = runner.wiki.config.max_retries
         error, _broken = self.save_table(runner, command_series)
         while error and retries < maxretries:
             retries = retries + 1
@@ -115,8 +114,7 @@ class TitleDump(Dump):
 
     def run(self, runner):
         retries = 0
-        # try this initially and see how it goes
-        maxretries = 3
+        maxretries = runner.wiki.config.max_retries
         query = "select page_title from page where page_namespace=0;"
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(dfnames) > 1:
@@ -156,7 +154,7 @@ class AllTitleDump(TitleDump):
 
     def run(self, runner):
         retries = 0
-        maxretries = 3
+        maxretries = runner.wiki.config.max_retries
         query = "select page_namespace, page_title from page;"
         dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
         if len(dfnames) > 1:

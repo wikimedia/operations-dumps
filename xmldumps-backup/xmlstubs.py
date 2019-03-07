@@ -33,7 +33,7 @@ def get_revs_per_page_interval(page_id_start, interval, wiki, db_info):
                  page_id_start, page_id_start + interval))
     results = None
     retries = 0
-    maxretries = 5
+    maxretries = wiki.config.max_retries
     end = 0
     results = db_info.run_sql_and_get_output(query)
     if results:

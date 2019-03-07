@@ -62,7 +62,7 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
                 outfiles[filetype]['process'] = outfiles[filetype]['compr'][0](
                     outfiles[filetype]['compr'][1])
 
-        do_xml_piece(piece_command, outfiles, dryrun=dryrun, verbose=verbose)
+        do_xml_piece(piece_command, outfiles, wikiconf, dryrun=dryrun, verbose=verbose)
         if not dryrun:
             for filetype in outfiles:
                 outfiles[filetype]['process'].stdin.close()
@@ -77,7 +77,7 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
                 outfiles[filetype]['process'] = outfiles[filetype]['compr'][0](
                     outfiles[filetype]['compr'][1])
 
-        do_xml_piece(piece_command, outfiles, dryrun=dryrun, verbose=verbose)
+        do_xml_piece(piece_command, outfiles, wikiconf, dryrun=dryrun, verbose=verbose)
         if not dryrun:
             for filetype in outfiles:
                 outfiles[filetype]['process'].stdin.close()
@@ -106,7 +106,7 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
             else:
                 piece_command.extend(["--end", str(end + 1)])
             upto = upto + interval
-            do_xml_piece(piece_command, outfiles, ends_with, dryrun=dryrun, verbose=verbose)
+            do_xml_piece(piece_command, outfiles, wikiconf, ends_with, dryrun=dryrun, verbose=verbose)
 
         if not dryrun:
             for filetype in outfiles:
@@ -203,7 +203,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
         id_field, db_info.db_table_prefix, table)
     results = None
     retries = 0
-    maxretries = 5
+    maxretries = wiki.config.max_retries
     end = 0
     results = db_info.run_sql_and_get_output(query)
     if results:
@@ -232,7 +232,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
         return end
 
 
-def do_xml_piece(command, outfiles, ends_with=None, dryrun=False, verbose=False):
+def do_xml_piece(command, outfiles, wikiconf, ends_with=None, dryrun=False, verbose=False):
     '''
     do one piece of a logs dump, output going uncompressed
     to a temporary file and the that file being shovelled
@@ -251,7 +251,7 @@ def do_xml_piece(command, outfiles, ends_with=None, dryrun=False, verbose=False)
         sys.stderr.write("running command: %s\n" % " ".join(command))
 
     retries = 0
-    maxretries = 3
+    maxretries = wikiconf.max_retries
     timeout = 60
     while retries < maxretries:
         try:

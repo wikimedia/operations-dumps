@@ -332,7 +332,7 @@ class PageAndEditStats():
         query = "select MAX(page_id) from %spage;" % self.db_server_info.db_table_prefix
         results = None
         retries = 0
-        maxretries = 5
+        maxretries = self.wiki.config.max_retries
         results = self.db_server_info.run_sql_and_get_output(query)
         while results is None and retries < maxretries:
             retries = retries + 1
