@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import configparser
 import os
+import json
 import re
 import socket
 import sys
@@ -11,100 +12,18 @@ import yaml
 
 from dumps.report import StatusHtml
 from dumps.fileutils import FileUtils
-from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand
+from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand, MultiVersion
 
 
-class Config():
+class ConfigParsing():
+    """
+    a few methods for parsing configs with overrides based
+    on various section names, including especially wiki
+    project names
+    """
     def __init__(self, config_file=None):
         self.project_name = None
-        self.db_user = None
-        self.db_password = None
         self.override_section = None
-
-        home = os.path.dirname(sys.argv[0])
-        if config_file and ':' in config_file:
-            config_file, self.override_section = config_file.split(':')
-
-        if not config_file:
-            config_file = "wikidump.conf"
-        self.files = [
-            os.path.join(home, config_file),
-            "/etc/wikidump.conf"
-        ]
-        home = os.getenv("HOME")
-        if home is not None:
-            self.files.append(os.path.join(os.getenv("HOME"),
-                                           ".wikidump.conf"))
-
-        self.conf = configparser.ConfigParser(strict=False)
-        with open('defaults.conf') as defaults_fp:
-            self.conf.read_file(defaults_fp)
-        self.conf.read(self.files)
-
-        if not self.conf.has_section("wiki"):
-            print("The mandatory configuration section 'wiki' was not defined.")
-            raise configparser.NoSectionError('wiki')
-
-        if not self.conf.has_option("wiki", "dir"):
-            print("The mandatory setting 'dir' in the section 'wiki' was not defined.")
-            raise configparser.NoOptionError('wiki', 'dir')
-
-        self.parse_conffile_overrideables()
-        self.parse_conffile_globally()
-        self.parse_conffile_per_project()
-        # get from MW adminsettings file if not set in conf file
-        if not self.db_user:
-            self.db_user, self.db_password = Config.get_db_user_and_password(
-                self.conf, self.wiki_dir)
-
-    @staticmethod
-    def parse_php_assignment(line):
-        # not so much parse as grab a string to the right of the equals sign,
-        # we expect a line that has  ... = "somestring" ;
-        # with single or double quotes, spaes or not.  but nothing more complicated.
-        equalspattern = r"=\s*(\"|')(.+)(\"|')\s*;"
-        result = re.search(equalspattern, line)
-        if result:
-            return result.group(2)
-        return ""
-
-    @staticmethod
-    def get_db_user_and_password(conf, wiki_dir):
-        # check MW adminsettings file for these,
-        # failing that we fall back on defaults specified here
-
-        default_dbuser = "root"
-        default_dbpassword = ""
-
-        if not conf.has_option("wiki", "adminsettings"):
-            db_user = default_dbuser
-            db_password = default_dbpassword
-            return db_user, db_password
-
-        adminfhandle = open(os.path.join(wiki_dir, conf.get("wiki", "adminsettings")), "r")
-        lines = adminfhandle.readlines()
-        adminfhandle.close()
-
-        # we are digging through a php file and expecting to find
-        # lines more or less like the below.. anything more complicated we're not going to handle.
-        # $wgDBadminuser = 'something';
-        # $wgDBuser = $wgDBadminuser = "something" ;
-
-        for line in lines:
-            if "$wgDBadminuser" in line:
-                db_user = Config.parse_php_assignment(line)
-            elif "$wgDBuser" in line:
-                default_dbuser = Config.parse_php_assignment(line)
-            elif "$wgDBadminpassword" in line:
-                db_password = Config.parse_php_assignment(line)
-            elif "$wgDBpassword" in line:
-                default_dbpassword = Config.parse_php_assignment(line)
-
-        if not db_user:
-            db_user = default_dbuser
-        if not db_password:
-            db_password = default_dbpassword
-        return db_user, db_password
 
     def get_opt_from_sections(self, sections_to_check, item_name, is_int):
         """
@@ -150,6 +69,69 @@ class Config():
         return self.get_opt_from_sections(
             [self.project_name, self.override_section, section_name],
             item_name, is_int)
+
+    def get_db_creds(self):
+        """
+        try to get db credentials from the project (wiki) section of
+        the config, if there is one, or from the database section of the
+        config, if they are there
+        if no dbuser is set in the config, set user to None and caller
+        may fill it and the password in with other means
+        if a dbuser is set in the config and no password is specified
+        in the config file, treat this as an empty password and set
+        creds accordingly
+        """
+        dbuser = self.get_opt_for_proj_or_default("database", "user", 0)
+        self.db_user = None
+        self.db_password = None
+        if dbuser:
+            self.db_user = dbuser
+        dbpassword = self.get_opt_for_proj_or_default("database", "password", 0)
+        if dbpassword:
+            self.db_password = dbpassword
+        elif self.db_user:
+            # this is a bad idea! but for testing some folks may have an empty password
+            self.db_password = ""
+
+
+class Config(ConfigParsing):
+    """
+    management of general config settings and
+    potentially specific settings for a given wiki
+    """
+    def __init__(self, config_file=None):
+        super().__init__()
+        home = os.path.dirname(sys.argv[0])
+        if config_file and ':' in config_file:
+            config_file, self.override_section = config_file.split(':')
+
+        if not config_file:
+            config_file = "wikidump.conf"
+        self.files = [
+            os.path.join(home, config_file),
+            "/etc/wikidump.conf"
+        ]
+        home = os.getenv("HOME")
+        if home is not None:
+            self.files.append(os.path.join(os.getenv("HOME"),
+                                           ".wikidump.conf"))
+
+        self.conf = configparser.ConfigParser(strict=False)
+        with open('defaults.conf') as defaults_fp:
+            self.conf.read_file(defaults_fp)
+        self.conf.read(self.files)
+
+        if not self.conf.has_section("wiki"):
+            print("The mandatory configuration section 'wiki' was not defined.")
+            raise configparser.NoSectionError('wiki')
+
+        if not self.conf.has_option("wiki", "dir"):
+            print("The mandatory setting 'dir' in the section 'wiki' was not defined.")
+            raise configparser.NoOptionError('wiki', 'dir')
+
+        self.parse_conffile_overrideables()
+        self.parse_conffile_globally()
+        self.parse_conffile_per_project()
 
     def get_skipdbs(self, filenames):
         """
@@ -267,12 +249,8 @@ class Config():
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
 
-        dbuser = self.get_opt_for_proj_or_default("database", "user", 0)
-        if dbuser:
-            self.db_user = dbuser
-        dbpassword = self.get_opt_for_proj_or_default("database", "password", 0)
-        if dbpassword:
-            self.db_password = dbpassword
+        self.get_db_creds()
+
         max_allowed_packet = self.get_opt_for_proj_or_default(
             "database", "max_allowed_packet", 0)
         if max_allowed_packet:
@@ -466,6 +444,36 @@ class Wiki():
         self.db_name = db_name
         self.date = None
         self.watchdog = None
+        # pick up config settings for this wiki if needed
+        self.config.parse_conffile_per_project(db_name)
+        if self.config.db_user is not None:
+            # grab the config file values
+            self.db_user = self.config.db_user
+            if self.config.db_password is not None:
+                self.db_password = self.config.db_password
+        else:
+            # ask mediawiki to provide these for us
+            self.db_user, self.db_password = self.get_db_user_and_password()
+
+    def get_db_user_and_password(self):
+        # get these by running a MediaWiki maintenance script;
+        # yes, this means you need a full installation of MediaWiki
+        # (but not web service) in order to use these methods
+
+        command_list = MultiVersion.mw_script_as_array(self.config, "getConfiguration.php")
+        pull_vars = ["wgDBuser", "wgDBpassword"]
+        command = "{php} {command} --wiki={dbname} --format=json --regex='{vars}'"
+        command = command.format(
+            php=MiscUtils.shell_escape(self.config.php),
+            command=" ".join(command_list),
+            dbname=MiscUtils.shell_escape(self.db_name),
+            vars="|".join(pull_vars))
+        results = RunSimpleCommand.run_with_output(command, shell=True).strip()
+        settings = json.loads(results.decode('utf-8'))
+        db_user = settings['wgDBuser']
+        db_password = settings['wgDBpassword']
+
+        return db_user, db_password
 
     def is_private(self):
         return self.db_name in self.config.private_list

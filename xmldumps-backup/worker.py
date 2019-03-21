@@ -40,7 +40,6 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
         return True
 
     wiki.set_date(date)
-    wiki.config.parse_conffile_per_project(wiki.db_name)
 
     runner = Runner(wiki, prefetch=prefetch, prefetchdate=prefetchdate, spawn=spawn, job=job,
                     skip_jobs=skipjobs, restart=restart, notice=html_notice, dryrun=dryrun,
@@ -429,9 +428,6 @@ def main():
                                        partnum_todo, checkpoint_file, skipdone, restart, verbose)
 
         if wiki is not None and wiki:
-            # process any per-project configuration options
-            config.parse_conffile_per_project(wiki.db_name)
-
             if date == 'last':
                 dumps = sorted(wiki.dump_dirs())
                 if dumps:

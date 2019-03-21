@@ -14,7 +14,7 @@ import fcntl
 import configparser
 import logging
 import logging.config
-from dumps.wikidump import FileUtils, MiscUtils, Config
+from dumps.wikidump import FileUtils, MiscUtils, ConfigParsing
 from dumps.utils import DbServerInfo, RunSimpleCommand
 
 
@@ -402,12 +402,12 @@ class MiscDumpLock():
         os.utime(self.lockfile.get_path(), (now, now))
 
 
-class MiscDumpConfig():
+class MiscDumpConfig(ConfigParsing):
     '''
     configuration information for dumps
     '''
     def __init__(self, defaults=None, config_file=None):
-        self.project_name = False
+        super().__init__()
 
         home = os.path.dirname(sys.argv[0])
         if config_file is None:
@@ -462,25 +462,36 @@ class MiscDumpConfig():
         self.mysql = self.conf.get("tools", "mysql")
         self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
         self.multiversion = self.conf.get("wiki", "multiversion")
-        self.adminsettings = self.conf.get("tools", "adminsettings")
 
         if not self.conf.has_section('cleanup'):
             self.conf.add_section('cleanup')
         self.keep = self.conf.getint("cleanup", "keep")
 
-        self.db_user = None
-        self.db_password = None
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
-        if self.conf.has_option('database', 'user'):
-            self.db_user = self.conf.get("database", "user")
-        if self.conf.has_option('database', 'password'):
-            self.db_password = self.conf.get("database", "password")
-        # get from MW adminsettings file if not set in conf file
-        if not self.db_user:
-            self.db_user, self.db_password = Config.get_db_user_and_password(
-                self.conf, self.wiki_dir)
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
+
+        self.get_db_creds()
+
+    def parse_conffile_per_project(self, project_name=None):
+        if project_name:
+            self.project_name = project_name
+
+        if not self.conf.has_section('wiki'):
+            self.conf.add_section('wiki')
+        self.wiki_dir = self.get_opt_for_proj_or_default("wiki", "mediawiki", 0)
+
+        dbuser = self.get_opt_for_proj_or_default("database", "user", 0)
+        self.db_user = None
+        self.db_password = None
+        if dbuser:
+            self.db_user = dbuser
+        dbpassword = self.get_opt_for_proj_or_default("database", "password", 0)
+        if dbpassword:
+            self.db_password = dbpassword
+        elif self.db_user:
+            # this is a bad idea! but for testing some folks may have an empty password
+            self.db_password = ""
 
     def read_template(self, name):
         '''
@@ -593,7 +604,6 @@ def get_config_defaults():
         "closedwikislist": "",
         "skipwikislist": "",
         "mediawiki": "",
-        "adminsettings": "",
         # "output": {
         "dumpdir": "/dumps/public/misc",
         "templatedir": "/dumps/templates",
@@ -604,7 +614,6 @@ def get_config_defaults():
         "delay": "3600",
         "lockstale": "300",
         # "database": {
-        # moved defaults to get_db_user_and_password
         "max_allowed_packet": "16M",
         # "tools": {
         "php": "/bin/php",

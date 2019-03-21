@@ -167,7 +167,7 @@ class DbServerInfo():
         params = ["-h", "%s" % host]  # Host
         if self.db_port:
             params += ["--port", self.db_port]
-        params += ["-u", self.wiki.config.db_user, self.password_option()]
+        params += ["-u", self.wiki.db_user, self.password_option()]
         params += ["--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet]
         return params
 
@@ -229,9 +229,9 @@ class DbServerInfo():
     def password_option(self):
         """If you pass '-pfoo' mysql uses the password 'foo',
         but if you pass '-p' it prompts. Sigh."""
-        if self.wiki.config.db_password == "":
+        if self.wiki.db_password == "":
             return None
-        return "-p" + self.wiki.config.db_password
+        return "-p" + self.wiki.db_password
 
 
 class RunSimpleCommand():

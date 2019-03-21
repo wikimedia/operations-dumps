@@ -168,7 +168,6 @@ class WikiRunner():
                  filenameformat, output_dir,
                  base):
         self.wiki = wiki
-        self.wiki.config.parse_conffile_per_project(wiki.db_name)
         self.runner = runner
         self.filenameformat = filenameformat
         self.output_dir = output_dir
@@ -467,8 +466,6 @@ def do_main():
     if basename is not None:
         base = Wiki(config, basename)
         base.set_date(date)
-        if base is not None:
-            base.config.parse_conffile_per_project(base.db_name)
     else:
         base = None
 
