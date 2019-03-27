@@ -336,6 +336,8 @@ class Config():
             self.conf.add_section('misc')
         self.sevenzip_prefetch = self.get_opt_in_overrides_or_default("misc", "sevenzipprefetch", 0)
         self.sevenzip_prefetch = int(self.sevenzip_prefetch, 0)
+        self.lbzip2forhistory = self.get_opt_in_overrides_or_default("misc", "lbzip2forhistory", 0)
+        self.lbzip2forhistory = int(self.lbzip2forhistory, 0)
         self.max_retries = self.get_opt_for_proj_or_default("misc", "maxRetries", 1)
 
     def db_latest_status(self):

@@ -672,12 +672,18 @@ class XmlDump(Dump):
         else:
             xmlbz2_path = runner.dump_dir.filename_public_path(input_dfname)
 
-        if not exists(self.wiki.config.bzip2):
-            raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
-        if self.wiki.config.bzip2[-6:] == "dbzip2":
+        if 'history' in self.jobinfo['subset'] and runner.wiki.config.lbzip2forhistory:
+            # we will use lbzip2 for compression of pages-meta-history for this wiki
+            # if configured
+            bz2mode = "lbzip2"
+            if not exists(self.wiki.config.lbzip2):
+                raise BackupError("lbzip2 command %s not found" % self.wiki.config.lbzip2)
+        elif self.wiki.config.bzip2[-6:] == "dbzip2":
             bz2mode = "dbzip2"
         else:
             bz2mode = "bzip2"
+            if not exists(self.wiki.config.bzip2):
+                raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
         return "--output=%s:%s" % (bz2mode, DumpFilename.get_inprogress_name(xmlbz2_path))
 
     def build_command(self, runner, stub_dfname, prefetch, output_dfname):
