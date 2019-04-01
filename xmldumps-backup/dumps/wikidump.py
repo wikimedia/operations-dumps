@@ -417,7 +417,7 @@ class Config(ConfigParsing):
                 contents = open(self.tablejobs).read()
             else:
                 contents = open("default_tables.yaml").read()
-            return yaml.load(contents)
+            return yaml.safe_load(contents)
         except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             sys.stderr.write(repr(traceback.format_exception(
@@ -430,7 +430,7 @@ class Config(ConfigParsing):
                 contents = open(self.apijobs).read()
             else:
                 contents = open("default_api.yaml").read()
-            return yaml.load(contents)
+            return yaml.safe_load(contents)
         except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             sys.stderr.write(repr(traceback.format_exception(
