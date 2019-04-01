@@ -104,7 +104,7 @@ class DbServerInfo():
         """
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
-        command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getSlaveServer.php")
+        command_list = MultiVersion.mw_script_as_array(self.wiki.config, "getReplicaServer.php")
         command = "{php} {command} --wiki={dbname} --group=dump".format(
             php=MiscUtils.shell_escape(self.wiki.config.php),
             command=" ".join(command_list),
