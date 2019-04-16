@@ -343,8 +343,8 @@ class DumpRunJobData():
                 self.symlinks.save_symlink(dfname)
                 self.feeds.save_feed(dfname)
                 self.checksummer.checksums(dfname, self)
-                self.symlinks.cleanup_symlinks()
-                self.feeds.cleanup_feeds()
+        self.symlinks.cleanup_symlinks()
+        self.feeds.cleanup_feeds()
         self.runinfo.save_dump_runinfo(
             RunInfo.report_dump_runinfo(dump_items))
 
