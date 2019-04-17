@@ -46,9 +46,12 @@ def do_abstractsbackup(wikidb, output_files, variants,
     abstract_cmd_dir = wikiconf.wiki_dir
     if version:
         abstract_cmd_dir = abstract_cmd_dir + "/" + version
-    abstract_filter = ("--plugin=AbstractFilter:"
-                       "%s/extensions/ActiveAbstract/AbstractFilter.php"
-                       % abstract_cmd_dir)
+    filter_path = os.path.join(abstract_cmd_dir, "extensions/ActiveAbstract/AbstractFilter.php")
+    if not os.path.exists(filter_path):
+        filter_path = os.path.join(abstract_cmd_dir,
+                                   "extensions/ActiveAbstract/includes/AbstractFilter.php")
+    abstract_filter = ("--plugin=AbstractFilter:" + filter_path)
+
     command.extend(["--wiki=%s" % wikidb, abstract_cmd_dir,
                     abstract_filter,
                     "--current", "--report=1000"])
