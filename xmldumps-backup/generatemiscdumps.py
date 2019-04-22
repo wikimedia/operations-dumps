@@ -197,17 +197,6 @@ class MiscDumpOne():
         self.dumper = dump_class(self.wiki, self.log, flags['dryrun'],
                                  self.args['args'])
 
-    def is_most_recent(self):
-        '''
-        return True if there are no runs for the given wiki more recent
-        than the current run date, otherwise False
-        '''
-        dumps_dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name, self.log)
-        dirs = dumps_dirs.get_misc_dumpdirs()
-        if not dirs or dirs[-1] > self.wiki.date:
-            return False
-        return True
-
     def do_one_wiki(self):
         '''
         run dump of specified type for one wiki, for given date
@@ -260,10 +249,6 @@ class MiscDumpOne():
                         return STATUS_FAILED
                     status_info.set_status("done:" + self.dumper.get_steps_done())
                     lock.unlock_if_owner()
-
-                if self.flags['do_index'] and self.is_most_recent():
-                    index = Index(self.flags['dryrun'], self.args, self.log)
-                    index.do_all_wikis()
             except Exception as ex:
                 self.log.warning("error from dump run"
                                  " for wiki %s", self.wiki.db_name, exc_info=ex)
@@ -286,6 +271,18 @@ class MiscDumpLoop():
         self.flags = flags
         self.log = log
 
+    def is_most_recent_run(self):
+        '''
+        return True if there are no runs on any wikis more recent
+        than the current run date, otherwise False
+        '''
+        for wikiname in self.args['config'].all_wikis_list:
+            dumps_dirs = MiscDumpDirs(self.args['config'], wikiname, self.log)
+            dirs = dumps_dirs.get_misc_dumpdirs()
+            if not dirs or dirs[-1] > self.args['date']:
+                return False
+        return True
+
     def do_run_on_all_wikis(self):
         '''
         run dump of given type on all wikis for given date; some
@@ -305,6 +302,13 @@ class MiscDumpLoop():
                 failures.append(wikiname)
             elif result == STATUS_TODO:
                 todos = todos + 1
+            # temporary wait, to avoid existing runs without this fix finishing
+            # after new runs that have it; in subsequent patches the sleep will
+            # be reduced in 30 second intervals until it's gone
+            time.sleep(120)
+        if self.flags['do_index'] and self.is_most_recent_run():
+            index = Index(self.flags['dryrun'], self.args, self.log)
+            index.do_all_wikis()
         return (failures, todos)
 
     def do_all_wikis_til_done(self, num_fails):
@@ -532,6 +536,12 @@ def main():
     if wikiname is not None:
         dump_one = MiscDumpOne(standard_args, wikiname, flags, log)
         dump_one.do_one_wiki()
+        # we won't dump them all but we want to rebuild the index as if
+        # we did
+        dump_all = MiscDumpLoop(standard_args, flags, log)
+        if flags['do_index'] and dump_all.is_most_recent_run():
+            index = Index(flags['dryrun'], dump_all.args, log)
+            index.do_all_wikis()
     else:
         dump_all = MiscDumpLoop(standard_args, flags, log)
         dump_all.do_all_wikis_til_done(3)
