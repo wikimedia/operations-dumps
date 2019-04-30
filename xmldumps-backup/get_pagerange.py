@@ -82,7 +82,8 @@ def do_main():
     wiki_config.parse_conffile_per_project(wikiname)
 
     prange = PageRange(QueryRunner(wikiname, wiki_config, verbose), verbose)
-    ranges = prange.get_pageranges_for_revs(start, end, wiki_config.revs_per_job)
+    ranges = prange.get_pageranges_for_revs(start, end, wiki_config.revs_per_job,
+                                            wiki_config.maxrevbytes)
 
     print(json.dumps(jsonify(ranges, 0)))  # skip zero-padding, who cares
 

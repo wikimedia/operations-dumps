@@ -36,6 +36,21 @@ def get_count_from_output(sqloutput):
     return None
 
 
+def get_length_from_output(sqloutput):
+    """
+    given sql query output,
+    return the single integer value we expect from it
+    """
+    lines = sqloutput.splitlines()
+    if lines and lines[1]:
+        if lines[1] == b'NULL':
+            return 0
+        if not lines[1].isdigit():
+            return None   # probably NULL or missing table
+        return int(lines[1])
+    return None
+
+
 def get_estimate_from_output(sqloutput):
     """
     dig out the estimated number or rows form sql output
@@ -108,6 +123,28 @@ class QueryRunner():
             sys.exit(1)
         return revcount
 
+    def get_length(self, page_start, page_end):
+        """
+        get cumulative byte count of all revisions for the pages
+        starting from page_start and ending with page_end,
+        and return it
+        """
+        query = ("select sum(rev_len) from revision where "
+                 "rev_page >= {start} and rev_page < {end}".format(
+                     start=page_start, end=page_end))
+        queryout = self.db_info.run_sql_query_with_retries(query)
+        if queryout is None:
+            print("unexpected output from sql query, giving up:")
+            print(query, queryout)
+            sys.exit(1)
+
+        revlength = get_length_from_output(queryout)
+        if revlength is None:
+            print("unexpected output from sql query, giving up:")
+            print(query, queryout)
+            sys.exit(1)
+        return revlength
+
     def get_estimate(self, page_start, page_end):
         """
         get estimate of number of revisions (via explain)
@@ -166,7 +203,7 @@ class PageRange():
                 break
             numjobs_left = numjobs - jobnum + 1
             interval = int((self.total_pages - page_start) / numjobs_left) + 1
-            (start, end) = self.get_pagerange(page_start, numrevs,
+            (start, end) = self.get_pagerange(page_start, numrevs, None,
                                               page_start + interval, prevguess)
             page_start = end + 1
             prevguess = end
@@ -177,12 +214,13 @@ class PageRange():
                 break
         return ranges
 
-    def get_pageranges_for_revs(self, page_start, page_end, numrevs):
+    def get_pageranges_for_revs(self, page_start, page_end, numrevs, maxbytes):
         '''
         get and return list of tuples consisting of page id start and end
         which should each, if dumped (full history content dumps) contain about
-        the specified number of revisions, and thus run in something close
-        to the same time
+        the specified number of revisions (with maxbytes as a hard cutoff to the
+        total byte count of the revisions), and thus run in something
+        close to the same time
         numrevs    -- number of revisions (approx) for each page range to contain
         page_start -- don't start at page 1, start at this page instead
         page_end   -- don't end with last page, end at this page instead
@@ -217,8 +255,10 @@ class PageRange():
                 # the endpoint returned
                 numjobs_left = 1
             interval = int((page_end - page_start) / numjobs_left) + 1
-            (start, end) = self.get_pagerange(page_start, numrevs,
+            (start, end) = self.get_pagerange(page_start, numrevs, maxbytes,
                                               page_start + interval, prevguess)
+            if self.verbose:
+                print("DEBUG!! page range decided is", start, "to", end)
             page_start = end + 1
             prevguess = end
             if end > page_end:
@@ -263,7 +303,116 @@ class PageRange():
             total += count
         return total
 
-    def get_pagerange(self, page_start, numrevs, badguess, prevguess):
+    def get_revbytes(self, page_start, page_end, estimate):
+        """
+        for the given page range, get the cumulative revision byte count,
+        running multiple queries so we don't make the servers sad
+        the number of queries is based on the estimated number
+        of revs passed in ("estimate"), where we try not to run
+        a query that will result in more than 50k revs being
+        summed up. Key word being "try".  In some cases a page
+        all by itself may have hundreds of thousands of revs,
+        that's the breaks
+
+        args:
+           page_start, page_end: numbers
+           estimate: number
+        """
+        total = 0
+        maxtodo = 50000
+
+        if estimate is None:
+            runstodo = 2
+        else:
+            runstodo = int(estimate / maxtodo) + 1
+        # let's say minimum pages per job is 1, that's
+        # quite reasonable (in the case where some pages
+        # have many many revisions
+        step = int((page_end - page_start) / runstodo) + 1
+        ends = list(range(page_start, page_end, step))
+
+        if ends[-1] != page_end:
+            ends.append(page_end)
+        interval_start = ends.pop(0)
+
+        for interval_end in ends:
+            revbytes = self.qrunner.get_length(interval_start, interval_end)
+            interval_start = interval_end + 1
+            total += revbytes
+        return total
+
+    def adjust_pagerange_for_revbytes(self, page_start, page_end, total_revs, maxbytes):
+        """
+        """
+        # don't do a check, return what we got
+        if maxbytes is None:
+            return page_end
+
+        if total_revs <= 50000:
+            estimate = None
+        else:
+            estimate = total_revs
+        if self.verbose:
+            print("adjust pagerange for revbytes, start page_id",
+                  page_start, "end page_id:", page_end, "estimate:", estimate)
+        revbytes = self.get_revbytes(page_start, page_end, estimate)
+
+        interval_end = page_end
+        incr = int((page_end - page_start) / 2)
+
+        while True:
+            # someday the pages will be so huge that 16 pages and all their revisions
+            # in one file will be too many. but not today.
+            if page_end - page_start <= 16:
+                # things are too large. set the minimum interval of 16 pages and return.
+                return page_start + 16
+
+            if incr <= 16:
+                # can't do better than this, give up
+                return interval_end
+
+            if revbytes <= maxbytes:
+                # we're in the byte limit and so done
+                return interval_end
+
+            if self.verbose:
+                print("adjust pagerange for revbytes loop, start page_id",
+                      page_start, "interval_end:", interval_end, "revbytes:",
+                      revbytes, "incr:", incr)
+
+            interval_end = interval_end - incr
+            incr = int(incr / 2)
+            # estimate may be too large, we don't care, that just means more jobs
+            # will run than needed
+            revbytes = self.get_revbytes(page_start, interval_end, estimate)
+            if revbytes > maxbytes:
+                continue
+
+            # we are less than maxbytes, but by how much? is it worth it
+            # to try to fine tune? I'll say that if we are within 10% it's good
+            # enough
+            if (maxbytes - revbytes) / maxbytes >= 0.9:
+                # no fine tuning needed, let the loop kick us out on the
+                # next pass through
+                continue
+
+            while (maxbytes > revbytes and incr > 16 and interval_end - page_start > 16 and
+                   (maxbytes - revbytes) / maxbytes < 0.9):
+                # estimate may be too large, we don't care, that just means more jobs
+                # will run than needed
+                if self.verbose:
+                    print("under maxrevbytes, fine tune: maxbytes:", maxbytes,
+                          "revbytes:", revbytes, "incr:", incr)
+                interval_end = interval_end + incr
+                incr = int(incr / 2)
+                revbytes = self.get_revbytes(page_start, interval_end, estimate)
+                if maxbytes < revbytes:
+                    interval_end = interval_end - incr
+                    incr = int(incr / 2)
+                    # let the main loop take care of it
+                    break
+
+    def get_pagerange(self, page_start, numrevs, maxbytes, badguess, prevguess):
         """
         given starting page, number of revisions desired for the page
         range, the current end of range guess and the previous guess,
@@ -290,19 +439,23 @@ class PageRange():
                 print("estimate is", estimate, "revcount is", revcount,
                       "and numrevs is", numrevs)
 
-            interval = int(abs(prevguess - badguess) / 2)
-            if not interval:
+            margin = abs(revcount - numrevs)
+            if margin <= self.qrunner.wiki.config.revs_margin or abs(prevguess - badguess) <= 2:
+                badguess = self.adjust_pagerange_for_revbytes(page_start, badguess,
+                                                              numrevs, maxbytes)
                 return (page_start, badguess)
 
-            # set 1 page as an absolute minimum in a query
-            if badguess - page_start <= 1:
-                return (page_start, badguess)
+            interval = int(abs(prevguess - badguess) / 2)
 
             prevguess = badguess
 
-            margin = abs(revcount - numrevs)
-            if margin <= self.qrunner.wiki.config.revs_margin:
+            # set 1 page as an absolute minimum in a query, even if revcount is too large
+            if badguess - page_start <= 1:
+                if self.verbose:
+                    print("badguess:", badguess, "page_start:", page_start,
+                          "stopping here with guess")
                 return (page_start, badguess)
+
             if self.verbose:
                 print("revcount is greater than allowed margin from numrevs")
 
@@ -626,7 +779,7 @@ def do_pageranges(prange, range_opts, pad, jsonfmt):
             print(pages_per_job)
     else:
         ranges = prange.get_pageranges_for_revs(range_opts['start'], range_opts['end'],
-                                                range_opts['revs'])
+                                                range_opts['revs'], range_opts['maxbytes'])
         if jsonfmt:
             print(json.dumps(jsonify(ranges, pad)))
         else:
@@ -640,15 +793,15 @@ def do_main():
     """
     main entry point
     """
-    range_opts = {'jobs': None, 'revs': None, 'start': None, 'end': None}
+    range_opts = {'jobs': None, 'revs': None, 'start': None, 'end': None, 'maxbytes': None}
     wiki = None
     configpath = "wikidump.conf"
     jsonfmt = False
     verbose = False
     pad = 0
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:w:j:s:e:r:p:vh",
-                                                 ["configfile=", "wiki=", "jobs=",
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:w:j:s:e:m:r:p:vh",
+                                                 ["configfile=", "wiki=", "jobs=", "maxbytes=",
                                                   "pagestart=", "pageend=", "revs=",
                                                   "pad=", "json", "verbose", "help"])
     except getopt.GetoptError as err:
@@ -661,6 +814,8 @@ def do_main():
             wiki = val
         elif opt in ["-j", "--jobs"]:
             range_opts['jobs'] = val
+        elif opt in ["-m", "--maxbytes"]:
+            range_opts['maxbytes'] = int(val)
         elif opt in ["-r", "--revs"]:
             range_opts['revs'] = val
         elif opt in ["-e", "--pageend"]:

@@ -451,7 +451,8 @@ class XmlDump(Dump):
             prange = PageRange(QueryRunner(self.wiki.db_name, self.wiki.config,
                                            self.verbose), self.verbose)
             ranges = prange.get_pageranges_for_revs(int(page_start), int(page_end),
-                                                    self.wiki.config.revs_per_job)
+                                                    self.wiki.config.revs_per_job,
+                                                    self.wiki.config.maxrevbytes)
         else:
             # strictly speaking this splits up the pages-articles
             # dump more than is needed but who cares

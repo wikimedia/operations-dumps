@@ -100,7 +100,7 @@ class DbServerInfo():
         Get the name of a slave server for our cluster; also get
         the prefix for all tables for the specific wiki ($wgDBprefix)
         if do_globals is True, also get global variables and use them
-        to set varias attributes such as apibase, table prefix
+        to set various attributes such as apibase, table prefix
         """
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
@@ -342,7 +342,7 @@ class PageAndEditStats():
             return 1
 
         lines = results.splitlines()
-        if lines and lines[1] and lines[1] != 'NULL':
+        if lines and lines[1] and lines[1] != b'NULL':
             self.total_pages = int(lines[1])
 
         query = "select MAX(rev_id) from %srevision;" % self.db_server_info.db_table_prefix
@@ -357,7 +357,7 @@ class PageAndEditStats():
             return 1
 
         lines = results.splitlines()
-        if lines and lines[1] and lines[1] != 'NULL':
+        if lines and lines[1] and lines[1] != b'NULL':
             self.total_edits = int(lines[1])
 
         query = "select MAX(log_id) from %slogging;" % self.db_server_info.db_table_prefix
@@ -372,7 +372,7 @@ class PageAndEditStats():
             return 1
 
         lines = results.splitlines()
-        if lines and lines[1] and lines[1] != 'NULL':
+        if lines and lines[1] and lines[1] != b'NULL':
             self.total_logitems = int(lines[1])
 
         return 0

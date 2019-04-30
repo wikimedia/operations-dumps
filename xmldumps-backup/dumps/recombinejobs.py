@@ -72,7 +72,7 @@ class RecombineDump(Dump):
     @staticmethod
     def get_dd_command(runner, filename, outfile, header_offset, footer_offset):
         # return it as a CommandPipeline with one command in it
-        return [[runner.wiki.config.dd, 'if=' + filename, 'of=' + outfile,
+        return [[runner.wiki.config.ddpath, 'if=' + filename, 'of=' + outfile,
                  'skip=' + str(header_offset),
                  'count=' + str(footer_offset - header_offset),
                  'iflag=skip_bytes,count_bytes',
@@ -173,9 +173,9 @@ class RecombineDump(Dump):
         if not dfnames:
             raise BackupError("No files for the recombine step found in %s." % self.name())
 
-        if not exists(runner.wiki.config.dd):
+        if not exists(runner.wiki.config.ddpath):
             raise BackupError("dd command %s not found" %
-                              runner.wiki.config.dd)
+                              runner.wiki.config.ddpath)
 
         outpath_inprog = DumpFilename.get_inprogress_name(output_filename)
 

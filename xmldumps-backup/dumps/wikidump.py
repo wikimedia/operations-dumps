@@ -24,6 +24,7 @@ class ConfigParsing():
     def __init__(self, config_file=None):
         self.project_name = None
         self.override_section = None
+        self.conf = None
 
     def get_opt_from_sections(self, sections_to_check, item_name, is_int):
         """
@@ -226,7 +227,7 @@ class Config(ConfigParsing):
         self.bzip2 = self.conf.get("tools", "bzip2")
         self.lbzip2 = self.conf.get("tools", "lbzip2")
         self.sevenzip = self.conf.get("tools", "sevenzip")
-        self.dd = self.conf.get("tools", "dd")
+        self.ddpath = self.conf.get("tools", "dd")
         self.mysql = self.conf.get("tools", "mysql")
         self.mysqldump = self.conf.get("tools", "mysqldump")
         self.head = self.conf.get("tools", "head")
@@ -292,6 +293,8 @@ class Config(ConfigParsing):
             "chunks", "revsMargin", 1)
         self.lbzip2threads = self.get_opt_for_proj_or_default(
             "chunks", "lbzip2threads", 0)
+        self.maxrevbytes = self.get_opt_for_proj_or_default(
+            "chunks", "maxrevbytes", 1)
 
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
