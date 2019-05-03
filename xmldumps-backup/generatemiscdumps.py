@@ -305,7 +305,7 @@ class MiscDumpLoop():
             # temporary wait, to avoid existing runs without this fix finishing
             # after new runs that have it; in subsequent patches the sleep will
             # be reduced in 30 second intervals until it's gone
-            time.sleep(120)
+            time.sleep(90)
         if self.flags['do_index'] and self.is_most_recent_run():
             index = Index(self.flags['dryrun'], self.args, self.log)
             index.do_all_wikis()
