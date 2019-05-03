@@ -266,10 +266,10 @@ class RunSimpleCommand():
             if proc:
                 raise BackupError("command '" + command_string +
                                   ("' failed with return code %s " % proc.returncode) +
-                                  " and error '" + error + "'")
+                                  " and error '" + error.decode('utf-8') + "'")
             else:
                 raise BackupError("command '" + command_string +
-                                  ("' failed") + " and error '" + error + "'")
+                                  ("' failed") + " and error '" + error.decode('utf-8') + "'")
         else:
             return output
 
