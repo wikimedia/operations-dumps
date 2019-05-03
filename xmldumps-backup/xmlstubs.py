@@ -88,10 +88,10 @@ def get_page_interval(page_id_start, interval_guess, wiki, db_info):
         now2 = time.time()
         # if getting the rev count takes too long, cut back
         if now2 - now > 60:
-            current_interval = current_interval / 2
+            current_interval = int(current_interval / 2)
         # if we get more than some abs number of revs, scale back accordingly
         elif num_revs_for_interval > max_revs:
-            current_interval = current_interval / ((num_revs_for_interval / max_revs) + 1)
+            current_interval = int(current_interval / ((num_revs_for_interval / max_revs) + 1))
         else:
             break
     if current_interval < min_interval:
