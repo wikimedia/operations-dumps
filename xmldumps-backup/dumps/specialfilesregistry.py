@@ -59,7 +59,7 @@ class SpecialFileWriter(Registered):
             return {}
         date = wiki.latest_dump()
         if date:
-            filepath = os.path.join(wiki.public_dir(),
+            filepath = os.path.join(wiki.public_dir(), date,
                                     getattr(classname, 'FILENAME') + "." + fmt)
             with open(filepath, "r") as infile:
                 contents = infile.read()
