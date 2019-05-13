@@ -332,7 +332,10 @@ class XmlRecompressDump(RecompressDump):
         Note that checkpoint files get done one at a time, not in parallel
         '''
         # FIXME need shell escape
-        if not exists(self.wiki.config.bzip2):
+        if self.wiki.config.lbzip2threads:
+            if not exists(self.wiki.config.lbzip2):
+                raise BackupError("lbzip2 command %s not found" % self.wiki.config.lbzip2)
+        elif not exists(self.wiki.config.bzip2):
             raise BackupError("bzip2 command %s not found" % self.wiki.config.bzip2)
         if not exists(self.wiki.config.sevenzip):
             raise BackupError("7zip command %s not found" % self.wiki.config.sevenzip)
@@ -348,10 +351,17 @@ class XmlRecompressDump(RecompressDump):
             else:
                 outfilepath = runner.dump_dir.filename_public_path(out_dfname)
                 infilepath = runner.dump_dir.filename_public_path(input_dfname)
-            command_pipe = [["%s -dc %s | %s a -mx=4 -si %s" %
-                             (self.wiki.config.bzip2, infilepath,
-                              self.wiki.config.sevenzip,
-                              DumpFilename.get_inprogress_name(outfilepath))]]
+
+            if self.wiki.config.lbzip2threads:
+                # one thread only, as these already run in parallel
+                decompr_command = "{lbzip2} -dc -n 1 {infile}".format(
+                    lbzip2=self.wiki.config.lbzip2, infile=infilepath)
+            else:
+                decompr_command = "{bzip2} -dc {infile}".format(bzip2=self.wiki.config.bzip2,
+                                                                infile=infilepath)
+            command_pipe = [["{decompr} | {sevenzip} a -mx=4 -si {ofile}".format(
+                decompr=decompr_command, sevenzip=self.wiki.config.sevenzip,
+                ofile=DumpFilename.get_inprogress_name(outfilepath))]]
             command_series.append(command_pipe)
         return command_series
 
