@@ -54,14 +54,13 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     command.extend(["--wiki=%s" % wikidb, abstract_cmd_dir,
                     abstract_filter,
-                    "--current", "--report=1000"])
+                    "--current", "--report=1000", "--namespaces=0"])
 
     for filetype in outfiles:
         command.extend(["--output=file:%s" % outfiles[filetype]['temp'],
                         "--filter=namespace:NS_MAIN",
                         "--filter=noredirect",
-                        "--filter=abstract%s" % filetype,
-                        "--namespaces=0"])
+                        "--filter=abstract%s" % filetype])
 
     do_xml_stream(wikidb, outfiles, command, wikiconf,
                   start, end, dryrun, 'page_id', 'page',
