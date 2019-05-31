@@ -138,11 +138,7 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
                         "--filter=latest", "--filter=notalk",
                         "--filter=namespace:!NS_USER"])
 
-    if wikiconf.stubs_orderrevs:
-        command.append("--orderrevs")
-        callback = get_page_interval
-    else:
-        callback = None
+    callback = get_page_interval
 
     # the xml header, the body, and the xml footer should be separate gzipped
     # streams all concatted together

@@ -302,8 +302,6 @@ class Config(ConfigParsing):
             'otherformats', 'multistream', 1)
         if not self.conf.has_section('stubs'):
             self.conf.add_section('stubs')
-        self.stubs_orderrevs = self.get_opt_for_proj_or_default(
-            'stubs', 'orderrevs', 1)
         self.stubs_minpages = self.get_opt_for_proj_or_default(
             'stubs', 'minpages', 1)
         self.stubs_maxrevs = self.get_opt_for_proj_or_default(
