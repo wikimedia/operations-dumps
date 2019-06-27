@@ -106,7 +106,8 @@ def do_xml_stream(wikidb, outfiles, command, wikiconf,
             else:
                 piece_command.extend(["--end", str(end + 1)])
             upto = upto + interval
-            do_xml_piece(piece_command, outfiles, wikiconf, ends_with, dryrun=dryrun, verbose=verbose)
+            do_xml_piece(piece_command, outfiles, wikiconf, ends_with,
+                         dryrun=dryrun, verbose=verbose)
 
         if not dryrun:
             for filetype in outfiles:
@@ -141,8 +142,13 @@ def run_script(command, outfiles, shouldendwith=None):
                             outfd.close()
                             if remainder != shouldendwith:
                                 os.unlink(outfile)
+                                sys.stderr.write(
+                                    "bad output saved to {ofile} from '{command}'\n".format(
+                                        ofile=outfile, command=" ".join(command)))
                                 failed = True
     else:
+        sys.stderr.write("nonzero return {retval} from command '{command}'\n".format(
+            retval=retval, command=" ".join(command)))
         failed = True
 
     if failed:
