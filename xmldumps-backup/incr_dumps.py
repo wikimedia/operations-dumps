@@ -201,7 +201,7 @@ class IncrDump(MiscDumpBase):
             if not self.dump_revs():
                 return False
         except Exception as ex:
-            self.log.warning("Error encountered runing dump for %s ", self.wiki.db_name,
+            self.log.warning("Error encountered running dump for %s ", self.wiki.db_name,
                              exc_info=ex)
             return False
         return True

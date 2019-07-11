@@ -296,8 +296,13 @@ class MiscDumpLoop():
         failures = []
         todos = 0
         for wikiname in self.args['config'].all_wikis_list:
-            dump = MiscDumpOne(self.args, wikiname, self.flags, self.log)
-            result = dump.do_one_wiki()
+            try:
+                dump = MiscDumpOne(self.args, wikiname, self.flags, self.log)
+                result = dump.do_one_wiki()
+            except Exception as ex:
+                self.log.warning("error from dump run"
+                                 " for wiki %s", wikiname, exc_info=ex)
+                result = STATUS_FAILED
             if result == STATUS_FAILED:
                 failures.append(wikiname)
             elif result == STATUS_TODO:

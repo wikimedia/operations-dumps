@@ -95,7 +95,7 @@ class SampleDump(MiscDumpBase):
             if not self.dump_aliases():
                 return False
         except Exception as ex:
-            self.log.info("Error encountered runing dump for %s ", self.wiki.db_name,
+            self.log.info("Error encountered running dump for %s ", self.wiki.db_name,
                           exc_info=ex)
             return False
         return True
