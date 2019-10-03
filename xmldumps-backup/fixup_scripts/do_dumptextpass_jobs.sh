@@ -341,7 +341,8 @@ cleanup_lock() {
     fi
 }
 
-WIKIDUMP_BASE=`dirname "$0"`
+WIKIDUMP_BASE=$( dirname "$0" )
+WIKIDUMP_BASE="${WIKIDUMP_BASE}/.."
 set_defaults
 process_opts "$@"
 check_opts

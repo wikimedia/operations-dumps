@@ -1,0 +1,23 @@
+The scripts in this directory are intended for use to
+fix up broken dump runs. They may be run manually from
+snapshot hosts out of this directory in order to generate
+missing files. In most cases, the dumpsruninfo.txt file
+will need to be updated manually afterwards, and a noop
+job will need to be run to update latest links, rss feed
+files, and the other dumps status files.
+
+do_7z_jobs.sh - generate 7z page content full history files from bz2 files,
+    in batches, skipping over any bz2 files for which a 7z file exists at
+    at the time of the specific batch
+
+do_dumptextpass_jobs.sh - generate page content full history files from
+    temporary stub files with prefetch, in batches
+
+do_hashes.sh - generate sha1 and md5 hash files for either 7z or bz2 page
+    content full history files, in batches, skipping over files for which
+    the md5 or sha1 hash exists at the time of the specific batch
+
+do_pagerange_content_jobs.sh - generate bz2 page content full history files
+    in parallel, with prefetch; page ranges for workers are generated first
+    so that each worker completes in a reasonable number of hours, and with
+    output of each file limited to a reasonable size

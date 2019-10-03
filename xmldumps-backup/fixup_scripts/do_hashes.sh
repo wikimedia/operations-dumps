@@ -1,21 +1,22 @@
 #!/bin/bash
-# no error checking, we don't care. if file fails we'll
-# rerun it by hand later
 
-# locks wiki for date, recompresses revision history content bz2
-# files to 7z files, doing recompression in batches.
-# does NOT: update md5s, status, dumprininfo, symlinks, etc.
+# optionally locks wiki for date, writes md5 and
+# sha1 hashes into files for page-meta-history
+# files of the specified part number and type (bz2 or
+# 7z) that do not already have them
+# does NOT: update status, dumprininfo, symlinks, etc.
 # does NOT: clean up old dumps, remove old files from run
 
 usage() {
 	cat<<EOF
 Usage: $0 --config <pathtofile> --wiki <dbname>
-  --date <YYYYMMDD> --jobinfo num:num:num,...
+  --date <YYYYMMDD> --jobinfo num,num,... --type bz2|7z
  [--skiplock] [--dryrun] [--verbose]
 
   --config   path to configuration file for dump generation
   --wiki     dbname of wiki
   --jobinfo  partnum,partnum2,...
+  --type     bz2 or 7z
   --date     date of run
   --numjobs  number of jobs to run simultaneously
   --skiplock don't lock the wiki (use with care!)
@@ -26,7 +27,7 @@ EOF
 }
 
 set_defaults() {
-    vars="CONFIGFILE WIKI JOBINFO DATE NUMJOBS SKIPLOCK DRYRUN VERBOSE"
+    vars="CONFIGFILE WIKI JOBINFO DATE NUMJOBS SKIPLOCK TYPE DRYRUN VERBOSE"
     for varname in $vars; do
         declare $varname="";
     done
@@ -49,6 +50,9 @@ process_opts () {
 	elif [ $1 == "--numjobs" ]; then
 		NUMJOBS="$2"
 		shift; shift
+	elif [ $1 == "--type" ]; then
+		TYPE="$2"
+		shift; shift
 	elif [ $1 == "--skiplock" ]; then
 		SKIPLOCK="true"
 		shift
@@ -66,8 +70,8 @@ process_opts () {
 }
 
 check_opts() {
-    if [ -z "$WIKI" -o -z "$JOBINFO" -o -z "$DATE" -o -z "$CONFIGFILE" -o -z "$NUMJOBS" ]; then
-        echo "$0: Mandatory options 'wiki', 'jobinfo', 'date', 'numjobs' and 'config' must be specified"
+    if [ -z "$WIKI" -o -z "$JOBINFO" -o -z "$DATE" -o -z "$CONFIGFILE" -o -z "$NUMJOBS" -o -z "$TYPE" ]; then
+        echo "$0: Mandatory options 'wiki', 'jobinfo', 'date', 'numjobs', 'type' and 'config' must be specified"
         usage && exit 1
     fi
     # sanity check of date
@@ -87,61 +91,75 @@ get_dumps_output_dir() {
     DUMPS_OUTPUT_DIR="${DUMPS_OUTPUT_ROOT}/${WIKI}/${DATE}"
 }
 
-get_bz2files_completed() {
-    # get list of bz2files we would compress, remove from the
-    # list all those that are not yet complete (they are still
-    # being written, etc), we will not recompress those.
+get_bz2files_good() {
+    # get list of bz2files we would hash, remove from the
+    # list all those that are incomplete (bad), we will not
+    # hash those.
 
-    bz2files_completed=()
-    bz2files=$( ls "${DUMPS_OUTPUT_DIR}/${WIKI}-${DATE}-pages-meta-history${PARTNUM}.xml"*.bz2 )
+    TOHASH=()
+    bz2files=$( ls "${WIKI}-${DATE}-pages-meta-history${PARTNUM}.xml"*.bz2 )
     for bz2file in $bz2files; do
-        /usr/local/bin/checkforbz2footer "$bz2file";
+        /usr/local/bin/checkforbz2footer "$bz2file"
         if [ $? -eq 0 ]; then
-            bz2files_completed=( "${bz2files_completed[@]}" "$bz2file" )
+            TOHASH=( "${TOHASH[@]}" "$bz2file" )
         fi
     done
 }
 
-setup_recompression_command() {
-    inputfile="$1"
-    outputfile=$( echo $inputfile | sed -e 's/.bz2/.7z/g;' )
-    ZCAT_COMMAND=("/bin/bzcat" "$inputfile")
-    SEVENZ_COMMAND=("/usr/bin/7za" "a" "-mx=4" "-si" "$outputfile")
+get_7zfiles() {
+    # get list of 7zfiles to hash
+    TOHASH=( $( ls "${WIKI}-${DATE}-pages-meta-history${PARTNUM}.xml"*.7z ) )
 }
 
-do_recompression() {
+setup_hash_commands() {
+    inputfile="$1"
+    MD5_outputfile="md5sums-${inputfile}.txt"
+    MD5_COMMAND=("/usr/bin/md5sum" "$inputfile")
+    SHA1_outputfile="sha1sums-${inputfile}.txt"
+    SHA1_COMMAND=("/usr/bin/sha1sum" "$inputfile")
+}
+
+do_hashes() {
     # this many processes at once
     LIMIT="$1"
     while :
     do
-        if [ ${#bz2files_completed[*]} -eq 0 ]; then
+        if [ ${#TOHASH[*]} -eq 0 ]; then
             break
-	elif [ ${#bz2files_completed[*]} -lt $LIMIT ]; then
-            end=${#bz2files_completed[*]}
+	elif [ ${#TOHASH[*]} -lt $LIMIT ]; then
+            end=${#TOHASH[*]}
 	else
             end=$LIMIT
 	fi
-
-	files_in_batch=(${bz2files_completed[@]:0:$end})
-
+	files_in_batch=(${TOHASH[@]:0:$end})
         wait_pids=()
 	files_doing=()
         if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
             echo "new batch"
         fi
 	for filename in ${files_in_batch[@]}; do
-            setup_recompression_command "$filename"
-            if [ -e $outputfile ]; then
-                continue;
-            fi
-	    if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
-		echo  "${ZCAT_COMMAND[@]} | ${SEVENZ_COMMAND[@]}"
+            setup_hash_commands "$filename"
+            if [ ! -e ${MD5_outputfile} ]; then
+		if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
+		    echo  "${MD5_COMMAND[@]} > ${MD5_outputfile}"
+		fi
+		if [ -z "$DRYRUN" ]; then
+                    ( ${MD5_COMMAND[@]} > "$MD5_outputfile" ) &
+	            wait_pids+=($!)
+		    files_doing+=("$MD5_outputfile")
+		fi
 	    fi
-	    if [ -z "$DRYRUN" ]; then
-                ( ${ZCAT_COMMAND[@]} | ${SEVENZ_COMMAND[@]} ) &
-	        wait_pids+=($!)
-		files_doing+=("$outputfile")
-            fi
+
+            if [ ! -e ${SHA1_outputfile} ]; then
+		if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
+		    echo  "${SHA1_COMMAND[@]} > ${SHA1_outputfile}"
+		fi
+		if [ -z "$DRYRUN" ]; then
+                    ( ${SHA1_COMMAND[@]} > "$SHA1_outputfile" ) &
+	            wait_pids+=($!)
+		    files_doing+=("$SHA1_outputfile")
+		fi
+	    fi
 	done
 	i=0
 	for pid in ${wait_pids[*]}; do
@@ -151,7 +169,7 @@ do_recompression() {
             fi
 	    ((i++))
 	done
-	bz2files_completed=(${bz2files_completed[@]:$end})
+	TOHASH=(${TOHASH[@]:$end})
     done
 }
 
@@ -182,7 +200,8 @@ cleanup_lock() {
     fi
 }
 
-WIKIDUMP_BASE=`dirname "$0"`
+WIKIDUMP_BASE=$( dirname "$0" )
+WIKIDUMP_BASE="${WIKIDUMP_BASE}/.."
 set_defaults || exit 1
 process_opts "$@" || exit 1
 check_opts || exit 1
@@ -191,10 +210,27 @@ if [ -z "$SKIPLOCK" ]; then
     lockerup || exit 1
 fi
 get_dumps_output_dir || exit 1
+# NUMJOBS needs to be divided in 2 because
+# we will run md5 and sha1 for a given file at the same time
+NUMJOBS=$(( $NUMJOBS/2 ))
+if [[ $NUMJOBS -eq 0 ]]; then
+    NUMJOBS=1
+fi
+if [ -n "$VERBOSE" ]; then
+    echo "Doing ${NUMJOBS} file(s) at once"
+fi
+
+cd "$DUMPS_OUTPUT_DIR"
 for PARTNUM in ${JOBARRAY[*]}; do
-    get_bz2files_completed
-    do_recompression $NUMJOBS
+    if [ "$TYPE" == "bz2" ]; then
+	get_bz2files_good
+    else
+	get_7zfiles
+    fi
+    do_hashes $NUMJOBS
 done
+cd "$WIKIDUMP_BASE"
+
 if [ -z "$SKIPLOCK" ]; then
     cleanup_lock
 fi

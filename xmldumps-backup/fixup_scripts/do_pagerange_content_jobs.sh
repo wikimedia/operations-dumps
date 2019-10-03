@@ -192,9 +192,9 @@ cleanup_lock() {
     fi
 }
 
-WIKIDUMP_BASE=`dirname "$0"`
-#DUMPFILESBASE="/mnt/data/xmldatadumps/public"
-DUMPFILESBASE="/home/ariel/dumptesting/dumpruns/public"
+WIKIDUMP_BASE=$( dirname "$0" )
+WIKIDUMP_BASE="${WIKIDUMP_BASE}/.."
+DUMPFILESBASE="/mnt/data/xmldatadumps/public"
 set_defaults
 process_opts "$@"
 check_opts
