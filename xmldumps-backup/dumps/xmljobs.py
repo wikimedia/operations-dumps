@@ -373,14 +373,22 @@ class AbstractDump(Dump):
         if novariant_dfname.partnum:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([int(self._parts[i])
-                         for i in range(0, novariant_dfname.partnum_int - 1)]) + 1
+            if runner.wiki.config.empty_abstracts:
+                start = 1
+            else:
+                start = sum([int(self._parts[i])
+                             for i in range(0, novariant_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if novariant_dfname.partnum_int < len(self._parts):
-                end = sum([int(self._parts[i]) for i in range(0, novariant_dfname.partnum_int)]) + 1
+            end = None
+            if runner.wiki.config.empty_abstracts:
+                end = 1
+            elif novariant_dfname.partnum_int < len(self._parts):
+                end = sum([int(self._parts[i])
+                           for i in range(0, novariant_dfname.partnum_int)]) + 1
+            if end is not None:
                 endopt = "--end=%s" % end
                 command.append(endopt)
         pipeline = [command]

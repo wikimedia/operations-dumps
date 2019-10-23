@@ -318,6 +318,7 @@ class Config(ConfigParsing):
         self.lbzip2forhistory = self.get_opt_in_overrides_or_default("misc", "lbzip2forhistory", 0)
         self.lbzip2forhistory = int(self.lbzip2forhistory, 0)
         self.max_retries = self.get_opt_for_proj_or_default("misc", "maxRetries", 1)
+        self.empty_abstracts = self.get_opt_for_proj_or_default("misc", "emptyAbstracts", 1)
 
     def db_latest_status(self):
         '''

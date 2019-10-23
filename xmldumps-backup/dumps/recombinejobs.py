@@ -53,17 +53,23 @@ class RecombineDump(Dump):
 
     def get_footer_offset(self, filename):
         with open(filename, "rb") as infile:
-            # empty files or files with only a footer will return None
-            # here (too short) and that's ok, we might as well fail out on them
-            # by now they should have already been moved out of the way
-            # by the previous job but, just in case...
             max_offset = 100
             try:
                 filesize = infile.seek(0, os.SEEK_END)
                 infile.seek(filesize - max_offset, os.SEEK_SET)
                 buffer = infile.read()
             except IOError:
-                return None
+                try:
+                    # files with empty feeds are ok because we may have wikis where all the
+                    # content in the desired namespace is unabstractable and so
+                    # empty abstract files are written due to configuration.
+                    # completely empty files (0 bytes) are not ok, these should have
+                    # been moved out of the way already by the previous job but eh.
+                    filesize = infile.seek(0, os.SEEK_END)
+                    infile.seek(40, os.SEEK_SET)
+                    buffer = infile.read()
+                except IOError:
+                    return None
             buffer_offset = buffer.find(self.marker)
             if buffer_offset >= 0:
                 return filesize - (len(buffer) - buffer_offset)
@@ -189,14 +195,20 @@ class RecombineDump(Dump):
             if partnum == 1:
                 # first file, put header, body
                 series.append(self.get_dump_header_command(runner, fpath, outpath_inprog))
-                series.append(self.get_dump_body_command(runner, fpath, outpath_inprog))
+                body_command = self.get_dump_body_command(runner, fpath, outpath_inprog)
+                if body_command:
+                    series.append(body_command)
             elif partnum == len(dfnames):
                 # last file, put body, footer
-                series.append(self.get_dump_body_command(runner, fpath, outpath_inprog))
+                body_command = self.get_dump_body_command(runner, fpath, outpath_inprog)
+                if body_command:
+                    series.append(body_command)
                 series.append(self.get_dump_footer_command(runner, fpath, outpath_inprog))
             else:
                 # put contents only
-                series.append(self.get_dump_body_command(runner, fpath, outpath_inprog))
+                body_command = self.get_dump_body_command(runner, fpath, outpath_inprog)
+                if body_command:
+                    series.append(body_command)
         return series
 
     def dd_recombine(self, runner, dfnames, output_dfnames, dumptype):
