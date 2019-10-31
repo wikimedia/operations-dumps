@@ -93,7 +93,7 @@ class Index():
                     % (make_link(
                         os.path.join(
                             wikiname, dump_date,
-                            filename),
+                            os.path.basename(filename)),
                         os.path.basename(filename)), file_date, file_size))
         return files_text
 
@@ -204,8 +204,10 @@ class MiscDumpOne():
         for the date, or some other process has the lock and is
         therefore presumably already dumping it
         '''
-        if not skip_wiki(self.wiki.db_name, self.wiki.config):
+        if not self.flags['do_dump']:
+            return STATUS_GOOD
 
+        if not skip_wiki(self.wiki.db_name, self.wiki.config):
             dumpdir = MiscDumpDir(self.args['config'], self.args['date'])
             if not exists(dumpdir.get_dumpdir(self.wiki.db_name)) and not self.flags['dryrun']:
                 os.makedirs(dumpdir.get_dumpdir(self.wiki.db_name))
@@ -277,10 +279,11 @@ class MiscDumpLoop():
         than the current run date, otherwise False
         '''
         for wikiname in self.args['config'].all_wikis_list:
-            dumps_dirs = MiscDumpDirs(self.args['config'], wikiname, self.log)
-            dirs = dumps_dirs.get_misc_dumpdirs()
-            if not dirs or dirs[-1] > self.args['date']:
-                return False
+            if not skip_wiki(wikiname, self.args['config']):
+                dumps_dirs = MiscDumpDirs(self.args['config'], wikiname, self.log)
+                dirs = dumps_dirs.get_misc_dumpdirs()
+                if not dirs or dirs[-1] > self.args['date']:
+                    return False
         return True
 
     def do_run_on_all_wikis(self):
