@@ -746,7 +746,8 @@ class MiscDumpBase():
             self.log.info(output)
         if error:
             self.log.warning(error)
-        self.lock.refresh()
+        if self.lock is not None:
+            self.lock.refresh()
 
     def get_lock_timeout_interval(self):
         '''

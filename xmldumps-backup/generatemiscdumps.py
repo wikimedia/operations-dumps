@@ -220,20 +220,23 @@ class MiscDumpOne():
                 return STATUS_GOOD
 
             if not self.flags['dryrun']:
-                lock = MiscDumpLock(self.args['config'], self.wiki.date,
-                                    self.wiki.db_name, self.log)
 
-                # if lock is stale, remove it
-                lock.remove_if_stale(self.wiki.config.lock_stale)
+                if not self.flags['skiplocks']:
+                    lock = MiscDumpLock(self.args['config'], self.wiki.date,
+                                        self.wiki.db_name, self.log)
 
-                # try to get the lock ourselves
-                if not lock.get_lock():
-                    self.log.info("wiki %s skipped, wiki is locked,"
-                                  " another process should be doing the job",
-                                  self.wiki.db_name)
-                    return STATUS_TODO
+                    # if lock is stale, remove it
+                    lock.remove_if_stale(self.wiki.config.lock_stale)
 
-                self.dumper.set_lockinfo(lock)
+                    # try to get the lock ourselves
+                    if not lock.get_lock():
+                        self.log.info("wiki %s skipped, wiki is locked,"
+                                      " another process should be doing the job",
+                                      self.wiki.db_name)
+                        return STATUS_TODO
+
+                    self.dumper.set_lockinfo(lock)
+
                 dumps_dirs = MiscDumpDirs(self.wiki.config, self.wiki.db_name, self.log)
                 dumps_dirs.cleanup_old_dumps(self.wiki.date)
 
@@ -250,12 +253,16 @@ class MiscDumpOne():
                                    output_files, expected, self.log):
                         return STATUS_FAILED
                     status_info.set_status("done:" + self.dumper.get_steps_done())
-                    lock.unlock_if_owner()
+
+                    if not self.flags['skiplocks']:
+                        lock.unlock_if_owner()
+
             except Exception as ex:
                 self.log.warning("error from dump run"
                                  " for wiki %s", self.wiki.db_name, exc_info=ex)
                 if not self.flags['dryrun']:
-                    lock.unlock_if_owner()
+                    if not self.flags['skiplocks']:
+                        lock.unlock_if_owner()
                 return STATUS_FAILED
         self.log.info("Success!  Wiki %s %s dump complete.",
                       self.wiki.db_name, self.args['dumptype'])
@@ -354,7 +361,7 @@ def usage(message=None):
 
 Options: --configfile, --dumptype, --wiki, --date,
          --dumponly, --indexonly, --forcerun,
-         --logfile, --verbose, --quiet, --dryrun, --wiki
+         --logfile, --skiplocks, --verbose, --quiet, --dryrun, --wiki
 
  --configfile:  Specify an alternate config file to read. Default
                 file is 'miscdump.conf' in the current directory.
@@ -369,6 +376,9 @@ Options: --configfile, --dumptype, --wiki, --date,
 
  --logfile:     Name of file to which error messages and progress messages
                 are to be logged. Default: log to stderr
+ --skiplocks:   Don't do any file locking (use only if one process is running
+                at a time)
+                Default: false
  --verbose:     Print error messages and other informative messages.
                 Default: print errors and warnings
  --quiet:       Print only serious error messages
@@ -452,7 +462,8 @@ def get_flags(options):
     get and return flags from command line options
     '''
     flags = {'do_dump': True, 'do_index': True,
-             'dryrun': False, 'forcerun': False}
+             'dryrun': False, 'forcerun': False,
+             'skiplocks': True}
 
     for (opt, _) in options:
         if opt == "--dumpsonly":
@@ -463,6 +474,8 @@ def get_flags(options):
             flags['dryrun'] = True
         elif opt == "--forcerun":
             flags['forcerun'] = True
+        elif opt == "--skiplocks":
+            flags['skiplocks'] = True
     return flags
 
 
@@ -503,7 +516,7 @@ def main():
         (options, remainder) = getopt.gnu_getopt(
             sys.argv[1:], "",
             ['date=', 'dumptype=', 'configfile=', 'wiki=', 'dumpsonly',
-             'indexonly', 'logfile=', 'dryrun', 'verbose', 'quiet', 'forcerun'])
+             'indexonly', 'logfile=', 'dryrun', 'skiplocks', 'verbose', 'quiet', 'forcerun'])
     except Exception:
         usage("Unknown option specified")
 
