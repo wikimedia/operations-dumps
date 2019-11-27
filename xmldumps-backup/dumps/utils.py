@@ -24,7 +24,7 @@ class MiscUtils():
         dbs = []
         for line in infhandle:
             line = line.strip()
-            if line != "":
+            if line != "" and not line.startswith('#'):
                 dbs.append(line)
         infhandle.close()
         if not nosort:
