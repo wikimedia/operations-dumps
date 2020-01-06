@@ -77,7 +77,10 @@ class SymLinks():
                     # no file or it's older than ours... *then* remove the link
                     if not exists(os.path.realpath(link)) or dateinterval > 0:
                         self.debugfn("Removing old symlink %s" % link)
-                        os.remove(link)
+                        try:
+                            os.remove(link)
+                        except FileNotFoundError:
+                            pass
                 else:
                     self.logfn("What the hell dude, %s is not a symlink" % link)
                     raise BackupError("What the hell dude, %s is not a symlink" % link)
@@ -100,7 +103,10 @@ class SymLinks():
                 if os.path.islink(link):
                     realfilepath = os.readlink(link)
                     if not exists(os.path.join(latest_dir, realfilepath)):
-                        os.remove(link)
+                        try:
+                            os.remove(link)
+                        except FileNotFoundError:
+                            pass
 
     def remove_symlinks_from_old_runs(self, date_string, dump_name=None, partnum=None,
                                       checkpoint=None, onlyparts=False):
@@ -157,7 +163,10 @@ class SymLinks():
                         if checkpoint and (item['dfname'].checkpoint != checkpoint):
                             continue
                     self.debugfn("Removing old symlink %s -> %s" % (item['link'], item['path']))
-                    os.remove(item['link'])
+                    try:
+                        os.remove(item['link'])
+                    except FileNotFoundError:
+                        pass
 
 
 class Feeds():
@@ -265,4 +274,8 @@ class Feeds():
                     if not exists(link):
                         self.debugfn("Removing old rss feed %s for link %s" % (
                             os.path.join(latest_dir, fname), link))
-                        os.remove(os.path.join(latest_dir, fname))
+                        try:
+                            os.remove(os.path.join(latest_dir, fname))
+                        except FileNotFoundError:
+                            # a separate cleanup job might have removed it.
+                            pass
