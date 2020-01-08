@@ -378,9 +378,10 @@ class XmlRecompressDump(RecompressDump):
         for partnum in range(1, len(self._parts) + 1):
             output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
             for output_dfname in output_dfnames:
-                series = self.build_command(runner, [output_dfname])
-                commands.append(series)
-                self.setup_command_info(runner, series, [output_dfname])
+                if not exists(runner.dump_dir.filename_public_path(output_dfname)):
+                    series = self.build_command(runner, [output_dfname])
+                    commands.append(series)
+                    self.setup_command_info(runner, series, [output_dfname])
         # now we have all the commands, run them in batches til we are done
         batchsize = len(self._parts)
         errors = False
@@ -443,7 +444,9 @@ class XmlRecompressDump(RecompressDump):
             self.run_in_batches(runner)
             return
         else:
-            output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+            output_dfnames_possible = self.list_outfiles_for_build_command(runner.dump_dir)
+            output_dfnames = [name for name in output_dfnames_possible
+                              if not exists(runner.dump_dir.filename_public_path(name))]
             series = self.build_command(runner, output_dfnames)
             commands.append(series)
             self.setup_command_info(runner, series, output_dfnames)
