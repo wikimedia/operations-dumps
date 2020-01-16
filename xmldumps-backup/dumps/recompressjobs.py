@@ -66,7 +66,7 @@ class RecompressFileLister(OutputFileLister):
             # if this param is set it takes priority
             if args.partnum and inp_dfname.partnum_int != args.partnum:
                 continue
-            elif self.partnum_todo and inp_dfname.partnum_int != self.partnum_todo:
+            if self.partnum_todo and inp_dfname.partnum_int != self.partnum_todo:
                 continue
             dfnames.append(DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
                                         inp_dfname.file_type, self.file_ext,
@@ -91,10 +91,13 @@ class XmlMultiStreamDump(RecompressDump):
 
     @staticmethod
     def get_dumpname_multistream(name):
+        '''return the base part of the name of output files
+        containing page content'''
         return name + "-multistream"
 
     @staticmethod
     def get_dumpname_multistream_index(name):
+        '''return the base part of the name of multistream index files'''
         return XmlMultiStreamDump.get_dumpname_multistream(name) + "-index"
 
     @staticmethod
@@ -198,8 +201,7 @@ class XmlMultiStreamDump(RecompressDump):
             if error:
                 for series in broken:
                     for pipeline in series:
-                        runner.log_and_print("error from commands: %s" % " ".join(
-                            [entry for entry in pipeline]))
+                        runner.log_and_print("error from commands: %s" % " ".join(pipeline))
                 errors = True
             commands = commands[batchsize:]
         if errors:
@@ -398,15 +400,77 @@ class XmlRecompressDump(RecompressDump):
             command_series.append(command_pipe)
         return command_series
 
-    def run_in_batches(self, runner):
-        """
-        queue up a bunch of commands to compress files with part numbers
-        and possibly also page ranges;
-        run them in batches of no more than self._parts at once
+    def get_final_output_dfname(self, command_series, runner):
+        """given a command series that produces one output file,
+        return the dfname for the output file as given in the appropriate
+        command_info element in self.commands_submitted, and without any
+        INPROG marker etc. Returns None if none found"""
+        for command_info in self.commands_submitted:
+            if command_info['series'] == command_series:
+                filenames = command_info['output_files']
+        if len(filenames) != 1:
+            return None
+        # turn the one file into a dfname without INPROG marker and return it
+        filename = filenames[0]
+        if filename.endswith(DumpFilename.INPROG):
+            filename = filename[:-1 * len(DumpFilename.INPROG)]
+        dfname = DumpFilename(runner.wiki)
+        dfname.new_from_filename(filename)
+        return dfname
 
-        no auto-retry for these, if something went wrong we probably
-        want human intervention
-        """
+    def filter_commands(self, commands, runner):
+        """for the every command series in the list,
+        check that its expected final output file does not
+        now exist, and if it does, assume it was produced
+        somewhere else (a manual run?) and remove it from the
+        list. Returns the filtered list, possibly empty."""
+        commands_filtered = []
+        for command_series in commands:
+            # each series produces one output file only, and we want the name without INPROG markers
+            final_output_dfname = self.get_final_output_dfname(command_series, runner)
+            # if the file is already there, move on, don't rerun.
+            if final_output_dfname is None or not exists(
+                    os.path.join(runner.dump_dir.filename_public_path(final_output_dfname))):
+                commands_filtered.append(command_series)
+        return commands_filtered
+
+    def get_command_batch(self, commands, runner):
+        '''
+        return a batch of commands, filtered so that any which
+        produce an output file that already exists, are omitted;
+        this prevents us from interfering with runs on another
+        host or manual runs that we may not know about
+        '''
+        commands = self.filter_commands(commands, runner)
+        batchsize = len(self._pages_per_part)
+        commands_todo = commands[:batchsize]
+        commands_left = commands[batchsize:]
+        return (commands_todo, commands_left)
+
+    def do_one_batch(self, batch, runner):
+        '''
+        run one batch of commands, whine about errors
+        return True (success) if no errors, False otherwise
+        if there are no commands, return True
+        '''
+        if not batch:
+            return True
+
+        error, broken = runner.run_command(
+            batch, callback_timed=self.progress_callback,
+            callback_timed_arg=runner, shell=True,
+            callback_on_completion=self.command_completion_callback)
+        if error:
+            for series in broken:
+                for pipeline in series:
+                    runner.log_and_print("error from commands: %s" % " ".join(pipeline))
+            return False
+        return True
+
+    def get_all_commands(self, runner):
+        '''
+        get and return all the commands to generate all the dump output files
+        '''
         commands = []
         for partnum in range(1, len(self._pages_per_part) + 1):
             output_dfnames = self.oflister.list_outfiles_for_build_command(
@@ -416,22 +480,25 @@ class XmlRecompressDump(RecompressDump):
                     series = self.build_command(runner, [output_dfname])
                     commands.append(series)
                     self.setup_command_info(runner, series, [output_dfname])
-        # now we have all the commands, run them in batches til we are done
-        batchsize = len(self._pages_per_part)
+        return commands
+
+    def run_in_batches(self, runner):
+        """
+        queue up a bunch of commands to compress files with part numbers
+        and possibly also page ranges;
+        run them in batches of no more than self._parts at once
+
+        no auto-retry for these, if something went wrong we probably
+        want human intervention
+        """
+        commands = self.get_all_commands(runner)
         errors = False
-        while commands:
-            command_batch = commands[:batchsize]
-            error, broken = runner.run_command(
-                command_batch, callback_timed=self.progress_callback,
-                callback_timed_arg=runner, shell=True,
-                callback_on_completion=self.command_completion_callback)
-            if error:
-                for series in broken:
-                    for pipeline in series:
-                        runner.log_and_print("error from commands: %s" % " ".join(
-                            [entry for entry in pipeline]))
+        commands_left = commands
+        while commands_left:
+            commands_todo, commands_left = self.get_command_batch(commands_left, runner)
+            success = self.do_one_batch(commands_todo, runner)
+            if not success:
                 errors = True
-            commands = commands[batchsize:]
         if errors:
             raise BackupError("error recompressing bz2 file(s) %s")
 
