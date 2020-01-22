@@ -160,7 +160,7 @@ class DumpItemList():
                                              self._get_partnum_todo("abstractsdump"),
                                              self.wiki.db_name,
                                              get_int_setting(self.jobsperbatch, "abstractsdump"),
-                                             self.filepart.get_pages_per_filepart_abstract())])
+                                             self.filepart.get_attr('_pages_per_filepart_abstract'))])
 
         self.append_job_if_needed(RecombineAbstractDump(
             "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
@@ -169,7 +169,7 @@ class DumpItemList():
         self.dump_items.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                                        self._get_partnum_todo("xmlstubsdump"),
                                        get_int_setting(self.jobsperbatch, "xmlstubsdump"),
-                                       self.filepart.get_pages_per_filepart_history()))
+                                       self.filepart.get_attr('_pages_per_filepart_history')))
 
         self.append_job_if_needed(RecombineXmlStub(
             "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
@@ -187,7 +187,7 @@ class DumpItemList():
                     self.find_item_by_name('xmlstubsdump'), self._prefetch,
                     self._prefetchdate, self._spawn,
                     self.wiki, self._get_partnum_todo("articlesdump"),
-                    self.filepart.get_pages_per_filepart_history(), checkpoints,
+                    self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
                     self.checkpoint_file, self.page_id_range, self.verbose))
 
         self.append_job_if_needed(
@@ -208,7 +208,7 @@ class DumpItemList():
                     self.find_item_by_name('xmlstubsdump'), self._prefetch,
                     self._prefetchdate,
                     self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
-                    self.filepart.get_pages_per_filepart_history(), checkpoints,
+                    self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
                     self.checkpoint_file, self.page_id_range, self.verbose))
 
         self.append_job_if_needed(
@@ -223,7 +223,7 @@ class DumpItemList():
             XmlLogging("Log events to all pages and users.",
                        self._get_partnum_todo("xmlpagelogsdump"),
                        get_int_setting(self.jobsperbatch, "xmlpagelogsdump"),
-                       self.filepart.get_logitems_per_filepart_pagelogs()))
+                       self.filepart.get_attr('_logitems_per_filepart_pagelogs')))
 
         self.append_job_if_needed(RecombineXmlLoggingDump(
             "xmlpagelogsdumprecombine", "Recombine Log events to all pages and users",
@@ -246,7 +246,7 @@ class DumpItemList():
                 self.find_item_by_name('xmlstubsdump'), self._prefetch,
                 self._prefetchdate, self._spawn,
                 self.wiki, self._get_partnum_todo("metahistorybz2dump"),
-                self.filepart.get_pages_per_filepart_history(),
+                self.filepart.get_attr('_pages_per_filepart_history'),
                 checkpoints, self.checkpoint_file, self.page_id_range, self.verbose))
         self.append_job_if_needed(
             RecombineXmlDump(
@@ -268,7 +268,7 @@ class DumpItemList():
                 "most mirror sites won't want or need this.",
                 self.find_item_by_name('metahistorybz2dump'),
                 self.wiki, self._get_partnum_todo("metahistory7zdump"),
-                self.filepart.get_pages_per_filepart_history(),
+                self.filepart.get_attr('_pages_per_filepart_history'),
                 checkpoints, self.checkpoint_file))
         self.append_job_if_needed(
             RecombineXmlRecompressDump(
@@ -314,8 +314,8 @@ class DumpItemList():
         """
         if job.name().endswith("recombine"):
             if self.filepart.parts_enabled():
-                if (('metahistory' in job.name() and self.filepart.recombine_history()) or
-                        ('metacurrent' in job.name() and self.filepart.recombine_metacurrent()) or
+                if (('metahistory' in job.name() and self.filepart._recombine_history) or
+                        ('metacurrent' in job.name() and self.filepart._recombine_metacurrent) or
                         ('metahistory' not in job.name() and 'metacurrent' not in job.name())):
                     self.dump_items.append(job)
         elif 'flow' in job.name():

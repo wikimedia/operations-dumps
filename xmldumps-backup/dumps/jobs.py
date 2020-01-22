@@ -86,8 +86,6 @@ class Dump():
             self._parts = False
 
     def get_output_dir(self, runner):
-        if runner.wiki.is_private():
-            return os.path.join(runner.wiki.private_dir(), runner.wiki.date)
         return os.path.join(runner.wiki.public_dir(), runner.wiki.date)
 
     def setup_command_info(self, runner, command_series, output_dfnames, output_dir=None):
@@ -99,12 +97,8 @@ class Dump():
         if output_dir is not None:
             command_info['output_dir'] = output_dir
         else:
-            if runner.wiki.is_private():
-                command_info['output_dir'] = os.path.join(runner.wiki.private_dir(),
-                                                          runner.wiki.date)
-            else:
-                command_info['output_dir'] = os.path.join(runner.wiki.public_dir(),
-                                                          runner.wiki.date)
+            command_info['output_dir'] = os.path.join(runner.wiki.public_dir(),
+                                                      runner.wiki.date)
         self.commands_submitted.append(command_info)
 
     def check_truncation(self):

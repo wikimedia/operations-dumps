@@ -21,6 +21,7 @@ import json
 from dumps.wikidump import Config, Wiki
 from dumps.utils import DbServerInfo
 import xmlstreams
+import dumps.intervals
 
 
 def get_count_from_output(sqloutput):
@@ -226,7 +227,7 @@ class PageRange():
         page_end   -- don't end with last page, end at this page instead
 
         all args are ints
-        returns: list of (pagestart<str>, pageend<str>)
+        returns: list of (pagestart, pageend)
         '''
 
         ranges = []
@@ -263,7 +264,7 @@ class PageRange():
             prevguess = end
             if end > page_end:
                 end = page_end
-            ranges.append((str(start), str(end)))
+            ranges.append((start, end))
             if page_start > page_end:
                 break
         return ranges
@@ -471,25 +472,7 @@ class PageRange():
                 print("new interval:", interval_start, interval_end)
 
 
-def check_range_overlap(first_a, last_a, first_b, last_b):
-    """
-    return True if there is overlap between the two ranges,
-    False otherwise
-    for purposes of checking, if last in either range is None,
-    consider it to be after first in both ranges
-    """
-    if (first_a <= first_b and
-            (last_a is None or
-             last_a >= first_b)):
-        return True
-    if (first_a >= first_b and
-            (last_b is None or
-             first_a <= last_b)):
-        return True
-    return False
-
-
-def check_file_covers_range(candidate_dfname, pagerange, maxparts, all_files, runner):
+def xmlfile_covers_range(candidate_dfname, pagerange, maxparts, all_files, runner):
     """
     see if passed DumpFilename covers at least some of the page range specified
     returns True if so, False if not and False on error
@@ -509,7 +492,7 @@ def check_file_covers_range(candidate_dfname, pagerange, maxparts, all_files, ru
     # occurs, we do not abort, but skip the file for prefetch.
     try:
         # If we could properly parse
-        first_page_id_in_file = int(candidate_dfname.first_page_id)
+        first_page_id_in_file = candidate_dfname.first_page_id_int
 
         # fixme what do we do here? this could be very expensive. is that worth it??
         if not candidate_dfname.last_page_id:
@@ -525,9 +508,9 @@ def check_file_covers_range(candidate_dfname, pagerange, maxparts, all_files, ru
                     if dfname.partnum_int == candidate_dfname.partnum_int + 1:
                         # not true!  this could be a few past where it really is
                         # (because of deleted pages that aren't included at all)
-                        candidate_dfname.last_page_id = str(int(dfname.first_page_id) - 1)
-        if candidate_dfname.last_page_id:
-            last_page_id_in_file = int(candidate_dfname.last_page_id)
+                        candidate_dfname.set_last_page_id(dfname.first_page_id_int - 1)
+        if candidate_dfname.last_page_id_int:
+            last_page_id_in_file = candidate_dfname.last_page_id_int
         else:
             last_page_id_in_file = None
 
@@ -537,147 +520,14 @@ def check_file_covers_range(candidate_dfname, pagerange, maxparts, all_files, ru
         # right? but until a rewrite, this is important)
         # also be sure that if a critical page is deleted by the time we
         # try to figure out ranges, that we don't get hosed
-        if check_range_overlap(first_page_id_in_file, last_page_id_in_file,
-                               pagerange['start'], pagerange['end']):
+        if dumps.intervals.interval_overlaps(first_page_id_in_file, last_page_id_in_file,
+                                             pagerange['start'], pagerange['end']):
             return True
     except Exception as ex:
         runner.debug(
             "Couldn't process %s for prefetch. Format update? Corrupt file?"
             % candidate_dfname.filename)
     return False
-
-
-def compare_partial_ranges(first_a, last_a, first_b, last_b):
-    """
-    given two ranges of numbers where first or second
-    pair has the endpoint missing, compare and return
-    True if overlap, False otherwise,
-    the missing endpoint is presumed to be beyond
-    all values
-    """
-    # one or both end values are missing:
-    if not last_a and not last_b:
-        return True
-    if not last_a and int(last_b) < int(first_a):
-        return True
-    if not last_b and int(last_a) < int(first_b):
-        return True
-    return False
-
-
-def compare_full_ranges(first_a, last_a, first_b, last_b):
-    """
-    given two ranges of numbers, compare and return
-    True if overlap, False otherwise
-    """
-    # no values are 'None', can compare them all
-    if (int(first_a) <= int(first_b) and
-            int(first_b) <= int(last_a)):
-        return True
-    if (int(first_b) <= int(first_a) and
-            int(first_a) <= int(last_b)):
-        return True
-    return False
-
-
-def chkptfile_in_pagerange(dfname, chkpt_dfname):
-    """
-    return False if both files are checkpoint files (with page ranges)
-    and the second file page range does not overlap with the first one
-
-    args: DumpFilename, checkpoint file DumpFilename
-    """
-    # one or both are not both checkpoint files, default to 'true'
-    if not dfname.is_checkpoint_file or not chkpt_dfname.is_checkpoint_file:
-        return True
-
-    if not dfname.last_page_id or not chkpt_dfname.last_page_id:
-        # one or both end values are missing:
-        return compare_partial_ranges(dfname.first_page_id, dfname.last_page_id,
-                                      chkpt_dfname.first_page_id, chkpt_dfname.last_page_id)
-    # have end values for both files:
-    return compare_full_ranges(dfname.first_page_id, dfname.last_page_id,
-                               chkpt_dfname.first_page_id, chkpt_dfname.last_page_id)
-
-
-def get_pagerange_missing_before(needed_range, have_range):
-    """
-    given range of numbers needed and range of numbers we have,
-    return range of numbers needed before first number we have,
-    or None if none
-    args:
-        tuple (startpage, endpage, partnum) needed,
-        tuple (startpage, endpage, partnum) already have,
-    """
-    if have_range is None:
-        return needed_range
-    if needed_range is None or int(have_range[0]) <= int(needed_range[0]):
-        return None
-    return (needed_range[0], str(int(have_range[0]) - 1), needed_range[2])
-
-
-def find_missing_pageranges(needed, have):
-    """
-    given list tuples of ranges of numbers needed, and ranges of numbers we have,
-    determine the ranges of numbers missing and return list of said tuples
-    args:
-        sorted asc list of tuples (startpage<str>, endpage<str>, partnum<str>) needed,
-        sorted asc list of tuples (startpage<str>, endpage<str>, partnum<str>) already have,
-    returns: list of (startpage<str>, endpage<str>, partnum<str>)
-
-    """
-    needed_index = 0
-    have_index = 0
-    missing = []
-
-    if not needed:
-        return missing
-    if not have:
-        return needed
-
-    needed_range = needed[needed_index]
-    have_range = have[have_index]
-
-    while True:
-        # if we're out of haves, append everything we need
-        if have_range is None:
-            missing.append(needed_range)
-            needed_index += 1
-            if needed_index < len(needed):
-                needed_range = needed[needed_index]
-            else:
-                # end of needed. done
-                return missing
-
-        before_have = get_pagerange_missing_before(needed_range, have_range)
-
-        # write anything we don't have
-        if before_have is not None:
-            missing.append(before_have)
-
-        # if we haven't already exhausted all the ranges we have...
-        if have_range is not None:
-            # skip over the current range of what we have
-            skip_up_to = str(int(have_range[1]) + 1)
-            while int(needed_range[1]) < int(skip_up_to):
-                needed_index += 1
-                if needed_index < len(needed):
-                    needed_range = needed[needed_index]
-                else:
-                    # end of needed. done
-                    return missing
-
-            if int(needed_range[0]) < int(skip_up_to):
-                needed_range = (skip_up_to, needed_range[1], needed_range[2])
-
-            # get the next range we have
-            have_index += 1
-            if have_index < len(have):
-                have_range = have[have_index]
-            else:
-                have_range = None
-
-    return missing
 
 
 def usage(message=None):

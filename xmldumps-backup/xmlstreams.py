@@ -206,7 +206,7 @@ def get_max_id(wikiconf, wikidb, id_field, table):
 
     db_info = DbServerInfo(wiki, wikidb)
     query = "select MAX(%s) from %s%s;" % (
-        id_field, db_info.db_table_prefix, table)
+        id_field, db_info.get_attr('db_table_prefix'), table)
     results = None
     retries = 0
     maxretries = wiki.config.max_retries

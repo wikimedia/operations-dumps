@@ -47,12 +47,12 @@ class PrefetchFinder():
                         dcontents = DumpContents(
                             self.wiki, runner.dump_dir.filename_public_path(dfname, date),
                             dfname, self.verbose)
-                    dfname.first_page_id = dcontents.find_first_page_id_in_file()
+                    dfname.set_first_page_id(dcontents.find_first_page_id_in_file())
 
             # get the files that cover our range
             for dfname in file_list:
-                if dumps.pagerange.check_file_covers_range(dfname, pagerange,
-                                                           maxparts, file_list, runner):
+                if dumps.pagerange.xmlfile_covers_range(dfname, pagerange,
+                                                        maxparts, file_list, runner):
                     possibles.append(dfname)
         return possibles
 
@@ -188,7 +188,7 @@ class PrefetchFinder():
                 # if we are doing pagerange stub run, include only the analogous
                 # checkpointed prefetch files, if there are checkpointed files
                 # otherwise we'll use the all the sourcefiles reported
-                if not dumps.pagerange.chkptfile_in_pagerange(stub_file, sourcefile):
+                if not dumps.intervals.chkptfile_in_pagerange(stub_file, sourcefile):
                     continue
                 if runner.wiki.is_private():
                     source_path = runner.dump_dir.filename_private_path(sourcefile, sourcefile.date)

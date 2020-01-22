@@ -93,14 +93,15 @@ class DbServerInfo():
         self.db_server = None
         self.db_port = None
         self.apibase = None
-        self.get_db_server_and_prefix()
 
     def get_db_server_and_prefix(self, do_globals=True):
         """
         Get the name of a slave server for our cluster; also get
-        the prefix for all tables for the specific wiki ($wgDBprefix)
-        if do_globals is True, also get global variables and use them
-        to set various attributes such as apibase, table prefix
+        the prefix for all tables for the specific wiki ($wgDBprefix),
+        and set attributes db_server, db_port
+
+        if do_globals is True, also get global variables
+        and set attributes db_table_prefix, apibase
         """
         if not exists(self.wiki.config.php):
             raise BackupError("php command %s not found" % self.wiki.config.php)
@@ -118,7 +119,7 @@ class DbServerInfo():
         # the db table prefix out of those
         lines = results.decode('utf-8').splitlines()
         self.db_server = lines[0]
-        self.db_port = None
+        self.db_port = ""
         if ':' in self.db_server:
             self.db_server, _, self.db_port = self.db_server.rpartition(':')
 
@@ -158,15 +159,15 @@ class DbServerInfo():
             "api.php"])
 
     def mysql_standard_parameters(self):
-        host = self.db_server
-        if self.db_port and self.db_server.strip() == "localhost":
+        host = self.get_attr('db_server')
+        if self.get_attr('db_port') and self.get_attr('db_server').strip() == "localhost":
             # MySQL tools ignore port settings for host "localhost" and instead use IPC sockets,
             # so we rewrite the localhost to it's ip address
-            host = socket.gethostbyname(self.db_server)
+            host = socket.gethostbyname(self.get_attr('db_server'))
 
         params = ["-h", "%s" % host]  # Host
-        if self.db_port:
-            params += ["--port", self.db_port]
+        if self.get_attr('db_port'):
+            params += ["--port", self.get_attr('db_port')]
         params += ["-u", self.wiki.db_user, self.password_option()]
         params += ["--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet]
         return params
@@ -192,12 +193,14 @@ class DbServerInfo():
             "--opt", "--quick",
             "--skip-add-locks", "--skip-lock-tables",
             "%s" % self.db_name,
-            "%s" % self.db_table_prefix + table]]
+            "%s" % self.get_attr('db_table_prefix') + table]]
         if pipeto:
             command.append([pipeto])
         return command
 
     def run_sql_and_get_output(self, query):
+        if self.db_server is None:
+            self.get_db_server_and_prefix()
         command = self.build_sql_command(query)
         proc = CommandPipeline(command, quiet=True)
         proc.run_pipeline_get_output()
@@ -213,6 +216,8 @@ class DbServerInfo():
         this will recheck the db config in case a db server
         has been removed from the pool suddenly
         """
+        if self.db_server is None:
+            self.get_db_server_and_prefix()
         results = None
         retries = 0
         while results is None and retries < maxretries:
@@ -232,6 +237,15 @@ class DbServerInfo():
         if self.wiki.db_password == "":
             return None
         return "-p" + self.wiki.db_password
+
+    def get_attr(self, attribute):
+        """
+        lazyload expensive attributes, only get them when requested
+        mw maintenance script gets all of them at once
+        """
+        if getattr(self, attribute) is None:
+            self.get_db_server_and_prefix()  # mw maintenance script
+        return getattr(self, attribute)
 
 
 class RunSimpleCommand():
@@ -329,7 +343,7 @@ class PageAndEditStats():
     def get_statistics(self):
         """Get statistics for the wiki"""
 
-        query = "select MAX(page_id) from %spage;" % self.db_server_info.db_table_prefix
+        query = "select MAX(page_id) from %spage;" % self.db_server_info.get_attr('db_table_prefix')
         results = None
         retries = 0
         maxretries = self.wiki.config.max_retries
@@ -345,7 +359,8 @@ class PageAndEditStats():
         if lines and lines[1] and lines[1] != b'NULL':
             self.total_pages = int(lines[1])
 
-        query = "select MAX(rev_id) from %srevision;" % self.db_server_info.db_table_prefix
+        query = "select MAX(rev_id) from %srevision;" % self.db_server_info.get_attr(
+            'db_table_prefix')
         retries = 0
         results = None
         results = self.db_server_info.run_sql_and_get_output(query)
@@ -360,7 +375,8 @@ class PageAndEditStats():
         if lines and lines[1] and lines[1] != b'NULL':
             self.total_edits = int(lines[1])
 
-        query = "select MAX(log_id) from %slogging;" % self.db_server_info.db_table_prefix
+        query = "select MAX(log_id) from %slogging;" % self.db_server_info.get_attr(
+            'db_table_prefix')
         retries = 0
         results = None
         results = self.db_server_info.run_sql_and_get_output(query)
@@ -378,12 +394,18 @@ class PageAndEditStats():
         return 0
 
     def get_total_pages(self):
+        if self.total_pages is None:
+            self.get_statistics()
         return self.total_pages
 
     def get_total_logitems(self):
+        if self.total_logitems is None:
+            self.get_statistics()
         return self.total_logitems
 
     def get_total_edits(self):
+        if self.total_edits is None:
+            self.get_statistics()
         return self.total_edits
 
 
@@ -406,101 +428,8 @@ class FilePartInfo():
     over a specified page id range rather than over all pages, but that is
     not our concern here.
     '''
-    def __init__(self, wiki, db_name, error_callback=None):
-
-        self._db_name = db_name
-        self.wiki = wiki
-        self._parts_enabled = self.wiki.config.parts_enabled
-        if self._parts_enabled:
-            self.stats = PageAndEditStats(self.wiki, self._db_name, error_callback)
-            if not self.stats.total_edits or not self.stats.total_pages:
-                raise BackupError("Failed to get DB stats, exiting")
-            if (self.wiki.config.numparts_for_abstract and
-                    self.wiki.config.numparts_for_abstract != "0"):
-                # we add 200 padding to cover new pages that may be added
-                pages_per_filepart = 200 + self.stats.total_pages / int(
-                    self.wiki.config.numparts_for_abstract)
-                self._pages_per_filepart_abstract = [pages_per_filepart for i in range(
-                    0, int(self.wiki.config.numparts_for_abstract))]
-            else:
-                self._pages_per_filepart_abstract = self.convert_comma_sep(
-                    self.wiki.config.pages_per_filepart_abstract)
-
-            if (self.wiki.config.numparts_for_pagelogs and
-                    self.wiki.config.numparts_for_pagelogs != "0"):
-                # we add 200 padding to cover new log entries that may be added
-                logitems_per_filepart = 200 + self.stats.total_logitems / int(
-                    self.wiki.config.numparts_for_pagelogs)
-                self._logitems_per_filepart_pagelogs = [logitems_per_filepart for i in range(
-                    0, int(self.wiki.config.numparts_for_pagelogs))]
-            else:
-                self._logitems_per_filepart_pagelogs = self.convert_comma_sep(
-                    self.wiki.config.logitems_per_filepart_pagelogs)
-
-            self._pages_per_filepart_history = self.convert_comma_sep(
-                self.wiki.config.pages_per_filepart_history)
-            self._revs_per_filepart_history = self.convert_comma_sep(
-                self.wiki.config.revs_per_filepart_history)
-            self._recombine_metacurrent = self.wiki.config.recombine_metacurrent
-            self._recombine_history = self.wiki.config.recombine_history
-        else:
-            self._pages_per_filepart_history = False
-            self._revs_per_filepart_history = False
-            self._pages_per_filepart_abstract = False
-            self._logitems_per_filepart_pagelogs = False
-            self._recombine_metacurrent = False
-            self._recombine_history = False
-        if self._parts_enabled:
-            if self._revs_per_filepart_history:
-                if (len(self._revs_per_filepart_history) == 1 and
-                        self._revs_per_filepart_history[0]):
-                    self._num_parts_history = self.get_num_parts_for_xml_dumps(
-                        self.stats.total_edits, self._pages_per_filepart_history[0])
-                    self._revs_per_filepart_history = [self._revs_per_filepart_history[0]
-                                                       for i in range(self._num_parts_history)]
-                else:
-                    self._num_parts_history = len(self._revs_per_filepart_history)
-                # here we should generate the number of pages per filepart based on number of revs.
-                # ...next code update! FIXME
-                # self._pages_per_filepart_history = ....
-            elif self._pages_per_filepart_history:
-                if (len(self._pages_per_filepart_history) == 1 and
-                        self._pages_per_filepart_history[0]):
-                    self._num_parts_history = self.get_num_parts_for_xml_dumps(
-                        self.stats.total_pages, self._pages_per_filepart_history[0])
-                    self._pages_per_filepart_history = [self._pages_per_filepart_history[0]
-                                                        for i in range(self._num_parts_history)]
-                else:
-                    self._num_parts_history = len(self._pages_per_filepart_history)
-            else:
-                self._num_parts_history = 0
-
-            if self._pages_per_filepart_abstract:
-                if (len(self._pages_per_filepart_abstract) == 1 and
-                        self._pages_per_filepart_abstract[0]):
-                    self._num_parts_abstract = self.get_num_parts_for_xml_dumps(
-                        self.stats.total_pages, self._pages_per_filepart_abstract[0])
-                    self._pages_per_filepart_abstract = [self._pages_per_filepart_abstract[0]
-                                                         for i in range(self._num_parts_abstract)]
-                else:
-                    self._num_parts_abstract = len(self._pages_per_filepart_abstract)
-            else:
-                self._num_parts_abstract = 0
-
-            if self._logitems_per_filepart_pagelogs:
-                if (len(self._logitems_per_filepart_pagelogs) == 1 and
-                        self._logitems_per_filepart_pagelogs[0]):
-                    self._num_parts_pagelogs = self.get_num_parts_for_xml_dumps(
-                        self.stats.total_logitems, self._logitems_per_filepart_pagelogs[0])
-                    self._logitems_per_filepart_pagelogs = [
-                        self._logitems_per_filepart_pagelogs[0]
-                        for i in range(self._num_parts_pagelogs)]
-                else:
-                    self._num_parts_pagelogs = len(self._logitems_per_filepart_pagelogs)
-            else:
-                self._num_parts_pagelogs = 0
-
-    def convert_comma_sep(self, line):
+    @staticmethod
+    def convert_comma_sep(line):
         if line == "":
             return False
         result = line.split(',')
@@ -510,29 +439,166 @@ class FilePartInfo():
             numbers.append(int(field))
         return numbers
 
-    def get_pages_per_filepart_abstract(self):
-        return self._pages_per_filepart_abstract
+    def __init__(self, wiki, db_name, error_callback=None):
+        self._db_name = db_name
+        self.error_callback = error_callback
+        self.wiki = wiki
+        self._parts_enabled = self.wiki.config.parts_enabled
+        self.stats = None
+        self._pages_per_filepart_abstract = None
+        self._logitems_per_filepart_pagelogs = None
+        self._pages_per_filepart_history = None
+        self._revs_per_filepart_history = None
+        self._pages_per_filepart_abstract = None
+        self._logitems_per_filepart_pagelogs = None
+        self._recombine_metacurrent = None
+        self._recombine_history = None
+        self._num_parts_pagelogs = None
+        self._num_parts_abstract = None
+        self._num_parts_history = None
+        self.init_cheap_stuff()
 
-    def get_logitems_per_filepart_pagelogs(self):
-        return self._logitems_per_filepart_pagelogs
+    def init_for_parts(self):
+        self._pages_per_filepart_history = self.convert_comma_sep(
+            self.wiki.config.pages_per_filepart_history)
+        self._revs_per_filepart_history = self.convert_comma_sep(
+            self.wiki.config.revs_per_filepart_history)
+        self._recombine_metacurrent = self.wiki.config.recombine_metacurrent
+        self._recombine_history = self.wiki.config.recombine_history
 
-    def get_num_parts_abstract(self):
-        return self._num_parts_abstract
+    def get_some_stats(self):
+        """
+        if all goes well, polls the db and sets the following attributes:
+        _pages_per_filepart_abstract
+        _logitems_per_filepart_pagelogs
+        """
+        if not self.stats:
+            self.stats = PageAndEditStats(self.wiki, self._db_name, self.error_callback)
+        if not self.stats.get_total_edits() or not self.stats.get_total_pages():
+            raise BackupError("Failed to get DB stats, exiting")
+        if (self.wiki.config.numparts_for_abstract and
+                self.wiki.config.numparts_for_abstract != "0"):
+            # we add 200 padding to cover new pages that may be added
+            pages_per_filepart = 200 + self.stats.get_total_pages() / int(
+                self.wiki.config.numparts_for_abstract)
+            self._pages_per_filepart_abstract = [pages_per_filepart for i in range(
+                0, int(self.wiki.config.numparts_for_abstract))]
+        else:
+            self._pages_per_filepart_abstract = self.convert_comma_sep(
+                self.wiki.config.pages_per_filepart_abstract)
 
-    def get_pages_per_filepart_history(self):
-        return self._pages_per_filepart_history
+        if (self.wiki.config.numparts_for_pagelogs and
+                self.wiki.config.numparts_for_pagelogs != "0"):
+            # we add 200 padding to cover new log entries that may be added
+            logitems_per_filepart = 200 + self.stats.get_total_logitems() / int(
+                self.wiki.config.numparts_for_pagelogs)
+            self._logitems_per_filepart_pagelogs = [logitems_per_filepart for i in range(
+                0, int(self.wiki.config.numparts_for_pagelogs))]
+        else:
+            self._logitems_per_filepart_pagelogs = self.convert_comma_sep(
+                self.wiki.config.logitems_per_filepart_pagelogs)
 
-    def get_num_parts_history(self):
-        return self._num_parts_history
+    def set_stats_false(self):
+        self._pages_per_filepart_history = False
+        self._revs_per_filepart_history = False
+        self._pages_per_filepart_abstract = False
+        self._logitems_per_filepart_pagelogs = False
+        self._recombine_metacurrent = False
+        self._recombine_history = False
+
+    def set_pagelog_parts(self):
+        """
+        set the _num_parts_pagelogs attribute
+        """
+        if self._logitems_per_filepart_pagelogs:
+            if (len(self._logitems_per_filepart_pagelogs) == 1 and
+                    self._logitems_per_filepart_pagelogs[0]):
+                self._num_parts_pagelogs = self.get_num_parts_for_xml_dumps(
+                    self.stats.get_total_logitems(), self._logitems_per_filepart_pagelogs[0])
+                self._logitems_per_filepart_pagelogs = [
+                    self._logitems_per_filepart_pagelogs[0]
+                    for i in range(self._num_parts_pagelogs)]
+            else:
+                self._num_parts_pagelogs = len(self._logitems_per_filepart_pagelogs)
+        else:
+            self._num_parts_pagelogs = 0
+
+    def set_abstract_parts(self):
+        """
+        set the _num_parts_abstract attribute
+        """
+        if self._pages_per_filepart_abstract:
+            if (len(self._pages_per_filepart_abstract) == 1 and
+                    self._pages_per_filepart_abstract[0]):
+                self._num_parts_abstract = self.get_num_parts_for_xml_dumps(
+                    self.stats.get_total_pages(), self._pages_per_filepart_abstract[0])
+                self._pages_per_filepart_abstract = [self._pages_per_filepart_abstract[0]
+                                                     for i in range(self._num_parts_abstract)]
+            else:
+                self._num_parts_abstract = len(self._pages_per_filepart_abstract)
+        else:
+            self._num_parts_abstract = 0
+
+    def set_revs_or_pages_parts(self):
+        """
+        set the attributes:
+        _revs_per_filepart_history
+        _num_parts_history
+        _pages_per_filepart_history
+        _num_parts_history
+        """
+        if self._revs_per_filepart_history:
+            if (len(self._revs_per_filepart_history) == 1 and
+                    self._revs_per_filepart_history[0]):
+                self._num_parts_history = self.get_num_parts_for_xml_dumps(
+                    self.stats.get_total_edits(), self._pages_per_filepart_history[0])
+                self._revs_per_filepart_history = [self._revs_per_filepart_history[0]
+                                                   for i in range(self._num_parts_history)]
+            else:
+                self._num_parts_history = len(self._revs_per_filepart_history)
+                # here we should generate the number of pages per filepart based on number of revs.
+                # ...next code update! FIXME
+                # self._pages_per_filepart_history = ....
+        elif self._pages_per_filepart_history:
+            if (len(self._pages_per_filepart_history) == 1 and
+                    self._pages_per_filepart_history[0]):
+                self._num_parts_history = self.get_num_parts_for_xml_dumps(
+                    self.stats.get_total_pages(), self._pages_per_filepart_history[0])
+                self._pages_per_filepart_history = [self._pages_per_filepart_history[0]
+                                                    for i in range(self._num_parts_history)]
+            else:
+                self._num_parts_history = len(self._pages_per_filepart_history)
+        else:
+            self._num_parts_history = 0
+
+    def init_cheap_stuff(self):
+        if self._parts_enabled:
+            self.init_for_parts()
+        else:
+            self.set_stats_false()
+
+    def get_expensive_stuff(self):
+        """
+        set all attributes that need a db lookup to get things like
+        number of pages, log entries, etc
+        """
+        if self._parts_enabled:
+            self.get_some_stats()  # db access
+            self.set_revs_or_pages_parts()
+            self.set_abstract_parts()
+            self.set_pagelog_parts()
+
+    def get_attr(self, attribute):
+        """
+        lazyload expensive attributes, only get them when requested
+        db query gets all of them at once
+        """
+        if getattr(self, attribute) is None:
+            self.get_expensive_stuff()
+        return getattr(self, attribute)
 
     def parts_enabled(self):
         return self._parts_enabled
-
-    def recombine_metacurrent(self):
-        return self._recombine_metacurrent
-
-    def recombine_history(self):
-        return self._recombine_history
 
     # args: total (pages or revs), and the number of (pages or revs) per filepart.
     def get_num_parts_for_xml_dumps(self, total, per_filepart):

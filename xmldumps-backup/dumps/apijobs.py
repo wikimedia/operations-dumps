@@ -55,7 +55,7 @@ class SiteInfoDump(Dump):
         """
         #  https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo
         #         &siprop=namespaces|namespacealiases|magicwords&format=json
-        base_url = runner.db_server_info.apibase
+        base_url = runner.db_server_info.get_attr('apibase')
         properties = '|'.join(self._properties)
         api_url = "{baseurl}?action=query&meta=siteinfo&siprop={props}&format=json"
         url = api_url.format(baseurl=base_url, props=properties)

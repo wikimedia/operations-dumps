@@ -164,7 +164,9 @@ class DumpFilename():
     is_temp_file        filename of form dbname-date-dumpname.xml.gz/bz2/7z-tmp
     is_inprog           filename of form dbname-date-dumpname.<stuff>.inprog
     first_page_id       for checkpoint files, taken from value in filename
+    first_page_id_int   for checkpoint files, taken from value in filename
     last_page_id      for checkpoint files, value taken from filename
+    last_page_id_int  for checkpoint files, value taken from filename
     filename          full filename
     basename          part of the filename after the project name and date (for
                           "enwiki-20110722-pages-meta-history12.xml.bz2" this would be
@@ -239,8 +241,17 @@ class DumpFilename():
 
     @staticmethod
     def make_checkpoint_string(first_page_id, last_page_id):
-        if first_page_id is not None and last_page_id is not None:
-            return "p" + first_page_id + "p" + last_page_id
+        """
+        args may be either:
+            string or None
+            int or 0
+        in the case of None (or 0) for either arg, this method is
+        undefined and will return None
+        """
+        if first_page_id is None or last_page_id is None:
+            return None
+        if first_page_id and last_page_id:
+            return "p" + str(first_page_id) + "p" + str(last_page_id)
         return None
 
     @staticmethod
@@ -260,6 +271,24 @@ class DumpFilename():
         if dump_name:
             filename = self.new_filename(dump_name, filetype, ext, date, partnum, checkpoint, temp)
             self.new_from_filename(filename)
+
+    def __eq__(self, other):
+        """
+        it's all boring old attributes, so we can do this
+        """
+        if other is None:
+            return False
+        if ((self.is_checkpoint_file, self.is_file_part, self.is_temp_file, self.is_inprog) !=
+                (other.is_checkpoint_file, other.is_file_part,
+                 other.is_temp_file, other.is_inprog)):
+            return False
+        if ((self.first_page_id, self.last_page_id, self.filename, self.basename) !=
+                (other.first_page_id, other.last_page_id, other.filename, other.basename)):
+            return False
+        if ((self.file_ext, self.date, self.dumpname, self.partnum) !=
+                (other.file_ext, other.date, other.dumpname, other.partnum)):
+            return False
+        return self.partnum_int == other.partnum_int
 
     def is_ext(self, ext):
         return bool(ext in ["gz", "bz2", "7z", "html", "txt"])
@@ -292,6 +321,8 @@ class DumpFilename():
         self.checkpoint = None
         self.first_page_id = None
         self.last_page_id = None
+        self.first_page_id_int = 0
+        self.last_page_id_int = 0
 
         self.is_temp_file = False
         self.temp = None
@@ -361,6 +392,10 @@ class DumpFilename():
             self.checkpoint = "p" + self.first_page_id + "p" + self.last_page_id
             if self.file_type and self.file_type.endswith("-" + self.checkpoint):
                 self.file_type = self.file_type[:-1 * (len(self.checkpoint) + 1)]
+        if self.first_page_id is not None:
+            self.first_page_id_int = int(self.first_page_id)
+        if self.last_page_id is not None:
+            self.last_page_id_int = int(self.last_page_id)
 
         self.partnum_pattern = "(?P<partnum>[0-9]+)$"
         self.compiled_partnum_pattern = re.compile(self.partnum_pattern)
@@ -393,6 +428,22 @@ class DumpFilename():
         if temp:
             filename = filename + "-tmp"
         return filename
+
+    def set_first_page_id(self, value):
+        if value is None:
+            self.first_page_id = None
+            self.first_page_id_int = 0
+        else:
+            self.first_page_id = str(value)
+            self.first_page_id_int = int(value)
+
+    def set_last_page_id(self, value):
+        if value is None:
+            self.last_page_id = None
+            self.last_page_id_int = 0
+        else:
+            self.last_page_id = str(value)
+            self.last_page_id_int = int(value)
 
 
 class DumpContents():
@@ -440,7 +491,9 @@ class DumpContents():
         self.is_empty = None
         self.is_binary = None
         self.first_page_id = None
+        self.first_page_id_int = 0
         self.last_page_id = None
+        self.last_page_id_int = 0
         self.dirname = os.path.dirname(filename)
         if dfname:
             self.dfname = dfname
@@ -542,8 +595,8 @@ class DumpContents():
     # right. stupid compressed files. um.... do we have stream wrappers? no. this is python
     # what's the easy was to read *some* compressed data into a buffer?
     def find_first_page_id_in_file(self):
-        if self.first_page_id:
-            return self.first_page_id
+        if self.first_page_id_int:
+            return self.first_page_id_int
         output = self.get_first_500_lines()
         if output:
             page_data = output
@@ -553,7 +606,8 @@ class DumpContents():
             result = title_and_id_pattern.search(page_data)
             if result:
                 self.first_page_id = result.group('pageid')
-        return self.first_page_id
+                self.first_page_id_int = int(self.first_page_id)
+        return self.first_page_id_int
 
     def get_last_lines(self, count):
         """
@@ -619,8 +673,8 @@ class DumpContents():
 
         arg: Runner
         """
-        if self.last_page_id:
-            return self.last_page_id
+        if self.last_page_id_int:
+            return self.last_page_id_int
         count = self.get_lineno_last_page()
         lastlines = self.get_last_lines(count)
         # now look for the last page id in here. eww
@@ -634,7 +688,8 @@ class DumpContents():
             pass
         if result:
             self.last_page_id = result.group('pageid')
-        return self.last_page_id
+            self.last_page_id_int = int(self.last_page_id)
+        return self.last_page_id_int
 
     def check_if_truncated(self, last_tag=None):
         '''

@@ -155,6 +155,11 @@ class CommandPipeline():
         if self.save_file():
             self.save_file().close()
 
+    def close_all_pipes(self):
+        for proc in self._processes:
+            proc.stdout.close()
+            proc.stderr.close()
+
     def is_running(self):
         """Check if process is running."""
         # Note that poll() returns None if the process
@@ -308,6 +313,7 @@ class CommandPipeline():
         self.start_commands()
         self.get_all_output()
         self.set_return_codes()
+        self.close_all_pipes()
 
 
 class CommandSeries():

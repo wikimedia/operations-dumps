@@ -25,6 +25,8 @@ class ConfigParsing():
         self.project_name = None
         self.override_section = None
         self.conf = None
+        self.db_user = None
+        self.db_password = None
 
     def get_opt_from_sections(self, sections_to_check, item_name, is_int):
         """
@@ -416,9 +418,11 @@ class Config(ConfigParsing):
     def get_tablejobs_from_conf(self):
         try:
             if self.tablejobs:
-                contents = open(self.tablejobs).read()
+                with open(self.tablejobs) as infile:
+                    contents = infile.read()
             else:
-                contents = open("default_tables.yaml").read()
+                with open("default_tables.yaml") as infile:
+                    contents = infile.read()
             return yaml.safe_load(contents)
         except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -429,9 +433,11 @@ class Config(ConfigParsing):
     def get_apijobs_from_conf(self):
         try:
             if self.apijobs:
-                contents = open(self.apijobs).read()
+                with open(self.apijobs) as infile:
+                    contents = infile.read()
             else:
-                contents = open("default_api.yaml").read()
+                with open("default_api.yaml") as infile:
+                    contents = infile.read()
             return yaml.safe_load(contents)
         except Exception as ex:
             exc_type, exc_value, exc_traceback = sys.exc_info()

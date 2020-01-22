@@ -1,0 +1,535 @@
+#!/usr/bin/python3
+"""
+text suite for xml content job
+"""
+import os
+import shutil
+import unittest
+from unittest.mock import patch
+from test.basedumpstest import BaseDumpsTestCase
+import dumps.dumpitemlist
+import dumps.wikidump
+import dumps.xmlcontentjobs
+from dumps.xmlcontentjobs import XmlDump
+from dumps.utils import FilePartInfo
+from dumps.fileutils import DumpFilename
+from dumps.xmljobs import XmlStub
+from dumps.runner import Runner
+from dumps.pagerangeinfo import PageRangeInfo
+
+
+class TestXmlDumpWithFixtures(BaseDumpsTestCase):
+    """
+    some basic tests for production of xml content files
+    that use fixture files for stub and page content
+    """
+    def setup_xml_files_chkpts(self, todos, excluded=None):
+        """
+        make copies of our sample stub and page content files in the right
+        directory with the right names
+        'excluded' contains the list of pageranges not to copy in, if desired
+        """
+        parts_pageranges = {'1': ['p1p1500', 'p1501p4000', 'p4001p4321', 'p4322p4330'],
+                            '2': ['p4331p4350', 'p4351p4380', 'p4381p4443'],
+                            '3': ['p4444p4445', 'p4446p4600', 'p4601p4605'],
+                            '4': ['p4606p5340', 'p5341p5345']}
+
+        if 'stub' in todos:
+            for part in parts_pageranges:
+                inpath = './test/files/stub-articles-sample' + part + '.xml.gz'
+                basefilename = ('wikidatawiki-{today}-stub-articles'.format(today=self.today) +
+                                part + '.xml.gz')
+                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                       self.today, basefilename)
+                shutil.copyfile(inpath, outpath)
+
+        if 'content' in todos:
+            for part in parts_pageranges:
+                for pagerange in parts_pageranges[part]:
+                    if excluded and pagerange in excluded:
+                        continue
+                    inpath = ('./test/files/pages-articles-sample' + part + '.xml-' +
+                              pagerange + '.bz2')
+                    # wikidatawiki-20200205-pages-articles1.xml-p1p100.bz2
+                    basefilename = ('wikidatawiki-{today}-pages-articles'.format(today=self.today) +
+                                    part + '.xml-' + pagerange + '.bz2')
+                    outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                           self.today, basefilename)
+                    shutil.copyfile(inpath, outpath)
+
+    def setup_xml_files_parts(self, todos, excluded=None):
+        """
+        make copies of our sample stub and page content files in the right
+        directory with the right names
+        'excluded' contains the list of parts not to copy in, if desired
+        """
+        parts = ['1', '2', '3', '4']
+
+        if 'stub' in todos:
+            for part in parts:
+                inpath = './test/files/stub-articles-sample' + part + '.xml.gz'
+                basefilename = ('wikidatawiki-{today}-stub-articles'.format(today=self.today) +
+                                part + '.xml.gz')
+                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                       self.today, basefilename)
+                shutil.copyfile(inpath, outpath)
+
+        if 'content' in todos:
+            for part in parts:
+                if excluded and part in excluded:
+                    continue
+                inpath = ('./test/files/pages-articles-sample' + part + '.xml.bz2')
+                # wikidatawiki-20200205-pages-articles1.xml.bz2
+                basefilename = ('wikidatawiki-{today}-pages-articles'.format(today=self.today) +
+                                part + '.xml.bz2')
+                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                       self.today, basefilename)
+                shutil.copyfile(inpath, outpath)
+
+    def setup_xml_files_noparts(self, todos):
+        """
+        make copies of our sample stub and page content files in the right
+        directory with the right names
+        """
+        if 'stub' in todos:
+            inpath = './test/files/stub-articles-sample.xml.gz'
+            basefilename = ('wikidatawiki-{today}-stub-articles'.format(today=self.today) +
+                            '.xml.gz')
+            outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                   self.today, basefilename)
+            shutil.copyfile(inpath, outpath)
+
+        if 'content' in todos:
+            inpath = ('./test/files/pages-articles-sample.xml.bz2')
+            # wikidatawiki-20200205-pages-articles1.xml.bz2
+            basefilename = ('wikidatawiki-{today}-pages-articles'.format(today=self.today) +
+                            '.xml.bz2')
+            outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                   self.today, basefilename)
+            shutil.copyfile(inpath, outpath)
+
+    def test_get_first_last_page_ids(self):
+        """
+        check that we can get the first and last page ids of an xml stubs
+        file
+        """
+        self.setup_xml_files_chkpts('stub')
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=FilePartInfo.convert_comma_sep(
+                                  self.wd['wiki'].config.pages_per_filepart_history),
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        xml_dfname = DumpFilename(self.wd['wiki'])
+        xml_dfname.new_from_filename('wikidatawiki-{today}-stub-articles1.xml.gz'.format(
+            today=self.today))
+        firstid, lastid = content_job.get_first_last_page_ids(xml_dfname, self.wd['dump_dir'])
+        expected_ids = [1, 4330]
+        self.assertEqual([firstid, lastid], expected_ids)
+
+    def test_get_ranges_covered_by_stubs(self):
+        """
+        make sure that we get good list of page ranges covered by
+        stubs when we have sample stub files
+        """
+        self.setup_xml_files_chkpts('stub')
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=parts)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        expected_stub_ranges = [(1, 4330, 1), (4331, 4443, 2), (4444, 4605, 3), (4606, 5344, 4)]
+        stub_ranges = content_job.get_ranges_covered_by_stubs(self.wd['dump_dir'])
+        self.assertEqual(stub_ranges, expected_stub_ranges)
+
+    def test_get_done_pageranges(self):
+        """
+        make sure that we get a reasonable list of completed pageranges when
+        some stub and page content files are present, for checkpoint files
+        """
+        self.setup_xml_files_chkpts(['stub', 'content'])
+
+        expected_pageranges = [(1, 1500, 1), (1501, 4000, 1), (4001, 4321, 1), (4322, 4330, 1),
+                               (4331, 4350, 2), (4351, 4380, 2), (4381, 4443, 2),
+                               (4444, 4445, 3), (4446, 4600, 3), (4601, 4605, 3),
+                               (4606, 5340, 4), (5341, 5345, 4)]
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        done_pageranges = content_job.get_done_pageranges(self.wd['dump_dir'], self.wd['wiki'].date)
+        self.assertEqual(done_pageranges, expected_pageranges)
+
+    def test_get_dfnames_for_missing_pranges(self):
+        """
+        make sure that we get an appropriate list of pageranges to generate, when
+        (all) stub files and only some page content files are present
+        """
+        missing = {1: ['p1501p4000', 'p4322p4330'],
+                   3: ['p4446p4600', 'p4601p4605'],
+                   4: ['p5341p5345']}
+
+        missing_ranges = missing[1] + missing[3] + missing[4]
+
+        self.setup_xml_files_chkpts(['stub', 'content'], excluded=missing_ranges)
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=parts)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # note that 4 is not p5341p5345 because it's based off of actual pages in the
+        # stub for the last page in the last part. the other filenames can cover
+        # intervals even where the last pages in those intervals are missing;
+        # just figure out the interval start and end for eac part from the wiki config.
+        expected = {1: ['p1501p4000', 'p4322p4330'],
+                    3: ['p4446p4605'],
+                    4: ['p5341p5344']}
+
+        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+                                                      shuffle=False)
+
+        stub_pageranges = content_job.get_ranges_covered_by_stubs(self.wd['dump_dir'])
+        stub_pageranges = sorted(stub_pageranges, key=lambda x: x[0])
+        todo_dfnames = content_job.get_dfnames_for_missing_pranges(
+            self.wd['dump_dir'], self.wd['wiki'].date, stub_pageranges)
+        self.assertEqual(todo_dfnames, expected_dfnames)
+
+    def test_get_dfnames_from_cached_pageranges(self):
+        """
+        make sure we can get good dfnames todo given stub files,
+        and some content files with some page ranges missing,
+        for wikis with checkpoints enabled
+        """
+
+        missing = {1: ['p1501p4000', 'p4322p4330'],
+                   3: ['p4446p4600', 'p4601p4605'],
+                   4: ['p5341p5345']}
+
+        missing_ranges = missing[1] + missing[3] + missing[4]
+
+        self.setup_xml_files_chkpts(['stub', 'content'], excluded=missing_ranges)
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=parts)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # done with setup, now get args for the method
+        stub_pageranges, dfnames_todo = content_job.get_todos_for_checkpoints(
+            self.wd['dump_dir'], self.wd['wiki'].date)
+
+        # call our method for testing at last
+        dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
+            stub_pageranges, dfnames_todo, print)
+
+        # split up the jobs per number of revisions according to the config
+        expected = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
+                        'p3501p4000', 'p4322p4330'],
+                    3: ['p4446p4605'],
+                    4: ['p5341p5344']}
+        # make DumpFilenames out of them
+        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+                                                      shuffle=False)
+
+        self.assertEqual(dfnames_todo, expected_dfnames)
+
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
+    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
+    def test_get_wanted_write_stubs_rerun(self, mock_has_no_pages, _mock_write_pagerange_stubs,
+                                          _mock_get_some_stats, _mock_get_known_tables):
+        """
+        make sure we can get good dfnames todo given stub files,
+        and some content files with some page ranges missing,
+        for wikis with checkpoints enabled
+        this is the code path that would be executed on a rerun
+        of a failed job
+        """
+        mock_has_no_pages.return_value = False
+
+        missing = {1: ['p1501p4000', 'p4322p4330'],    # nonconsecutive ranges in a part
+                   3: ['p4446p4600', 'p4601p4605'],    # whole part
+                   4: ['p5341p5345']}
+
+        missing_ranges = missing[1] + missing[3] + missing[4]
+
+        self.setup_xml_files_chkpts(['stub', 'content'], excluded=missing_ranges)
+        # set up a fake pagerangeinfo file too
+        fake_pageranges = [(1501, 4000, 1), (1, 1500, 1), (4001, 4321, 1), (4322, 4330, 1),
+                           (4331, 4350, 2), (4351, 4380, 2), (4381, 4443, 2),
+                           (4444, 4445, 3), (4446, 4600, 3), (4601, 4605, 3),
+                           (4606, 5340, 4), (5341, 5345, 4)]
+        pr_info = PageRangeInfo(self.wd['wiki'], enabled=True, fileformat="json",
+                                error_callback=None, verbose=False)
+        pr_info.update_pagerangeinfo(self.wd['wiki'], self.jobname, fake_pageranges)
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=parts)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # done with setup, now get args for the method
+        stub_pageranges, dfnames_todo = content_job.get_todos_for_checkpoints(
+            self.wd['dump_dir'], self.wd['wiki'].date)
+
+        # see what pagerangeinfo has for us
+        dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
+            stub_pageranges, dfnames_todo, print)
+
+        # call our test method
+        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+
+        # grab the list of dfnames wanted to produce
+        wanted_dfnames = [entry['outfile'] for entry in wanted]
+
+        # split up the jobs per number of revisions according to the config
+        expected = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
+                        'p3501p4000', 'p4322p4330'],
+                    3: ['p4446p4605'],
+                    4: ['p5341p5344']}
+        # make DumpFilenames out of them
+        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+                                                      shuffle=False)
+
+        self.assertEqual(wanted_dfnames, expected_dfnames)
+
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
+    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
+    def test_get_wanted_write_stubs_firstrun(self, mock_has_no_pages, _mock_write_pagerange_stubs,
+                                             _mock_get_some_stats, _mock_get_known_tables):
+        """
+        make sure we can get good dfnames todo given stub files,
+        and some content files with some page ranges missing,
+        for wikis with checkpoints enabled
+        this is the code path that would be executed on a first
+        run of the job
+        """
+        mock_has_no_pages.return_value = False
+
+        self.setup_xml_files_chkpts(['stub'])
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=parts)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # done with setup, now get args for the method
+        stub_pageranges, dfnames_todo = content_job.get_todos_for_checkpoints(
+            self.wd['dump_dir'], self.wd['wiki'].date)
+
+        # pagerangeinfo should be nonexistent
+        dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
+            stub_pageranges, dfnames_todo, print)
+
+        # call our test method
+        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+
+        # grab the list of dfnames wanted to produce
+        wanted_dfnames = [entry['outfile'] for entry in wanted]
+
+        # split up the jobs per number of revisions according to the wikidata config
+        expected = {1: ['p1p500', 'p501p1000', 'p1001p1500', 'p1501p2000',
+                        'p2001p2500', 'p2501p3000', 'p3001p3500', 'p3501p4000',
+                        'p4001p4330'],
+                    2: ['p4331p4443'],
+                    3: ['p4444p4605'],
+                    4: ['p4606p5105', 'p5106p5344']}
+        # make DumpFilenames out of them
+        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+                                                      shuffle=False)
+
+        self.assertEqual(wanted_dfnames, expected_dfnames)
+
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
+    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
+    def test_get_wanted_write_stubs_no_chkpts(self, mock_has_no_pages, _mock_write_pagerange_stubs,
+                                              _mock_get_some_stats, _mock_get_known_tables):
+        """
+        make sure we can get good dfnames todo given stub files,
+        and some content files with some parts missing,
+        for wikis without checkpoints enabled
+        """
+        mock_has_no_pages.return_value = False
+
+        self.setup_xml_files_parts(['stub', 'content'], excluded=['2', '4'])
+        self.wd['wiki'].config.checkpoint_time = 0
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
+
+        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=parts)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=parts,
+                              checkpoints=False, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # done with setup, now get args for the method
+        dfnames_todo = content_job.get_todos_no_checkpoints(self.wd['dump_dir'])
+
+        # call our test method
+        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+        # grab the list of dfnames wanted to produce
+        wanted_dfnames = [entry['outfile'] for entry in wanted]
+
+        # set up filenames for the missing parts
+        expected_files = [
+            "wikidatawiki-{today}-pages-articles2.xml.bz2".format(today=self.today),
+            "wikidatawiki-{today}-pages-articles4.xml.bz2".format(today=self.today)]
+        # make DumpFilenames out of them
+        expected_dfnames = self.dfnames_from_filenames(expected_files)
+
+        self.assertEqual(wanted_dfnames, expected_dfnames)
+
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
+    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
+    def test_get_wanted_write_stubs_no_parts(self, mock_has_no_pages, _mock_write_pagerange_stubs,
+                                             _mock_get_some_stats, _mock_get_known_tables):
+        """
+        make sure we can get good dfname todo given the single stub file
+        and no content,
+        for wikis without checkpoints or parts
+        """
+        mock_has_no_pages.return_value = False
+
+        self.setup_xml_files_noparts(['stub'])
+        self.wd['wiki'].config.parts_enabled = 0
+        self.wd['wiki'].config.checkpoint_time = 0
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            parts=False)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              parts=False,
+                              checkpoints=False, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # done with setup, now get args for the method
+        dfnames_todo = content_job.get_todos_no_checkpoints(self.wd['dump_dir'])
+
+        # call our test method
+        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+
+        # grab the list of dfnames wanted to produce
+        wanted_dfnames = [entry['outfile'] for entry in wanted]
+
+        # set up our one output file
+        expected_files = ["wikidatawiki-{today}-pages-articles.xml.bz2".format(today=self.today)]
+        # make DumpFilename out of it
+        expected_dfnames = self.dfnames_from_filenames(expected_files)
+
+        self.assertEqual(wanted_dfnames, expected_dfnames)
+
+
+if __name__ == '__main__':
+    unittest.main()
