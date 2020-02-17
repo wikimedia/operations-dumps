@@ -7,11 +7,10 @@ import os
 from os.path import exists
 import functools
 import time
-import signal
 
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpContents, DumpFilename, FileUtils
-from dumps.utils import MultiVersion
+from dumps.utils import MultiVersion, MiscUtils
 from dumps.jobs import Dump
 from dumps.wikidump import Locker
 import dumps.pagerange
@@ -102,21 +101,21 @@ class StubProvider():
                 output_dfnames_to_check.extend(out_dfnames[in_dfname.filename])
 
         errors = False
+
         while commands:
             command_batch = commands[:batchsize]
-            error, broken = runner.run_command(command_batch)
+            error, broken_pipelines = runner.run_command_without_errorcheck(command_batch)
             if error:
-                for series in broken:
-                    for pipeline in series:
-                        failed_cmds_retcodes = pipeline.get_failed_cmds_with_retcode()
-                        for cmd_retcode in failed_cmds_retcodes:
-                            if (cmd_retcode[1] == -signal.SIGPIPE or
-                                    cmd_retcode[1] == signal.SIGPIPE + 128):
-                                pass
-                            else:
-                                runner.log_and_print("error from commands: %s" % " ".join(
-                                    [entry for entry in pipeline]))
-                                errors = True
+                for pipeline in broken_pipelines:
+                    failed_cmds_retcodes = pipeline.get_failed_cmds_with_retcode()
+                    for cmd_retcode in failed_cmds_retcodes:
+                        if cmd_retcode[0] in MiscUtils.get_sigpipe_values():
+                            pass
+                        else:
+                            runner.log_and_print("error from commands: %s" %
+                                                 pipeline.pipeline_string())
+                            errors = True
+
             commands = commands[batchsize:]
         if errors:
             raise BackupError("failed to write pagerange stub files")
@@ -498,8 +497,9 @@ class XmlDump(Dump):
         to_return = []
         for dfname in output_dfnames:
             # FIXME TEST TEST TEST
-            pageranges = dumps.intervals.get_intervals_by_group(dfname.partnum_int, stub_pageranges)
             if not dfname.is_checkpoint_file:
+                pageranges = dumps.intervals.get_intervals_by_group(
+                    dfname.partnum_int, stub_pageranges)
                 # we get all the ranges for the whole part
                 for prange in pageranges:
                     to_return.extend(self.get_pagerange_jobs_for_file(

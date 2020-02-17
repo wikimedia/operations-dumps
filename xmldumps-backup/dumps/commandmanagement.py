@@ -157,8 +157,10 @@ class CommandPipeline():
 
     def close_all_pipes(self):
         for proc in self._processes:
-            proc.stdout.close()
-            proc.stderr.close()
+            if proc.stdout is not None:
+                proc.stdout.close()
+            if proc.stderr is not None:
+                proc.stderr.close()
 
     def is_running(self):
         """Check if process is running."""
@@ -364,6 +366,11 @@ class CommandSeries():
                 if command is not None:
                     commands.append(command)
         return commands
+
+    def pipelines_with_errors(self):
+        """Return list of pipelines with errors in this series"""
+        return [pipeline for pipeline in self._command_pipelines
+                if not pipeline.exited_successfully()]
 
     def all_output_read_from_pipeline(self):
         '''
@@ -592,6 +599,13 @@ class CommandsInParallel():
                 commands.extend(series.exited_with_errors(stringfmt))
         return commands
 
+    def pipelines_with_errors(self, stringfmt=True):
+        commands = []
+        for series in self._command_serieses:
+            if not series.exited_successfully():
+                commands.extend(series.pipelines_with_errors())
+        return commands
+
     def watch_output_queue(self):
         done = False
         while not done:
@@ -625,6 +639,9 @@ class CommandsInParallel():
         self.start_commands()
         self.setup_output_monitoring()
         self.watch_output_queue()
+        for series in self._command_serieses:
+            for pipeline in series._command_pipelines:
+                pipeline.close_all_pipes()
 #        self._commandSeriesQueue.join()
 
 

@@ -7,11 +7,11 @@ dump jobs are defined here
 import os
 from os.path import exists
 import bz2
-import signal
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
 from dumps.fileutils import DumpFilename
 from dumps.commandmanagement import CommandPipeline
+from dumps.utils import MiscUtils
 
 
 class RecombineDump(Dump):
@@ -139,10 +139,10 @@ class RecombineDump(Dump):
             proc.run_pipeline_get_output()
             if ((proc.output()) and
                     (proc.exited_successfully() or
-                     proc.get_failed_cmds_with_retcode() ==
-                     [[-signal.SIGPIPE, uncompression_todo]] or
-                     proc.get_failed_cmds_with_retcode() ==
-                     [[signal.SIGPIPE + 128, uncompression_todo]])):
+                     proc.get_failed_cmds_with_retcode() in [
+                         [[pipevalue, uncompression_todo]]
+                         for pipevalue in MiscUtils.get_sigpipe_values()]
+                     )):
                 (header_end_num, _junk) = proc.output().decode('utf-8').split(":", 1)
                 # get header_end_num
             else:

@@ -8,6 +8,7 @@ import os
 from os.path import exists
 import time
 import socket
+import signal
 
 from subprocess import Popen, PIPE
 from dumps.commandmanagement import CommandPipeline
@@ -40,6 +41,17 @@ class MiscUtils():
             # A blank string might actually be needed; None means we can leave it out
             return ""
         return tuple([MiscUtils.shell_escape(x) for x in param])
+
+    @staticmethod
+    def get_sigpipe_values():
+        """Return a list of the two numeric values that we could get back from
+        a process interrupted with SIGPIPE, depending on python implementation;
+        signal.SIGPIPE changed in python 3.5 from int to enum"""
+        try:
+            sigpipe_value = signal.SIGPIPE.value
+        except AttributeError:
+            sigpipe_value = signal.SIGPIPE
+        return [-1 * sigpipe_value, sigpipe_value + 128]
 
 
 class TimeUtils():
@@ -281,11 +293,9 @@ class RunSimpleCommand():
                 raise BackupError("command '" + command_string +
                                   ("' failed with return code %s " % proc.returncode) +
                                   " and error '" + error.decode('utf-8') + "'")
-            else:
-                raise BackupError("command '" + command_string +
-                                  ("' failed") + " and error '" + error.decode('utf-8') + "'")
-        else:
-            return output
+            raise BackupError("command '" + command_string +
+                              ("' failed") + " and error '" + error.decode('utf-8') + "'")
+        return output
 
     @staticmethod
     def run_with_no_output(command, maxtries=3, shell=False, log_callback=None,

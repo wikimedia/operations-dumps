@@ -8,13 +8,13 @@ import errno
 import re
 import sys
 import time
-import signal
 import traceback
 import tempfile
 import shutil
 
 from dumps.commandmanagement import CommandPipeline
 from dumps.exceptions import BackupError
+from dumps.utils import MiscUtils
 
 
 class FileUtils():
@@ -547,10 +547,9 @@ class DumpContents():
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
         if (proc.exited_successfully() or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[-signal.SIGPIPE, pipeline[0]]]) or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[signal.SIGPIPE + 128, pipeline[0]]])):
+                proc.get_failed_cmds_with_retcode() in [
+                    [[pipevalue, pipeline[0]]]
+                    for pipevalue in MiscUtils.get_sigpipe_values()]):
             self.first_lines = proc.output()
         return self.first_lines.decode('utf-8')
 
@@ -628,10 +627,10 @@ class DumpContents():
         proc.run_pipeline_get_output()
         last_lines = ""
         if (proc.exited_successfully() or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[-signal.SIGPIPE, pipeline[0]]]) or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[signal.SIGPIPE + 128, pipeline[0]]])):
+                proc.get_failed_cmds_with_retcode() in [
+                    [[pipevalue, pipeline[0]]]
+                    for pipevalue in MiscUtils.get_sigpipe_values()]):
+
             last_lines = proc.output()
         return last_lines.decode('utf-8')
 
@@ -652,11 +651,12 @@ class DumpContents():
         # without shell
         proc = CommandPipeline(pipeline, quiet=True)
         proc.run_pipeline_get_output()
+
         if (proc.exited_successfully() or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[-signal.SIGPIPE, pipeline[0]]]) or
-                (proc.get_failed_cmds_with_retcode() ==
-                 [[signal.SIGPIPE + 128, pipeline[0]]])):
+                proc.get_failed_cmds_with_retcode() in [
+                    [[pipevalue, pipeline[0]]]
+                    for pipevalue in MiscUtils.get_sigpipe_values()]):
+
             output = proc.output().decode('utf-8')
             # 339915646:  <page>
             if ':' in output:

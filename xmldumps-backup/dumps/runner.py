@@ -347,6 +347,24 @@ class Runner():
             self.log_and_print(error_string)
         return 1, commands.commands_with_errors(stringfmt=False)
 
+    def run_command_without_errorcheck(self, command_series_list):
+        """Nonzero return code from the shell from any command in any pipeline will cause
+        this function to return 1, indicating error, and the pipelines that failed
+        are returned so that the caller can check return codes.
+        Returns 0 on success and None for the pipelines.
+        This function spawns multiple series of pipelines  in parallel.
+
+        """
+        if self.dryrun:
+            self.pretty_print_commands(command_series_list)
+            return 0, None
+
+        commands = CommandsInParallel(command_series_list)
+        commands.run_commands()
+        if commands.exited_successfully():
+            return 0, None
+        return 1, commands.pipelines_with_errors()
+
     def run_command_pipeline(self, command_pipeline):
         """
         run one command pipeline and retrn
