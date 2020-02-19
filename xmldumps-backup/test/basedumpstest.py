@@ -87,19 +87,25 @@ class BaseDumpsTestCase(unittest.TestCase):
             self.assertEqual(dfname.filename, filename)
         return dfnames
 
-    def set_checkpt_filenames(self, pagerange_strings, wiki, shuffle=True):
+    def set_checkpt_filenames(self, pagerange_strings, wiki, shuffle=True, stubs=False):
         """
         given a dict of of checkpoint file strings (pxxxpyyy) and their corresponding
         partnums, put together a list of DumpFilenames for the page content dumps and
         return them
         """
         checkpt_filenames = []
+        if stubs:
+            body = "-stub-articles"
+            ext = ".gz"
+        else:
+            body = "-pages-articles"
+            ext = ".bz2"
         for partnum in pagerange_strings:
             for rangestring in pagerange_strings[partnum]:
                 checkpt_filenames.append(
-                    "{wiki}-{date}-pages-articles{partnum}.xml-{rangestring}.bz2".format(
-                        wiki=wiki.db_name, date=self.today,
-                        partnum=partnum, rangestring=rangestring))
+                    "{wiki}-{date}{body}{partnum}.xml-{rangestring}{ext}".format(
+                        wiki=wiki.db_name, date=self.today, body=body,
+                        partnum=partnum, rangestring=rangestring, ext=ext))
         if shuffle:
             random.shuffle(checkpt_filenames)
         dfnames = self.dfnames_from_filenames(checkpt_filenames)

@@ -215,11 +215,11 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         # stub for the last page in the last part. the other filenames can cover
         # intervals even where the last pages in those intervals are missing;
         # just figure out the interval start and end for eac part from the wiki config.
-        expected = {1: ['p1501p4000', 'p4322p4330'],
-                    3: ['p4446p4605'],
-                    4: ['p5341p5344']}
+        expected_ranges = {1: ['p1501p4000', 'p4322p4330'],
+                           3: ['p4446p4605'],
+                           4: ['p5341p5344']}
 
-        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+        expected_dfnames = self.set_checkpt_filenames(expected_ranges, wiki=self.wd['wiki'],
                                                       shuffle=False)
 
         stub_pageranges = content_job.get_ranges_covered_by_stubs(self.wd['dump_dir'])
@@ -268,22 +268,19 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
             stub_pageranges, dfnames_todo, print)
 
         # split up the jobs per number of revisions according to the config
-        expected = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
-                        'p3501p4000', 'p4322p4330'],
-                    3: ['p4446p4605'],
-                    4: ['p5341p5344']}
+        expected_ranges = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
+                               'p3501p4000', 'p4322p4330'],
+                           3: ['p4446p4605'],
+                           4: ['p5341p5344']}
         # make DumpFilenames out of them
-        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+        expected_dfnames = self.set_checkpt_filenames(expected_ranges, wiki=self.wd['wiki'],
                                                       shuffle=False)
 
         self.assertEqual(dfnames_todo, expected_dfnames)
 
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
-    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
-    def test_get_wanted_write_stubs_rerun(self, mock_has_no_pages, _mock_write_pagerange_stubs,
-                                          _mock_get_some_stats, _mock_get_known_tables):
+    def test_get_wanted_rerun(self, _mock_get_some_stats, _mock_get_known_tables):
         """
         make sure we can get good dfnames todo given stub files,
         and some content files with some page ranges missing,
@@ -291,8 +288,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         this is the code path that would be executed on a rerun
         of a failed job
         """
-        mock_has_no_pages.return_value = False
-
         missing = {1: ['p1501p4000', 'p4322p4330'],    # nonconsecutive ranges in a part
                    3: ['p4446p4600', 'p4601p4605'],    # whole part
                    4: ['p5341p5345']}
@@ -339,29 +334,50 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
             stub_pageranges, dfnames_todo, print)
 
-        # call our test method
-        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+        # call firstr test method
+        wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
 
         # grab the list of dfnames wanted to produce
         wanted_dfnames = [entry['outfile'] for entry in wanted]
 
         # split up the jobs per number of revisions according to the config
-        expected = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
-                        'p3501p4000', 'p4322p4330'],
-                    3: ['p4446p4605'],
-                    4: ['p5341p5344']}
+        expected_ranges = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
+                               'p3501p4000', 'p4322p4330'],
+                           3: ['p4446p4605'],
+                           4: ['p5341p5344']}
         # make DumpFilenames out of them
-        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+        expected_dfnames = self.set_checkpt_filenames(expected_ranges, wiki=self.wd['wiki'],
                                                       shuffle=False)
+        with self.subTest('check wanted dfnames'):
+            self.assertEqual(wanted_dfnames, expected_dfnames)
 
-        self.assertEqual(wanted_dfnames, expected_dfnames)
+        to_generate = content_job.get_to_generate_for_temp_stubs(wanted)
+
+        # call the final test method
+        commands, output_dfnames = content_job.stubber.get_commands_for_temp_stubs(
+            to_generate, runner)
+
+        expected_stub_dfnames = self.set_checkpt_filenames(expected_ranges, wiki=self.wd['wiki'],
+                                                           shuffle=False, stubs=True)
+
+        expected_fspecs = {1: ['1501:2001', '2001:2501', '2501:3001', '3001:3501',
+                               '3501:4001', '4322:4331'],
+                           3: ['4446:4606'],
+                           4: ['5341:5345']}
+
+        expected_commands = self.make_expected_stub_commands(
+            expected_ranges,
+            expected_fspecs,
+            BaseDumpsTestCase.PUBLICDIR + '/' + self.wd['wiki'].db_name,
+            self.wd['wiki'])
+
+        with self.subTest('check stub output dfnames'):
+            self.assertEqual(output_dfnames, expected_stub_dfnames)
+            self.assertEqual(commands, expected_commands)
 
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
-    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
-    def test_get_wanted_write_stubs_firstrun(self, mock_has_no_pages, _mock_write_pagerange_stubs,
-                                             _mock_get_some_stats, _mock_get_known_tables):
+    def test_get_wanted_firstrun(self, _mock_get_some_stats, _mock_get_known_tables):
         """
         make sure we can get good dfnames todo given stub files,
         and some content files with some page ranges missing,
@@ -369,8 +385,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         this is the code path that would be executed on a first
         run of the job
         """
-        mock_has_no_pages.return_value = False
-
         self.setup_xml_files_chkpts(['stub'])
 
         runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
@@ -403,38 +417,59 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
             stub_pageranges, dfnames_todo, print)
 
-        # call our test method
-        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+        # call our first test method
+        wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
 
         # grab the list of dfnames wanted to produce
         wanted_dfnames = [entry['outfile'] for entry in wanted]
 
         # split up the jobs per number of revisions according to the wikidata config
-        expected = {1: ['p1p500', 'p501p1000', 'p1001p1500', 'p1501p2000',
-                        'p2001p2500', 'p2501p3000', 'p3001p3500', 'p3501p4000',
-                        'p4001p4330'],
-                    2: ['p4331p4443'],
-                    3: ['p4444p4605'],
-                    4: ['p4606p5105', 'p5106p5344']}
+        expected_ranges = {1: ['p1p500', 'p501p1000', 'p1001p1500', 'p1501p2000',
+                               'p2001p2500', 'p2501p3000', 'p3001p3500', 'p3501p4000',
+                               'p4001p4330'],
+                           2: ['p4331p4443'],
+                           3: ['p4444p4605'],
+                           4: ['p4606p5105', 'p5106p5344']}
         # make DumpFilenames out of them
-        expected_dfnames = self.set_checkpt_filenames(expected, wiki=self.wd['wiki'],
+        expected_dfnames = self.set_checkpt_filenames(expected_ranges, wiki=self.wd['wiki'],
                                                       shuffle=False)
 
-        self.assertEqual(wanted_dfnames, expected_dfnames)
+        with self.subTest('check wanted dfnames'):
+            self.assertEqual(wanted_dfnames, expected_dfnames)
+
+        to_generate = content_job.get_to_generate_for_temp_stubs(wanted)
+
+        # call the final test method
+        commands, output_dfnames = content_job.stubber.get_commands_for_temp_stubs(
+            to_generate, runner)
+
+        expected_stub_dfnames = self.set_checkpt_filenames(expected_ranges, wiki=self.wd['wiki'],
+                                                           shuffle=False, stubs=True)
+
+        expected_fspecs = {1: ['1:501', '501:1001', '1001:1501', '1501:2001', '2001:2501',
+                               '2501:3001', '3001:3501', '3501:4001', '4001:4331'],
+                           2: ['4331:4444'],
+                           3: ['4444:4606'],
+                           4: ['4606:5106', '5106:5345']}
+
+        expected_commands = self.make_expected_stub_commands(
+            expected_ranges,
+            expected_fspecs,
+            BaseDumpsTestCase.PUBLICDIR + '/' + self.wd['wiki'].db_name,
+            self.wd['wiki'])
+
+        with self.subTest('check stub output dfnames'):
+            self.assertEqual(output_dfnames, expected_stub_dfnames)
+            self.assertEqual(commands, expected_commands)
 
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
-    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
-    def test_get_wanted_write_stubs_no_chkpts(self, mock_has_no_pages, _mock_write_pagerange_stubs,
-                                              _mock_get_some_stats, _mock_get_known_tables):
+    def test_get_wanted_no_chkpts(self, _mock_get_some_stats, _mock_get_known_tables):
         """
         make sure we can get good dfnames todo given stub files,
         and some content files with some parts missing,
         for wikis without checkpoints enabled
         """
-        mock_has_no_pages.return_value = False
-
         self.setup_xml_files_parts(['stub', 'content'], excluded=['2', '4'])
         self.wd['wiki'].config.checkpoint_time = 0
 
@@ -463,8 +498,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         # done with setup, now get args for the method
         dfnames_todo = content_job.get_todos_no_checkpoints(self.wd['dump_dir'])
 
-        # call our test method
-        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+        # call first test method
+        wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
         # grab the list of dfnames wanted to produce
         wanted_dfnames = [entry['outfile'] for entry in wanted]
 
@@ -475,21 +510,27 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         # make DumpFilenames out of them
         expected_dfnames = self.dfnames_from_filenames(expected_files)
 
-        self.assertEqual(wanted_dfnames, expected_dfnames)
+        with self.subTest('check wanted dfnames'):
+            self.assertEqual(wanted_dfnames, expected_dfnames)
+
+        to_generate = content_job.get_to_generate_for_temp_stubs(wanted)
+
+        # call the final test method
+        commands, output_dfnames = content_job.stubber.get_commands_for_temp_stubs(
+            to_generate, runner)
+
+        with self.subTest('check stub output dfnames'):
+            self.assertEqual(output_dfnames, [])
+            self.assertEqual(commands, [])
 
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    @patch('dumps.xmlcontentjobs.StubProvider.write_pagerange_stubs')
-    @patch('dumps.xmlcontentjobs.StubProvider.has_no_pages')
-    def test_get_wanted_write_stubs_no_parts(self, mock_has_no_pages, _mock_write_pagerange_stubs,
-                                             _mock_get_some_stats, _mock_get_known_tables):
+    def test_get_wanted_vanilla(self, _mock_get_some_stats, _mock_get_known_tables):
         """
         make sure we can get good dfname todo given the single stub file
         and no content,
         for wikis without checkpoints or parts
         """
-        mock_has_no_pages.return_value = False
-
         self.setup_xml_files_noparts(['stub'])
         self.wd['wiki'].config.parts_enabled = 0
         self.wd['wiki'].config.checkpoint_time = 0
@@ -517,8 +558,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         # done with setup, now get args for the method
         dfnames_todo = content_job.get_todos_no_checkpoints(self.wd['dump_dir'])
 
-        # call our test method
-        wanted = content_job.get_wanted_write_stubs(dfnames_todo, runner, prefetcher=None)
+        # call first test method
+        wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
 
         # grab the list of dfnames wanted to produce
         wanted_dfnames = [entry['outfile'] for entry in wanted]
@@ -528,7 +569,40 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         # make DumpFilename out of it
         expected_dfnames = self.dfnames_from_filenames(expected_files)
 
-        self.assertEqual(wanted_dfnames, expected_dfnames)
+        with self.subTest('check wanted dfnames'):
+            self.assertEqual(wanted_dfnames, expected_dfnames)
+
+        to_generate = content_job.get_to_generate_for_temp_stubs(wanted)
+
+        # call the final test method
+        commands, output_dfnames = content_job.stubber.get_commands_for_temp_stubs(
+            to_generate, runner)
+
+        with self.subTest('check stub output dfnames'):
+            self.assertEqual(output_dfnames, [])
+            self.assertEqual(commands, [])
+
+    def make_expected_stub_commands(self, expected_ranges, expected_fspecs, dump_dir, wiki):
+        """
+        concoct writeuptopageid commands given the page ranges and fspec info for them
+        """
+        stub_commands = []
+        for part in expected_ranges:
+            input_stub = '{dumpdir}/{date}/{wiki}-{date}-stub-articles{part}.xml.gz'.format(
+                dumpdir=dump_dir, wiki=wiki.db_name, date=wiki.date, part=part)
+            temp_dir = self.TEMPDIR + '/' + wiki.db_name[0] + '/' + wiki.db_name
+            fspecs_list = []
+            for index, prange in enumerate(expected_ranges[part]):
+                fspecs_list.append(
+                    '{wiki}-{date}-stub-articles{part}.xml-{prange}.gz:{fspec}'.format(
+                        wiki=wiki.db_name, date=wiki.date, part=part, prange=prange,
+                        fspec=expected_fspecs[part][index]))
+            fspecs_string = ';'.join(fspecs_list)
+            command = [[['/usr/bin/gzip', '-dc', input_stub],
+                        ['/usr/local/bin/writeuptopageid', '--odir', temp_dir,
+                         '--fspecs', fspecs_string]]]
+            stub_commands.append(command)
+        return stub_commands
 
 
 if __name__ == '__main__':

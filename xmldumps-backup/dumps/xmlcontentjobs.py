@@ -63,18 +63,18 @@ class StubProvider():
             return None
         return input_dfnames[0]
 
-    def write_pagerange_stubs(self, iofile_pairs, runner, batchsize, move_if_truncated):
+    def get_commands_for_temp_stubs(self, iofile_pairs, runner):
         """
         put the io file pairs in ascending order (per part if there
-        are parts), for each pair write out a stub file corresponding
-        to the page range in the output filename, combining up
-        those outputs that require the same input file into
-        one command
+        are parts), produce commands for generating temp stub files
+        for each pair, combining up those outputs that require the
+        same input file into one command
+        return those commands and the corresponding output DumpFilenames
 
         args: pairs of (DumpFilename, DumpFilename), Runner
         """
         if not iofile_pairs:
-            return
+            return [], []
 
         # split up into batches where the input file is the same
         # and the pairs are ordered by output file name
@@ -99,7 +99,14 @@ class StubProvider():
                 # list of command series. each series is a list of pipelines.
                 commands.append([pipeline])
                 output_dfnames_to_check.extend(out_dfnames[in_dfname.filename])
+        return commands, output_dfnames_to_check
 
+    @staticmethod
+    def run_temp_stub_commands(runner, commands, batchsize):
+        """
+        run the commands to generate the temp stub files, without
+        output file checking
+        """
         errors = False
 
         while commands:
@@ -120,6 +127,12 @@ class StubProvider():
         if errors:
             raise BackupError("failed to write pagerange stub files")
 
+    def check_temp_stubs(self, runner, move_if_truncated, output_dfnames):
+        """
+        check that temp stubs produced are ok
+
+        args: pairs of (DumpFilename, DumpFilename), Runner
+        """
         if runner.dryrun:
             return
 
@@ -128,7 +141,7 @@ class StubProvider():
         # whine about them
         bad_dfnames = []
         output_dir = FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir)
-        for temp_stub_dfname in output_dfnames_to_check:
+        for temp_stub_dfname in output_dfnames:
             if os.path.exists(os.path.join(output_dir, temp_stub_dfname.filename)):
                 bad = move_if_truncated(runner, temp_stub_dfname, emptycheck=200, tmpdir=True)
                 if bad:
@@ -635,32 +648,41 @@ class XmlDump(Dump):
                 dump_dir.filename_public_path(dfname))]
         return dfnames_todo
 
-    def get_wanted_write_stubs(self, dfnames_todo, runner, prefetcher):
+    def get_wanted(self, dfnames_todo, runner, prefetcher):
         """
         collect some info about the command for each output file we want to run,
         including input stubs, input prefetch files, output files, and so on;
-        then generate stubs corresponding to each output file if needed.
-        finally, return the collected command info.
         """
-        wanted = [self.setup_wanted(dfname, runner, prefetcher) for dfname in dfnames_todo]
+        return [self.setup_wanted(dfname, runner, prefetcher) for dfname in dfnames_todo]
 
+    @staticmethod
+    def get_to_generate_for_temp_stubs(wanted):
+        """
+        return info about input and output files we want to generate for temp stubs
+        """
         to_generate = []
         for entry in wanted:
             if entry['generate']:
                 to_generate.append((entry['stub_input'], entry['stub']))
+        return to_generate
+
+    def get_batchsize(self, stubs=False):
+        """
+        figure out how many commands we run at once for generating
+        temp stubs
+        """
         if self._parts:
-            batchsize = int(len(self._parts) / 2)
+            if stubs:
+                # these jobs are more expensive than e.g. page content jobs,
+                # do half as many
+                batchsize = int(len(self._parts) / 2)
+            else:
+                batchsize = len(self._parts)
         else:
             batchsize = 1
-        self.stubber.write_pagerange_stubs(to_generate, runner, batchsize, self.move_if_truncated)
+        return batchsize
 
-        # if we had to generate temp stubs, skip over those with no pages in them
-        # it's possible a page range has nothing in the stub file because they were all deleted.
-        # we have some projects with e.g. 35k pages in a row deleted!
-        return [entry for entry in wanted if not entry['generate'] or
-                not self.stubber.has_no_pages(entry['stub'], runner, tempdir=True)]
-
-    def get_commands_for_wanted(self, wanted, runner):
+    def get_commands_for_pagecontent(self, wanted, runner):
         """
         get commands to generate page content files for the specific files wanted
         this also updates the 'commands_submitted' attribute which we will need
@@ -752,15 +774,23 @@ class XmlDump(Dump):
         else:
             prefetcher = None
 
-        wanted = self.get_wanted_write_stubs(dfnames_todo, runner, prefetcher)
+        wanted = self.get_wanted(dfnames_todo, runner, prefetcher)
+        to_generate = self.get_to_generate_for_temp_stubs(wanted)
+        batchsize = self.get_batchsize(stubs=True)
+        commands, output_dfnames = self.stubber.get_commands_for_temp_stubs(to_generate, runner)
+        self.stubber.run_temp_stub_commands(runner, commands, batchsize)
+        self.stubber.check_temp_stubs(runner, self.move_if_truncated, output_dfnames)
 
-        commands = self.get_commands_for_wanted(wanted, runner)
+        # if we had to generate temp stubs, skip over those with no pages in them
+        # it's possible a page range has nothing in the stub file because they were all deleted.
+        # we have some projects with e.g. 35k pages in a row deleted!
+        todo = [entry for entry in wanted if not entry['generate'] or
+                not self.stubber.has_no_pages(entry['stub'], runner, tempdir=True)]
+
+        commands = self.get_commands_for_pagecontent(todo, runner)
 
         # don't do them all at once, do only up to _parts commands at the same time
-        if self._parts:
-            batchsize = len(self._parts)
-        else:
-            batchsize = 1
+        batchsize = self.get_batchsize()
         errors = False
         failed_commands = []
         max_retries = self.wiki.config.max_retries
