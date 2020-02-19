@@ -143,7 +143,8 @@ class StubProvider():
         output_dir = FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir)
         for temp_stub_dfname in output_dfnames:
             if os.path.exists(os.path.join(output_dir, temp_stub_dfname.filename)):
-                bad = move_if_truncated(runner, temp_stub_dfname, emptycheck=200, tmpdir=True)
+                # FIXME 2000 is simply wrong, we need to check by looking at the db. Ugh.
+                bad = move_if_truncated(runner, temp_stub_dfname, emptycheck=2000, tmpdir=True)
                 if bad:
                     bad_dfnames.append(temp_stub_dfname)
         if bad_dfnames:
@@ -304,7 +305,6 @@ class XmlDump(Dump):
         if self.jobinfo['partnum_todo']:
             partnum = self.jobinfo['partnum_todo']
         else:
-            # fixme is that right? maybe NOT
             partnum = None
         return self.make_dfname_from_pagerange([first_page_id, last_page_id], partnum)
 
@@ -509,7 +509,6 @@ class XmlDump(Dump):
         """
         to_return = []
         for dfname in output_dfnames:
-            # FIXME TEST TEST TEST
             if not dfname.is_checkpoint_file:
                 pageranges = dumps.intervals.get_intervals_by_group(
                     dfname.partnum_int, stub_pageranges)
@@ -720,26 +719,41 @@ class XmlDump(Dump):
                         [entry for entry in pipeline]))
         return broken
 
-    def run(self, runner):
+    def get_prefetcher(self, wiki):
         """
-        do all phases of the page content job, starting with cleanup,
-        possibly generating temporary stub files to cover missing
-        page ranges if we are filling in files not generated from a
-        previous run of this job, and running the commands to
-        generate the page content files in batches
+        return an appropriate object to manage prefetch args etc
+        or None if we are not supposed to do prefetching
         """
-        # here we will either clean up or not depending on how we were called
-        # FIXME callers should set this appropriately and they don't right now
-        self.cleanup_old_files(runner.dump_dir, runner)
+        if self.jobinfo['prefetch']:
+            if wiki.config.sevenzip_prefetch:
+                file_exts = ['7z', self.file_ext]
+            else:
+                file_exts = [self.file_ext]
+            prefetcher = PrefetchFinder(
+                self.wiki,
+                {'name': self.name(), 'desc': self.jobinfo['desc'],
+                 'dumpname': self.get_dumpname(),
+                 'ftype': self.file_type, 'fexts': file_exts,
+                 'subset': self.jobinfo['subset']},
+                {'date': self.jobinfo['prefetchdate'], 'parts': self._parts},
+                self.verbose)
+        else:
+            prefetcher = None
+        return prefetcher
 
+    def get_content_dfnames_todo(self, runner):
+        """
+        depending on whether this wiki is configured to run jobs
+        in parallel and possibly also generate output files
+        for page ranges in each job, return a list of output
+        files to produce, listing if applicable each paralell job
+        output file by part number, with any page range included
+        in the filename
+        returns list of DumpFilenames
+        """
         # in cases where we have request of specific file, do it as asked,
         # no splitting it up into smaller pieces
         do_bitesize = False
-
-        # clean up all tmp output files from previous attempts of this job
-        # for this dump wiki and date; they may have been left around from
-        # an interrupted or failed earlier run
-        self.cleanup_tmp_files(runner.dump_dir, runner)
 
         dfnames_todo = []
         if self.jobinfo['pageid_range'] is not None:
@@ -757,38 +771,12 @@ class XmlDump(Dump):
         if self._checkpoints_enabled and do_bitesize:
             dfnames_todo = self.get_dfnames_from_cached_pageranges(
                 stub_pageranges, dfnames_todo, runner.log_and_print)
+        return dfnames_todo
 
-        if self.jobinfo['prefetch']:
-            if runner.wiki.config.sevenzip_prefetch:
-                file_exts = ['7z', self.file_ext]
-            else:
-                file_exts = [self.file_ext]
-            prefetcher = PrefetchFinder(
-                self.wiki,
-                {'name': self.name(), 'desc': self.jobinfo['desc'],
-                 'dumpname': self.get_dumpname(),
-                 'ftype': self.file_type, 'fexts': file_exts,
-                 'subset': self.jobinfo['subset']},
-                {'date': self.jobinfo['prefetchdate'], 'parts': self._parts},
-                self.verbose)
-        else:
-            prefetcher = None
-
-        wanted = self.get_wanted(dfnames_todo, runner, prefetcher)
-        to_generate = self.get_to_generate_for_temp_stubs(wanted)
-        batchsize = self.get_batchsize(stubs=True)
-        commands, output_dfnames = self.stubber.get_commands_for_temp_stubs(to_generate, runner)
-        self.stubber.run_temp_stub_commands(runner, commands, batchsize)
-        self.stubber.check_temp_stubs(runner, self.move_if_truncated, output_dfnames)
-
-        # if we had to generate temp stubs, skip over those with no pages in them
-        # it's possible a page range has nothing in the stub file because they were all deleted.
-        # we have some projects with e.g. 35k pages in a row deleted!
-        todo = [entry for entry in wanted if not entry['generate'] or
-                not self.stubber.has_no_pages(entry['stub'], runner, tempdir=True)]
-
-        commands = self.get_commands_for_pagecontent(todo, runner)
-
+    def run_page_content_commands(self, commands, runner):
+        """
+        generate page content output in batches, with retries if configured
+        """
         # don't do them all at once, do only up to _parts commands at the same time
         batchsize = self.get_batchsize()
         errors = False
@@ -813,6 +801,59 @@ class XmlDump(Dump):
                     errors = False
         if errors:
             raise BackupError("error producing xml file(s) %s" % self.get_dumpname())
+
+    def run(self, runner):
+        """
+        do all phases of the page content job, starting with cleanup,
+        possibly generating temporary stub files to cover missing
+        page ranges if we are filling in files not generated from a
+        previous run of this job, and running the commands to
+        generate the page content files in batches
+        """
+        # here we will either clean up or not depending on how we were called
+        # FIXME callers should set this appropriately and they don't right now
+        self.cleanup_old_files(runner.dump_dir, runner)
+
+        # clean up all tmp output files from previous attempts of this job
+        # for this dump wiki and date; they may have been left around from
+        # an interrupted or failed earlier run
+        self.cleanup_tmp_files(runner.dump_dir, runner)
+
+        # get the names of the output files we want to produce
+        dfnames_todo = self.get_content_dfnames_todo(runner)
+
+        # set up a prefetch arg generator if needed
+        prefetcher = self.get_prefetcher(runner.wiki)
+
+        # accumulate all the info about stub inputs, page content inputs
+        # for prefetches, output files and so on
+        wanted = self.get_wanted(dfnames_todo, runner, prefetcher)
+
+        # figure out what temp stub files we need to write, if we
+        # are producing output files covering page ranges (each
+        # output file will cover the same content as its stub input
+        # file)
+        to_generate = self.get_to_generate_for_temp_stubs(wanted)
+
+        # figure out how many stub input files we generate at once
+        batchsize = self.get_batchsize(stubs=True)
+
+        commands, output_dfnames = self.stubber.get_commands_for_temp_stubs(to_generate, runner)
+        self.stubber.run_temp_stub_commands(runner, commands, batchsize)
+
+        # check that the temp stubs are not garbage, though they may be empty so
+        # we should (but don't yet) skip that check. FIXME
+        self.stubber.check_temp_stubs(runner, self.move_if_truncated, output_dfnames)
+
+        # if we had to generate temp stubs, skip over those with no pages in them
+        # it's possible a page range has nothing in the stub file because they were all deleted.
+        # we have some projects with e.g. 35k pages in a row deleted!
+        todo = [entry for entry in wanted if not entry['generate'] or
+                not self.stubber.has_no_pages(entry['stub'], runner, tempdir=True)]
+
+        commands = self.get_commands_for_pagecontent(todo, runner)
+
+        self.run_page_content_commands(commands, runner)
 
     @classmethod
     def build_eta(cls):
