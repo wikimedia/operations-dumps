@@ -304,7 +304,8 @@ class Dump():
 
         if "check_trunc_files" not in runner.enabled or not self.check_truncation():
             return ret
-        return len(self.list_truncated_empty_outfiles(runner.dump_dir))
+        return len(self.list_truncated_empty_outfiles(
+            self.makeargs(runner.dump_dir)))
 
     def progress_callback(self, runner, line=""):
         """Receive a status line from a shellout and update the status files."""
@@ -392,7 +393,7 @@ class Dump():
                     os.remove(dump_dir.filename_public_path(self.checkpoint_file))
                 elif exists(dump_dir.filename_private_path(self.checkpoint_file)):
                     os.remove(dump_dir.filename_private_path(self.checkpoint_file))
-            dfnames = self.list_outfiles_for_cleanup(dump_dir)
+            dfnames = self.list_outfiles_for_cleanup(self.makeargs(dump_dir))
             for dfname in dfnames:
                 self.remove_output_file(dump_dir, dfname)
 
@@ -414,7 +415,7 @@ class Dump():
                 else:
                     os.remove(priv_path)
 
-        dfnames = self.list_inprog_files_for_cleanup(dump_dir)
+        dfnames = self.list_inprog_files_for_cleanup(self.makeargs(dump_dir))
         if runner.dryrun:
             print("would remove ", [dfname.filename for dfname in dfnames])
         else:
@@ -428,89 +429,137 @@ class Dump():
             return range(1, len(self._parts) + 1)
         return False
 
-    def list_checkpt_files(self, dump_dir, dump_names=None, date=None, parts=None):
+    @staticmethod
+    def makeargs(dump_dir, dump_names=None, parts=None, date=None, inprog=False,
+                 partnum=None, flister=None):
+        '''
+        turn a list of params into an args dict for all list_... _files and related methods
+        '''
+        return {'dump_dir': dump_dir,
+                'dump_names': dump_names,
+                'date': date,
+                'parts': parts,
+                'inprog': inprog,
+                'partnum': partnum,
+                'flister': flister}
+
+    @staticmethod
+    def set_defaults(args, names):
+        '''
+        add default values to the args
+        '''
+        for name in names:
+            if name not in args:
+                if name == 'inprog':
+                    # the one special case
+                    args['name'] = False
+                else:
+                    args['name'] = None
+
+    def list_checkpt_files(self, args):
         '''
         list all checkpoint files that exist
+        expects:
+            dump_dir, dump_names=None, date=None, parts=None
         returns:
             list of DumpFilename
         '''
-        if not dump_names:
-            dump_names = [self.dumpname]
-        return get_checkpt_files(dump_dir, dump_names, self.file_type,
-                                 self.file_ext, date, parts)
+        self.set_defaults(args, ['dump_names', 'date', 'parts'])
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        return args['dump_dir'].get_checkpt_files(
+            args['dump_dir'], args['dump_names'], self.file_type,
+            self.file_ext, args['date'], args['parts'])
 
-    def list_truncated_empty_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None):
+    def list_truncated_empty_checkpt_files_for_filepart(self, args):
         '''
         list checkpoint files that have been produced for specified file part(s)
         that are either empty or truncated
 
+        expects:
+            dump_dir, parts, dump_names=None
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not dump_names:
-            dump_names = [self.dumpname]
-        for dname in dump_names:
-            dfnames.extend(dump_dir.get_truncated_empty_checkpt_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False))
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        for dname in args['dump_names']:
+            dfnames.extend(args['dump_dir'].get_truncated_empty_checkpt_files(
+                None, dname, self.file_type, self.file_ext, args['parts'], temp=False))
         return dfnames
 
-    def list_checkpt_files_for_filepart(self, dump_dir, parts, dump_names=None, inprog=False):
+    def list_checkpt_files_for_filepart(self, args):
         '''
         list checkpoint files that have been produced for specified file part(s)
+        expects:
+            dump_dir, parts, dump_names=None, inprog=False
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['dump_names', 'inprog'])
         dfnames = []
-        if not dump_names:
-            dump_names = [self.dumpname]
-        for dname in dump_names:
-            dfnames.extend(dump_dir.get_checkpt_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False, inprog=inprog))
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        for dname in args['dump_names']:
+            dfnames.extend(args['dump_dir'].get_checkpt_files(
+                None, dname, self.file_type, self.file_ext, args['parts'], temp=False,
+                inprog=args['inprog']))
         return dfnames
 
-    def list_reg_files_for_filepart(self, dump_dir, parts, dump_names=None, inprog=False):
+    def list_reg_files_for_filepart(self, args):
         '''
         list noncheckpoint files that have been produced for specified file part(s)
+        expects:
+            dump_dir, parts, dump_names=None, inprog=False
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['dump_names', 'inprog'])
         dfnames = []
-        if not dump_names:
-            dump_names = [self.dumpname]
-        for dname in dump_names:
-            dfnames.extend(dump_dir.get_reg_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False, inprog=inprog))
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        for dname in args['dump_names']:
+            dfnames.extend(args['dump_dir'].get_reg_files(
+                None, dname, self.file_type, self.file_ext, args['parts'], temp=False,
+                inprog=args['inprog']))
         return dfnames
 
-    def list_truncated_empty_reg_files_for_filepart(self, dump_dir, parts, dump_names=None):
+    def list_truncated_empty_reg_files_for_filepart(self, args):
         '''
         list noncheckpoint files that have been produced for specified file part(s)
+        expects:
+            dump_dir, parts, dump_names=None
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not dump_names:
-            dump_names = [self.dumpname]
-        for dname in dump_names:
-            dfnames.extend(dump_dir.get_truncated_empty_reg_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False))
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        for dname in args['dump_names']:
+            dfnames.extend(args['dump_dir'].get_truncated_empty_reg_files(
+                None, dname, self.file_type, self.file_ext, args['parts'], temp=False))
         return dfnames
 
-    def list_temp_files_for_filepart(self, dump_dir, parts, dump_names=None):
+    def list_temp_files_for_filepart(self, args):
         '''
         list temp output files that have been produced for specified file part(s)
+        expects:
+            dump_dir, parts, dump_names=None
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not dump_names:
-            dump_names = [self.dumpname]
-        for dname in dump_names:
-            dfnames.extend(dump_dir.get_checkpt_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=True))
-            dfnames.extend(dump_dir.get_reg_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=True))
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        for dname in args['dump_names']:
+            dfnames.extend(args['dump_dir'].get_checkpt_files(
+                None, dname, self.file_type, self.file_ext, args['parts'], temp=True))
+            dfnames.extend(args['dump_dir'].get_reg_files(
+                None, dname, self.file_type, self.file_ext, args['parts'], temp=True))
         return dfnames
 
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
@@ -558,69 +607,79 @@ class Dump():
                                             file_type, file_ext, partnum, None, temp))
         return dfnames
 
-    def get_reg_files_for_filepart_possible(self, dump_dir, parts, dump_names=None):
+    def get_reg_files_for_filepart_possible(self, args):
         '''
         based on dump name, parts, etc. get all the
         output files we expect to generate for these parts
+        expects:
+            dump_dir, parts, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if not dump_names:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
-        for dname in dump_names:
+        for dname in args['dump_names']:
             dfnames.extend(self._get_files_possible(
-                dump_dir, None, dname, self.file_type, self.file_ext, parts, temp=False))
+                args['dump_dir'], None, dname, self.file_type, self.file_ext,
+                args['parts'], temp=False))
         return dfnames
 
-    def get_truncated_empty_reg_files_for_filepart(self, dump_dir, parts, dump_names=None):
+    def get_truncated_empty_reg_files_for_filepart(self, args):
         '''
         based on dump name, parts, etc. get all the
         output files we expect to generate for these parts
+        expects:
+            dump_dir, parts, dump_names=None
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not dump_names:
-            dump_names = [self.dumpname]
-        for dname in dump_names:
-            dfnames.extend(dump_dir.get_reg_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False, suffix=".truncated"))
-            dfnames.extend(dump_dir.get_reg_files(
-                None, dname, self.file_type, self.file_ext, parts, temp=False, suffix=".empty"))
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        for dname in args['dump_names']:
+            dfnames.extend(args['dump_dir'].get_reg_files(
+                None, dname, self.file_type, self.file_ext, args['parts'],
+                temp=False, suffix=".truncated"))
+            dfnames.extend(args['dump_dir'].get_reg_files(
+                None, dname, self.file_type, self.file_ext, args['parts'],
+                temp=False, suffix=".empty"))
         return dfnames
 
 # these routines are all used for listing output files for various purposes...
 
-    def list_outfiles_to_publish(self, dump_dir, dump_names=None):
+    def list_outfiles_to_publish(self, args):
         '''
         this is the complete list of files produced by a dump step.
         Includes: checkpoints, parts, complete files, temp files if they
         exist. At end of run temp files must be gone.
         even if only one file part (one subjob) is being rerun, this lists all output files,
         not just those for the one part.
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
 
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
         if self.checkpoint_file is not None:
             dfnames.append(self.checkpoint_file)
             return dfnames
 
+        args['parts'] = self.get_fileparts_list()
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
-            dfnames.extend(self.list_temp_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_checkpt_files_for_filepart(args))
+            dfnames.extend(self.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.get_reg_files_for_filepart_possible(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.get_reg_files_for_filepart_possible(args))
         return dfnames
 
-    def list_truncated_empty_outfiles(self, dump_dir, dump_names=None):
+    def list_truncated_empty_outfiles(self, args):
         '''
         lists all files that have been found to be truncated or empty and renamed
         as such
@@ -628,126 +687,135 @@ class Dump():
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
+        args['parts'] = self.get_fileparts_list()
         if self.checkpoint_file is not None:
-            problems = self.get_truncated_empty_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names)
+            problems = self.get_truncated_empty_reg_files_for_filepart(args)
             if self.checkpoint_file.filename in [problem.filename for problem in problems]:
                 dfnames.append(self.checkpoint_file)
                 return dfnames
 
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(args))
         else:
-            dfnames.extend(self.get_truncated_empty_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.get_truncated_empty_reg_files_for_filepart(args))
         return dfnames
 
-    def list_outfiles_for_build_command(self, dump_dir, dump_names=None):
+    def list_outfiles_for_build_command(self, args):
         '''
         called when the job command is generated.
         Includes: parts, whole files, temp files.
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
         if self.checkpoint_file is not None:
             dfnames.append(self.checkpoint_file)
             return dfnames
 
+        args['parts'] = self.get_fileparts_list()
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_temp_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.get_reg_files_for_filepart_possible(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.get_reg_files_for_filepart_possible(args))
         return dfnames
 
-    def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
+    def list_outfiles_for_cleanup(self, args):
         '''
         called before job run to cleanup old files left around from any previous run(s)
         Includes: checkpoints, parts, whole files, temp files if they exist.
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
 
         if self.checkpoint_file is not None:
             dfnames.append(self.checkpoint_file)
             return dfnames
 
+        args['parts'] = self.get_fileparts_list()
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
-            dfnames.extend(self.list_temp_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_checkpt_files_for_filepart(args))
+            dfnames.extend(self.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_reg_files_for_filepart(args))
         return dfnames
 
-    def list_inprog_files_for_cleanup(self, dump_dir, dump_names=None):
+    def list_inprog_files_for_cleanup(self, args):
         """
         list output files 'in progress' generated from a dump step,
         presumably left lying around from an earlier failed attempt
         at the step.
 
+        expects:
+            dump_dir, dump_names=None
         returns: list of DumpFilename
         """
-        dump_names = self.list_dumpnames()
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        args['dump_names'] = self.list_dumpnames()
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
         if self.checkpoint_file is not None:
             dfnames.append(self.checkpoint_file)
             return dfnames
 
+        args['parts'] = self.get_fileparts_list()
+        args['inprog'] = True
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
+            dfnames.extend(self.list_checkpt_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
+            dfnames.extend(self.list_reg_files_for_filepart(args))
         return dfnames
 
-    def list_outfiles_for_input(self, dump_dir, dump_names=None):
+    def list_outfiles_for_input(self, args):
         '''
         used to generate list of files output from one dump step to be used as
         input for other dump step (e.g. recombine, recompress)
         Includes: checkpoints, partial files and/or whole files.
         Even if only file part is being rerun, this will return the list
         of all file parts.
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
+        args['parts'] = self.get_fileparts_list()
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_checkpt_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_reg_files_for_filepart(args))
         return dfnames
 
-    def list_truncated_empty_outfiles_for_input(self, dump_dir, dump_names=None):
+    def list_truncated_empty_outfiles_for_input(self, args):
         '''
         used to generate list of files output from one dump step to be used as
         input for other dump step (e.g. recombine, recompress)
@@ -755,16 +823,18 @@ class Dump():
         Includes: checkpoints, partial files and/or whole files.
         Even if only file part is being rerun, this will return the list
         of all file parts.
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         dfnames = []
+        args['parts'] = self.get_fileparts_list()
         if self._checkpoints_enabled:
-            dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_truncated_empty_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            dfnames.extend(self.list_truncated_empty_reg_files_for_filepart(args))
         return dfnames

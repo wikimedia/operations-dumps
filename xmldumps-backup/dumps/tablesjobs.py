@@ -44,7 +44,7 @@ class PublicTable(Dump):
         return command_series
 
     def run(self, runner):
-        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
         if not exists(runner.wiki.config.gzip):
@@ -95,8 +95,14 @@ class PrivateTable(PublicTable):
     def description(self):
         return self._desc + " (private)"
 
-    def list_outfiles_to_publish(self, dump_dir):
-        """Private table won't have public files to list."""
+    def list_outfiles_to_publish(self, args):
+        """
+        Private table won't have public files to list.
+        expects:
+            nothing :)
+        returns:
+            empty list
+        """
         return []
 
 
@@ -116,7 +122,7 @@ class TitleDump(Dump):
         retries = 0
         maxretries = runner.wiki.config.max_retries
         query = "select page_title from page where page_namespace=0;"
-        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("page title dump trying to produce more than one output file")
         dfname = dfnames[0]
@@ -156,7 +162,7 @@ class AllTitleDump(TitleDump):
         retries = 0
         maxretries = runner.wiki.config.max_retries
         query = "select page_namespace, page_title from page;"
-        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("all titles dump trying to produce more than one output file")
         dfname = dfnames[0]

@@ -55,7 +55,7 @@ class FlowDump(Dump):
 
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
-        dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("flow content step wants to produce more than one output file")
         output_dfname = dfnames[0]

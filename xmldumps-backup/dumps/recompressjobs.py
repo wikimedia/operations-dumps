@@ -32,18 +32,21 @@ class RecompressDump(Dump):
     def get_filetype(self):
         return "xml"
 
-    def list_outfiles_for_build_command(self, dump_dir, partnum=None):
+    def list_outfiles_for_build_command(self, args):
         '''
         shows all files possible if we don't have checkpoint files. no temp files.
         only the parts we are actually supposed to do (if there is a limit)
+        expects:
+            dump_dir, partnum=None
         returns:
             list of DumpFilename
         '''
+        self.set_defaults(args, ['partnum'])
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
+        input_dfnames = self.item_for_recompression.list_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             # if this param is set it takes priority
-            if partnum and inp_dfname.partnum_int != partnum:
+            if args['partnum'] and inp_dfname.partnum_int != args['partnum']:
                 continue
             elif self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
                 continue
@@ -146,7 +149,8 @@ class XmlMultiStreamDump(RecompressDump):
         # new code cobbled together
         commands = []
         for partnum in range(1, len(self._parts) + 1):
-            content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
+            content_dfnames = self.list_outfiles_for_build_command(self.makeargs(
+                runner.dump_dir, partnum=partnum))
             for content_dfname in content_dfnames:
                 command_series = self.build_command(runner, [content_dfname])
                 commands.append(command_series)
@@ -195,7 +199,7 @@ class XmlMultiStreamDump(RecompressDump):
             self.run_in_batches(runner)
             return
         else:
-            content_dfnames = self.list_outfiles_for_build_command(runner.dump_dir)
+            content_dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
             for content_dfname in content_dfnames:
                 command_series = self.build_command(runner, content_dfname)
                 output_dfnames = [self.get_multistream_dfname(content_dfname),
@@ -209,31 +213,35 @@ class XmlMultiStreamDump(RecompressDump):
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
-    def list_outfiles_to_publish(self, dump_dir):
+    def list_outfiles_to_publish(self, args):
         '''
         shows all files possible if we don't have checkpoint files.
         without temp files of course
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
+        input_dfnames = self.item_for_recompression.list_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             dfnames.append(self.get_multistream_dfname(inp_dfname))
             dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
-    def list_truncated_empty_outfiles(self, dump_dir):
+    def list_truncated_empty_outfiles(self, args):
         '''
         shows all files possible if we don't have checkpoint files. without temp files of course
         but that might be empty or truncated
         only the parts we are actually supposed to do (if there is a limit)
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
         input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(
-            dump_dir)
+            args)
         for inp_dfname in input_dfnames:
             if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
                 continue
@@ -241,55 +249,60 @@ class XmlMultiStreamDump(RecompressDump):
             dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
-    def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
+    def list_outfiles_for_cleanup(self, args):
         '''
         shows all files possible if we don't have checkpoint files. should include temp files
         does just the parts we do if there is a limit
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
         multistream_names = []
-        for dname in dump_names:
+        for dname in args['dump_names']:
             multistream_names.extend([self.get_dumpname_multistream(dname),
                                       self.get_dumpname_multistream_index(dname)])
 
+        args['parts'] = self.get_fileparts_list()
+        args['dump_names'] = multistream_names
         dfnames = []
         if self.item_for_recompression._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), multistream_names))
-            dfnames.extend(self.list_temp_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), multistream_names))
+            dfnames.extend(self.list_checkpt_files_for_filepart(args))
+            dfnames.extend(self.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), multistream_names))
+            dfnames.extend(self.list_reg_files_for_filepart(args))
         return dfnames
 
-    def list_outfiles_for_input(self, dump_dir):
+    def list_outfiles_for_input(self, args):
         '''
         must return all output files that could be produced by a full run of this stage,
         not just whatever we happened to produce (if run for one file part, say)
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
+        input_dfnames = self.item_for_recompression.list_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             dfnames.append(self.get_multistream_dfname(inp_dfname))
             dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
-    def list_truncated_empty_outfiles_for_input(self, dump_dir):
+    def list_truncated_empty_outfiles_for_input(self, args):
         '''
         must return all output files that could be produced by a full run of this stage,
         not just whatever we happened to produce (if run for one file part, say)
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(
-            dump_dir)
+        input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             dfnames.append(self.get_multistream_dfname(inp_dfname))
             dfnames.append(self.get_multistream_index_dfname(inp_dfname))
@@ -360,7 +373,8 @@ class XmlRecompressDump(RecompressDump):
         """
         commands = []
         for partnum in range(1, len(self._parts) + 1):
-            output_dfnames = self.list_outfiles_for_build_command(runner.dump_dir, partnum)
+            output_dfnames = self.list_outfiles_for_build_command(
+                self.makeargs(runner.dump_dir, partnum=partnum))
             for output_dfname in output_dfnames:
                 if not exists(runner.dump_dir.filename_public_path(output_dfname)):
                     series = self.build_command(runner, [output_dfname])
@@ -403,7 +417,7 @@ class XmlRecompressDump(RecompressDump):
                 else:
                     os.remove(dump_dir.filename_private_path(self.checkpoint_file))
 
-        dfnames = self.list_outfiles_for_cleanup(dump_dir)
+        dfnames = self.list_outfiles_for_cleanup(self.makeargs(dump_dir))
         if runner.dryrun:
             print("would remove ", [dfname.filename for dfname in dfnames])
         else:
@@ -428,7 +442,8 @@ class XmlRecompressDump(RecompressDump):
             self.run_in_batches(runner)
             return
         else:
-            output_dfnames_possible = self.list_outfiles_for_build_command(runner.dump_dir)
+            output_dfnames_possible = self.list_outfiles_for_build_command(
+                self.makeargs(runner.dump_dir))
             output_dfnames = [name for name in output_dfnames_possible
                               if not exists(runner.dump_dir.filename_public_path(name))]
             series = self.build_command(runner, output_dfnames)
@@ -441,31 +456,34 @@ class XmlRecompressDump(RecompressDump):
         if error:
             raise BackupError("error recompressing bz2 file(s)")
 
-    def list_outfiles_to_publish(self, dump_dir):
+    def list_outfiles_to_publish(self, args):
         '''
         shows all files possible if we don't have checkpoint files. without temp files of course
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
+        input_dfnames = self.item_for_recompression.list_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
                                         inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
                                         inp_dfname.checkpoint, inp_dfname.temp))
         return dfnames
 
-    def list_truncated_empty_outfiles(self, dump_dir):
+    def list_truncated_empty_outfiles(self, args):
         '''
         shows all files possible if we don't have checkpoint files. without temp files of course
         which would be truncated or empty
         only the parts we are actually supposed to do (if there is a limit)
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(
-            dump_dir)
+        input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
                 continue
@@ -474,52 +492,59 @@ class XmlRecompressDump(RecompressDump):
                                         inp_dfname.checkpoint, inp_dfname.temp))
         return dfnames
 
-    def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
+    def list_outfiles_for_cleanup(self, args):
         '''
         shows all files possible if we don't have checkpoint files. should include temp files
         does just the parts we do if there is a limit
+        expects:
+            dump_dir, dump_names=None
         returns:
             list of DumpFilename
         '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
+        self.set_defaults(args, ['dump_names'])
+        if args['dump_names'] is None:
+            args['dump_names'] = [self.dumpname]
+        args['parts'] = self.get_fileparts_list()
         dfnames = []
         if self.item_for_recompression._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
-            dfnames.extend(self.list_temp_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
+            args['inprog'] = True
+            dfnames.extend(self.list_checkpt_files_for_filepart(args))
+            args['inprog'] = False
+            dfnames.extend(self.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names, inprog=True))
+            args['inprog'] = True
+            dfnames.extend(self.list_reg_files_for_filepart(args))
         return dfnames
 
-    def list_outfiles_for_input(self, dump_dir):
+    def list_outfiles_for_input(self, args):
         '''
         must return all output files that could be produced by a full run of this stage,
         not just whatever we happened to produce (if run for one file part, say)
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
+        input_dfnames = self.item_for_recompression.list_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
                                         inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
                                         inp_dfname.checkpoint, inp_dfname.temp))
         return dfnames
 
-    def list_truncated_empty_outfiles_for_input(self, dump_dir):
+    def list_truncated_empty_outfiles_for_input(self, args):
         '''
         must return all output files that could be produced by a full run of this stage,
         that are truncated or empty
         not just whatever we happened to produce (if run for one file part, say)
+        expects:
+            dump_dir
         returns:
             list of DumpFilename
         '''
         dfnames = []
-        input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(
-            dump_dir)
+        input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
             dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
                                         inp_dfname.file_type, self.file_ext, inp_dfname.partnum,

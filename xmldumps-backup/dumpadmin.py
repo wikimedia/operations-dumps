@@ -52,7 +52,7 @@ def get_job_output_files(wiki, job, dump_item_list):
     job_files = []
     for item in dump_item_list:
         if item.name() == job:
-            job_files = item.list_outfiles_for_cleanup(DumpDir(wiki, wiki.db_name))
+            job_files = item.list_outfiles_for_cleanup(item.makeargs(DumpDir(wiki, wiki.db_name)))
             break
     return job_files
 
