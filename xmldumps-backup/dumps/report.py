@@ -31,7 +31,7 @@ class Report(Registered):
                     item.status(), item.updated(), item.status(), item.description()))
         if item.progress:
             html += "<div class='progress'>%s</div>\n" % item.progress
-        dfnames = item.list_outfiles_to_publish(item.makeargs(dump_dir))
+        dfnames = item.list_outfiles_to_publish(item.flister.makeargs(dump_dir))
         if dfnames:
             list_items = [Report.report_file_size_status(dump_dir, dfname, item.status())
                           for dfname in dfnames]

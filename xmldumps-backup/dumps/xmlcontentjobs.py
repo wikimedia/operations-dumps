@@ -85,7 +85,7 @@ class DFNamePageRangeConverter():
         dfnames = []
         for startpage, endpage, partnum in pageranges:
             dfname = DumpFilename(
-                self.wiki, self.wiki.date, self.dumpname(),
+                self.wiki, self.wiki.date, self.dumpname,
                 self.filetype, self.file_ext, partnum,
                 DumpFilename.make_checkpoint_string(startpage, endpage),
                 False)
@@ -223,8 +223,8 @@ class XmlDump(Dump):
 
         returns: sorted
         """
-        chkpt_dfnames = self.list_checkpt_files(
-            self.makeargs(dump_dir, [self.get_dumpname()], date=date))
+        chkpt_dfnames = self.flister.list_checkpt_files(
+            self.flister.makeargs(dump_dir, [self.get_dumpname()], date=date))
         # chkpt_dfnames = sorted(chkpt_dfnames, key=lambda thing: thing.filename)
         # get the page ranges covered by existing checkpoint files
         done_pageranges = [(dfname.first_page_id_int, dfname.last_page_id_int,
@@ -244,16 +244,16 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        return self.get_reg_files_for_filepart_possible(
-            self.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+        return self.flister.get_reg_files_for_filepart_possible(
+            self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
 
     def get_ranges_covered_by_stubs(self, dump_dir):
         """
         get the page ranges covered by stubs
         returns a list of tuples: (startpage<str>, endpage<str>, partnum<str>)
         """
-        output_dfnames = self.get_reg_files_for_filepart_possible(
-            self.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+        output_dfnames = self.flister.get_reg_files_for_filepart_possible(
+            self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
         stub_dfnames = [self.stubber.get_stub_dfname(dfname.partnum, dump_dir)
                         for dfname in output_dfnames]
         stub_dfnames = sorted(stub_dfnames, key=lambda thing: thing.filename)
@@ -293,8 +293,9 @@ class XmlDump(Dump):
                     if chkpt_range[2] == partnum]:
                 # entire page range for a particular file part (subjob)
                 # is missing so generate the regular output file
-                output_dfnames = self.get_reg_files_for_filepart_possible(
-                    self.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+                output_dfnames = self.flister.get_reg_files_for_filepart_possible(
+                    self.flister.makeargs(dump_dir, self.list_dumpnames(),
+                                          self.get_fileparts_list()))
                 todo.extend([dfname for dfname in output_dfnames
                              if dfname.partnum_int == partnum])
             else:
@@ -423,8 +424,8 @@ class XmlDump(Dump):
         to page content we want to dump, when checkpoint files
         (page ranges) are not enabled
         """
-        output_dfnames = self.get_reg_files_for_filepart_possible(
-            self.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+        output_dfnames = self.flister.get_reg_files_for_filepart_possible(
+            self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
         # at least some page ranges are covered, just do those that
         dfnames_todo = [
             dfname for dfname in output_dfnames if not os.path.exists(
@@ -713,7 +714,7 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        dfnames = Dump.list_outfiles_for_cleanup(self, self.makeargs(dump_dir, dump_names))
+        dfnames = Dump.list_outfiles_for_cleanup(self, self.flister.makeargs(dump_dir, dump_names))
         return [dfname for dfname in dfnames if dfname.is_temp_file]
 
     def list_outfiles_for_cleanup(self, args):
@@ -727,7 +728,7 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        self.set_defaults(args, ['dump_names'])
+        self.flister.set_defaults(args, ['dump_names'])
         dfnames = Dump.list_outfiles_for_cleanup(self, args)
         dfnames_to_return = []
 

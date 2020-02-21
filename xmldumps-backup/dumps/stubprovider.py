@@ -46,7 +46,7 @@ class StubProvider():
             if sname.endswith(dumpname):
                 stub_dumpname = sname
         input_dfnames = self.jobinfo['item_for_stubs'].list_outfiles_for_input(
-            self.jobinfo['item_for_stubs'].makeargs(dump_dir, [stub_dumpname]))
+            self.jobinfo['item_for_stubs'].flister.makeargs(dump_dir, [stub_dumpname]))
         if partnum is not None:
             input_dfnames = [dfname for dfname in input_dfnames
                              if dfname.partnum_int == int(partnum)]

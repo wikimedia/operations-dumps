@@ -7,7 +7,7 @@ import os
 from os.path import exists
 
 from dumps.fileutils import DumpContents
-from dumps.jobs import get_checkpt_files, get_reg_files
+from dumps.filelister import get_checkpt_files, get_reg_files
 import dumps.pagerange
 
 

@@ -41,7 +41,7 @@ class RecompressDump(Dump):
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['partnum'])
+        self.flister.set_defaults(args, ['partnum'])
         dfnames = []
         input_dfnames = self.item_for_recompression.list_outfiles_for_input(args)
         for inp_dfname in input_dfnames:
@@ -149,7 +149,7 @@ class XmlMultiStreamDump(RecompressDump):
         # new code cobbled together
         commands = []
         for partnum in range(1, len(self._parts) + 1):
-            content_dfnames = self.list_outfiles_for_build_command(self.makeargs(
+            content_dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(
                 runner.dump_dir, partnum=partnum))
             for content_dfname in content_dfnames:
                 command_series = self.build_command(runner, [content_dfname])
@@ -199,7 +199,8 @@ class XmlMultiStreamDump(RecompressDump):
             self.run_in_batches(runner)
             return
         else:
-            content_dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
+            content_dfnames = self.list_outfiles_for_build_command(
+                self.flister.makeargs(runner.dump_dir))
             for content_dfname in content_dfnames:
                 command_series = self.build_command(runner, content_dfname)
                 output_dfnames = [self.get_multistream_dfname(content_dfname),
@@ -258,7 +259,7 @@ class XmlMultiStreamDump(RecompressDump):
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
+        self.flister.set_defaults(args, ['dump_names'])
         if args['dump_names'] is None:
             args['dump_names'] = [self.dumpname]
         multistream_names = []
@@ -270,10 +271,10 @@ class XmlMultiStreamDump(RecompressDump):
         args['dump_names'] = multistream_names
         dfnames = []
         if self.item_for_recompression._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(args))
-            dfnames.extend(self.list_temp_files_for_filepart(args))
+            dfnames.extend(self.flister.list_checkpt_files_for_filepart(args))
+            dfnames.extend(self.flister.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.list_reg_files_for_filepart(args))
+            dfnames.extend(self.flister.list_reg_files_for_filepart(args))
         return dfnames
 
     def list_outfiles_for_input(self, args):
@@ -374,7 +375,7 @@ class XmlRecompressDump(RecompressDump):
         commands = []
         for partnum in range(1, len(self._parts) + 1):
             output_dfnames = self.list_outfiles_for_build_command(
-                self.makeargs(runner.dump_dir, partnum=partnum))
+                self.flister.makeargs(runner.dump_dir, partnum=partnum))
             for output_dfname in output_dfnames:
                 if not exists(runner.dump_dir.filename_public_path(output_dfname)):
                     series = self.build_command(runner, [output_dfname])
@@ -417,7 +418,7 @@ class XmlRecompressDump(RecompressDump):
                 else:
                     os.remove(dump_dir.filename_private_path(self.checkpoint_file))
 
-        dfnames = self.list_outfiles_for_cleanup(self.makeargs(dump_dir))
+        dfnames = self.list_outfiles_for_cleanup(self.flister.makeargs(dump_dir))
         if runner.dryrun:
             print("would remove ", [dfname.filename for dfname in dfnames])
         else:
@@ -443,7 +444,7 @@ class XmlRecompressDump(RecompressDump):
             return
         else:
             output_dfnames_possible = self.list_outfiles_for_build_command(
-                self.makeargs(runner.dump_dir))
+                self.flister.makeargs(runner.dump_dir))
             output_dfnames = [name for name in output_dfnames_possible
                               if not exists(runner.dump_dir.filename_public_path(name))]
             series = self.build_command(runner, output_dfnames)
@@ -501,19 +502,19 @@ class XmlRecompressDump(RecompressDump):
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
+        self.flister.set_defaults(args, ['dump_names'])
         if args['dump_names'] is None:
             args['dump_names'] = [self.dumpname]
         args['parts'] = self.get_fileparts_list()
         dfnames = []
         if self.item_for_recompression._checkpoints_enabled:
             args['inprog'] = True
-            dfnames.extend(self.list_checkpt_files_for_filepart(args))
+            dfnames.extend(self.flister.list_checkpt_files_for_filepart(args))
             args['inprog'] = False
-            dfnames.extend(self.list_temp_files_for_filepart(args))
+            dfnames.extend(self.flister.list_temp_files_for_filepart(args))
         else:
             args['inprog'] = True
-            dfnames.extend(self.list_reg_files_for_filepart(args))
+            dfnames.extend(self.flister.list_reg_files_for_filepart(args))
         return dfnames
 
     def list_outfiles_for_input(self, args):

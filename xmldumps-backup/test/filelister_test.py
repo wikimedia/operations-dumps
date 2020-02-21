@@ -156,9 +156,9 @@ class TestFileLister(BaseDumpsTestCase):
         stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, parts=[1, 2, 3, 4])
 
         building = self.dfsort(stubs_job.list_outfiles_for_build_command(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
         publish = self.dfsort(stubs_job.list_outfiles_to_publish(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
         stub_pattern = 'enwiki-{date}-stub-{stubtype}{part}.xml.gz'
         all_parts_stubs = [stub_pattern.format(date=self.today, stubtype=stubtype, part=part)
                            for stubtype in ['articles', 'meta-current', 'meta-history']
@@ -181,11 +181,11 @@ class TestFileLister(BaseDumpsTestCase):
             self.setup_empty_xml_file(self.en['wiki'], name, 'gz', truncated=True)
 
         cleanup_inprog = self.dfsort(stubs_job.list_inprog_files_for_cleanup(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
         cleanup = self.dfsort(stubs_job.list_outfiles_for_cleanup(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
         for_input = self.dfsort(stubs_job.list_outfiles_for_input(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
 
         expected_inprog_stubs = ['enwiki-{date}-stub-articles3.xml.gz.inprog'.format(
             date=self.today)]
@@ -206,7 +206,7 @@ class TestFileLister(BaseDumpsTestCase):
             self.assertEqual(for_input, some_parts_stubs_dfnames)
 
         truncated = self.dfsort(stubs_job.list_truncated_empty_outfiles(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
 
         truncated_parts_stubs = [
             stub_pattern.format(date=self.today, stubtype=stubtype, part=part) + '.truncated'
@@ -224,9 +224,9 @@ class TestFileLister(BaseDumpsTestCase):
         stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, parts=False)
 
         building = self.dfsort(stubs_job.list_outfiles_for_build_command(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
         publish = self.dfsort(stubs_job.list_outfiles_to_publish(
-            stubs_job.makeargs(self.en['dump_dir'])))
+            stubs_job.flister.makeargs(self.en['dump_dir'])))
         stubs_noparts = ['enwiki-{date}-stub-meta-history.xml.gz'.format(date=self.today),
                          'enwiki-{date}-stub-meta-current.xml.gz'.format(date=self.today),
                          'enwiki-{date}-stub-articles.xml.gz'.format(date=self.today)]
@@ -246,11 +246,11 @@ class TestFileLister(BaseDumpsTestCase):
             self.setup_empty_xml_file(self.en['wiki'], name, 'gz', truncated=True)
 
         cleanup_inprog = stubs_job.list_inprog_files_for_cleanup(
-            stubs_job.makeargs(self.en['dump_dir']))
+            stubs_job.flister.makeargs(self.en['dump_dir']))
         cleanup = stubs_job.list_outfiles_for_cleanup(
-            stubs_job.makeargs(self.en['dump_dir']))
+            stubs_job.flister.makeargs(self.en['dump_dir']))
         for_input = stubs_job.list_outfiles_for_input(
-            stubs_job.makeargs(self.en['dump_dir']))
+            stubs_job.flister.makeargs(self.en['dump_dir']))
         expected_inprog_stubs = ['enwiki-{date}-stub-meta-current.xml.gz.inprog'.format(
             date=self.today)]
         expected_inprog_stubs_dfnames = self.dfsort(self.dfnames_from_filenames(
@@ -267,7 +267,7 @@ class TestFileLister(BaseDumpsTestCase):
             self.assertEqual(for_input, some_stubs_dfnames)
 
         truncated = stubs_job.list_truncated_empty_outfiles(
-            stubs_job.makeargs(self.en['dump_dir']))
+            stubs_job.flister.makeargs(self.en['dump_dir']))
 
         truncated_stubs = ['enwiki-{date}-stub-meta-history.xml.gz.truncated'.format(
             date=self.today)]
@@ -295,9 +295,9 @@ class TestFileLister(BaseDumpsTestCase):
                                                checkpoints=False, checkpoint_file=None)
 
         building = self.dfsort(articles_job.list_outfiles_for_build_command(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         publish = self.dfsort(articles_job.list_outfiles_to_publish(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
 
         articles_pattern = 'enwiki-{date}-pages-articles{part}.xml.bz2'
         all_parts_articles = [articles_pattern.format(date=self.today, part=part)
@@ -321,7 +321,7 @@ class TestFileLister(BaseDumpsTestCase):
             self.setup_empty_xml_file(self.en['wiki'], name, 'bz2')
 
         cleanup_inprog = self.dfsort(articles_job.list_inprog_files_for_cleanup(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         inprog_parts_articles = ['enwiki-{date}-pages-articles3.xml.bz2.inprog'.format(
             date=self.today)]
         inprog_parts_articles_dfnames = self.dfsort(self.dfnames_from_filenames(
@@ -330,7 +330,7 @@ class TestFileLister(BaseDumpsTestCase):
             self.assertEqual(cleanup_inprog, inprog_parts_articles_dfnames)
 
         cleanup = self.dfsort(articles_job.list_outfiles_for_cleanup(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         some_parts_articles = [
             articles_pattern.format(date=self.today, part=part) for part in [1, 2]]
         some_parts_articles_dfnames = self.dfsort(self.dfnames_from_filenames(
@@ -338,12 +338,12 @@ class TestFileLister(BaseDumpsTestCase):
         with self.subTest('list article outputs for cleanup'):
             self.assertEqual(cleanup, some_parts_articles_dfnames)
         for_input = self.dfsort(articles_job.list_outfiles_for_input(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         with self.subTest('list article outputs for input'):
             self.assertEqual(for_input, some_parts_articles_dfnames)
 
         truncated = self.dfsort(articles_job.list_truncated_empty_outfiles(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         truncated_parts_articles = ['enwiki-{date}-pages-articles4.xml.bz2.truncated'.format(
             date=self.today)]
         truncated_parts_articles_dfnames = self.dfsort(self.dfnames_from_filenames(
@@ -364,9 +364,9 @@ class TestFileLister(BaseDumpsTestCase):
                                                checkpoints=False, checkpoint_file=None)
 
         building = self.dfsort(articles_job.list_outfiles_for_build_command(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         publish = self.dfsort(articles_job.list_outfiles_to_publish(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
 
         noparts_articles = ['enwiki-{date}-pages-articles.xml.bz2'.format(date=self.today)]
         noparts_articles_dfnames = self.dfsort(self.dfnames_from_filenames(
@@ -381,7 +381,7 @@ class TestFileLister(BaseDumpsTestCase):
             self.setup_empty_xml_file(self.en['wiki'], name, 'bz2', inprog=True)
 
         cleanup_inprog = self.dfsort(articles_job.list_inprog_files_for_cleanup(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         inprog_noparts_articles = ['enwiki-{date}-pages-articles.xml.bz2.inprog'.format(
             date=self.today)]
         inprog_noparts_articles_dfnames = self.dfsort(self.dfnames_from_filenames(
@@ -393,11 +393,11 @@ class TestFileLister(BaseDumpsTestCase):
         for name in ['pages-articles']:
             self.setup_empty_xml_file(self.en['wiki'], name, 'bz2')
         cleanup = self.dfsort(articles_job.list_outfiles_for_cleanup(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         with self.subTest('list article outputs for cleanup (no parts)'):
             self.assertEqual(cleanup, noparts_articles_dfnames)
         for_input = self.dfsort(articles_job.list_outfiles_for_input(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         with self.subTest('list article outputs for input (no parts)'):
             self.assertEqual(for_input, noparts_articles_dfnames)
 
@@ -406,7 +406,7 @@ class TestFileLister(BaseDumpsTestCase):
             self.setup_empty_xml_file(self.en['wiki'], name, 'bz2', truncated=True)
 
         truncated = self.dfsort(articles_job.list_truncated_empty_outfiles(
-            articles_job.makeargs(self.en['dump_dir'])))
+            articles_job.flister.makeargs(self.en['dump_dir'])))
         truncated_noparts_articles = ['enwiki-{date}-pages-articles.xml.bz2.truncated'.format(
             date=self.today)]
         truncated_noparts_articles_dfnames = self.dfsort(self.dfnames_from_filenames(

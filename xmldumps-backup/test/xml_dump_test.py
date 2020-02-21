@@ -9,6 +9,7 @@ from test.basedumpstest import BaseDumpsTestCase
 from dumps.xmlcontentjobs import XmlDump, DFNamePageRangeConverter
 from dumps.xmljobs import XmlStub
 from dumps.utils import FilePartInfo
+import dumps.filelister
 import dumps.dumpitemlist
 import dumps.pagerange
 import dumps.intervals
@@ -107,7 +108,7 @@ class TestXmlDump(BaseDumpsTestCase):
         stub_ranges = content_job.get_ranges_covered_by_stubs(self.en['dump_dir'])
         self.assertEqual(stub_ranges, expected_stub_ranges)
 
-    @patch('dumps.xmlcontentjobs.XmlDump.list_checkpt_files')
+    @patch('dumps.filelister.JobFileLister.list_checkpt_files')
     def test_get_done_pageranges(self, mock_list_checkpt_files):
         """
         make sure that we get a reasonable list of completed pageranges when
@@ -168,7 +169,7 @@ class TestXmlDump(BaseDumpsTestCase):
         return page_id_info[xml_dfname.partnum_int][0], page_id_info[xml_dfname.partnum_int][1]
 
     @patch('dumps.xmljobs.XmlStub.list_outfiles_for_input')
-    @patch('dumps.xmlcontentjobs.XmlDump.list_checkpt_files')
+    @patch('dumps.filelister.JobFileLister.list_checkpt_files')
     @patch('dumps.stubprovider.StubProvider.get_first_last_page_ids')
     def test_get_todos_for_checkpoints(self,
                                        mock_get_first_last_page_ids,

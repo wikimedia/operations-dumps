@@ -24,7 +24,7 @@ class SiteInfoDump(Dump):
     def run(self, runner):
         retries = 0
         maxretries = runner.wiki.config.max_retries
-        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
+        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("siteinfo dump %s trying to produce more than one file" %
                               self.dumpname)

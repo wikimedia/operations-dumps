@@ -335,7 +335,7 @@ class DumpRunJobData():
         """
         self.checksummer.cp_chksum_tmpfiles_to_permfile()
         # this will include checkpoint files if they are enabled.
-        for dfname in item.list_outfiles_to_publish(item.makeargs(self.dump_dir)):
+        for dfname in item.list_outfiles_to_publish(item.flister.makeargs(self.dump_dir)):
             if os.path.exists(self.dump_dir.filename_public_path(dfname)):
                 # why would the file not exist? because we changed number of file parts in the
                 # middle of a run, and now we list more files for the next stage than there

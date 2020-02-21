@@ -109,7 +109,7 @@ class XmlStub(Dump):
             dump_dir, dump_names=None
         returns: list of DumpFilename
         """
-        self.set_defaults(args, ['dump_names'])
+        self.flister.set_defaults(args, ['dump_names'])
         if args['dump_names'] is None:
             args['dump_names'] = self.list_dumpnames()
         dfnames = []
@@ -122,7 +122,7 @@ class XmlStub(Dump):
             dump_dir, dump_names=None
         returns: list of DumpFilename
         """
-        self.set_defaults(args, ['dump_names'])
+        self.flister.set_defaults(args, ['dump_names'])
         if args['dump_names'] is None:
             args['dump_names'] = self.list_dumpnames()
         dfnames = []
@@ -135,7 +135,7 @@ class XmlStub(Dump):
             dump_dir, dump_names=None
         returns: list of DumpFilename
         """
-        self.set_defaults(args, ['dump_names'])
+        self.flister.set_defaults(args, ['dump_names'])
         if args['dump_names'] is None:
             args['dump_names'] = self.list_dumpnames()
         dfnames = []
@@ -189,7 +189,7 @@ class XmlStub(Dump):
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
         self.cleanup_inprog_files(runner.dump_dir, runner)
-        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
+        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
         # pick out the articles_dump files, setting up the stubs command for these
         # will cover all the other cases, as we generate all three stub file types
         # (article, meta-current, meta-history) at once
@@ -301,7 +301,7 @@ class XmlLogging(Dump):
 
     def run(self, runner):
         self.cleanup_inprog_files(runner.dump_dir, runner)
-        dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
+        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
         output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
@@ -417,7 +417,8 @@ class AbstractDump(Dump):
         self.cleanup_inprog_files(runner.dump_dir, runner)
         commands = []
         # choose the empty variant to pass to buildcommand, it will fill in the rest if needed
-        output_dfnames = self.list_outfiles_for_build_command(self.makeargs(runner.dump_dir))
+        output_dfnames = self.list_outfiles_for_build_command(
+            self.flister.makeargs(runner.dump_dir))
         dumpname0 = self.list_dumpnames()[0]
         wanted_dfnames = [dfname for dfname in output_dfnames if dfname.dumpname == dumpname0]
         output_dir = self.get_output_dir(runner)

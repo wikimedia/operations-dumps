@@ -842,6 +842,13 @@ class DumpDir():
         self._filepart_cache = {}
         self._checkpoint_file_cache = {}
 
+    def get_wiki(self):
+        '''
+        convenience method; we don't want anyone setting
+        this by accident but gets are ok
+        '''
+        return self._wiki
+
     def filename_private_path(self, dfname, date_string=None):
         """Given a DumpFilename object, produce the full path to the filename in the date subdir
         of the the private dump dir for the selected database.
