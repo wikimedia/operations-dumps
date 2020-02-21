@@ -114,19 +114,21 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         file
         """
         self.setup_xml_files_chkpts('stub')
+        parts = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=FilePartInfo.convert_comma_sep(
-                                  self.wd['wiki'].config.pages_per_filepart_history),
+                              parts=parts,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
         xml_dfname = DumpFilename(self.wd['wiki'])
         xml_dfname.new_from_filename('wikidatawiki-{today}-stub-articles1.xml.gz'.format(
             today=self.today))
-        firstid, lastid = content_job.get_first_last_page_ids(xml_dfname, self.wd['dump_dir'])
+        firstid, lastid = content_job.stubber.get_first_last_page_ids(
+            xml_dfname, self.wd['dump_dir'], parts)
         expected_ids = [1, 4330]
         self.assertEqual([firstid, lastid], expected_ids)
 

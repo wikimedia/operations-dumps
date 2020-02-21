@@ -81,7 +81,7 @@ class TestXmlDump(BaseDumpsTestCase):
         self.assertEqual(dfnames, expected_dfnames)
 
     @patch('dumps.xmljobs.XmlStub.list_outfiles_for_input')
-    @patch('dumps.xmlcontentjobs.XmlDump.get_first_last_page_ids')
+    @patch('dumps.stubprovider.StubProvider.get_first_last_page_ids')
     def test_get_ranges_covered_by_stubs(self,
                                          mock_get_first_last_page_ids,
                                          mock_list_outfiles_for_input):
@@ -162,7 +162,7 @@ class TestXmlDump(BaseDumpsTestCase):
         return self.dfnames_from_filenames(stub_filenames)
 
     @staticmethod
-    def get_fake_first_last_pageids(xml_dfname, _runner):
+    def get_fake_first_last_pageids(xml_dfname, _dump_dir, _parts):
         """given a DumpFilename, return a reasonable first
         and last page id for the file for testing"""
         page_id_info = {1: [1, 100],
@@ -175,7 +175,7 @@ class TestXmlDump(BaseDumpsTestCase):
 
     @patch('dumps.xmljobs.XmlStub.list_outfiles_for_input')
     @patch('dumps.xmlcontentjobs.XmlDump.list_checkpt_files')
-    @patch('dumps.xmlcontentjobs.XmlDump.get_first_last_page_ids')
+    @patch('dumps.stubprovider.StubProvider.get_first_last_page_ids')
     def test_get_todos_for_checkpoints(self,
                                        mock_get_first_last_page_ids,
                                        mock_list_checkpt_files,
