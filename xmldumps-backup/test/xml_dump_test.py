@@ -6,7 +6,7 @@ import os
 import unittest
 from unittest.mock import patch
 from test.basedumpstest import BaseDumpsTestCase
-from dumps.xmlcontentjobs import XmlDump
+from dumps.xmlcontentjobs import XmlDump, DFNamePageRangeConverter
 from dumps.xmljobs import XmlStub
 from dumps.utils import FilePartInfo
 import dumps.dumpitemlist
@@ -23,15 +23,9 @@ class TestXmlDump(BaseDumpsTestCase):
         make sure we can get a dfname with at least the filename attribute
         being correct, from a pagerange passed in
         """
-        content_job = XmlDump("articles", "articlesdump", "short description here",
-                              "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
-                              spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=FilePartInfo.convert_comma_sep(
-                                  self.en['wiki'].config.pages_per_filepart_history),
-                              checkpoints=True, checkpoint_file=None,
-                              page_id_range=None, verbose=False)
-        dfname = content_job.make_dfname_from_pagerange((230, 295), 2)
+        converter = DFNamePageRangeConverter(self.en['wiki'], "pages-articles", "xml",
+                                             "bz2", verbose=False)
+        dfname = converter.make_dfname_from_pagerange((230, 295), 2)
         expected_filename = 'enwiki-{today}-pages-articles2.xml-p230p295.bz2'.format(
             today=self.today)
         self.assertEqual(dfname.filename, expected_filename)

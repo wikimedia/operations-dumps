@@ -20,6 +20,108 @@ import dumps.intervals
 from dumps.stubprovider import StubProvider
 
 
+class DFNamePageRangeConverter():
+    '''
+    make dfnames from page ranges, get page ranges from dfnames, etc.
+    '''
+    def __init__(self, wiki, dumpname, filetype, file_ext, verbose):
+        self.wiki = wiki
+        self.dumpname = dumpname
+        self.filetype = filetype
+        self.file_ext = file_ext
+        self.verbose = verbose
+
+    @staticmethod
+    def get_pageranges_from_dfnames(dfnames):
+        """
+        given a list of dfnames, return a list of tuples of
+        (startpageid, endpageid, partnum)
+        if there are not start and end page ids in each filename,
+        this will return None
+        """
+        pageranges = []
+        for dfname in dfnames:
+            if not dfname.first_page_id or not dfname.last_page_id:
+                return None
+            pageranges.append((dfname.first_page_id, dfname.last_page_id, dfname.partnum))
+        return pageranges
+
+    def get_pagerange_output_dfname(self, jobinfo):
+        """
+        given page range passed in,
+        return a dumpfilename for the appropriate checkpoint file
+        """
+        if ',' in jobinfo['pageid_range']:
+            first_page_id, last_page_id = jobinfo['pageid_range'].split(',', 1)
+        else:
+            first_page_id = jobinfo['pageid_range']
+            # really? ewww gross
+            last_page_id = "00000"  # indicates no last page id specified, go to end of stub
+        if jobinfo['partnum_todo']:
+            partnum = jobinfo['partnum_todo']
+        else:
+            partnum = None
+        return self.make_dfname_from_pagerange([first_page_id, last_page_id], partnum)
+
+    def make_dfname_from_pagerange(self, pagerange, partnum):
+        """
+        given pagerange, make output file for appropriate type
+        of page content dumps
+        args: (startpage, endpage), string
+        """
+        checkpoint_string = DumpFilename.make_checkpoint_string(
+            str(pagerange[0]), str(pagerange[1]))
+        output_dfname = DumpFilename(self.wiki, self.wiki.date, self.dumpname,
+                                     self.filetype, self.file_ext,
+                                     str(partnum), checkpoint=checkpoint_string,
+                                     temp=False)
+        return output_dfname
+
+    def get_dfnames_from_pageranges(self, pageranges):
+        """
+        given a list of tuples of (startpageid, endpageid, partnum),
+        return a list of corresponding dfnames
+        """
+        dfnames = []
+        for startpage, endpage, partnum in pageranges:
+            dfname = DumpFilename(
+                self.wiki, self.wiki.date, self.dumpname(),
+                self.filetype, self.file_ext, partnum,
+                DumpFilename.make_checkpoint_string(startpage, endpage),
+                False)
+            dfnames.append(dfname)
+        return dfnames
+
+    def get_pagerange_jobs_for_file(self, partnum, page_start, page_end, jobinfo):
+        """
+        given an output filename, the start and end pages it should cover,
+        split up into output filenames that will each contain roughly the same
+        number of revisions, so that each dump to produce them doesn't
+        take a ridiculous length of time
+
+        args: DumpFilename, startpage<str>, endpage<str>
+        returns: list of DumpFilename
+        """
+        output_dfnames = []
+        if 'history' in jobinfo['subset']:
+            prange = PageRange(QueryRunner(self.wiki.db_name, self.wiki.config,
+                                           self.verbose), self.verbose)
+            ranges = prange.get_pageranges_for_revs(page_start, page_end,
+                                                    self.wiki.config.revs_per_job,
+                                                    self.wiki.config.maxrevbytes)
+        else:
+            # strictly speaking this splits up the pages-articles
+            # dump more than is needed but who cares
+            ranges = [(n, min(n + self.wiki.config.revs_per_job - 1, page_end))
+                      for n in range(page_start, page_end,
+                                     self.wiki.config.revs_per_job)]
+        for pagerange in ranges:
+            dfname = self.make_dfname_from_pagerange(pagerange, partnum)
+            if dfname is not None:
+                output_dfnames.append(dfname)
+        return output_dfnames
+
+
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
     def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch,
@@ -47,6 +149,8 @@ class XmlDump(Dump):
                         'item_for_stubs': item_for_stubs,
                         'partnum_todo': self.jobinfo['partnum_todo']},
             self.verbose)
+        self.converter = DFNamePageRangeConverter(wiki, self.get_dumpname(), self.get_filetype(),
+                                                  self.get_file_ext(), self.verbose)
         Dump.__init__(self, name, desc, self.verbose)
 
     @classmethod
@@ -81,37 +185,6 @@ class XmlDump(Dump):
         gz, bz2, 7z?
         """
         return "bz2"
-
-    def get_pagerange_output_dfname(self):
-        """
-        given page range passed in,
-        return a dumpfilename for the appropriate checkpoint file
-        """
-        if ',' in self.jobinfo['pageid_range']:
-            first_page_id, last_page_id = self.jobinfo['pageid_range'].split(',', 1)
-        else:
-            first_page_id = self.jobinfo['pageid_range']
-            # really? ewww gross
-            last_page_id = "00000"  # indicates no last page id specified, go to end of stub
-        if self.jobinfo['partnum_todo']:
-            partnum = self.jobinfo['partnum_todo']
-        else:
-            partnum = None
-        return self.make_dfname_from_pagerange([first_page_id, last_page_id], partnum)
-
-    def make_dfname_from_pagerange(self, pagerange, partnum):
-        """
-        given pagerange, make output file for appropriate type
-        of page content dumps
-        args: (startpage, endpage), string
-        """
-        checkpoint_string = DumpFilename.make_checkpoint_string(
-            str(pagerange[0]), str(pagerange[1]))
-        output_dfname = DumpFilename(self.wiki, self.wiki.date, self.get_dumpname(),
-                                     self.get_filetype(), self.get_file_ext(),
-                                     str(partnum), checkpoint=checkpoint_string,
-                                     temp=False)
-        return output_dfname
 
     def cleanup_tmp_files(self, dump_dir, runner):
         """
@@ -227,39 +300,10 @@ class XmlDump(Dump):
             else:
                 # at least some page ranges are covered, just do those that
                 # are missing (maybe none are and list is empty)
-                todo.extend([self.make_dfname_from_pagerange((first, last), part)
+                todo.extend([self.converter.make_dfname_from_pagerange((first, last), part)
                              for (first, last, part) in missing_ranges
                              if part == partnum])
         return todo
-
-    def get_pagerange_jobs_for_file(self, partnum, page_start, page_end):
-        """
-        given an output filename, the start and end pages it should cover,
-        split up into output filenames that will each contain roughly the same
-        number of revisions, so that each dump to produce them doesn't
-        take a ridiculous length of time
-
-        args: DumpFilename, startpage<str>, endpage<str>
-        returns: list of DumpFilename
-        """
-        output_dfnames = []
-        if 'history' in self.jobinfo['subset']:
-            prange = PageRange(QueryRunner(self.wiki.db_name, self.wiki.config,
-                                           self.verbose), self.verbose)
-            ranges = prange.get_pageranges_for_revs(page_start, page_end,
-                                                    self.wiki.config.revs_per_job,
-                                                    self.wiki.config.maxrevbytes)
-        else:
-            # strictly speaking this splits up the pages-articles
-            # dump more than is needed but who cares
-            ranges = [(n, min(n + self.wiki.config.revs_per_job - 1, page_end))
-                      for n in range(page_start, page_end,
-                                     self.wiki.config.revs_per_job)]
-        for pagerange in ranges:
-            dfname = self.make_dfname_from_pagerange(pagerange, partnum)
-            if dfname is not None:
-                output_dfnames.append(dfname)
-        return output_dfnames
 
     def make_bitesize_jobs(self, output_dfnames, stub_pageranges):
         """
@@ -282,12 +326,13 @@ class XmlDump(Dump):
                     dfname.partnum_int, stub_pageranges)
                 # we get all the ranges for the whole part
                 for prange in pageranges:
-                    to_return.extend(self.get_pagerange_jobs_for_file(
-                        dfname.partnum_int, prange[0], prange[1]))
+                    to_return.extend(self.converter.get_pagerange_jobs_for_file(
+                        dfname.partnum_int, prange[0], prange[1], self.jobinfo))
             else:
                 # we get just the one range
-                to_return.extend(self.get_pagerange_jobs_for_file(
-                    dfname.partnum_int, dfname.first_page_id_int, dfname.last_page_id_int))
+                to_return.extend(self.converter.get_pagerange_jobs_for_file(
+                    dfname.partnum_int, dfname.first_page_id_int, dfname.last_page_id_int,
+                    self.jobinfo))
         return to_return
 
     def setup_wanted(self, dfname, runner, prefetcher):
@@ -318,36 +363,6 @@ class XmlDump(Dump):
             wanted['prefetch'] = ""
         return wanted
 
-    @staticmethod
-    def get_pageranges_from_dfnames(dfnames):
-        """
-        given a list of dfnames, return a list of tuples of
-        (startpageid, endpageid, partnum)
-        if there are not start and end page ids in each filename,
-        this will return None
-        """
-        pageranges = []
-        for dfname in dfnames:
-            if not dfname.first_page_id or not dfname.last_page_id:
-                return None
-            pageranges.append((dfname.first_page_id, dfname.last_page_id, dfname.partnum))
-        return pageranges
-
-    def get_dfnames_from_pageranges(self, pageranges):
-        """
-        given a list of tuples of (startpageid, endpageid, partnum),
-        return a list of corresponding dfnames
-        """
-        dfnames = []
-        for startpage, endpage, partnum in pageranges:
-            dfname = DumpFilename(
-                self.wiki, self.wiki.date, self.get_dumpname(),
-                self.get_filetype(), self.file_ext, partnum,
-                DumpFilename.make_checkpoint_string(startpage, endpage),
-                False)
-            dfnames.append(dfname)
-        return dfnames
-
     def get_dfnames_from_cached_pageranges(self, stub_pageranges, dfnames_todo, logger):
         """
         if there is a pagerangeinfo file, get a list of page ranges suitable
@@ -371,10 +386,11 @@ class XmlDump(Dump):
                     bitesize_pageranges_all[self.jobinfo['subset']]),
                 stub_pageranges)
         if bitesize_pageranges:
-            dfnames_todo = self.get_dfnames_from_pageranges(bitesize_pageranges)
+            dfnames_todo = self.converter.get_dfnames_from_pageranges(
+                bitesize_pageranges)
         else:
             dfnames_todo = self.make_bitesize_jobs(dfnames_todo, stub_pageranges)
-            bitesize_pageranges = self.get_pageranges_from_dfnames(dfnames_todo)
+            bitesize_pageranges = self.converter.get_pageranges_from_dfnames(dfnames_todo)
             pr_info.update_pagerangeinfo(self.wiki, self.jobinfo['subset'], bitesize_pageranges)
         return dfnames_todo
 
@@ -526,7 +542,7 @@ class XmlDump(Dump):
         dfnames_todo = []
         if self.jobinfo['pageid_range'] is not None:
             # convert to checkpoint filename, handle the same way
-            dfnames_todo = [self.get_pagerange_output_dfname()]
+            dfnames_todo = [self.converter.get_pagerange_output_dfname(self.jobinfo)]
         elif self.checkpoint_file:
             dfnames_todo = [self.checkpoint_file]
         elif self._checkpoints_enabled:
