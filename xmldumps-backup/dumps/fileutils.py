@@ -328,10 +328,14 @@ class DumpFilename():
         self.temp = None
         self.is_inprog = False
 
+        self.is_empty = False
+        self.is_truncated = False
+
         # example filenames:
         # elwikidb-20110729-all-titles-in-ns0.gz
         # elwikidb-20110729-abstract.xml
         # elwikidb-20110727-pages-meta-history2.xml-p000048534p000051561.bz2
+        # elwikidb-20110727-pages-meta-history2.xml-p000048534p000051561.bz2.truncated
 
         # we need to handle cases without the projectname-date stuff in them too, as this gets used
         # for all files now
@@ -339,13 +343,18 @@ class DumpFilename():
             self.is_temp_file = True
             self.temp = "-tmp"
 
+        splitme = self.filename
+
         if self.filename.endswith(".inprog"):
             self.is_inprog = True
+            splitme = self.filename[:-7]
+        elif self.filename.endswith(".truncated"):
+            self.is_truncated = True
+            splitme = self.filename[:-10]
+        elif self.filename.endswith(".empty"):
+            self.is_empty = True
+            splitme = self.filename[:-6]
 
-        if self.is_inprog:
-            splitme = self.filename[:-7]  # get rid of .inprog at end
-        else:
-            splitme = self.filename
         if '.' in splitme:
             (file_base, self.file_ext) = splitme.rsplit('.', 1)
             if self.temp:
@@ -942,11 +951,13 @@ class DumpDir():
             date = self._wiki.date
         dfnames = self.get_files_in_dir(date)
         dfnames_matched = []
+        if skip_suffixes is None:
+            skip_suffixes_tuple = ()
+        else:
+            skip_suffixes_tuple = tuple(skip_suffixes)
         for dfname in dfnames:
-            if skip_suffixes:
-                for suffix in skip_suffixes:
-                    if dfname.filename.endswith(suffix):
-                        continue
+            if dfname.filename.endswith(skip_suffixes_tuple):
+                continue
 
             if required_suffixes is not None:
                 matches_required = False
@@ -1042,7 +1053,7 @@ class DumpDir():
         '''
         if suffix is not None:
             skip_suffixes = [entry for entry in self.BAD if entry != suffix]
-            required_suffixes = suffix
+            required_suffixes = [suffix]
         else:
             skip_suffixes = self.BAD
             required_suffixes = None

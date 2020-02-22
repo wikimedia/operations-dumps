@@ -428,17 +428,6 @@ class Dump():
             return range(1, len(self._parts) + 1)
         return False
 
-    def list_reg_files(self, dump_dir, dump_names=None, date=None, parts=None):
-        '''
-        list all regular output files that exist
-        returns:
-            list of DumpFilename
-        '''
-        if not dump_names:
-            dump_names = [self.dumpname]
-        return get_reg_files(dump_dir, dump_names, self.file_type,
-                             self.file_ext, date, parts)
-
     def list_checkpt_files(self, dump_dir, dump_names=None, date=None, parts=None):
         '''
         list all checkpoint files that exist
@@ -525,19 +514,31 @@ class Dump():
         return dfnames
 
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
-                            file_type=None, file_ext=None, parts=None, temp=False,
+                            file_type=None, file_ext=None, parts=False, temp=False,
                             suffix=None):
         '''
         internal function which all the public get_*_possible functions call
-        list all files that could be created for the given dumpname, filtering by the given args.
+        list all files that could be created for the given dumpname with field
+        values from the given args.
+
         by definition, checkpoint files are never returned in such a list, as we don't
         know where a checkpoint might be taken (which pageId start/end).
 
-        if we get None for an arg then we accept all values for that arg in the filename
-        if we get False for an arg (parts, temp), we reject any filename
-        which contains a value for that arg
-        if we get True for an arg (temp), we accept only filenames which contain a value for the arg
-        parts should be a list of value(s), or True / False / None
+        if date is omitted, the date in the dump_dir.wiki object will be used
+
+        the dumpname field must be supplied or this will throw an exception
+
+        if file_type or file_ext are omitted the resultant filename(s) will have none
+
+        the parts arg may be False/None, in which case a filename without partnums are returned,
+            or a list of numbers, to get a list of filenames with those partnums.
+
+        the temp arg may be True, in which case filename(s) with temp extension are returned,
+            or False/None, in which case regular filenames are returned
+
+        if a suffix is supplied, this will be added on to the end of all filenames; e.g.
+            truncated files might end in ".truncated"
+
         returns:
             list of DumpFilename
         '''
@@ -546,16 +547,12 @@ class Dump():
         if dumpname is None:
             dumpname = self.dumpname
         if suffix is not None:
-            # additional suffix tacked on after the normal file extension, if any
-            # for example, truncated files might end in ".truncated"
             file_ext += suffix
 
-        if parts is None or parts is False:
+        if parts is False:
             dfnames.append(DumpFilename(dump_dir._wiki, date, dumpname,
                                         file_type, file_ext, None, None, temp))
-        if parts is True or parts is None:
-            parts = self.get_fileparts_list()
-        if parts:
+        else:
             for partnum in parts:
                 dfnames.append(DumpFilename(dump_dir._wiki, date, dumpname,
                                             file_type, file_ext, partnum, None, temp))
@@ -649,32 +646,6 @@ class Dump():
                 dump_dir, self.get_fileparts_list(), dump_names))
         else:
             dfnames.extend(self.get_truncated_empty_reg_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
-        return dfnames
-
-    def list_outfiles_to_check_for_truncation(self, dump_dir, dump_names=None):
-        '''
-        lists all files that will be examined at the end of the run to be sure
-        they were written out completely.
-        Includes: checkpoint files, file parts, whole files.
-        This includes only the files that should be produced from this specific
-        run, so if only one file part (subjob) is being redone, then only those files
-        will be listed.
-        returns:
-            list of DumpFilename
-        '''
-        if dump_names is None:
-            dump_names = [self.dumpname]
-        dfnames = []
-        if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
-
-        if self._checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(
-                dump_dir, self.get_fileparts_list(), dump_names))
-        else:
-            dfnames.extend(self.get_reg_files_for_filepart_possible(
                 dump_dir, self.get_fileparts_list(), dump_names))
         return dfnames
 

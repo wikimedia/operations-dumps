@@ -68,15 +68,6 @@ class XmlStub(Dump):
         dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
         return dfnames
 
-    def list_outfiles_to_check_for_truncation(self, dump_dir):
-        """
-        returns: list of DumpFilename
-        """
-        dump_names = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
-        return dfnames
-
     def list_outfiles_for_build_command(self, dump_dir):
         """
         returns: list of DumpFilename
@@ -112,6 +103,17 @@ class XmlStub(Dump):
             dump_names = self.list_dumpnames()
         dfnames = []
         dfnames.extend(Dump.list_outfiles_for_input(self, dump_dir, dump_names))
+        return dfnames
+
+    def list_truncated_empty_outfiles(self, dump_dir, dump_names=None):
+        """
+        returns: list of DumpFilename
+        """
+        if dump_names is None:
+            dump_names = self.list_dumpnames()
+        dfnames = []
+        dfnames.extend(Dump.list_truncated_empty_outfiles(
+            self, dump_dir, dump_names))
         return dfnames
 
     def list_truncated_empty_outfiles_for_input(self, dump_dir, dump_names=None):
@@ -477,15 +479,6 @@ class AbstractDump(Dump):
         dump_names = self.list_dumpnames()
         dfnames = []
         dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
-        return dfnames
-
-    def list_outfiles_to_check_for_truncation(self, dump_dir):
-        """
-        returns: list of DumpFilename
-        """
-        dump_names = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
         return dfnames
 
     def list_outfiles_for_build_command(self, dump_dir):

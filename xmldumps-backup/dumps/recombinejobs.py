@@ -258,16 +258,6 @@ class RecombineXmlStub(RecombineDump):
         dfnames.extend(Dump.list_outfiles_to_publish(self, dump_dir, dump_names))
         return dfnames
 
-    def list_outfiles_to_check_for_truncation(self, dump_dir):
-        """
-        returns:
-            list of DumpFilename
-        """
-        dump_names = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_to_check_for_truncation(self, dump_dir, dump_names))
-        return dfnames
-
     def get_filetype(self):
         return self.item_for_xml_stubs.get_filetype()
 

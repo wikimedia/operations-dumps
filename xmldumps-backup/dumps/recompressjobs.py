@@ -241,22 +241,6 @@ class XmlMultiStreamDump(RecompressDump):
             dfnames.append(self.get_multistream_index_dfname(inp_dfname))
         return dfnames
 
-    def list_outfiles_to_check_for_truncation(self, dump_dir):
-        '''
-        shows all files possible if we don't have checkpoint files. without temp files of course,
-        only the parts we are actually supposed to do (if there is a limit)
-        returns:
-            list of DumpFilename
-        '''
-        dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
-        for inp_dfname in input_dfnames:
-            if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
-                continue
-            dfnames.append(self.get_multistream_dfname(inp_dfname))
-            dfnames.append(self.get_multistream_index_dfname(inp_dfname))
-        return dfnames
-
     def list_outfiles_for_cleanup(self, dump_dir, dump_names=None):
         '''
         shows all files possible if we don't have checkpoint files. should include temp files
@@ -482,23 +466,6 @@ class XmlRecompressDump(RecompressDump):
         dfnames = []
         input_dfnames = self.item_for_recompression.list_truncated_empty_outfiles_for_input(
             dump_dir)
-        for inp_dfname in input_dfnames:
-            if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
-                continue
-            dfnames.append(DumpFilename(self.wiki, inp_dfname.date, inp_dfname.dumpname,
-                                        inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
-                                        inp_dfname.checkpoint, inp_dfname.temp))
-        return dfnames
-
-    def list_outfiles_to_check_for_truncation(self, dump_dir):
-        '''
-        shows all files possible if we don't have checkpoint files. without temp files of course
-        only the parts we are actually supposed to do (if there is a limit)
-        returns:
-            list of DumpFilename
-        '''
-        dfnames = []
-        input_dfnames = self.item_for_recompression.list_outfiles_for_input(dump_dir)
         for inp_dfname in input_dfnames:
             if self._partnum_todo and inp_dfname.partnum_int != self._partnum_todo:
                 continue
