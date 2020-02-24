@@ -2,24 +2,8 @@
 from dumps.fileutils import DumpFilename
 
 
-def get_truncated_empty_checkpt_files(dump_dir, dump_names, file_type, file_ext,
-                                      date=None, parts=None):
-    '''
-    return all truncated checkpoint files that exist
-    returns:
-        list of DumpFilename
-    '''
-    dfnames = []
-    for dump_name in dump_names:
-        dfnames.extend(dump_dir.get_checkpt_files(
-            date, dump_name, file_type, file_ext, parts, temp=False, suffix=".truncated"))
-        dfnames.extend(dump_dir.get_checkpt_files(
-            date, dump_name, file_type, file_ext, parts, temp=False, suffix=".empty"))
-    return dfnames
-
-
-def get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
-                      parts=None):
+def _get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
+                       parts=None):
     '''
     return all checkpoint files that exist
     returns:
@@ -32,7 +16,7 @@ def get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
     return dfnames
 
 
-def get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
+def _get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
     '''
     get all regular output files that exist
     returns:
@@ -83,6 +67,20 @@ class JobFileLister():
                 else:
                     args['name'] = None
 
+    def list_reg_files(self, args):
+        '''
+        list all regular output files that exist
+        expects:
+            dump_dir, dump_names=None, date=None, parts=None
+        returns:
+            list of DumpFilename
+        '''
+        self.set_defaults(args, ['dump_names', 'date', 'parts'])
+        if not args['dump_names']:
+            args['dump_names'] = [self.dumpname]
+        return _get_reg_files(args['dump_dir'], args['dump_names'], self.file_type,
+                              self.file_ext, args['date'], args['parts'])
+
     def list_checkpt_files(self, args):
         '''
         list all checkpoint files that exist
@@ -94,7 +92,7 @@ class JobFileLister():
         self.set_defaults(args, ['dump_names', 'date', 'parts'])
         if not args['dump_names']:
             args['dump_names'] = [self.dumpname]
-        return get_checkpt_files(
+        return _get_checkpt_files(
             args['dump_dir'], args['dump_names'], self.file_type,
             self.file_ext, args['date'], args['parts'])
 

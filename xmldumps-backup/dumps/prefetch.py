@@ -7,7 +7,7 @@ import os
 from os.path import exists
 
 from dumps.fileutils import DumpContents
-from dumps.filelister import get_checkpt_files, get_reg_files
+from dumps.filelister import JobFileLister
 import dumps.pagerange
 
 
@@ -86,28 +86,30 @@ class PrefetchFinder():
         current job, with the given file extension (might be bz2s
         or 7zs or whatever) for the given range of pages
         """
-        dfnames = get_checkpt_files(
-            runner.dump_dir, [jobinfo['dumpname']], self.jobinfo['ftype'],
-            file_ext, date, parts=None)
+        flister = JobFileLister(jobinfo['dumpname'], jobinfo['ftype'], file_ext,
+                                None, None)
+        # lists for all available parts, not relying on current config
+        # as to parts, because this is a different run and the config
+        # may have been different
+        dfnames = flister.list_checkpt_files(flister.makeargs(
+            runner.dumpdir, jobinfo['dumpname'], date=date))
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
         if possible_prefetch_dfnames:
             return possible_prefetch_dfnames
 
-        # ok, let's check for file parts instead, from any run
-        # (may not conform to our numbering for this job)
-        dfnames = get_reg_files(
-            runner.dump_dir, [jobinfo['dumpname']], jobinfo['ftype'],
-            file_ext, date, parts=True)
+        # ok, let's check for file parts instead, from any run; again
+        # parts config may not be the same as current run
+        dfnames = flister.list_reg_files(flister.makeargs(
+            runner.dumpdir, jobinfo['dumpname'], date=date))
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
         if possible_prefetch_dfnames:
             return possible_prefetch_dfnames
 
         # last shot, get output file that contains all the pages, if there is one
-        dfnames = get_reg_files(
-            runner.dump_dir, [jobinfo['dumpname']],
-            jobinfo['ftype'], file_ext, date, parts=False)
+        dfnames = flister.list_reg_files(flister.makeargs(
+            runner.dumpdir, jobinfo['dumpname'], parts=False, date=date))
         # there is only one, don't bother to check for relevance :-P
         possible_prefetch_dfnames = dfnames
         dfnames = []
