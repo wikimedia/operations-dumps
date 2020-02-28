@@ -46,8 +46,12 @@ class JobFileLister():
         '''
         turn a list of params into an args dict for all list_... _files and related methods
         '''
+        if dump_names and type(dump_names).__name__ != 'list':
+            dump_names_arg = [dump_names]
+        else:
+            dump_names_arg = dump_names
         return {'dump_dir': dump_dir,
-                'dump_names': dump_names,
+                'dump_names': dump_names_arg,
                 'date': date,
                 'parts': parts,
                 'inprog': inprog,

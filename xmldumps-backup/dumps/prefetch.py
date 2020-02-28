@@ -33,27 +33,38 @@ class PrefetchFinder():
         """
         possibles = []
         if file_list:
-            # (a) nasty hack, see below (b)
-            maxparts = 0
-            for dfname in file_list:
-                if dfname.is_file_part and dfname.partnum_int > maxparts:
-                    maxparts = dfname.partnum_int
-                if not dfname.first_page_id:
+            # collect copies of all the dfnames with the first page id of each
+            dfnames_page_coverage = []
+            for dfname in sorted(file_list, key=lambda thing: thing.filename):
+                if dfname.first_page_id:
+                    first_page = dfname.first_page_id_int
+                else:
                     if runner.wiki.is_private():
-                        dcontents = DumpContents(
-                            self.wiki, runner.dump_dir.filename_private_path(dfname, date),
-                            dfname, self.verbose)
+                        path = runner.dump_dir.filename_private_path(dfname, date)
                     else:
-                        dcontents = DumpContents(
-                            self.wiki, runner.dump_dir.filename_public_path(dfname, date),
-                            dfname, self.verbose)
-                    dfname.set_first_page_id(dcontents.find_first_page_id_in_file())
+                        path = runner.dump_dir.filename_public_path(dfname, date)
+                    dcontents = DumpContents(self.wiki, path, dfname, self.verbose)
+                    first_page = dcontents.find_first_page_id_in_file()
+                dfnames_page_coverage.append({'dfname': dfname, 'first': first_page, 'last': None})
 
-            # get the files that cover our range
-            for dfname in file_list:
-                if dumps.pagerange.xmlfile_covers_range(dfname, pagerange,
-                                                        maxparts, file_list, runner):
-                    possibles.append(dfname)
+            for index, coverage in enumerate(dfnames_page_coverage):
+                if coverage['dfname'].last_page_id:
+                    coverage['last'] = coverage['dfname'].last_page_id_int
+                else:
+                    # here we can fill it in. if it's the last file we can't, it remains
+                    # 'None' and it will be treated as covering everything to infinity,
+                    # which is ok in this context.
+                    if index < len(dfnames_page_coverage) + 1:
+                        # claim this file covers up to the page just before the next file's
+                        # starting page, may not literally be true because of deletes, but
+                        # because this is prefetch, we can't rely on using the config
+                        # settings, they may have changed
+                        coverage['last'] = dfnames_page_coverage[index]['first'] - 1
+
+                if dumps.intervals.interval_overlaps(coverage['first'], coverage['last'],
+                                                     pagerange['start'], pagerange['end']):
+                    possibles.append(coverage['dfname'])
+
         return possibles
 
     def get_pagerange_to_prefetch(self, partnum):
@@ -78,21 +89,21 @@ class PrefetchFinder():
             pagerange['end'] = None
         return pagerange
 
-    def _find_prefetch_files_from_run(self, runner, date, jobinfo,
-                                      pagerange, file_ext):
+    def find_prefetch_files_from_run(self, runner, date,
+                                     pagerange, file_ext):
         """
         for a given wiki and date, see if there are dump content
         files lying about that can be used for prefetch to the
         current job, with the given file extension (might be bz2s
         or 7zs or whatever) for the given range of pages
         """
-        flister = JobFileLister(jobinfo['dumpname'], jobinfo['ftype'], file_ext,
+        flister = JobFileLister(self.jobinfo['dumpname'], self.jobinfo['ftype'], file_ext,
                                 None, None)
         # lists for all available parts, not relying on current config
         # as to parts, because this is a different run and the config
         # may have been different
         dfnames = flister.list_checkpt_files(flister.makeargs(
-            runner.dumpdir, jobinfo['dumpname'], date=date))
+            runner.dump_dir, self.jobinfo['dumpname'], date=date))
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
         if possible_prefetch_dfnames:
@@ -101,7 +112,7 @@ class PrefetchFinder():
         # ok, let's check for file parts instead, from any run; again
         # parts config may not be the same as current run
         dfnames = flister.list_reg_files(flister.makeargs(
-            runner.dumpdir, jobinfo['dumpname'], date=date))
+            runner.dump_dir, self.jobinfo['dumpname'], parts=True, date=date))
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
         if possible_prefetch_dfnames:
@@ -109,7 +120,7 @@ class PrefetchFinder():
 
         # last shot, get output file that contains all the pages, if there is one
         dfnames = flister.list_reg_files(flister.makeargs(
-            runner.dumpdir, jobinfo['dumpname'], parts=False, date=date))
+            runner.dump_dir, self.jobinfo['dumpname'], parts=False, date=date))
         # there is only one, don't bother to check for relevance :-P
         possible_prefetch_dfnames = dfnames
         dfnames = []
@@ -129,7 +140,7 @@ class PrefetchFinder():
             return dfnames
         return None
 
-    def _find_previous_dump(self, runner, partnum=None):
+    def find_previous_dump(self, runner, partnum=None):
         """
         this finds the content file or files from the first previous successful dump
         to be used as input ("prefetch") for this run.
@@ -162,8 +173,8 @@ class PrefetchFinder():
             # before giving up and moving to next one
             for file_ext in self.jobinfo['fexts']:
 
-                dfnames_found = self._find_prefetch_files_from_run(
-                    runner, date, self.jobinfo, pagerange, file_ext)
+                dfnames_found = self.find_prefetch_files_from_run(
+                    runner, date, pagerange, file_ext)
                 if dfnames_found:
                     return dfnames_found
 
@@ -182,7 +193,7 @@ class PrefetchFinder():
         """
         sources = []
 
-        possible_sources = self._find_previous_dump(runner, output_dfname.partnum)
+        possible_sources = self.find_previous_dump(runner, output_dfname.partnum)
         # if we have a list of more than one then
         # we need to check existence for each and put them together in a string
         if possible_sources:

@@ -2,8 +2,6 @@
 """
 text suite for xml content job
 """
-import os
-import shutil
 import unittest
 from unittest.mock import patch
 from test.basedumpstest import BaseDumpsTestCase
@@ -23,97 +21,12 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
     some basic tests for production of xml content files
     that use fixture files for stub and page content
     """
-    def setup_xml_files_chkpts(self, todos, excluded=None):
-        """
-        make copies of our sample stub and page content files in the right
-        directory with the right names
-        'excluded' contains the list of pageranges not to copy in, if desired
-        """
-        parts_pageranges = {'1': ['p1p1500', 'p1501p4000', 'p4001p4321', 'p4322p4330'],
-                            '2': ['p4331p4350', 'p4351p4380', 'p4381p4443'],
-                            '3': ['p4444p4445', 'p4446p4600', 'p4601p4605'],
-                            '4': ['p4606p5340', 'p5341p5345']}
-
-        if 'stub' in todos:
-            for part in parts_pageranges:
-                inpath = './test/files/stub-articles-sample' + part + '.xml.gz'
-                basefilename = ('wikidatawiki-{today}-stub-articles'.format(today=self.today) +
-                                part + '.xml.gz')
-                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
-                                       self.today, basefilename)
-                shutil.copyfile(inpath, outpath)
-
-        if 'content' in todos:
-            for part in parts_pageranges:
-                for pagerange in parts_pageranges[part]:
-                    if excluded and pagerange in excluded:
-                        continue
-                    inpath = ('./test/files/pages-articles-sample' + part + '.xml-' +
-                              pagerange + '.bz2')
-                    # wikidatawiki-20200205-pages-articles1.xml-p1p100.bz2
-                    basefilename = ('wikidatawiki-{today}-pages-articles'.format(today=self.today) +
-                                    part + '.xml-' + pagerange + '.bz2')
-                    outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
-                                           self.today, basefilename)
-                    shutil.copyfile(inpath, outpath)
-
-    def setup_xml_files_parts(self, todos, excluded=None):
-        """
-        make copies of our sample stub and page content files in the right
-        directory with the right names
-        'excluded' contains the list of parts not to copy in, if desired
-        """
-        parts = ['1', '2', '3', '4']
-
-        if 'stub' in todos:
-            for part in parts:
-                inpath = './test/files/stub-articles-sample' + part + '.xml.gz'
-                basefilename = ('wikidatawiki-{today}-stub-articles'.format(today=self.today) +
-                                part + '.xml.gz')
-                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
-                                       self.today, basefilename)
-                shutil.copyfile(inpath, outpath)
-
-        if 'content' in todos:
-            for part in parts:
-                if excluded and part in excluded:
-                    continue
-                inpath = ('./test/files/pages-articles-sample' + part + '.xml.bz2')
-                # wikidatawiki-20200205-pages-articles1.xml.bz2
-                basefilename = ('wikidatawiki-{today}-pages-articles'.format(today=self.today) +
-                                part + '.xml.bz2')
-                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
-                                       self.today, basefilename)
-                shutil.copyfile(inpath, outpath)
-
-    def setup_xml_files_noparts(self, todos):
-        """
-        make copies of our sample stub and page content files in the right
-        directory with the right names
-        """
-        if 'stub' in todos:
-            inpath = './test/files/stub-articles-sample.xml.gz'
-            basefilename = ('wikidatawiki-{today}-stub-articles'.format(today=self.today) +
-                            '.xml.gz')
-            outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
-                                   self.today, basefilename)
-            shutil.copyfile(inpath, outpath)
-
-        if 'content' in todos:
-            inpath = ('./test/files/pages-articles-sample.xml.bz2')
-            # wikidatawiki-20200205-pages-articles1.xml.bz2
-            basefilename = ('wikidatawiki-{today}-pages-articles'.format(today=self.today) +
-                            '.xml.bz2')
-            outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
-                                   self.today, basefilename)
-            shutil.copyfile(inpath, outpath)
-
     def test_get_first_last_page_ids(self):
         """
         check that we can get the first and last page ids of an xml stubs
         file
         """
-        self.setup_xml_files_chkpts('stub')
+        self.setup_xml_files_chkpts(['stub'], self.today)
         parts = FilePartInfo.convert_comma_sep(
             self.wd['wiki'].config.pages_per_filepart_history)
         content_job = XmlDump("articles", "articlesdump", "short description here",
@@ -137,7 +50,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         make sure that we get good list of page ranges covered by
         stubs when we have sample stub files
         """
-        self.setup_xml_files_chkpts('stub')
+        self.setup_xml_files_chkpts(['stub'], self.today)
 
         parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
 
@@ -164,7 +77,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         make sure that we get a reasonable list of completed pageranges when
         some stub and page content files are present, for checkpoint files
         """
-        self.setup_xml_files_chkpts(['stub', 'content'])
+        self.setup_xml_files_chkpts(['stub', 'content'], self.today)
 
         expected_pageranges = [(1, 1500, 1), (1501, 4000, 1), (4001, 4321, 1), (4322, 4330, 1),
                                (4331, 4350, 2), (4351, 4380, 2), (4381, 4443, 2),
@@ -195,7 +108,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         missing_ranges = missing[1] + missing[3] + missing[4]
 
-        self.setup_xml_files_chkpts(['stub', 'content'], excluded=missing_ranges)
+        self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
 
         parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
 
@@ -243,7 +156,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         missing_ranges = missing[1] + missing[3] + missing[4]
 
-        self.setup_xml_files_chkpts(['stub', 'content'], excluded=missing_ranges)
+        self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
 
         parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
 
@@ -296,7 +209,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         missing_ranges = missing[1] + missing[3] + missing[4]
 
-        self.setup_xml_files_chkpts(['stub', 'content'], excluded=missing_ranges)
+        self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
         # set up a fake pagerangeinfo file too
         fake_pageranges = [(1501, 4000, 1), (1, 1500, 1), (4001, 4321, 1), (4322, 4330, 1),
                            (4331, 4350, 2), (4351, 4380, 2), (4381, 4443, 2),
@@ -387,7 +300,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         this is the code path that would be executed on a first
         run of the job
         """
-        self.setup_xml_files_chkpts(['stub'])
+        self.setup_xml_files_chkpts(['stub'], self.today)
 
         runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
                         job=None, skip_jobs=None,
@@ -472,7 +385,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         and some content files with some parts missing,
         for wikis without checkpoints enabled
         """
-        self.setup_xml_files_parts(['stub', 'content'], excluded=['2', '4'])
+        self.setup_xml_files_parts(['stub', 'content'], self.today, excluded=['2', '4'])
         self.wd['wiki'].config.checkpoint_time = 0
 
         runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
@@ -533,7 +446,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         and no content,
         for wikis without checkpoints or parts
         """
-        self.setup_xml_files_noparts(['stub'])
+        self.setup_xml_files_noparts(['stub'], self.today)
         self.wd['wiki'].config.parts_enabled = 0
         self.wd['wiki'].config.checkpoint_time = 0
 

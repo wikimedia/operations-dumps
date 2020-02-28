@@ -21,7 +21,6 @@ import json
 from dumps.wikidump import Config, Wiki
 from dumps.utils import DbServerInfo
 import xmlstreams
-import dumps.intervals
 
 
 def get_count_from_output(sqloutput):
@@ -470,64 +469,6 @@ class PageRange():
                 interval_end = badguess
             if self.verbose:
                 print("new interval:", interval_start, interval_end)
-
-
-def xmlfile_covers_range(candidate_dfname, pagerange, maxparts, all_files, runner):
-    """
-    see if passed DumpFilename covers at least some of the page range specified
-    returns True if so, False if not and False on error
-
-    args: DumpFilename, {'start': num, 'end': num}, ???, list of DumpFilename (all
-    output files that currently exist for a given run), Runner
-    """
-    # If some of the dumpfilenames in file_list could not be properly be parsed, some of
-    # the (int) conversions below will fail. However, it is of little use to us,
-    # which conversion failed. /If any/ conversion fails, it means, that that we do
-    # not understand how to make sense of the current dumpfilename. Hence we cannot use
-    # it as prefetch object and we have to drop it, to avoid passing a useless file
-    # to the text pass. (This could days as of a comment below, but by not passing
-    # a likely useless file, we have to fetch more texts from the database)
-    #
-    # Therefore try...except-ing the whole block is sufficient: If whatever error
-    # occurs, we do not abort, but skip the file for prefetch.
-    try:
-        # If we could properly parse
-        first_page_id_in_file = candidate_dfname.first_page_id_int
-
-        # fixme what do we do here? this could be very expensive. is that worth it??
-        if not candidate_dfname.last_page_id:
-            # (b) nasty hack, see (a)
-            # it's not a checkpoint fle or we'd have the pageid in the filename
-            # so... temporary hack which will give expensive results
-            # if file part, and it's the last one, put none
-            # if it's not the last part, get the first pageid in the next
-            #  part and subtract 1
-            # if not file part, put none.
-            if candidate_dfname.is_file_part and candidate_dfname.partnum_int < maxparts:
-                for dfname in all_files:
-                    if dfname.partnum_int == candidate_dfname.partnum_int + 1:
-                        # not true!  this could be a few past where it really is
-                        # (because of deleted pages that aren't included at all)
-                        candidate_dfname.set_last_page_id(dfname.first_page_id_int - 1)
-        if candidate_dfname.last_page_id_int:
-            last_page_id_in_file = candidate_dfname.last_page_id_int
-        else:
-            last_page_id_in_file = None
-
-        # FIXME there is no point in including files that have just a
-        # few rev ids in them that we need, and having to read through
-        # the whole file... could take hours or days (later it won't matter,
-        # right? but until a rewrite, this is important)
-        # also be sure that if a critical page is deleted by the time we
-        # try to figure out ranges, that we don't get hosed
-        if dumps.intervals.interval_overlaps(first_page_id_in_file, last_page_id_in_file,
-                                             pagerange['start'], pagerange['end']):
-            return True
-    except Exception as ex:
-        runner.debug(
-            "Couldn't process %s for prefetch. Format update? Corrupt file?"
-            % candidate_dfname.filename)
-    return False
 
 
 def usage(message=None):
