@@ -27,13 +27,13 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         file
         """
         self.setup_xml_files_chkpts(['stub'], self.today)
-        parts = FilePartInfo.convert_comma_sep(
+        pages_per_part = FilePartInfo.convert_comma_sep(
             self.wd['wiki'].config.pages_per_filepart_history)
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -41,7 +41,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         xml_dfname.new_from_filename('wikidatawiki-{today}-stub-articles1.xml.gz'.format(
             today=self.today))
         firstid, lastid = content_job.stubber.get_first_last_page_ids(
-            xml_dfname, self.wd['dump_dir'], parts)
+            xml_dfname, self.wd['dump_dir'], pages_per_part)
         expected_ids = [1, 4330]
         self.assertEqual([firstid, lastid], expected_ids)
 
@@ -52,19 +52,20 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         """
         self.setup_xml_files_chkpts(['stub'], self.today)
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -84,13 +85,14 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                                (4444, 4445, 3), (4446, 4600, 3), (4601, 4605, 3),
                                (4606, 5340, 4), (5341, 5345, 4)]
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -110,19 +112,20 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -158,19 +161,20 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -225,19 +229,20 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                         partnum_todo=None, checkpoint_file=None, page_id_range=None,
                         skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -308,19 +313,19 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                         partnum_todo=None, checkpoint_file=None, page_id_range=None,
                         skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
-
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -394,19 +399,20 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                         partnum_todo=None, checkpoint_file=None, page_id_range=None,
                         skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
 
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=False, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -460,13 +466,13 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=False)
+                            pages_per_part=None)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=False,
+                              pages_per_part=None,
                               checkpoints=False, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 

@@ -160,7 +160,8 @@ class DumpItemList():
                                              self._get_partnum_todo("abstractsdump"),
                                              self.wiki.db_name,
                                              get_int_setting(self.jobsperbatch, "abstractsdump"),
-                                             self.filepart.get_attr('_pages_per_filepart_abstract'))])
+                                             self.filepart.get_attr(
+                                                 '_pages_per_filepart_abstract'))])
 
         self.append_job_if_needed(RecombineAbstractDump(
             "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
@@ -175,8 +176,8 @@ class DumpItemList():
             "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
             self.find_item_by_name('xmlstubsdump')))
 
-        # NOTE that the filepart thing passed here is irrelevant,
-        # these get generated from the stubs which are all done in one pass
+        # NOTE that _pages_per_filepart_history passed here should be the same
+        # as the stubs job, since these files get generated from the stubs
         self.dump_items.append(
             XmlDump("articles",
                     "articlesdump",

@@ -77,13 +77,13 @@ class TestFileLister(BaseDumpsTestCase):
         return dfnames
 
     @staticmethod
-    def get_xmlstubs_job(wiki, partnum_todo, parts):
+    def get_xmlstubs_job(wiki, partnum_todo, pages_per_part):
         '''return an XmlStub instance suitable for testing its list file methods'''
         return XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                        partnum_todo=partnum_todo,
                        jobsperbatch=dumps.dumpitemlist.get_int_setting(
                            wiki.config.jobsperbatch, "xmlstubsdump"),
-                       parts=parts)
+                       pages_per_part=pages_per_part)
 
     @staticmethod
     def get_xmlcontent_type(shortname):
@@ -101,7 +101,7 @@ class TestFileLister(BaseDumpsTestCase):
             return 'metahistorybz2dump'
         return None
 
-    def get_xmlcontent_job(self, wiki, shortname, xmlstubs_job, partnum_todo, parts,
+    def get_xmlcontent_job(self, wiki, shortname, xmlstubs_job, partnum_todo, pages_per_part,
                            checkpoints, checkpoint_file):
         '''return an XmlDump instance suitable for testing its list file methods;
         this can be any of the article, meta-current or meta-history jobs'''
@@ -109,19 +109,19 @@ class TestFileLister(BaseDumpsTestCase):
                        "long description here",
                        item_for_stubs=xmlstubs_job, prefetch=False, prefetchdate=None,
                        spawn=True, wiki=wiki, partnum_todo=partnum_todo,
-                       parts=parts,
+                       pages_per_part=pages_per_part,
                        checkpoints=checkpoints, checkpoint_file=checkpoint_file,
                        page_id_range=None, verbose=False)
 
     @staticmethod
-    def get_articles_multistream_job(wiki, xmlarticles_job, partnum_todo, parts,
+    def get_articles_multistream_job(wiki, xmlarticles_job, partnum_todo, pages_per_part,
                                      checkpoints, checkpoint_file):
         '''return an XmlMultiStreamDump instance suitable for testing its list file methods'''
         return XmlMultiStreamDump("articles", "articlesmultistreamdump",
                                   "short description here",
                                   "long description here",
                                   xmlarticles_job, wiki=wiki,
-                                  partnum_todo=partnum_todo, parts=parts,
+                                  partnum_todo=partnum_todo, pages_per_part=pages_per_part,
                                   checkpoints=checkpoints, checkpoint_file=checkpoint_file)
 
     @staticmethod
@@ -142,7 +142,8 @@ class TestFileLister(BaseDumpsTestCase):
                                  "short description here", "long description here",
                                  xmlcontent_job,
                                  wiki, partnum_todo=partnum_todo,
-                                 parts=filepartinfo.get_attr('_pages_per_filepart_history'),
+                                 pages_per_part=filepartinfo.get_attr(
+                                     '_pages_per_filepart_history'),
                                  checkpoints=checkpoints, checkpoint_file=checkpoint_file)
 
     @patch('dumps.wikidump.Wiki.get_known_tables')
@@ -153,7 +154,8 @@ class TestFileLister(BaseDumpsTestCase):
 
         # first batch of tests
 
-        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, parts=[1, 2, 3, 4])
+        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None,
+                                          pages_per_part=[3, 2, 2, 10])
 
         building = self.dfsort(stubs_job.list_outfiles_for_build_command(
             stubs_job.flister.makeargs(self.en['dump_dir'])))
@@ -221,7 +223,7 @@ class TestFileLister(BaseDumpsTestCase):
 
         # remove all stubs
         self.remove_empty_xml_files(self.en['wiki'])
-        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, parts=False)
+        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, pages_per_part=None)
 
         building = self.dfsort(stubs_job.list_outfiles_for_build_command(
             stubs_job.flister.makeargs(self.en['dump_dir'])))
@@ -289,9 +291,10 @@ class TestFileLister(BaseDumpsTestCase):
             # recombined file for stubs
             self.setup_empty_xml_file(self.en['wiki'], name, 'gz')
 
-        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, parts=[1, 2, 3, 4])
+        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None,
+                                          pages_per_part=[3, 2, 2, 10])
         articles_job = self.get_xmlcontent_job(self.en['wiki'], 'articles', stubs_job,
-                                               partnum_todo=None, parts=[1, 2, 3, 4],
+                                               partnum_todo=None, pages_per_part=[3, 2, 2, 10],
                                                checkpoints=False, checkpoint_file=None)
 
         building = self.dfsort(articles_job.list_outfiles_for_build_command(
@@ -358,9 +361,9 @@ class TestFileLister(BaseDumpsTestCase):
         for name in ['pages-articles']:
             self.setup_empty_xml_file(self.en['wiki'], name, 'bz2')
 
-        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, parts=False)
+        stubs_job = self.get_xmlstubs_job(self.en['wiki'], partnum_todo=None, pages_per_part=None)
         articles_job = self.get_xmlcontent_job(self.en['wiki'], 'articles', stubs_job,
-                                               partnum_todo=None, parts=False,
+                                               partnum_todo=None, pages_per_part=None,
                                                checkpoints=False, checkpoint_file=None)
 
         building = self.dfsort(articles_job.list_outfiles_for_build_command(

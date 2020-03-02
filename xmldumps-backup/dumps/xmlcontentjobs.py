@@ -126,7 +126,7 @@ class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
     def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch,
                  prefetchdate, spawn,
-                 wiki, partnum_todo, parts=False, checkpoints=False, checkpoint_file=None,
+                 wiki, partnum_todo, pages_per_part=None, checkpoints=False, checkpoint_file=None,
                  page_id_range=None, verbose=False):
         self.jobinfo = {'subset': subset, 'detail': detail, 'desc': desc,
                         'prefetch': prefetch, 'prefetchdate': prefetchdate,
@@ -135,8 +135,8 @@ class XmlDump(Dump):
         if checkpoints:
             self._checkpoints_enabled = True
         self.checkpoint_file = checkpoint_file
-        self._parts = parts
-        if self._parts:
+        self._pages_per_part = pages_per_part
+        if self._pages_per_part:
             self._parts_enabled = True
             self.onlyparts = True
 
@@ -144,7 +144,7 @@ class XmlDump(Dump):
         self.verbose = verbose
         self._prerequisite_items = [self.jobinfo['item_for_stubs']]
         self.stubber = StubProvider(
-            self.wiki, {'dumpname': self.get_dumpname(), 'parts': self._parts,
+            self.wiki, {'dumpname': self.get_dumpname(), 'pagesperpart': self._pages_per_part,
                         'dumpnamebase': self.get_dumpname_base(),
                         'item_for_stubs': item_for_stubs,
                         'partnum_todo': self.jobinfo['partnum_todo']},
@@ -265,7 +265,7 @@ class XmlDump(Dump):
             # via the wiki config? FIXME
 
             first_page, last_page = self.stubber.get_first_last_page_ids(
-                stub_dfname, dump_dir, self._parts)
+                stub_dfname, dump_dir, self._pages_per_part)
             stub_ranges.append((first_page, last_page, stub_dfname.partnum_int))
 
         return stub_ranges
@@ -455,13 +455,13 @@ class XmlDump(Dump):
         figure out how many commands we run at once for generating
         temp stubs
         """
-        if self._parts:
+        if self._pages_per_part:
             if stubs:
                 # these jobs are more expensive than e.g. page content jobs,
                 # do half as many
-                batchsize = int(len(self._parts) / 2)
+                batchsize = int(len(self._pages_per_part) / 2)
             else:
-                batchsize = len(self._parts)
+                batchsize = len(self._pages_per_part)
         else:
             batchsize = 1
         return batchsize
@@ -520,7 +520,7 @@ class XmlDump(Dump):
                  'dumpname': self.get_dumpname(),
                  'ftype': self.file_type, 'fexts': file_exts,
                  'subset': self.jobinfo['subset']},
-                {'date': self.jobinfo['prefetchdate'], 'parts': self._parts},
+                {'date': self.jobinfo['prefetchdate'], 'pagesperpart': self._pages_per_part},
                 self.verbose)
         else:
             prefetcher = None

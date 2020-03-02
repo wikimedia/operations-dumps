@@ -14,11 +14,11 @@ from dumps.jobs import Dump
 class RecompressDump(Dump):
     """Given bz2 input files, recompress them in various ways."""
     def __init__(self, subset, name, desc, detail, item_for_recompression,
-                 wiki, partnum_todo, parts=False, checkpoints=False, checkpoint_file=None):
+                 wiki, partnum_todo, pages_per_part=None, checkpoints=False, checkpoint_file=None):
         self._subset = subset
         self._detail = detail
-        self._parts = parts
-        if self._parts:
+        self._pages_per_part = pages_per_part
+        if self._pages_per_part:
             self._parts_enabled = True
         self._partnum_todo = partnum_todo
         self.wiki = wiki
@@ -148,7 +148,7 @@ class XmlMultiStreamDump(RecompressDump):
         '''
         # new code cobbled together
         commands = []
-        for partnum in range(1, len(self._parts) + 1):
+        for partnum in range(1, len(self._pages_per_part) + 1):
             content_dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(
                 runner.dump_dir, partnum=partnum))
             for content_dfname in content_dfnames:
@@ -158,7 +158,7 @@ class XmlMultiStreamDump(RecompressDump):
                                   self.get_multistream_index_dfname(content_dfname)]
                 self.setup_command_info(runner, command_series, output_dfnames)
         # now we have all the commands, run them in batches til we are done
-        batchsize = len(self._parts)
+        batchsize = len(self._pages_per_part)
         errors = False
         while commands:
             command_batch = commands[:batchsize]
@@ -373,7 +373,7 @@ class XmlRecompressDump(RecompressDump):
         want human intervention
         """
         commands = []
-        for partnum in range(1, len(self._parts) + 1):
+        for partnum in range(1, len(self._pages_per_part) + 1):
             output_dfnames = self.list_outfiles_for_build_command(
                 self.flister.makeargs(runner.dump_dir, partnum=partnum))
             for output_dfname in output_dfnames:
@@ -382,7 +382,7 @@ class XmlRecompressDump(RecompressDump):
                     commands.append(series)
                     self.setup_command_info(runner, series, [output_dfname])
         # now we have all the commands, run them in batches til we are done
-        batchsize = len(self._parts)
+        batchsize = len(self._pages_per_part)
         errors = False
         while commands:
             command_batch = commands[:batchsize]

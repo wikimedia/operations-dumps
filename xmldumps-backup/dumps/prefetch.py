@@ -77,10 +77,10 @@ class PrefetchFinder():
         """
         pagerange = {}
         if partnum:
-            pagerange['start'] = sum([self.prefetchinfo['parts'][i]
+            pagerange['start'] = sum([self.prefetchinfo['pagesperpart'][i]
                                       for i in range(0, int(partnum) - 1)]) + 1
-            if len(self.prefetchinfo['parts']) > int(partnum):
-                pagerange['end'] = sum([self.prefetchinfo['parts'][i]
+            if len(self.prefetchinfo['pagesperpart']) > int(partnum):
+                pagerange['end'] = sum([self.prefetchinfo['pagesperpart'][i]
                                         for i in range(0, int(partnum))])
             else:
                 pagerange['end'] = None

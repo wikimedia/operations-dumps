@@ -39,13 +39,14 @@ class TestXmlDump(BaseDumpsTestCase):
         # turn off checkpoints in the config but keep part numbers
         self.en['wiki'].config.checkpoint_time = 0
 
-        parts = FilePartInfo.convert_comma_sep(self.en['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.en['wiki'].config.pages_per_filepart_history)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -65,7 +66,7 @@ class TestXmlDump(BaseDumpsTestCase):
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=False,
+                              pages_per_part=None,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -87,19 +88,20 @@ class TestXmlDump(BaseDumpsTestCase):
         mock_list_outfiles_for_input.return_value = self.set_stub_output_filenames([1, 2, 3, 4])
         mock_get_first_last_page_ids.side_effect = self.get_fake_first_last_pageids
 
-        parts = FilePartInfo.convert_comma_sep(self.en['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.en['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.en['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -135,7 +137,7 @@ class TestXmlDump(BaseDumpsTestCase):
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=FilePartInfo.convert_comma_sep(
+                              pages_per_part=FilePartInfo.convert_comma_sep(
                                   self.en['wiki'].config.pages_per_filepart_history),
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
@@ -217,19 +219,20 @@ class TestXmlDump(BaseDumpsTestCase):
         # one is ever created based on a branch. Fine.
         mock_get_first_last_page_ids.side_effect = self.get_fake_first_last_pageids
 
-        parts = FilePartInfo.convert_comma_sep(self.en['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.en['wiki'].config.pages_per_filepart_history)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
                             jobsperbatch=dumps.dumpitemlist.get_int_setting(
                                 self.en['wiki'].config.jobsperbatch, "xmlstubsdump"),
-                            parts=parts)
+                            pages_per_part=pages_per_part)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -275,13 +278,14 @@ class TestXmlDump(BaseDumpsTestCase):
         # turn off checkpoints in the config but keep part numbers
         self.en['wiki'].config.checkpoint_time = 0
 
-        parts = FilePartInfo.convert_comma_sep(self.en['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.en['wiki'].config.pages_per_filepart_history)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 
@@ -325,7 +329,7 @@ class TestXmlDump(BaseDumpsTestCase):
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
-                              parts=False,
+                              pages_per_part=None,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
 

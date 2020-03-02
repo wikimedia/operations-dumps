@@ -68,12 +68,13 @@ class TestPrefetch(BaseDumpsTestCase):
                         restart=False, notice="", dryrun=False, enabled=None,
                         partnum_todo=None, checkpoint_file=None, page_id_range=None,
                         skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
                               page_id_range=None, verbose=False)
         prefetcher = PrefetchFinder(
@@ -82,7 +83,7 @@ class TestPrefetch(BaseDumpsTestCase):
              'dumpname': content_job.get_dumpname(),
              'ftype': content_job.file_type, 'fexts': ['bz2', '7z'],
              'subset': content_job.jobinfo['subset']},
-            {'date': content_job.jobinfo['prefetchdate'], 'parts': parts},
+            {'date': content_job.jobinfo['prefetchdate'], 'pagesperpart': pages_per_part},
             content_job.verbose)
 
         with self.subTest('two consecutive ranges in one part, exactly matching existing files'):
@@ -122,13 +123,14 @@ class TestPrefetch(BaseDumpsTestCase):
                         restart=False, notice="", dryrun=False, enabled=None,
                         partnum_todo=None, checkpoint_file=None, page_id_range=None,
                         skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
-        parts = FilePartInfo.convert_comma_sep(self.wd['wiki'].config.pages_per_filepart_history)
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=parts,
+                              pages_per_part=pages_per_part,
                               checkpoints=False, checkpoint_file=None,
                               page_id_range=None, verbose=False)
         prefetcher = PrefetchFinder(
@@ -137,7 +139,7 @@ class TestPrefetch(BaseDumpsTestCase):
              'dumpname': content_job.get_dumpname(),
              'ftype': content_job.file_type, 'fexts': ['bz2', '7z'],
              'subset': content_job.jobinfo['subset']},
-            {'date': content_job.jobinfo['prefetchdate'], 'parts': parts},
+            {'date': content_job.jobinfo['prefetchdate'], 'pagesperpart': pages_per_part},
             content_job.verbose)
 
         with self.subTest('range covered'):
@@ -182,7 +184,7 @@ class TestPrefetch(BaseDumpsTestCase):
                               "long description here",
                               item_for_stubs=None, prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
-                              parts=False,
+                              pages_per_part=None,
                               checkpoints=False, checkpoint_file=None,
                               page_id_range=None, verbose=False)
         prefetcher = PrefetchFinder(
@@ -191,7 +193,7 @@ class TestPrefetch(BaseDumpsTestCase):
              'dumpname': content_job.get_dumpname(),
              'ftype': content_job.file_type, 'fexts': ['bz2', '7z'],
              'subset': content_job.jobinfo['subset']},
-            {'date': content_job.jobinfo['prefetchdate'], 'parts': False},
+            {'date': content_job.jobinfo['prefetchdate'], 'pagesperpart': False},
             content_job.verbose)
 
         with self.subTest('range covered but file too small'):

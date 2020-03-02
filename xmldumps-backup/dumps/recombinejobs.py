@@ -404,7 +404,7 @@ class RecombineXmlRecompressDump(RecombineDump):
 
 class RecombineAbstractDump(RecombineDump):
     def __init__(self, name, desc, item_for_recombine):
-        # no partnum_todo, no parts generally (False, False), even though input may have it
+        # no partnum_todo, no parts generally (False, None), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
         super().__init__(name, desc, 'gz')
@@ -430,7 +430,7 @@ class RecombineAbstractDump(RecombineDump):
 
 class RecombineXmlLoggingDump(RecombineDump):
     def __init__(self, name, desc, item_for_recombine):
-        # no partnum_todo, no parts generally (False, False), even though input may have it
+        # no partnum_todo, no parts generally (False, None), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
         super().__init__(name, desc, 'gz')
@@ -454,7 +454,7 @@ class RecombineXmlLoggingDump(RecombineDump):
 
 class RecombineXmlMultiStreamDump(RecombineDump):
     def __init__(self, name, desc, item_for_recombine):
-        # no partnum_todo, no parts generally (False, False), even though input may have it
+        # no partnum_todo, no parts generally (False, None), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
         super().__init__(name, desc, 'bz2')

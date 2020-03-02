@@ -40,8 +40,8 @@ class Dump():
             self._partnum_todo = None
         if not hasattr(self, '_prerequisite_items'):
             self._prerequisite_items = []
-        if not hasattr(self, '_parts'):
-            self._parts = False
+        if not hasattr(self, '_pages_per_part'):
+            self._pages_per_part = None
         self.flister = JobFileLister(self.dumpname, self.file_type, self.file_ext,
                                      self.get_fileparts_list(), self.checkpoint_file)
 
@@ -386,8 +386,8 @@ class Dump():
         if self._parts_enabled:
             if self._partnum_todo:
                 return [self._partnum_todo]
-            return range(1, len(self._parts) + 1)
-        return False
+            return range(1, len(self._pages_per_part) + 1)
+        return None
 
 # these routines are all used for listing output files for various purposes...
 

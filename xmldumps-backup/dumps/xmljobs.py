@@ -26,11 +26,12 @@ class XmlStub(Dump):
     A second pass will import text from prior dumps or the database to make
     full files for the public."""
 
-    def __init__(self, name, desc, partnum_todo, jobsperbatch=None, parts=False, checkpoints=False):
+    def __init__(self, name, desc, partnum_todo, jobsperbatch=None,
+                 pages_per_part=None, checkpoints=False):
         self._partnum_todo = partnum_todo
         self.jobsperbatch = jobsperbatch
-        self._parts = parts
-        if self._parts:
+        self._pages_per_part = pages_per_part
+        if self._pages_per_part:
             self._parts_enabled = True
             self.onlyparts = True
         self.history_dump_name = "stub-meta-history"
@@ -172,13 +173,13 @@ class XmlStub(Dump):
         if partnum is not None:
             # set up start end end pageids for this piece
             # note there is no page id 0 I guess. so we start with 1
-            start = sum([int(self._parts[i]) for i in range(0, int(partnum) - 1)]) + 1
+            start = sum([int(self._pages_per_part[i]) for i in range(0, int(partnum) - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
             # whatever that is.
             command.append(startopt)
-            if int(partnum) < len(self._parts):
-                end = sum([int(self._parts[i]) for i in range(0, int(partnum))]) + 1
+            if int(partnum) < len(self._pages_per_part):
+                end = sum([int(self._pages_per_part[i]) for i in range(0, int(partnum))]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -242,11 +243,11 @@ class XmlStub(Dump):
 class XmlLogging(Dump):
     """ Create a logging dump of all page activity """
 
-    def __init__(self, desc, partnum_todo, jobsperbatch=None, parts=False):
+    def __init__(self, desc, partnum_todo, jobsperbatch=None, pages_per_part=None):
         self._partnum_todo = partnum_todo
         self.jobsperbatch = jobsperbatch
-        self._parts = parts
-        if self._parts:
+        self._pages_per_part = pages_per_part
+        if self._pages_per_part:
             self._parts_enabled = True
             self.onlyparts = True
         Dump.__init__(self, "xmlpagelogsdump", desc)
@@ -285,13 +286,15 @@ class XmlLogging(Dump):
         if output_dfname.partnum:
             # set up start end end pageids for this piece
             # note there is no item id 0 I guess. so we start with 1
-            start = sum([int(self._parts[i]) for i in range(0, output_dfname.partnum_int - 1)]) + 1
+            start = sum([int(self._pages_per_part[i])
+                         for i in range(0, output_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last log item id,
             # whatever that is.
             command.append(startopt)
-            if output_dfname.partnum_int < len(self._parts):
-                end = sum([int(self._parts[i]) for i in range(0, output_dfname.partnum_int)]) + 1
+            if output_dfname.partnum_int < len(self._pages_per_part):
+                end = sum([int(self._pages_per_part[i])
+                           for i in range(0, output_dfname.partnum_int)]) + 1
                 endopt = "--end=%s" % end
                 command.append(endopt)
 
@@ -332,11 +335,11 @@ class XmlLogging(Dump):
 class AbstractDump(Dump):
     """XML dump for Yahoo!'s Active Abstracts thingy"""
 
-    def __init__(self, name, desc, partnum_todo, db_name, jobsperbatch=None, parts=False):
+    def __init__(self, name, desc, partnum_todo, db_name, jobsperbatch=None, pages_per_part=None):
         self._partnum_todo = partnum_todo
         self.jobsperbatch = jobsperbatch
-        self._parts = parts
-        if self._parts:
+        self._pages_per_part = pages_per_part
+        if self._pages_per_part:
             self._parts_enabled = True
             self.onlyparts = True
         self.db_name = db_name
@@ -393,7 +396,7 @@ class AbstractDump(Dump):
             if runner.wiki.config.empty_abstracts:
                 start = 1
             else:
-                start = sum([int(self._parts[i])
+                start = sum([int(self._pages_per_part[i])
                              for i in range(0, novariant_dfname.partnum_int - 1)]) + 1
             startopt = "--start=%s" % start
             # if we are on the last file part, we should get up to the last pageid,
@@ -402,8 +405,8 @@ class AbstractDump(Dump):
             end = None
             if runner.wiki.config.empty_abstracts:
                 end = 1
-            elif novariant_dfname.partnum_int < len(self._parts):
-                end = sum([int(self._parts[i])
+            elif novariant_dfname.partnum_int < len(self._pages_per_part):
+                end = sum([int(self._pages_per_part[i])
                            for i in range(0, novariant_dfname.partnum_int)]) + 1
             if end is not None:
                 endopt = "--end=%s" % end

@@ -220,7 +220,7 @@ class StubProvider():
         dcontents = DumpContents(self.wiki, path, xmlfile, self.verbose)
         return bool(dcontents.find_first_page_id_in_file() == 0)
 
-    def get_first_last_page_ids(self, xml_dfname, dump_dir, parts):
+    def get_first_last_page_ids(self, xml_dfname, dump_dir, pages_per_part):
         """
         return the first and last page ids in a stub file based on
         looking at the content, can be slow because getting the last
@@ -229,12 +229,13 @@ class StubProvider():
         first_id = xml_dfname.first_page_id_int
         if not first_id:
             # get it from the file part and the config
-            first_id = sum([int(parts[i]) for i in range(0, xml_dfname.partnum_int - 1)]) + 1
+            first_id = sum([int(pages_per_part[i])
+                            for i in range(0, xml_dfname.partnum_int - 1)]) + 1
 
         last_id = xml_dfname.last_page_id_int
         if not last_id:
-            if xml_dfname.partnum_int < len(parts):
-                last_id = sum([int(parts[i]) for i in range(0, xml_dfname.partnum_int)])
+            if xml_dfname.partnum_int < len(pages_per_part):
+                last_id = sum([int(pages_per_part[i]) for i in range(0, xml_dfname.partnum_int)])
             else:
                 # last part. no way to compute a value from config, look at the file
                 dcontents = DumpContents(
