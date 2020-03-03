@@ -8,7 +8,7 @@ from os.path import exists
 import time
 
 from dumps.exceptions import BackupError
-from dumps.fileutils import DumpFilename, FileUtils
+from dumps.fileutils import DumpFilename, FileUtils, PARTS_ANY
 from dumps.utils import MultiVersion
 from dumps.jobs import Dump
 from dumps.wikidump import Locker
@@ -224,7 +224,8 @@ class XmlDump(Dump):
         returns: sorted
         """
         chkpt_dfnames = self.flister.list_checkpt_files(
-            self.flister.makeargs(dump_dir, [self.get_dumpname()], date=date))
+            self.flister.makeargs(dump_dir, [self.get_dumpname()],
+                                  parts=PARTS_ANY, date=date))
         # chkpt_dfnames = sorted(chkpt_dfnames, key=lambda thing: thing.filename)
         # get the page ranges covered by existing checkpoint files
         done_pageranges = [(dfname.first_page_id_int, dfname.last_page_id_int,
@@ -288,14 +289,13 @@ class XmlDump(Dump):
         missing_ranges = dumps.intervals.find_missing_ranges(stub_pageranges, done_pageranges)
         todo = []
         parts = self.get_fileparts_list()
+        output_dfnames = self.flister.get_reg_files_for_filepart_possible(
+            self.flister.makeargs(dump_dir, self.list_dumpnames(), parts))
         for partnum in parts:
             if not [1 for chkpt_range in done_pageranges
                     if chkpt_range[2] == partnum]:
-                # entire page range for a particular file part (subjob)
+                # entire page range for a particular file part
                 # is missing so generate the regular output file
-                output_dfnames = self.flister.get_reg_files_for_filepart_possible(
-                    self.flister.makeargs(dump_dir, self.list_dumpnames(),
-                                          self.get_fileparts_list()))
                 todo.extend([dfname for dfname in output_dfnames
                              if dfname.partnum_int == partnum])
             else:
@@ -426,7 +426,7 @@ class XmlDump(Dump):
         """
         output_dfnames = self.flister.get_reg_files_for_filepart_possible(
             self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
-        # at least some page ranges are covered, just do those that
+        # at least some page ranges are covered, just do those that aren't
         dfnames_todo = [
             dfname for dfname in output_dfnames if not os.path.exists(
                 dump_dir.filename_public_path(dfname))]

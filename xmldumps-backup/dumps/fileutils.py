@@ -16,6 +16,8 @@ from dumps.commandmanagement import CommandPipeline
 from dumps.exceptions import BackupError
 from dumps.utils import MiscUtils
 
+PARTS_ANY = [-1]
+
 
 class FileUtils():
 
@@ -940,13 +942,18 @@ class DumpDir():
                             skip_suffixes=None, required_suffixes=None, inprog=False):
         '''
         list all files that exist, filtering by the given args.
-        if we get None for an arg then we accept all values
-        for that arg in the filename, including missing
-        if we get False for an arg (parts, temp, checkpoint),
-        we reject any filename which contains a value for that arg
-        if we get True for an arg (parts, temp, checkpoint),
-        we include only filenames which contain a value for that arg
-        parts should be a list of value(s) or True / False / None
+
+        if we get False for temp or checkpoint,
+            we reject any temp or checkpoint filename.
+        if we get None for temp or checkpoint, we accept temp and regular
+            filenames, or checkpoint and noncheckpoint files.
+        if we get True for temp or checkpoint, we accept only temp
+            or checkpoint files.
+
+        if we get None for parts, we accept only files without partnums
+        if we get PARTS_ANY for parts, we accept files with any partnum
+        if we get a list of specific numbers for parts, we accept files only
+            with those partnums (list can be empty, then you'll get no files ;-))
 
         note that we ignore files with ".truncated". these are known to be bad.
         args:
@@ -980,12 +987,11 @@ class DumpDir():
                 continue
             if file_ext is not None and dfname.file_ext != file_ext:
                 continue
-            if parts is False and dfname.is_file_part:
+            if parts is None and dfname.is_file_part:
                 continue
-            if parts is True and not dfname.is_file_part:
+            if parts and not dfname.is_file_part:
                 continue
-            # parts is a list...
-            if parts and parts is not True and dfname.partnum_int not in parts:
+            if parts and parts != PARTS_ANY and dfname.partnum_int not in parts:
                 continue
             if (temp is False and dfname.is_temp_file) or (temp and not dfname.is_temp_file):
                 continue
@@ -1011,15 +1017,18 @@ class DumpDir():
         return mylist
 
     def get_checkpt_files(self, date=None, dump_name=None,
-                          file_type=None, file_ext=None, parts=False, temp=False, inprog=False):
+                          file_type=None, file_ext=None, parts=None, temp=False, inprog=False):
         '''
         list all checkpoint files that exist, filtering by the given args.
-        if we get None for an arg then we accept all values for that arg in the filename
-        if we get False for an arg (parts, temp),
-        we reject any filename which contains a value for that arg
-        if we get True for an arg (parts, temp),
-        we accept only filenames which contain a value for the arg
-        parts should be a list of value(s), or True / False / None
+
+        if 'temp' is None, return both temp and regular files
+        if 'temp' is False, return only regular files
+
+        if 'parts' is None, return only filenames without part numbers
+        if 'parts' is PARTS_ANY, return all filenames with part numbers
+        if 'parts' is a list of numbers, return only filenames with those part numbers
+
+        parts should be a list of value(s), or PARTS_ANY, or None
         '''
         return self._get_files_filtered(date, dump_name, file_type,
                                         file_ext, parts, temp, checkpoint=True,
@@ -1028,15 +1037,19 @@ class DumpDir():
 
     def get_truncated_empty_checkpt_files(self, date=None, dump_name=None,
                                           file_type=None, file_ext=None,
-                                          parts=False, temp=False):
+                                          parts=None, temp=False):
         '''
-        list all checkpoint files that exist, filtering by the given args.
-        if we get None for an arg then we accept all values for that arg in the filename
-        if we get False for an arg (parts, temp),
-        we reject any filename which contains a value for that arg
-        if we get True for an arg (parts, temp),
-        we accept only filenames which contain a value for the arg
-        parts should be a list of value(s), or True / False / None
+        list all checkpoint files that exist that have been marked as truncated or empty,
+        filtering by the given args.
+
+        if 'temp' is None, return both temp and regular files
+        if 'temp' is False, return only regular files
+
+        if 'parts' is None, return only filenames without part numbers
+        if 'parts' is PARTS_ANY, return all filenames with part numbers
+        if 'parts' is a list of numbers, return only filenames with those part numbers
+
+        parts should be a list of value(s), or PARTS_ANY, or None
         '''
         return self._get_files_filtered(date, dump_name, file_type,
                                         file_ext, parts, temp, checkpoint=True,
@@ -1044,16 +1057,19 @@ class DumpDir():
                                         skip_suffixes=None)
 
     def get_reg_files(self, date=None, dump_name=None,
-                      file_type=None, file_ext=None, parts=False, temp=False,
+                      file_type=None, file_ext=None, parts=None, temp=False,
                       suffix=None, inprog=False):
         '''
         list all non-checkpoint files that exist, filtering by the given args.
-        if we get None for an arg then we accept all values for that arg in the filename
-        if we get False for an arg (parts, temp),
-        we reject any filename which contains a value for that arg
-        if we get True for an arg (parts, temp),
-        we accept only filenames which contain a value for the arg
-        parts should be a list of value(s), or True / False / None
+
+        if 'temp' is None, return both temp and regular files
+        if 'temp' is False, return only regular files
+
+        if 'parts' is None, return only filenames without part numbers
+        if 'parts' is PARTS_ANY, return all filenames with part numbers
+        if 'parts' is a list of numbers, return only filenames with those part numbers
+
+        parts should be a list of value(s), or PARTS_ANY, or None
 
         suffix, if passed, is a string that would be tacked on after the
         end of the filename (after .xml.gz)

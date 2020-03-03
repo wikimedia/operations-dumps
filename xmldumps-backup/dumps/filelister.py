@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from dumps.fileutils import DumpFilename
+from dumps.fileutils import DumpFilename, PARTS_ANY
 
 
 def _get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
@@ -192,7 +192,7 @@ class JobFileLister():
         return dfnames
 
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
-                            file_type=None, file_ext=None, parts=False, temp=False,
+                            file_type=None, file_ext=None, parts=None, temp=False,
                             suffix=None):
         '''
         internal function which all the public get_*_possible functions call
@@ -208,8 +208,10 @@ class JobFileLister():
 
         if file_type or file_ext are omitted the resultant filename(s) will have none
 
-        the parts arg may be False/None, in which case a filename without partnums are returned,
+        the parts arg may be None, in which case a filename without partnums are returned,
             or a list of numbers, to get a list of filenames with those partnums.
+            PARTS_ANY is not supported here, as it is not possible to generate a list of
+            potential filenames without an explicit list of numbers.
 
         the temp arg may be True, in which case filename(s) with temp extension are returned,
             or False/None, in which case regular filenames are returned
@@ -218,7 +220,7 @@ class JobFileLister():
             truncated files might end in ".truncated"
 
         returns:
-            list of DumpFilename
+            list of DumpFilename or None on error
         '''
 
         dfnames = []
@@ -227,9 +229,12 @@ class JobFileLister():
         if suffix is not None:
             file_ext += suffix
 
-        if parts is False:
+        if parts is None:
             dfnames.append(DumpFilename(dump_dir.get_wiki(), date, dumpname,
                                         file_type, file_ext, None, None, temp))
+        elif parts == PARTS_ANY:
+            # this is an error on the part of the caller
+            return None
         else:
             for partnum in parts:
                 dfnames.append(DumpFilename(dump_dir.get_wiki(), date, dumpname,

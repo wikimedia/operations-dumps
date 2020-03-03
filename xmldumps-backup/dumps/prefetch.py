@@ -6,7 +6,7 @@ All xml content dump jobs are defined here
 import os
 from os.path import exists
 
-from dumps.fileutils import DumpContents
+from dumps.fileutils import DumpContents, PARTS_ANY
 from dumps.filelister import JobFileLister
 import dumps.pagerange
 
@@ -99,28 +99,28 @@ class PrefetchFinder():
         """
         flister = JobFileLister(self.jobinfo['dumpname'], self.jobinfo['ftype'], file_ext,
                                 None, None)
-        # lists for all available parts, not relying on current config
+        # list checkpt files for all available parts, not relying on current config
         # as to parts, because this is a different run and the config
         # may have been different
         dfnames = flister.list_checkpt_files(flister.makeargs(
-            runner.dump_dir, self.jobinfo['dumpname'], date=date))
+            runner.dump_dir, self.jobinfo['dumpname'], parts=PARTS_ANY, date=date))
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
         if possible_prefetch_dfnames:
             return possible_prefetch_dfnames
 
-        # ok, let's check for file parts instead, from any run; again
+        # ok, let's check for file parts only (no checkpt) instead, from any run; again
         # parts config may not be the same as current run
         dfnames = flister.list_reg_files(flister.makeargs(
-            runner.dump_dir, self.jobinfo['dumpname'], parts=True, date=date))
+            runner.dump_dir, self.jobinfo['dumpname'], parts=PARTS_ANY, date=date))
         possible_prefetch_dfnames = self.get_relevant_prefetch_dfnames(
             dfnames, pagerange, date, runner)
         if possible_prefetch_dfnames:
             return possible_prefetch_dfnames
 
-        # last shot, get output file that contains all the pages, if there is one
+        # last shot, get single output file that contains all the pages, if there is one
         dfnames = flister.list_reg_files(flister.makeargs(
-            runner.dump_dir, self.jobinfo['dumpname'], parts=False, date=date))
+            runner.dump_dir, self.jobinfo['dumpname'], parts=None, date=date))
         # there is only one, don't bother to check for relevance :-P
         possible_prefetch_dfnames = dfnames
         dfnames = []
