@@ -76,7 +76,7 @@ class TestXmlDump(BaseDumpsTestCase):
         expected_dfnames = self.dfnames_from_filenames(expected_files)
         self.assertEqual(dfnames, expected_dfnames)
 
-    @patch('dumps.xmljobs.XmlStub.list_outfiles_for_input')
+    @patch('dumps.xmljobs.XmlStubFileLister.list_outfiles_for_input')
     @patch('dumps.stubprovider.StubProvider.get_first_last_page_ids')
     def test_get_ranges_covered_by_stubs(self,
                                          mock_get_first_last_page_ids,
@@ -110,7 +110,7 @@ class TestXmlDump(BaseDumpsTestCase):
         stub_ranges = content_job.get_ranges_covered_by_stubs(self.en['dump_dir'])
         self.assertEqual(stub_ranges, expected_stub_ranges)
 
-    @patch('dumps.filelister.JobFileLister.list_checkpt_files')
+    @patch('dumps.xmlcontentjobs.XmlFileLister.list_checkpt_files')
     def test_get_done_pageranges(self, mock_list_checkpt_files):
         """
         make sure that we get a reasonable list of completed pageranges when
@@ -170,8 +170,8 @@ class TestXmlDump(BaseDumpsTestCase):
             return None, None
         return page_id_info[xml_dfname.partnum_int][0], page_id_info[xml_dfname.partnum_int][1]
 
-    @patch('dumps.xmljobs.XmlStub.list_outfiles_for_input')
-    @patch('dumps.filelister.JobFileLister.list_checkpt_files')
+    @patch('dumps.xmljobs.XmlStubFileLister.list_outfiles_for_input')
+    @patch('dumps.xmlcontentjobs.XmlFileLister.list_checkpt_files')
     @patch('dumps.stubprovider.StubProvider.get_first_last_page_ids')
     def test_get_todos_for_checkpoints(self,
                                        mock_get_first_last_page_ids,

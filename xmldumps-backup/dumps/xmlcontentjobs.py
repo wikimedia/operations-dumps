@@ -18,6 +18,7 @@ from dumps.pagerangeinfo import PageRangeInfo
 from dumps.prefetch import PrefetchFinder
 import dumps.intervals
 from dumps.stubprovider import StubProvider
+from dumps.outfilelister import OutputFileLister
 
 
 class DFNamePageRangeConverter():
@@ -152,6 +153,10 @@ class XmlDump(Dump):
         self.converter = DFNamePageRangeConverter(wiki, self.get_dumpname(), self.get_filetype(),
                                                   self.get_file_ext(), self.verbose)
         Dump.__init__(self, name, desc, self.verbose)
+        self.oflister = XmlFileLister(self.dumpname, self.file_type, self.file_ext,
+                                      self.get_fileparts_list(), self.checkpoint_file,
+                                      self._checkpoints_enabled, self.list_dumpnames,
+                                      self.jobinfo['pageid_range'])
 
     @classmethod
     def check_truncation(cls):
@@ -223,9 +228,9 @@ class XmlDump(Dump):
 
         returns: sorted
         """
-        chkpt_dfnames = self.flister.list_checkpt_files(
-            self.flister.makeargs(dump_dir, [self.get_dumpname()],
-                                  parts=PARTS_ANY, date=date))
+        chkpt_dfnames = self.oflister.list_checkpt_files(
+            self.oflister.makeargs(dump_dir, [self.get_dumpname()],
+                                   parts=PARTS_ANY, date=date))
         # chkpt_dfnames = sorted(chkpt_dfnames, key=lambda thing: thing.filename)
         # get the page ranges covered by existing checkpoint files
         done_pageranges = [(dfname.first_page_id_int, dfname.last_page_id_int,
@@ -245,16 +250,16 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        return self.flister.get_reg_files_for_filepart_possible(
-            self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+        return self.oflister.get_reg_files_for_filepart_possible(
+            self.oflister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
 
     def get_ranges_covered_by_stubs(self, dump_dir):
         """
         get the page ranges covered by stubs
         returns a list of tuples: (startpage<str>, endpage<str>, partnum<str>)
         """
-        output_dfnames = self.flister.get_reg_files_for_filepart_possible(
-            self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+        output_dfnames = self.oflister.get_reg_files_for_filepart_possible(
+            self.oflister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
         stub_dfnames = [self.stubber.get_stub_dfname(dfname.partnum, dump_dir)
                         for dfname in output_dfnames]
         stub_dfnames = sorted(stub_dfnames, key=lambda thing: thing.filename)
@@ -289,8 +294,8 @@ class XmlDump(Dump):
         missing_ranges = dumps.intervals.find_missing_ranges(stub_pageranges, done_pageranges)
         todo = []
         parts = self.get_fileparts_list()
-        output_dfnames = self.flister.get_reg_files_for_filepart_possible(
-            self.flister.makeargs(dump_dir, self.list_dumpnames(), parts))
+        output_dfnames = self.oflister.get_reg_files_for_filepart_possible(
+            self.oflister.makeargs(dump_dir, self.list_dumpnames(), parts))
         for partnum in parts:
             if not [1 for chkpt_range in done_pageranges
                     if chkpt_range[2] == partnum]:
@@ -424,8 +429,8 @@ class XmlDump(Dump):
         to page content we want to dump, when checkpoint files
         (page ranges) are not enabled
         """
-        output_dfnames = self.flister.get_reg_files_for_filepart_possible(
-            self.flister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
+        output_dfnames = self.oflister.get_reg_files_for_filepart_possible(
+            self.oflister.makeargs(dump_dir, self.list_dumpnames(), self.get_fileparts_list()))
         # at least some page ranges are covered, just do those that aren't
         dfnames_todo = [
             dfname for dfname in output_dfnames if not os.path.exists(
@@ -714,8 +719,26 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        dfnames = Dump.list_outfiles_for_cleanup(self, self.flister.makeargs(dump_dir, dump_names))
+        # FIXME check that we want this and not super of oflister somehow
+        dfnames = self.oflister.list_outfiles_for_cleanup(
+            self.oflister.makeargs(dump_dir, dump_names))
         return [dfname for dfname in dfnames if dfname.is_temp_file]
+
+
+class XmlFileLister(OutputFileLister):
+    """
+    special output file list methods for xml page content dump jobs
+
+    we must account for retries of just a single page content
+    file, perhaps with a specific page range, if asked to clean up
+    existing files before the retry.
+    """
+    def __init__(self, dumpname, file_type, file_ext, fileparts_list,
+                 checkpoint_file, checkpoints_enabled, list_dumpnames=None,
+                 pageid_range=None):
+        super().__init__(dumpname, file_type, file_ext, fileparts_list,
+                         checkpoint_file, checkpoints_enabled, list_dumpnames)
+        self.pageid_range = pageid_range
 
     def list_outfiles_for_cleanup(self, args):
         """
@@ -728,18 +751,17 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        self.flister.set_defaults(args, ['dump_names'])
-        dfnames = Dump.list_outfiles_for_cleanup(self, args)
+        dfnames = super().list_outfiles_for_cleanup(args)
         dfnames_to_return = []
 
-        if self.jobinfo['pageid_range']:
+        if self.pageid_range:
             # this file is for one page range only
-            if ',' in self.jobinfo['pageid_range']:
-                (first_page_id, last_page_id) = self.jobinfo['pageid_range'].split(',', 2)
+            if ',' in self.pageid_range:
+                (first_page_id, last_page_id) = self.pageid_range.split(',', 2)
                 first_page_id = int(first_page_id)
                 last_page_id = int(last_page_id)
             else:
-                first_page_id = int(self.jobinfo['pageid_range'])
+                first_page_id = int(self.pageid_range)
                 last_page_id = None
 
             # checkpoint files cover specific page ranges. for those,

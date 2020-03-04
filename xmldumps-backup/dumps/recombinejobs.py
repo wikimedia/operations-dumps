@@ -12,6 +12,7 @@ from dumps.jobs import Dump
 from dumps.fileutils import DumpFilename
 from dumps.commandmanagement import CommandPipeline
 from dumps.utils import MiscUtils
+from dumps.outfilelister import OutputFileLister
 
 
 class RecombineDump(Dump):
@@ -25,7 +26,6 @@ class RecombineDump(Dump):
             self.marker = self.BZIP2MARKER
         else:
             self.marker = None
-
         super().__init__(name, desc)
 
     @staticmethod
@@ -241,24 +241,15 @@ class RecombineXmlStub(RecombineDump):
         super().__init__(name, desc, 'gz')
         # the input may have checkpoints but the output will not.
         self._checkpoints_enabled = False
+        self.oflister = RecombineXmlStubFileLister(self.dumpname, self.file_type, self.file_ext,
+                                                   self.get_fileparts_list(), self.checkpoint_file,
+                                                   self._checkpoints_enabled, self.list_dumpnames)
 
     def detail(self):
         return "These files contain no page text, only revision metadata."
 
     def list_dumpnames(self):
         return self.item_for_xml_stubs.list_dumpnames()
-
-    def list_outfiles_to_publish(self, args):
-        """
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
-        """
-        args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_to_publish(self, args))
-        return dfnames
 
     def get_filetype(self):
         return self.item_for_xml_stubs.get_filetype()
@@ -270,11 +261,31 @@ class RecombineXmlStub(RecombineDump):
         return self.item_for_xml_stubs.get_dumpname()
 
     def run(self, runner):
-        dfnames = self.item_for_xml_stubs.list_outfiles_for_input(
-            self.flister.makeargs(runner.dump_dir))
-        output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir, self.list_dumpnames()))
+        dfnames = self.item_for_xml_stubs.oflister.list_outfiles_for_input(
+            self.oflister.makeargs(runner.dump_dir))
+        output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir, self.list_dumpnames()))
         self.dd_recombine(runner, dfnames, output_dfnames, 'stubs')
+
+
+class RecombineXmlStubFileLister(OutputFileLister):
+    """
+    special methods for output file listings for recombining xml stubs
+
+    the stubs files have multiple basenames (dump names) so those
+    must be accounted for here
+    """
+    def list_outfiles_to_publish(self, args):
+        """
+        expects:
+            dump_dir
+        returns:
+            list of DumpFilename
+        """
+        args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_outfiles_to_publish(args))
+        return dfnames
 
 
 class RecombineXmlDump(RecombineDump):
@@ -320,10 +331,10 @@ class RecombineXmlDump(RecombineDump):
         return series
 
     def run(self, runner):
-        input_dfnames = self.item_for_xml_dumps.list_outfiles_for_input(
-            self.flister.makeargs(runner.dump_dir))
-        output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir))
+        input_dfnames = self.item_for_xml_dumps.oflister.list_outfiles_for_input(
+            self.oflister.makeargs(runner.dump_dir))
+        output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         if len(output_dfnames) > 1:
             raise BackupError("recombine XML Dump trying to "
                               "produce more than one output file")
@@ -364,8 +375,8 @@ class RecombineXmlRecompressDump(RecombineDump):
 
     def build_command(self, runner, output_dfname):
         input_dfnames = []
-        dfnames = self.item_for_recombine.list_outfiles_for_input(
-            self.flister.makeargs(runner.dump_dir))
+        dfnames = self.item_for_recombine.oflister.list_outfiles_for_input(
+            self.oflister.makeargs(runner.dump_dir))
         for in_dfname in dfnames:
             if in_dfname.dumpname == output_dfname.dumpname:
                 input_dfnames.append(in_dfname)
@@ -387,8 +398,8 @@ class RecombineXmlRecompressDump(RecombineDump):
     def run(self, runner):
         error = 0
         self.cleanup_old_files(runner.dump_dir, runner)
-        output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir))
+        output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         for output_dfname in output_dfnames:
             command_series = self.build_command(runner, output_dfname)
             self.setup_command_info(runner, command_series, [output_dfname])
@@ -421,9 +432,9 @@ class RecombineAbstractDump(RecombineDump):
         return self.item_for_recombine.get_dumpname()
 
     def run(self, runner):
-        dfnames = self.item_for_recombine.list_outfiles_for_input(
-            self.flister.makeargs(runner.dump_dir))
-        output_dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(
+        dfnames = self.item_for_recombine.oflister.list_outfiles_for_input(
+            self.oflister.makeargs(runner.dump_dir))
+        output_dfnames = self.oflister.list_outfiles_for_build_command(self.oflister.makeargs(
             runner.dump_dir))
         self.dd_recombine(runner, dfnames, output_dfnames, 'abstract')
 
@@ -445,19 +456,25 @@ class RecombineXmlLoggingDump(RecombineDump):
         return self.item_for_recombine.get_dumpname()
 
     def run(self, runner):
-        dfnames = self.item_for_recombine.list_outfiles_for_input(
-            self.flister.makeargs(runner.dump_dir))
-        output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir))
+        dfnames = self.item_for_recombine.oflister.list_outfiles_for_input(
+            self.oflister.makeargs(runner.dump_dir))
+        output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         self.dd_recombine(runner, dfnames, output_dfnames, 'log event')
 
 
 class RecombineXmlMultiStreamDump(RecombineDump):
+    INDEX_FILETYPE = "txt"
+
     def __init__(self, name, desc, item_for_recombine):
         # no partnum_todo, no parts generally (False, None), even though input may have it
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
         super().__init__(name, desc, 'bz2')
+
+    @staticmethod
+    def get_dumpname_multistream(name):
+        return name + "-multistream"
 
     def get_filetype(self):
         return self.item_for_recombine.get_filetype()
@@ -468,14 +485,8 @@ class RecombineXmlMultiStreamDump(RecombineDump):
     def get_dumpname(self):
         return self.item_for_recombine.get_dumpname()
 
-    def get_dumpname_multistream(self, name):
-        return name + "-multistream"
-
     def get_dumpname_multistream_index(self, name):
         return self.get_dumpname_multistream(name) + "-index"
-
-    def get_index_filetype(self):
-        return "txt"
 
     def get_filepath(self, runner, dfname):
         if runner.wiki.is_private():
@@ -580,6 +591,33 @@ class RecombineXmlMultiStreamDump(RecombineDump):
         if error:
             raise BackupError("error recombining multistream files")
 
+    def run(self, runner):
+        dfnames = self.item_for_recombine.oflister.list_outfiles_for_input(
+            self.oflister.makeargs(runner.dump_dir))
+        content_dfnames = [dfname for dfname in dfnames if 'index' not in dfname.filename]
+        index_dfnames = [dfname for dfname in dfnames if 'index' in dfname.filename]
+        content_output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir, [self.get_dumpname_multistream(self.dumpname)]))
+
+        # FIXME EWWW
+        self.oflister.file_type = self.INDEX_FILETYPE
+        index_output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir,
+                                   [self.get_dumpname_multistream_index(self.dumpname)]))
+        self.oflister.file_type = self.get_filetype()
+
+        self.dd_recombine(runner, content_dfnames, content_output_dfnames, 'multistream')
+        self.index_files_recombine(runner, index_dfnames, index_output_dfnames)
+
+
+class RecombineXmlMultiStreamFileLister(OutputFileLister):
+    """
+    special methods for recombining xml multistream dumps
+
+    we produce the content file plus an index into the content,
+    so this requires special handling.
+    """
+
     def list_outfiles_for_build_command(self, args):
         '''
         called when the job command is generated.
@@ -592,19 +630,18 @@ class RecombineXmlMultiStreamDump(RecombineDump):
         returns:
             list of DumpFilename
         '''
-        self.flister.set_defaults(args, ['dump_names'])
-        if args['dump_names'] is None:
-            args['dump_names'] = [self.dumpname]
+        if args.dump_names is None:
+            args = args._replace(dump_names=[self.dumpname])
         dfnames = []
         if self.checkpoint_file is not None:
             dfnames.append(self.checkpoint_file)
             return dfnames
 
-        args['parts'] = self.get_fileparts_list()
-        if self._checkpoints_enabled:
-            dfnames.extend(self.flister.list_temp_files_for_filepart(args))
+        args = args._replace(parts=self.fileparts_list)
+        if self.checkpoints_enabled:
+            dfnames.extend(self.list_temp_files_for_filepart(args))
         else:
-            dfnames.extend(self.flister.get_reg_files_for_filepart_possible(args))
+            dfnames.extend(self.get_reg_files_for_filepart_possible(args))
         return dfnames
 
     def list_outfiles_to_publish(self, args):
@@ -615,29 +652,13 @@ class RecombineXmlMultiStreamDump(RecombineDump):
             list of DumpFilename
         """
         dfnames = []
-        args['dump_names'] = [self.get_dumpname_multistream(self.dumpname)]
-        dfnames.extend(Dump.list_outfiles_to_publish(self, args))
+        args = args._replace(dump_names=[RecombineXmlMultiStreamDump.get_dumpname_multistream(
+            self.dumpname)])
+        dfnames.extend(super().list_outfiles_to_publish(args))
         # FIXME EWWW
-        self.flister.file_type = self.get_index_filetype()
-        dfnames.extend(Dump.list_outfiles_to_publish(self, args))
-        self.flister.file_type = self.get_filetype()
+        real_filetype = self.file_type
+        self.file_type = RecombineXmlMultiStreamDump.INDEX_FILETYPE
+        dfnames.extend(super().list_outfiles_to_publish(args))
+        self.file_type = real_filetype
 
         return dfnames
-
-    def run(self, runner):
-        dfnames = self.item_for_recombine.list_outfiles_for_input(
-            self.flister.makeargs(runner.dump_dir))
-        content_dfnames = [dfname for dfname in dfnames if 'index' not in dfname.filename]
-        index_dfnames = [dfname for dfname in dfnames if 'index' in dfname.filename]
-        content_output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir, [self.get_dumpname_multistream(self.dumpname)]))
-
-        # FIXME EWWW
-        self.flister.file_type = self.get_index_filetype()
-        index_output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir,
-                                  [self.get_dumpname_multistream_index(self.dumpname)]))
-        self.flister.file_type = self.get_filetype()
-
-        self.dd_recombine(runner, content_dfnames, content_output_dfnames, 'multistream')
-        self.index_files_recombine(runner, index_dfnames, index_output_dfnames)

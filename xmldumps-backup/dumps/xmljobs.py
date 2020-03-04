@@ -7,6 +7,7 @@ import os
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
+from dumps.outfilelister import OutputFileLister
 
 
 def batcher(items, batchsize):
@@ -40,6 +41,9 @@ class XmlStub(Dump):
         if checkpoints:
             self._checkpoints_enabled = True
         Dump.__init__(self, name, desc)
+        self.oflister = XmlStubFileLister(self.dumpname, self.file_type, self.file_ext,
+                                          self.get_fileparts_list(), self.checkpoint_file,
+                                          self._checkpoints_enabled, self.list_dumpnames)
 
     def check_truncation(self):
         return True
@@ -59,89 +63,6 @@ class XmlStub(Dump):
     def list_dumpnames(self):
         dump_names = [self.history_dump_name, self.current_dump_name, self.articles_dump_name]
         return dump_names
-
-    def list_outfiles_to_publish(self, args):
-        """
-        expects:
-            dump_dir
-        returns: list of DumpFilename
-        """
-        args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_to_publish(self, args))
-        return dfnames
-
-    def list_outfiles_for_build_command(self, args):
-        """
-        expects:
-            dump_dir
-        returns: list of DumpFilename
-        """
-        args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_for_build_command(self, args))
-        return dfnames
-
-    def list_inprog_files_for_cleanup(self, args):
-        """
-        expects:
-            dump_dir
-        returns: list of DumpFilename
-        """
-        args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_inprog_files_for_cleanup(self, args))
-        return dfnames
-
-    def list_outfiles_for_cleanup(self, args):
-        """
-        expects:
-            dump_dir
-        returns: list of DumpFilename
-        """
-        args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_for_cleanup(self, args))
-        return dfnames
-
-    def list_outfiles_for_input(self, args):
-        """
-        expects:
-            dump_dir, dump_names=None
-        returns: list of DumpFilename
-        """
-        self.flister.set_defaults(args, ['dump_names'])
-        if args['dump_names'] is None:
-            args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_outfiles_for_input(self, args))
-        return dfnames
-
-    def list_truncated_empty_outfiles(self, args):
-        """
-        expects:
-            dump_dir, dump_names=None
-        returns: list of DumpFilename
-        """
-        self.flister.set_defaults(args, ['dump_names'])
-        if args['dump_names'] is None:
-            args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_truncated_empty_outfiles(self, args))
-        return dfnames
-
-    def list_truncated_empty_outfiles_for_input(self, args):
-        """
-        expects:
-            dump_dir, dump_names=None
-        returns: list of DumpFilename
-        """
-        self.flister.set_defaults(args, ['dump_names'])
-        if args['dump_names'] is None:
-            args['dump_names'] = self.list_dumpnames()
-        dfnames = []
-        dfnames.extend(Dump.list_truncated_empty_outfiles_for_input(self, args))
-        return dfnames
 
     def build_command(self, runner, output_dfname, history_dfname, current_dfname):
         if not os.path.exists(runner.wiki.config.php):
@@ -190,7 +111,8 @@ class XmlStub(Dump):
     def run(self, runner):
         self.cleanup_old_files(runner.dump_dir, runner)
         self.cleanup_inprog_files(runner.dump_dir, runner)
-        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
+        dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         # pick out the articles_dump files, setting up the stubs command for these
         # will cover all the other cases, as we generate all three stub file types
         # (article, meta-current, meta-history) at once
@@ -238,6 +160,97 @@ class XmlStub(Dump):
                 callback_on_completion=self.command_completion_callback)
             if error:
                 raise BackupError("error producing stub files")
+
+
+class XmlStubFileLister(OutputFileLister):
+    """
+    special output file listing methods for stubs dumps
+
+    because stubs with metadata for current main namespace content, all
+    current content, and all historical content are produced in one step,
+    each of these files has a different base name (dump name) and must
+    be accounted for
+    """
+
+    def list_outfiles_to_publish(self, args):
+        """
+        expects:
+            dump_dir
+        returns: list of DumpFilename
+        """
+        args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_outfiles_to_publish(args))
+        return dfnames
+
+    def list_outfiles_for_build_command(self, args):
+        """
+        expects:
+            dump_dir
+        returns: list of DumpFilename
+        """
+        args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_outfiles_for_build_command(args))
+        return dfnames
+
+    def list_inprog_files_for_cleanup(self, args):
+        """
+        expects:
+            dump_dir
+        returns: list of DumpFilename
+        """
+        args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_inprog_files_for_cleanup(args))
+        return dfnames
+
+    def list_outfiles_for_cleanup(self, args):
+        """
+        expects:
+            dump_dir
+        returns: list of DumpFilename
+        """
+        args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_outfiles_for_cleanup(args))
+        return dfnames
+
+    def list_outfiles_for_input(self, args):
+        """
+        expects:
+            dump_dir, dump_names=None
+        returns: list of DumpFilename
+        """
+        if args.dump_names is None:
+            args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_outfiles_for_input(args))
+        return dfnames
+
+    def list_truncated_empty_outfiles(self, args):
+        """
+        expects:
+            dump_dir, dump_names=None
+        returns: list of DumpFilename
+        """
+        if args.dump_names is None:
+            args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_truncated_empty_outfiles(args))
+        return dfnames
+
+    def list_truncated_empty_outfiles_for_input(self, args):
+        """
+        expects:
+            dump_dir, dump_names=None
+        returns: list of DumpFilename
+        """
+        if args.dump_names is None:
+            args = args._replace(dump_names=self.list_dumpnames())
+        dfnames = []
+        dfnames.extend(super().list_truncated_empty_outfiles_for_input(args))
+        return dfnames
 
 
 class XmlLogging(Dump):
@@ -304,7 +317,8 @@ class XmlLogging(Dump):
 
     def run(self, runner):
         self.cleanup_inprog_files(runner.dump_dir, runner)
-        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
+        dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
@@ -344,6 +358,9 @@ class AbstractDump(Dump):
             self.onlyparts = True
         self.db_name = db_name
         Dump.__init__(self, name, desc)
+        self.oflister = AbstractFileLister(self.dumpname, self.file_type, self.file_ext,
+                                           self.get_fileparts_list(), self.checkpoint_file,
+                                           self._checkpoints_enabled, self.list_dumpnames)
 
     def get_dumpname(self):
         return "abstract"
@@ -420,8 +437,8 @@ class AbstractDump(Dump):
         self.cleanup_inprog_files(runner.dump_dir, runner)
         commands = []
         # choose the empty variant to pass to buildcommand, it will fill in the rest if needed
-        output_dfnames = self.list_outfiles_for_build_command(
-            self.flister.makeargs(runner.dump_dir))
+        output_dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         dumpname0 = self.list_dumpnames()[0]
         wanted_dfnames = [dfname for dfname in output_dfnames if dfname.dumpname == dumpname0]
         output_dir = self.get_output_dir(runner)
@@ -491,15 +508,23 @@ class AbstractDump(Dump):
             dump_names.append(self.dumpname_from_variant(variant))
         return dump_names
 
+
+class AbstractFileLister(OutputFileLister):
+    """
+    special output file listing methods for abstracts dump jobs
+
+    we may have multiple output file basenames (dump names)
+    due to language variants
+    """
     def list_outfiles_to_publish(self, args):
         """
         expects:
             dump_dir
         returns: list of DumpFilename
         """
-        args['dump_names'] = self.list_dumpnames()
+        args = args._replace(dump_names=self.list_dumpnames())
         dfnames = []
-        dfnames.extend(Dump.list_outfiles_to_publish(self, args))
+        dfnames.extend(super().list_outfiles_to_publish(args))
         return dfnames
 
     def list_outfiles_for_build_command(self, args):
@@ -508,9 +533,9 @@ class AbstractDump(Dump):
             dump_dir
         returns: list of DumpFilename
         """
-        args['dump_names'] = self.list_dumpnames()
+        args = args._replace(dump_names=self.list_dumpnames())
         dfnames = []
-        dfnames.extend(Dump.list_outfiles_for_build_command(self, args))
+        dfnames.extend(super().list_outfiles_for_build_command(args))
         return dfnames
 
     def list_inprog_files_for_cleanup(self, args):
@@ -519,9 +544,9 @@ class AbstractDump(Dump):
             dump_dir
         returns: list of DumpFilename
         """
-        args['dump_names'] = self.list_dumpnames()
+        args = args._replace(dump_names=self.list_dumpnames())
         dfnames = []
-        dfnames.extend(Dump.list_inprog_files_for_cleanup(self, args))
+        dfnames.extend(super().list_inprog_files_for_cleanup(args))
         return dfnames
 
     def list_outfiles_for_cleanup(self, args):
@@ -530,9 +555,9 @@ class AbstractDump(Dump):
             dump_dir
         returns: list of DumpFilename
         """
-        args['dump_names'] = self.list_dumpnames()
+        args = args._replace(dump_names=self.list_dumpnames())
         dfnames = []
-        dfnames.extend(Dump.list_outfiles_for_cleanup(self, args))
+        dfnames.extend(super().list_outfiles_for_cleanup(args))
         return dfnames
 
     def list_outfiles_for_input(self, args):
@@ -541,9 +566,9 @@ class AbstractDump(Dump):
             dump_dir
         returns: list of DumpFilename
         """
-        args['dump_names'] = self.list_dumpnames()
+        args = args._replace(dump_names=self.list_dumpnames())
         dfnames = []
-        dfnames.extend(Dump.list_outfiles_for_input(self, args))
+        dfnames.extend(super().list_outfiles_for_input(args))
         return dfnames
 
     def list_truncated_empty_outfiles_for_input(self, args):
@@ -552,7 +577,7 @@ class AbstractDump(Dump):
             dump_dir
         returns: list of DumpFilename
         """
-        args['dump_names'] = self.list_dumpnames()
+        args = args._replace(dump_names=self.list_dumpnames())
         dfnames = []
-        dfnames.extend(Dump.list_truncated_empty_outfiles_for_input(self, args))
+        dfnames.extend(super().list_truncated_empty_outfiles_for_input(args))
         return dfnames

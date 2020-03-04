@@ -11,6 +11,7 @@ from os.path import exists
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
 from dumps.fileutils import DumpFilename
+from dumps.outfilelister import OutputFileLister
 
 
 class PublicTable(Dump):
@@ -44,7 +45,8 @@ class PublicTable(Dump):
         return command_series
 
     def run(self, runner):
-        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
+        dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("table dump %s trying to produce more than one file" % self.dumpname)
         if not exists(runner.wiki.config.gzip):
@@ -83,6 +85,9 @@ class PrivateTable(PublicTable):
 
     def __init__(self, table, name, desc):
         PublicTable.__init__(self, table, name, desc)
+        self.oflister = PrivateTableFileLister(self.dumpname, self.file_type, self.file_ext,
+                                               self.get_fileparts_list(), self.checkpoint_file,
+                                               self._checkpoints_enabled, self.list_dumpnames)
         self.private = True
 
     def check_truncation(self):
@@ -94,6 +99,12 @@ class PrivateTable(PublicTable):
 
     def description(self):
         return self._desc + " (private)"
+
+
+class PrivateTableFileLister(OutputFileLister):
+    """
+    special output file listing methods for private tables dump job
+    """
 
     def list_outfiles_to_publish(self, args):
         """
@@ -122,7 +133,8 @@ class TitleDump(Dump):
         retries = 0
         maxretries = runner.wiki.config.max_retries
         query = "select page_title from page where page_namespace=0;"
-        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
+        dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("page title dump trying to produce more than one output file")
         dfname = dfnames[0]
@@ -162,7 +174,8 @@ class AllTitleDump(TitleDump):
         retries = 0
         maxretries = runner.wiki.config.max_retries
         query = "select page_namespace, page_title from page;"
-        dfnames = self.list_outfiles_for_build_command(self.flister.makeargs(runner.dump_dir))
+        dfnames = self.oflister.list_outfiles_for_build_command(
+            self.oflister.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
             raise BackupError("all titles dump trying to produce more than one output file")
         dfname = dfnames[0]

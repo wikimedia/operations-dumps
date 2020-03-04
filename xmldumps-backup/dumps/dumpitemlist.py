@@ -293,7 +293,8 @@ class DumpItemList():
                     "in concatenated bz2 streams, 100 pages per stream, plus a separate" +
                     "index of page titles/ids and offsets into the file.  " +
                     "Useful for offline readers, or for parallel processing of pages.",
-                    self.find_item_by_name(input_for_multistream), self.wiki, None))
+                    self.find_item_by_name(input_for_multistream), self.wiki, None,
+                    self.filepart.get_attr('_pages_per_filepart_history')))
             self.append_job_if_needed(RecombineXmlMultiStreamDump(
                 "articlesmultistreamdumprecombine", "Recombine multiple bz2 streams",
                 self.find_item_by_name('articlesmultistreamdump')))

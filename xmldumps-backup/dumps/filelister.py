@@ -1,5 +1,10 @@
 #!/usr/bin/python3
+from collections import namedtuple
 from dumps.fileutils import DumpFilename, PARTS_ANY
+
+
+FListerArgs = namedtuple('FListerArgs', ['dump_dir', 'dump_names', 'parts', 'date',
+                                         'inprog', 'partnum'])
 
 
 def _get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
@@ -42,7 +47,7 @@ class JobFileLister():
 
     @staticmethod
     def makeargs(dump_dir, dump_names=None, parts=None, date=None, inprog=False,
-                 partnum=None, flister=None):
+                 partnum=None):
         '''
         turn a list of params into an args dict for all list_... _files and related methods
         '''
@@ -50,26 +55,7 @@ class JobFileLister():
             dump_names_arg = [dump_names]
         else:
             dump_names_arg = dump_names
-        return {'dump_dir': dump_dir,
-                'dump_names': dump_names_arg,
-                'date': date,
-                'parts': parts,
-                'inprog': inprog,
-                'partnum': partnum,
-                'flister': flister}
-
-    @staticmethod
-    def set_defaults(args, names):
-        '''
-        add default values to the args
-        '''
-        for name in names:
-            if name not in args:
-                if name == 'inprog':
-                    # the one special case
-                    args['name'] = False
-                else:
-                    args['name'] = None
+        return FListerArgs(dump_dir, dump_names_arg, parts, date, inprog, partnum)
 
     def list_reg_files(self, args):
         '''
@@ -79,11 +65,10 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names', 'date', 'parts'])
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        return _get_reg_files(args['dump_dir'], args['dump_names'], self.file_type,
-                              self.file_ext, args['date'], args['parts'])
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        return _get_reg_files(args.dump_dir, args.dump_names, self.file_type,
+                              self.file_ext, args.date, args.parts)
 
     def list_checkpt_files(self, args):
         '''
@@ -93,12 +78,11 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names', 'date', 'parts'])
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
         return _get_checkpt_files(
-            args['dump_dir'], args['dump_names'], self.file_type,
-            self.file_ext, args['date'], args['parts'])
+            args.dump_dir, args.dump_names, self.file_type,
+            self.file_ext, args.date, args.parts)
 
     def list_truncated_empty_checkpt_files_for_filepart(self, args):
         '''
@@ -110,13 +94,12 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        for dname in args['dump_names']:
-            dfnames.extend(args['dump_dir'].get_truncated_empty_checkpt_files(
-                None, dname, self.file_type, self.file_ext, args['parts'], temp=False))
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        for dname in args.dump_names:
+            dfnames.extend(args.dump_dir.get_truncated_empty_checkpt_files(
+                None, dname, self.file_type, self.file_ext, args.parts, temp=False))
         return dfnames
 
     def list_checkpt_files_for_filepart(self, args):
@@ -127,14 +110,13 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names', 'inprog'])
         dfnames = []
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        for dname in args['dump_names']:
-            dfnames.extend(args['dump_dir'].get_checkpt_files(
-                None, dname, self.file_type, self.file_ext, args['parts'], temp=False,
-                inprog=args['inprog']))
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        for dname in args.dump_names:
+            dfnames.extend(args.dump_dir.get_checkpt_files(
+                None, dname, self.file_type, self.file_ext, args.parts, temp=False,
+                inprog=args.inprog))
         return dfnames
 
     def list_reg_files_for_filepart(self, args):
@@ -145,14 +127,13 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names', 'inprog'])
         dfnames = []
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        for dname in args['dump_names']:
-            dfnames.extend(args['dump_dir'].get_reg_files(
-                None, dname, self.file_type, self.file_ext, args['parts'], temp=False,
-                inprog=args['inprog']))
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        for dname in args.dump_names:
+            dfnames.extend(args.dump_dir.get_reg_files(
+                None, dname, self.file_type, self.file_ext, args.parts, temp=False,
+                inprog=args.inprog))
         return dfnames
 
     def list_truncated_empty_reg_files_for_filepart(self, args):
@@ -163,13 +144,12 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        for dname in args['dump_names']:
-            dfnames.extend(args['dump_dir'].get_truncated_empty_reg_files(
-                None, dname, self.file_type, self.file_ext, args['parts'], temp=False))
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        for dname in args.dump_names:
+            dfnames.extend(args.dump_dir.get_truncated_empty_reg_files(
+                None, dname, self.file_type, self.file_ext, args.parts, temp=False))
         return dfnames
 
     def list_temp_files_for_filepart(self, args):
@@ -180,15 +160,14 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        for dname in args['dump_names']:
-            dfnames.extend(args['dump_dir'].get_checkpt_files(
-                None, dname, self.file_type, self.file_ext, args['parts'], temp=True))
-            dfnames.extend(args['dump_dir'].get_reg_files(
-                None, dname, self.file_type, self.file_ext, args['parts'], temp=True))
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        for dname in args.dump_names:
+            dfnames.extend(args.dump_dir.get_checkpt_files(
+                None, dname, self.file_type, self.file_ext, args.parts, temp=True))
+            dfnames.extend(args.dump_dir.get_reg_files(
+                None, dname, self.file_type, self.file_ext, args.parts, temp=True))
         return dfnames
 
     def _get_files_possible(self, dump_dir, date=None, dumpname=None,
@@ -250,14 +229,13 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
         dfnames = []
-        for dname in args['dump_names']:
+        for dname in args.dump_names:
             dfnames.extend(self._get_files_possible(
-                args['dump_dir'], None, dname, self.file_type, self.file_ext,
-                args['parts'], temp=False))
+                args.dump_dir, None, dname, self.file_type, self.file_ext,
+                args.parts, temp=False))
         return dfnames
 
     def get_truncated_empty_reg_files_for_filepart(self, args):
@@ -269,15 +247,14 @@ class JobFileLister():
         returns:
             list of DumpFilename
         '''
-        self.set_defaults(args, ['dump_names'])
         dfnames = []
-        if not args['dump_names']:
-            args['dump_names'] = [self.dumpname]
-        for dname in args['dump_names']:
-            dfnames.extend(args['dump_dir'].get_reg_files(
-                None, dname, self.file_type, self.file_ext, args['parts'],
+        if not args.dump_names:
+            args = args._replace(dump_names=[self.dumpname])
+        for dname in args.dump_names:
+            dfnames.extend(args.dump_dir.get_reg_files(
+                None, dname, self.file_type, self.file_ext, args.parts,
                 temp=False, suffix=".truncated"))
-            dfnames.extend(args['dump_dir'].get_reg_files(
-                None, dname, self.file_type, self.file_ext, args['parts'],
+            dfnames.extend(args.dump_dir.get_reg_files(
+                None, dname, self.file_type, self.file_ext, args.parts,
                 temp=False, suffix=".empty"))
         return dfnames
