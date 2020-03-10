@@ -23,20 +23,17 @@ class OutputFileLister(JobFileLister):
         exist. At end of run temp files must be gone.
         even if only one file part (one subjob) is being rerun, this lists all output files,
         not just those for the one part.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
 
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
         if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
+            return [self.checkpoint_file]
 
         args = args._replace(parts=self.fileparts_list)
+        dfnames = []
         if self.checkpoints_enabled:
             dfnames.extend(self.list_checkpt_files_for_filepart(args))
             dfnames.extend(self.list_temp_files_for_filepart(args))
@@ -52,26 +49,21 @@ class OutputFileLister(JobFileLister):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
         args = args._replace(parts=self.fileparts_list)
         if self.checkpoint_file is not None:
             problems = self.get_truncated_empty_reg_files_for_filepart(args)
             if self.checkpoint_file.filename in [problem.filename for problem in problems]:
-                dfnames.append(self.checkpoint_file)
-                return dfnames
+                return [self.checkpoint_file]
+            return []
 
         if self.checkpoints_enabled:
-            dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(args))
-        else:
-            dfnames.extend(self.get_truncated_empty_reg_files_for_filepart(args))
-        return dfnames
+            return self.list_truncated_empty_checkpt_files_for_filepart(args)
+        return self.get_truncated_empty_reg_files_for_filepart(args)
 
     def list_outfiles_for_build_command(self, args):
         '''
@@ -80,24 +72,18 @@ class OutputFileLister(JobFileLister):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
         if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
+            return [self.checkpoint_file]
 
         args = args._replace(parts=self.fileparts_list)
         if self.checkpoints_enabled:
-            dfnames.extend(self.list_temp_files_for_filepart(args))
-        else:
-            dfnames.extend(self.get_reg_files_for_filepart_possible(args))
-        return dfnames
+            return self.list_temp_files_for_filepart(args)
+        return self.get_reg_files_for_filepart_possible(args)
 
     def list_outfiles_for_cleanup(self, args):
         '''
@@ -106,19 +92,16 @@ class OutputFileLister(JobFileLister):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
 
         if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
+            return [self.checkpoint_file]
 
+        dfnames = []
         args = args._replace(parts=self.fileparts_list)
         if self.checkpoints_enabled:
             dfnames.extend(self.list_checkpt_files_for_filepart(args))
@@ -133,25 +116,20 @@ class OutputFileLister(JobFileLister):
         presumably left lying around from an earlier failed attempt
         at the step.
 
-        expects:
-            dump_dir, dump_names=None
+        expects: args.dump_dir, optional args.dump_names
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
         if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
+            return [self.checkpoint_file]
 
         args = args._replace(parts=self.fileparts_list)
         args = args._replace(inprog=True)
         if self.checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(args))
-        else:
-            dfnames.extend(self.list_reg_files_for_filepart(args))
-        return dfnames
+            return self.list_checkpt_files_for_filepart(args)
+        return self.list_reg_files_for_filepart(args)
 
     def list_outfiles_for_input(self, args):
         '''
@@ -160,20 +138,16 @@ class OutputFileLister(JobFileLister):
         Includes: checkpoints, partial files and/or whole files.
         Even if only file part is being rerun, this will return the list
         of all file parts.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
+
         args = args._replace(parts=self.fileparts_list)
         if self.checkpoints_enabled:
-            dfnames.extend(self.list_checkpt_files_for_filepart(args))
-        else:
-            dfnames.extend(self.list_reg_files_for_filepart(args))
-        return dfnames
+            return self.list_checkpt_files_for_filepart(args)
+        return self.list_reg_files_for_filepart(args)
 
     def list_truncated_empty_outfiles_for_input(self, args):
         '''
@@ -183,17 +157,13 @@ class OutputFileLister(JobFileLister):
         Includes: checkpoints, partial files and/or whole files.
         Even if only file part is being rerun, this will return the list
         of all file parts.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
+
         args = args._replace(parts=self.fileparts_list)
         if self.checkpoints_enabled:
-            dfnames.extend(self.list_truncated_empty_checkpt_files_for_filepart(args))
-        else:
-            dfnames.extend(self.list_truncated_empty_reg_files_for_filepart(args))
-        return dfnames
+            return self.list_truncated_empty_checkpt_files_for_filepart(args)
+        return self.list_truncated_empty_reg_files_for_filepart(args)

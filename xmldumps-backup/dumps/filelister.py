@@ -11,8 +11,7 @@ def _get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
                        parts=None):
     '''
     return all checkpoint files that exist
-    returns:
-        list of DumpFilename
+    returns: list of DumpFilename
     '''
     dfnames = []
     for dump_name in dump_names:
@@ -24,8 +23,7 @@ def _get_checkpt_files(dump_dir, dump_names, file_type, file_ext, date=None,
 def _get_reg_files(dump_dir, dump_names, file_type, file_ext, date=None, parts=None):
     '''
     get all regular output files that exist
-    returns:
-        list of DumpFilename
+    returns: list of DumpFilename
     '''
     dfnames = []
     for dump_name in dump_names:
@@ -60,10 +58,8 @@ class JobFileLister():
     def list_reg_files(self, args):
         '''
         list all regular output files that exist
-        expects:
-            dump_dir, dump_names=None, date=None, parts=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names, args.date, args.parts
+        returns: list of DumpFilename
         '''
         if not args.dump_names:
             args = args._replace(dump_names=[self.dumpname])
@@ -73,10 +69,8 @@ class JobFileLister():
     def list_checkpt_files(self, args):
         '''
         list all checkpoint files that exist
-        expects:
-            dump_dir, dump_names=None, date=None, parts=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names, args.date, args.parts
+        returns: list of DumpFilename
         '''
         if not args.dump_names:
             args = args._replace(dump_names=[self.dumpname])
@@ -89,10 +83,8 @@ class JobFileLister():
         list checkpoint files that have been produced for specified file part(s)
         that are either empty or truncated
 
-        expects:
-            dump_dir, parts, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names,
+        returns: list of DumpFilename
         '''
         dfnames = []
         if not args.dump_names:
@@ -105,10 +97,8 @@ class JobFileLister():
     def list_checkpt_files_for_filepart(self, args):
         '''
         list checkpoint files that have been produced for specified file part(s)
-        expects:
-            dump_dir, parts, dump_names=None, inprog=False
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names, args.inprog
+        returns: list of DumpFilename
         '''
         dfnames = []
         if not args.dump_names:
@@ -122,10 +112,8 @@ class JobFileLister():
     def list_reg_files_for_filepart(self, args):
         '''
         list noncheckpoint files that have been produced for specified file part(s)
-        expects:
-            dump_dir, parts, dump_names=None, inprog=False
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names, args.inprog
+        returns: list of DumpFilename
         '''
         dfnames = []
         if not args.dump_names:
@@ -139,10 +127,8 @@ class JobFileLister():
     def list_truncated_empty_reg_files_for_filepart(self, args):
         '''
         list noncheckpoint files that have been produced for specified file part(s)
-        expects:
-            dump_dir, parts, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names
+        returns: list of DumpFilename
         '''
         dfnames = []
         if not args.dump_names:
@@ -155,10 +141,8 @@ class JobFileLister():
     def list_temp_files_for_filepart(self, args):
         '''
         list temp output files that have been produced for specified file part(s)
-        expects:
-            dump_dir, parts, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names
+        returns: list of DumpFilename
         '''
         dfnames = []
         if not args.dump_names:
@@ -224,10 +208,8 @@ class JobFileLister():
         '''
         based on dump name, parts, etc. get all the
         output files we expect to generate for these parts
-        expects:
-            dump_dir, parts, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if not args.dump_names:
             args = args._replace(dump_names=[self.dumpname])
@@ -242,10 +224,8 @@ class JobFileLister():
         '''
         based on dump name, parts, etc. get all the
         output files we expect to generate for these parts
-        expects:
-            dump_dir, parts, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, args.parts, optional args.dump_names
+        returns: list of DumpFilename
         '''
         dfnames = []
         if not args.dump_names:

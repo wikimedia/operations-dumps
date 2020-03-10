@@ -109,10 +109,8 @@ class PrivateTableFileLister(OutputFileLister):
     def list_outfiles_to_publish(self, args):
         """
         Private table won't have public files to list.
-        expects:
-            nothing :)
-        returns:
-            empty list
+        expects: nothing :)
+        returns: empty list
         """
         return []
 

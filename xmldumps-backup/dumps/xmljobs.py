@@ -27,6 +27,18 @@ class XmlStub(Dump):
     A second pass will import text from prior dumps or the database to make
     full files for the public."""
 
+    @staticmethod
+    def get_history_dump_name():
+        return "stub-meta-history"
+
+    @staticmethod
+    def get_current_dump_name():
+        return "stub-meta-current"
+
+    @staticmethod
+    def get_articles_dump_name():
+        return "stub-articles"
+
     def __init__(self, name, desc, partnum_todo, jobsperbatch=None,
                  pages_per_part=None, checkpoints=False):
         self._partnum_todo = partnum_todo
@@ -35,9 +47,6 @@ class XmlStub(Dump):
         if self._pages_per_part:
             self._parts_enabled = True
             self.onlyparts = True
-        self.history_dump_name = "stub-meta-history"
-        self.current_dump_name = "stub-meta-current"
-        self.articles_dump_name = "stub-articles"
         if checkpoints:
             self._checkpoints_enabled = True
         Dump.__init__(self, name, desc)
@@ -60,8 +69,10 @@ class XmlStub(Dump):
     def get_dumpname(self):
         return 'stub'
 
-    def list_dumpnames(self):
-        dump_names = [self.history_dump_name, self.current_dump_name, self.articles_dump_name]
+    @staticmethod
+    def list_dumpnames():
+        dump_names = [XmlStub.get_history_dump_name(), XmlStub.get_current_dump_name(),
+                      XmlStub.get_articles_dump_name()]
         return dump_names
 
     def build_command(self, runner, output_dfname, history_dfname, current_dfname):
@@ -116,7 +127,7 @@ class XmlStub(Dump):
         # pick out the articles_dump files, setting up the stubs command for these
         # will cover all the other cases, as we generate all three stub file types
         # (article, meta-current, meta-history) at once
-        dfnames = [dfname for dfname in dfnames if dfname.dumpname == self.articles_dump_name]
+        dfnames = [dfname for dfname in dfnames if dfname.dumpname == self.get_articles_dump_name()]
         output_dir = self.get_output_dir(runner)
         if self.jobsperbatch is not None:
             maxjobs = self.jobsperbatch
@@ -126,12 +137,12 @@ class XmlStub(Dump):
             commands = []
             for output_dfname in batch:
                 history_dfname = DumpFilename(
-                    runner.wiki, output_dfname.date, self.history_dump_name,
+                    runner.wiki, output_dfname.date, self.get_history_dump_name(),
                     output_dfname.file_type, output_dfname.file_ext,
                     output_dfname.partnum, output_dfname.checkpoint,
                     output_dfname.temp)
                 current_dfname = DumpFilename(
-                    runner.wiki, output_dfname.date, self.current_dump_name,
+                    runner.wiki, output_dfname.date, self.get_current_dump_name(),
                     output_dfname.file_type, output_dfname.file_ext,
                     output_dfname.partnum, output_dfname.checkpoint,
                     output_dfname.temp)
@@ -174,83 +185,62 @@ class XmlStubFileLister(OutputFileLister):
 
     def list_outfiles_to_publish(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_to_publish(args))
-        return dfnames
+        return super().list_outfiles_to_publish(args)
 
     def list_outfiles_for_build_command(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_for_build_command(args))
-        return dfnames
+        return super().list_outfiles_for_build_command(args)
 
     def list_inprog_files_for_cleanup(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_inprog_files_for_cleanup(args))
-        return dfnames
+        return super().list_inprog_files_for_cleanup(args)
 
     def list_outfiles_for_cleanup(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_for_cleanup(args))
-        return dfnames
+        return super().list_outfiles_for_cleanup(args)
 
     def list_outfiles_for_input(self, args):
         """
-        expects:
-            dump_dir, dump_names=None
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         if args.dump_names is None:
             args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_for_input(args))
-        return dfnames
+        return super().list_outfiles_for_input(args)
 
     def list_truncated_empty_outfiles(self, args):
         """
-        expects:
-            dump_dir, dump_names=None
+        expects: args.dump_dir, optional args.dump_names
         returns: list of DumpFilename
         """
         if args.dump_names is None:
             args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_truncated_empty_outfiles(args))
-        return dfnames
+        return super().list_truncated_empty_outfiles(args)
 
     def list_truncated_empty_outfiles_for_input(self, args):
         """
-        expects:
-            dump_dir, dump_names=None
+        expects: args.dump_dir, optional args.dump_names
         returns: list of DumpFilename
         """
         if args.dump_names is None:
             args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_truncated_empty_outfiles_for_input(args))
-        return dfnames
+        return super().list_truncated_empty_outfiles_for_input(args)
 
 
 class XmlLogging(Dump):
@@ -511,73 +501,54 @@ class AbstractDump(Dump):
 
 class AbstractFileLister(OutputFileLister):
     """
-    special output file listing methods for abstracts dump jobs
-
+    special output file listing methods for abstracts dump jobs;
     we may have multiple output file basenames (dump names)
     due to language variants
     """
     def list_outfiles_to_publish(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_to_publish(args))
-        return dfnames
+        return super().list_outfiles_to_publish(args)
 
     def list_outfiles_for_build_command(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_for_build_command(args))
-        return dfnames
+        return super().list_outfiles_for_build_command(args)
 
     def list_inprog_files_for_cleanup(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_inprog_files_for_cleanup(args))
-        return dfnames
+        return super().list_inprog_files_for_cleanup(args)
 
     def list_outfiles_for_cleanup(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_for_cleanup(args))
-        return dfnames
+        return super().list_outfiles_for_cleanup(args)
 
     def list_outfiles_for_input(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_for_input(args))
-        return dfnames
+        return super().list_outfiles_for_input(args)
 
     def list_truncated_empty_outfiles_for_input(self, args):
         """
-        expects:
-            dump_dir
+        expects: args.dump_dir
         returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_truncated_empty_outfiles_for_input(args))
-        return dfnames
+        return super().list_truncated_empty_outfiles_for_input(args)

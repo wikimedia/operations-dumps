@@ -57,10 +57,8 @@ class RecompressFileLister(OutputFileLister):
         '''
         shows all files possible if we don't have checkpoint files. no temp files.
         only the parts we are actually supposed to do (if there is a limit)
-        expects:
-            dump_dir, partnum=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.partnum
+        returns: list of DumpFilename
         '''
         dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_outfiles_for_input(args)
@@ -272,27 +270,21 @@ class XmlMultiStreamFileLister(RecompressFileLister):
         '''
         shows all files possible if we don't have checkpoint files.
         without temp files of course
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
-        dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_outfiles_for_input(args)
-        for inp_dfname in input_dfnames:
-            dfnames.append(XmlMultiStreamDump.get_multistream_dfname(inp_dfname))
-            dfnames.append(XmlMultiStreamDump.get_multistream_index_dfname(inp_dfname))
-        return dfnames
+        return [item for pair in [(XmlMultiStreamDump.get_multistream_dfname(inp_dfname),
+                                   XmlMultiStreamDump.get_multistream_index_dfname(inp_dfname))
+                                  for inp_dfname in input_dfnames] for item in pair]
 
     def list_truncated_empty_outfiles(self, args):
         '''
         shows all files possible if we don't have checkpoint files. without temp files of course
         but that might be empty or truncated
         only the parts we are actually supposed to do (if there is a limit)
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
         dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_truncated_empty_outfiles_for_input(
@@ -308,10 +300,8 @@ class XmlMultiStreamFileLister(RecompressFileLister):
         '''
         shows all files possible if we don't have checkpoint files. should include temp files
         does just the parts we do if there is a limit
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
@@ -334,35 +324,26 @@ class XmlMultiStreamFileLister(RecompressFileLister):
         '''
         must return all output files that could be produced by a full run of this stage,
         not just whatever we happened to produce (if run for one file part, say)
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
-        dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_outfiles_for_input(args)
-        for inp_dfname in input_dfnames:
-            dfnames.append(XmlMultiStreamDump.get_multistream_dfname(inp_dfname))
-            dfnames.append(XmlMultiStreamDump.get_multistream_index_dfname(inp_dfname))
-        return dfnames
+        return [item for pair in [(XmlMultiStreamDump.get_multistream_dfname(inp_dfname),
+                                   XmlMultiStreamDump.get_multistream_index_dfname(inp_dfname))
+                                  for inp_dfname in input_dfnames] for item in pair]
 
     def list_truncated_empty_outfiles_for_input(self, args):
         '''
         must return all output files that could be produced by a full run of this stage,
         not just whatever we happened to produce (if run for one file part, say)
-
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
-        dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_truncated_empty_outfiles_for_input(
             args)
-        for inp_dfname in input_dfnames:
-            dfnames.append(XmlMultiStreamDump.get_multistream_dfname(inp_dfname))
-            dfnames.append(XmlMultiStreamDump.get_multistream_index_dfname(inp_dfname))
-        return dfnames
+        return [item for pair in [(XmlMultiStreamDump.get_multistream_dfname(inp_dfname),
+                                   XmlMultiStreamDump.get_multistream_index_dfname(inp_dfname))
+                                  for inp_dfname in input_dfnames] for item in pair]
 
 
 class XmlRecompressDump(RecompressDump):
@@ -541,28 +522,22 @@ class XmlRecompressFileLister(OutputFileLister):
     def list_outfiles_to_publish(self, args):
         '''
         shows all files possible if we don't have checkpoint files. without temp files of course
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
-        dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_outfiles_for_input(args)
-        for inp_dfname in input_dfnames:
-            dfnames.append(DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
-                                        inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
-                                        inp_dfname.checkpoint, inp_dfname.temp))
-        return dfnames
+        return [DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
+                             inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
+                             inp_dfname.checkpoint, inp_dfname.temp)
+                for inp_dfname in input_dfnames]
 
     def list_truncated_empty_outfiles(self, args):
         '''
         shows all files possible if we don't have checkpoint files. without temp files of course
         which would be truncated or empty
         only the parts we are actually supposed to do (if there is a limit)
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
         dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_truncated_empty_outfiles_for_input(
@@ -579,10 +554,8 @@ class XmlRecompressFileLister(OutputFileLister):
         '''
         shows all files possible if we don't have checkpoint files. should include temp files
         does just the parts we do if there is a limit
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
@@ -602,34 +575,26 @@ class XmlRecompressFileLister(OutputFileLister):
         '''
         must return all output files that could be produced by a full run of this stage,
         not just whatever we happened to produce (if run for one file part, say)
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
-        dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_outfiles_for_input(args)
-        for inp_dfname in input_dfnames:
-            dfnames.append(DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
-                                        inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
-                                        inp_dfname.checkpoint, inp_dfname.temp))
-        return dfnames
+        return [DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
+                             inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
+                             inp_dfname.checkpoint, inp_dfname.temp)
+                for inp_dfname in input_dfnames]
 
     def list_truncated_empty_outfiles_for_input(self, args):
         '''
         must return all output files that could be produced by a full run of this stage,
         that are truncated or empty
         not just whatever we happened to produce (if run for one file part, say)
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         '''
-        dfnames = []
         input_dfnames = self.item_for_recompress.oflister.list_truncated_empty_outfiles_for_input(
             args)
-        for inp_dfname in input_dfnames:
-            dfnames.append(DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
-                                        inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
-                                        inp_dfname.checkpoint, inp_dfname.temp))
-        return dfnames
+        return [DumpFilename(inp_dfname.wiki, inp_dfname.date, inp_dfname.dumpname,
+                             inp_dfname.file_type, self.file_ext, inp_dfname.partnum,
+                             inp_dfname.checkpoint, inp_dfname.temp)
+                for inp_dfname in input_dfnames]

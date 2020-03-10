@@ -277,15 +277,11 @@ class RecombineXmlStubFileLister(OutputFileLister):
     """
     def list_outfiles_to_publish(self, args):
         """
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         """
         args = args._replace(dump_names=self.list_dumpnames())
-        dfnames = []
-        dfnames.extend(super().list_outfiles_to_publish(args))
-        return dfnames
+        return super().list_outfiles_to_publish(args)
 
 
 class RecombineXmlDump(RecombineDump):
@@ -625,31 +621,25 @@ class RecombineXmlMultiStreamFileLister(OutputFileLister):
         This includes only the files that should be produced from this specific
         run, so if only one file part (subjob) is being redone, then only those files
         will be listed.
-        expects:
-            dump_dir, dump_names=None
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optiona args.dump_names
+        returns: list of DumpFilename
         '''
         if args.dump_names is None:
             args = args._replace(dump_names=[self.dumpname])
-        dfnames = []
+
         if self.checkpoint_file is not None:
-            dfnames.append(self.checkpoint_file)
-            return dfnames
+            return [self.checkpoint_file]
 
         args = args._replace(parts=self.fileparts_list)
         if self.checkpoints_enabled:
-            dfnames.extend(self.list_temp_files_for_filepart(args))
+            return self.list_temp_files_for_filepart(args)
         else:
-            dfnames.extend(self.get_reg_files_for_filepart_possible(args))
-        return dfnames
+            return self.get_reg_files_for_filepart_possible(args)
 
     def list_outfiles_to_publish(self, args):
         """
-        expects:
-            dump_dir
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir
+        returns: list of DumpFilename
         """
         dfnames = []
         args = args._replace(dump_names=[RecombineXmlMultiStreamDump.get_dumpname_multistream(

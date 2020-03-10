@@ -746,10 +746,8 @@ class XmlFileLister(OutputFileLister):
         (from the dump run for the current wiki and date), in case
         we have been requested to clean up before a retry
 
-        expects:
-            dump_dir: DumpDir, dump_names=None: list of dump names ("stub-meta-history", ...)
-        returns:
-            list of DumpFilename
+        expects: args.dump_dir, optional args.dump_names
+        returns: list of DumpFilename
         """
         dfnames = super().list_outfiles_for_cleanup(args)
         dfnames_to_return = []
