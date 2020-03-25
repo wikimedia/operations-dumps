@@ -92,7 +92,7 @@ process_opts () {
 
 check_opts() {
     if [ -z "$WIKI" -o -z "$RANGEINFO" -o -z "$DATE" -o -z "$NUMJOBS" -o -z "$CONFIGFILE" ]; then
-        echo "$0: Mandatory options 'wiki', 'jobinfo', 'date', 'numjobs' and 'configfile' must be specified"
+        echo "$0: Mandatory options 'wiki', 'jobinfo', 'date', 'numjobs' and 'config' must be specified"
         usage
     fi
 }
