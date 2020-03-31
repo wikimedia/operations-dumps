@@ -134,8 +134,7 @@ class PrefetchFinder():
                 runner.debug("small %d-byte prefetch dump at %s, skipping" % (
                     size, possible_path))
                 continue
-            else:
-                dfnames.append(prefetch_dfname)
+            dfnames.append(prefetch_dfname)
         if dfnames:
             return dfnames
         return None
@@ -219,11 +218,15 @@ class PrefetchFinder():
                 source = "7zip:%s" % (";".join(sources))
             else:
                 source = "bzip2:%s" % (";".join(sources))
-            runner.show_runner_state("... building %s %s XML dump, with text prefetch from %s..." %
-                                     (self.jobinfo['subset'], partnum_str, source))
+            message = ("... building {subset} {num} XML dump, for output {out}"
+                       " with text prefetch from {where}...")
+            runner.show_runner_state(message.format(subset=self.jobinfo['subset'], num=partnum_str,
+                                                    out=output_dfname.filename, where=source))
             prefetch = "--prefetch=%s" % (source)
         else:
-            runner.show_runner_state("... building %s %s XML dump, no text prefetch..." %
-                                     (self.jobinfo['subset'], partnum_str))
+            message = ("... building {subset} {num} XML dump, for output {out},"
+                       " no text prefetch...")
+            runner.show_runner_state(message.format(subset=self.jobinfo['subset'], num=partnum_str,
+                                                    out=output_dfname.filename))
             prefetch = ""
         return prefetch
