@@ -231,7 +231,6 @@ class XmlDump(Dump):
         chkpt_dfnames = self.oflister.list_checkpt_files(
             self.oflister.makeargs(dump_dir, [self.get_dumpname()],
                                    parts=PARTS_ANY, date=date))
-        # chkpt_dfnames = sorted(chkpt_dfnames, key=lambda thing: thing.filename)
         # get the page ranges covered by existing checkpoint files
         done_pageranges = [(dfname.first_page_id_int, dfname.last_page_id_int,
                             dfname.partnum_int)

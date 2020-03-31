@@ -35,7 +35,7 @@ class PrefetchFinder():
         if file_list:
             # collect copies of all the dfnames with the first page id of each
             dfnames_page_coverage = []
-            for dfname in sorted(file_list, key=lambda thing: thing.filename):
+            for dfname in file_list:
                 if dfname.first_page_id:
                     first_page = dfname.first_page_id_int
                 else:
@@ -47,19 +47,22 @@ class PrefetchFinder():
                     first_page = dcontents.find_first_page_id_in_file()
                 dfnames_page_coverage.append({'dfname': dfname, 'first': first_page, 'last': None})
 
-            for index, coverage in enumerate(dfnames_page_coverage):
+            dfnames_page_coverage_sorted = sorted(
+                dfnames_page_coverage, key=lambda thing: thing['first'])
+
+            for index, coverage in enumerate(dfnames_page_coverage_sorted):
                 if coverage['dfname'].last_page_id:
                     coverage['last'] = coverage['dfname'].last_page_id_int
                 else:
                     # here we can fill it in. if it's the last file we can't, it remains
                     # 'None' and it will be treated as covering everything to infinity,
                     # which is ok in this context.
-                    if index < len(dfnames_page_coverage) + 1:
+                    if index < len(dfnames_page_coverage_sorted) + 1:
                         # claim this file covers up to the page just before the next file's
                         # starting page, may not literally be true because of deletes, but
                         # because this is prefetch, we can't rely on using the config
                         # settings, they may have changed
-                        coverage['last'] = dfnames_page_coverage[index]['first'] - 1
+                        coverage['last'] = dfnames_page_coverage_sorted[index]['first'] - 1
 
                 if dumps.intervals.interval_overlaps(coverage['first'], coverage['last'],
                                                      pagerange['start'], pagerange['end']):
