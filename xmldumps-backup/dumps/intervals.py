@@ -57,10 +57,9 @@ def bounded_intervals_overlap(first, second):
     """
     given two ranges of numbers, compare and return
     True if overlap, False otherwise
-    Note that here overlap means "one contains
-    the other", this may not be what we want (? FIXME)
     """
-    if first[0] <= second[0] and second[1] <= first[1]:
+    # should we put a min 10 pages at one end or the other?
+    if first[0] <= second[0] and second[0] <= first[1]:
         return True
     if second[0] <= first[0] and first[0] <= second[1]:
         return True
