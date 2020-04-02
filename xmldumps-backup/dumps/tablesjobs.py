@@ -11,7 +11,6 @@ from os.path import exists
 from dumps.exceptions import BackupError
 from dumps.jobs import Dump
 from dumps.fileutils import DumpFilename
-from dumps.outfilelister import OutputFileLister
 
 
 class PublicTable(Dump):
@@ -78,41 +77,6 @@ class PublicTable(Dump):
             table name (e.g. "site_stats"), path to output file, Runner
         """
         return runner.save_command(command_series, self.command_completion_callback)
-
-
-class PrivateTable(PublicTable):
-    """Hidden table dumps for private data."""
-
-    def __init__(self, table, name, desc):
-        PublicTable.__init__(self, table, name, desc)
-        self.oflister = PrivateTableFileLister(self.dumpname, self.file_type, self.file_ext,
-                                               self.get_fileparts_list(), self.checkpoint_file,
-                                               self._checkpoints_enabled, self.list_dumpnames)
-        self.private = True
-
-    def check_truncation(self):
-        # Truncation checks require output to public dir, hence we
-        # cannot use them. The default would be 'False' anyways, but
-        # if that default changes, we still cannot use automatic
-        # truncation checks.
-        return False
-
-    def description(self):
-        return self._desc + " (private)"
-
-
-class PrivateTableFileLister(OutputFileLister):
-    """
-    special output file listing methods for private tables dump job
-    """
-
-    def list_outfiles_to_publish(self, args):
-        """
-        Private table won't have public files to list.
-        expects: nothing :)
-        returns: empty list
-        """
-        return []
 
 
 class TitleDump(Dump):

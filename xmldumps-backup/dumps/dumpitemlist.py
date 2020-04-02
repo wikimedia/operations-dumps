@@ -12,7 +12,7 @@ import traceback
 from dumps.exceptions import BackupError
 
 from dumps.apijobs import SiteInfoDump
-from dumps.tablesjobs import PrivateTable, PublicTable, TitleDump, AllTitleDump
+from dumps.tablesjobs import PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
 from dumps.recombinejobs import RecombineXmlLoggingDump, RecombineXmlMultiStreamDump
@@ -119,13 +119,9 @@ class DumpItemList():
 
             try:
                 # tables job names end in 'table' so stick that on
-                if tables_configured[table]['type'] == 'private':
-                    if not self.wiki.config.skip_privatetables:
-                        self.dump_items.append(PrivateTable(
-                            table,
-                            normalize_tablejob_name(tables_configured[table]['job']),
-                            tables_configured[table]['description']))
-                elif tables_configured[table]['type'] == 'public':
+                # keep the public type check around for back compat for now
+                if ('type' not in tables_configured[table] or
+                        tables_configured[table]['type'] == 'public'):
                     self.dump_items.append(PublicTable(
                         table,
                         normalize_tablejob_name(tables_configured[table]['job']),
