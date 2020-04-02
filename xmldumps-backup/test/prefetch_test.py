@@ -9,7 +9,7 @@ import shutil
 import unittest
 from unittest.mock import patch
 from test.basedumpstest import BaseDumpsTestCase
-from dumps.xmlcontentjobs import XmlDump
+from dumps.xmlcontentjobs import XmlDump, DFNamePageRangeConverter
 from dumps.utils import FilePartInfo
 from dumps.runner import Runner
 from dumps.prefetch import PrefetchFinder
@@ -29,6 +29,10 @@ class TestPrefetch(BaseDumpsTestCase):
         fullpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, wikiname, date)
         if not os.path.exists(fullpath):
             os.makedirs(fullpath)
+        # add status file
+        contents = "name:articlesdump; status:done; updated:2020-02-14 13:44:07\n"
+        with open(os.path.join(fullpath, 'dumpruninfo.txt'), "w") as outfile:
+            outfile.write(contents)
 
     @staticmethod
     def cleanup_prefetch_dir(wikiname, date):
@@ -109,6 +113,20 @@ class TestPrefetch(BaseDumpsTestCase):
             prefetch_dfnames = prefetcher.find_prefetch_files_from_run(runner, date,
                                                                        pagerange, 'bz2')
             self.assertEqual(prefetch_dfnames, None)
+
+        with self.subTest('get_prefetch_arg, range needs multiple files'):
+            converter = DFNamePageRangeConverter(self.wd['wiki'], "pages-articles", "xml",
+                                                 "bz2", verbose=False)
+            to_produce = converter.make_dfname_from_pagerange((4375, 4398), 2)
+            stub_converter = DFNamePageRangeConverter(self.wd['wiki'], "stub-articles", "xml",
+                                                      "gz", verbose=False)
+            corresponding_stub = converter.make_dfname_from_pagerange((4375, 4398), 2)
+            prefetch_args = prefetcher.get_prefetch_arg(runner, to_produce, corresponding_stub)
+            basedir = 'test/output/public/wikidatawiki/20200101/'
+            expected_args = ('--prefetch=bzip2:' +
+                             basedir + 'wikidatawiki-20200101-pages-articles2.xml-p4351p4380.bz2;' +
+                             basedir + 'wikidatawiki-20200101-pages-articles2.xml-p4381p4443.bz2')
+            self.assertEqual(prefetch_args, expected_args)
 
         self.cleanup_prefetch_dir(self.wd['wiki'].db_name, date)
 

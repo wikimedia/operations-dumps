@@ -560,13 +560,13 @@ class RunInfo(Registered):
         # already run and whether it was successful (use to examine status
         # of step from some previous run)
         try:
-            input_fhandle = open(filename, "r")
-            for line in input_fhandle:
-                result = self._get_status_from_runinfo_line(line, job_name)
-                if result is not None:
-                    return result
-            input_fhandle.close()
-            return None
+            with open(filename, "r") as input_fhandle:
+                for line in input_fhandle:
+                    result = self._get_status_from_runinfo_line(line, job_name)
+                    if result is not None:
+                        return result
+                input_fhandle.close()
+                return None
         except Exception:
             if self.verbose:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
