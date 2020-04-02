@@ -218,8 +218,6 @@ class XmlDump(Dump):
         for finfo in to_delete:
             if exists(dump_dir.filename_public_path(finfo)):
                 os.remove(dump_dir.filename_public_path(finfo))
-            elif exists(dump_dir.filename_private_path(finfo)):
-                os.remove(dump_dir.filename_private_path(finfo))
 
     def get_done_pageranges(self, dump_dir, date):
         """

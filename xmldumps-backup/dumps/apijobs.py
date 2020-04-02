@@ -31,14 +31,9 @@ class SiteInfoDump(Dump):
                               self.dumpname)
         output_dfname = dfnames[0]
         commands = self.build_command(runner)
-        if runner.wiki.is_private():
-            command_series = runner.get_save_command_series(
-                commands, DumpFilename.get_inprogress_name(
-                    runner.dump_dir.filename_private_path(output_dfname)))
-        else:
-            command_series = runner.get_save_command_series(
-                commands, DumpFilename.get_inprogress_name(
-                    runner.dump_dir.filename_public_path(output_dfname)))
+        command_series = runner.get_save_command_series(
+            commands, DumpFilename.get_inprogress_name(
+                runner.dump_dir.filename_public_path(output_dfname)))
         self.setup_command_info(runner, command_series, [output_dfname])
 
         error, _broken = runner.save_command(command_series, self.command_completion_callback)

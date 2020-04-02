@@ -39,10 +39,7 @@ class PrefetchFinder():
                 if dfname.first_page_id:
                     first_page = dfname.first_page_id_int
                 else:
-                    if runner.wiki.is_private():
-                        path = runner.dump_dir.filename_private_path(dfname, date)
-                    else:
-                        path = runner.dump_dir.filename_public_path(dfname, date)
+                    path = runner.dump_dir.filename_public_path(dfname, date)
                     dcontents = DumpContents(self.wiki, path, dfname, self.verbose)
                     first_page = dcontents.find_first_page_id_in_file()
                 dfnames_page_coverage.append({'dfname': dfname, 'first': first_page, 'last': None})
@@ -128,10 +125,7 @@ class PrefetchFinder():
         possible_prefetch_dfnames = dfnames
         dfnames = []
         for prefetch_dfname in possible_prefetch_dfnames:
-            if runner.wiki.is_private():
-                possible_path = runner.dump_dir.filename_private_path(prefetch_dfname, date)
-            else:
-                possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
+            possible_path = runner.dump_dir.filename_public_path(prefetch_dfname, date)
             size = os.path.getsize(possible_path)
             if size < 70000:
                 runner.debug("small %d-byte prefetch dump at %s, skipping" % (
@@ -205,10 +199,7 @@ class PrefetchFinder():
                 # otherwise we'll use the all the sourcefiles reported
                 if not dumps.intervals.chkptfile_in_pagerange(stub_file, sourcefile):
                     continue
-                if runner.wiki.is_private():
-                    source_path = runner.dump_dir.filename_private_path(sourcefile, sourcefile.date)
-                else:
-                    source_path = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
+                source_path = runner.dump_dir.filename_public_path(sourcefile, sourcefile.date)
                 if exists(source_path):
                     sources.append(source_path)
 

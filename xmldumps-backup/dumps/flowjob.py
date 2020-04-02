@@ -35,10 +35,7 @@ class FlowDump(Dump):
         if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        if runner.wiki.is_private():
-            flow_output_fpath = runner.dump_dir.filename_private_path(output_dfname)
-        else:
-            flow_output_fpath = runner.dump_dir.filename_public_path(output_dfname)
+        flow_output_fpath = runner.dump_dir.filename_public_path(output_dfname)
         script_command = MultiVersion.mw_script_as_array(
             runner.wiki.config, "extensions/Flow/maintenance/dumpBackup.php")
 

@@ -105,10 +105,7 @@ class RecombineDump(Dump):
         args:
             Runner, list of DumpFilename, ...
         """
-        if runner.wiki.is_private():
-            output_filename = runner.dump_dir.filename_private_path(output_file)
-        else:
-            output_filename = runner.dump_dir.filename_public_path(output_file)
+        output_filename = runner.dump_dir.filename_public_path(output_file)
         partnum = 0
         recombines = []
         for utility in [runner.wiki.config.head, runner.wiki.config.tail, runner.wiki.config.grep]:
@@ -122,10 +119,7 @@ class RecombineDump(Dump):
             raise BackupError("No files for the recombine step found in %s." % self.name())
 
         for dfname in dfnames:
-            if runner.wiki.is_private():
-                fpath = runner.dump_dir.filename_private_path(dfname)
-            else:
-                fpath = runner.dump_dir.filename_public_path(dfname)
+            fpath = runner.dump_dir.filename_public_path(dfname)
             partnum = partnum + 1
             pipeline = []
             uncompression_todo = uncompression_command + [fpath]
@@ -170,10 +164,7 @@ class RecombineDump(Dump):
         args:
             Runner, list of DumpFilename, ...
         """
-        if runner.wiki.is_private():
-            output_filename = runner.dump_dir.filename_private_path(output_dfname)
-        else:
-            output_filename = runner.dump_dir.filename_public_path(output_dfname)
+        output_filename = runner.dump_dir.filename_public_path(output_dfname)
         partnum = 0
 
         if not dfnames:
@@ -187,10 +178,7 @@ class RecombineDump(Dump):
 
         series = []
         for dfname in dfnames:
-            if runner.wiki.is_private():
-                fpath = runner.dump_dir.filename_private_path(dfname)
-            else:
-                fpath = runner.dump_dir.filename_public_path(dfname)
+            fpath = runner.dump_dir.filename_public_path(dfname)
             partnum = partnum + 1
             if partnum == 1:
                 # first file, put header, body
@@ -489,8 +477,6 @@ class RecombineXmlMultiStreamDump(RecombineDump):
         return RecombineXmlMultiStreamDump.get_dumpname_multistream(name) + "-index"
 
     def get_filepath(self, runner, dfname):
-        if runner.wiki.is_private():
-            return runner.dump_dir.filename_private_path(dfname)
         return runner.dump_dir.filename_public_path(dfname)
 
     def get_content_dfname_from_index(self, runner, index_dfname):

@@ -221,8 +221,6 @@ class Dump():
             path = os.path.join(
                 FileUtils.wiki_tempdir(runner.wiki.db_name, runner.wiki.config.temp_dir),
                 dfname.filename)
-        elif runner.wiki.is_private():
-            path = runner.dump_dir.filename_private_path(dfname)
         else:
             path = runner.dump_dir.filename_public_path(dfname)
         dcontents = DumpContents(runner.wiki, path)
@@ -339,12 +337,8 @@ class Dump():
         """
         if exists(dump_dir.filename_public_path(dfname)):
             os.remove(dump_dir.filename_public_path(dfname))
-        elif exists(dump_dir.filename_private_path(dfname)):
-            os.remove(dump_dir.filename_private_path(dfname))
         if exists(dump_dir.filename_public_path(dfname) + DumpFilename.INPROG):
             os.remove(dump_dir.filename_public_path(dfname) + DumpFilename.INPROG)
-        elif exists(dump_dir.filename_private_path(dfname) + DumpFilename.INPROG):
-            os.remove(dump_dir.filename_private_path(dfname) + DumpFilename.INPROG)
 
     def cleanup_old_files(self, dump_dir, runner):
         if "cleanup_old_files" in runner.enabled:
@@ -352,8 +346,6 @@ class Dump():
                 # we only rerun this one, so just remove this one
                 if exists(dump_dir.filename_public_path(self.checkpoint_file)):
                     os.remove(dump_dir.filename_public_path(self.checkpoint_file))
-                elif exists(dump_dir.filename_private_path(self.checkpoint_file)):
-                    os.remove(dump_dir.filename_private_path(self.checkpoint_file))
             dfnames = self.oflister.list_outfiles_for_cleanup(self.oflister.makeargs(dump_dir))
             for dfname in dfnames:
                 self.remove_output_file(dump_dir, dfname)
@@ -361,20 +353,13 @@ class Dump():
     def cleanup_inprog_files(self, dump_dir, runner):
         if self.checkpoint_file is not None:
             # we only rerun this one, so just remove this one
-            pub_path = DumpFilename.get_inprogress_name(
+            path = DumpFilename.get_inprogress_name(
                 dump_dir.filename_public_path(self.checkpoint_file))
-            priv_path = DumpFilename.get_inprogress_name(
-                dump_dir.filename_private_path(self.checkpoint_file))
-            if os.path.exists(pub_path):
+            if os.path.exists(path):
                 if runner.dryrun:
-                    print("would remove", pub_path)
+                    print("would remove", path)
                 else:
-                    os.remove(pub_path)
-            elif os.path.exists(priv_path):
-                if runner.dryrun:
-                    print("would remove", priv_path)
-                else:
-                    os.remove(priv_path)
+                    os.remove(path)
 
         dfnames = self.oflister.list_inprog_files_for_cleanup(self.oflister.makeargs(dump_dir))
         if runner.dryrun:

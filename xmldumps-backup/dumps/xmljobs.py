@@ -274,10 +274,7 @@ class XmlLogging(Dump):
         if not os.path.exists(runner.wiki.config.php):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
-        if runner.wiki.is_private():
-            logging_path = runner.dump_dir.filename_private_path(output_dfname)
-        else:
-            logging_path = runner.dump_dir.filename_public_path(output_dfname)
+        logging_path = runner.dump_dir.filename_public_path(output_dfname)
 
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
@@ -386,12 +383,8 @@ class AbstractDump(Dump):
         for dfname in output_dfnames:
             variant = self.get_variant_from_dumpname(dfname.dumpname)
             variant_option = self._variant_option(variant)
-            if runner.wiki.is_private():
-                output_paths.append(DumpFilename.get_inprogress_name(
-                    runner.dump_dir.filename_private_path(dfname)))
-            else:
-                output_paths.append(DumpFilename.get_inprogress_name(
-                    runner.dump_dir.filename_public_path(dfname)))
+            output_paths.append(DumpFilename.get_inprogress_name(
+                runner.dump_dir.filename_public_path(dfname)))
             variants.append(variant_option)
 
         command.extend(["--outfiles=%s" % ",".join(output_paths),

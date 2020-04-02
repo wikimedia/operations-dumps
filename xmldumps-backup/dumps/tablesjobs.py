@@ -150,10 +150,6 @@ class TitleDump(Dump):
         if not exists(runner.wiki.config.gzip):
             raise BackupError("gzip command %s not found" % runner.wiki.config.gzip)
         series = runner.db_server_info.build_sql_command(query, runner.wiki.config.gzip)
-        if runner.wiki.is_private():
-            return runner.get_save_command_series(
-                series, DumpFilename.get_inprogress_name(
-                    runner.dump_dir.filename_private_path(out_dfname)))
         return runner.get_save_command_series(
             series, DumpFilename.get_inprogress_name(
                 runner.dump_dir.filename_public_path(out_dfname)))

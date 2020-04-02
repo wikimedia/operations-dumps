@@ -158,18 +158,11 @@ class XmlMultiStreamDump(RecompressDump):
                                     output_dfname.file_type,
                                     self.item_for_recompress.file_ext,
                                     output_dfname.partnum, output_dfname.checkpoint)
-        if runner.wiki.is_private():
-            outfilepath = runner.dump_dir.filename_private_path(
-                self.get_multistream_dfname(output_dfname))
-            outfilepath_index = runner.dump_dir.filename_private_path(
-                self.get_multistream_index_dfname(output_dfname))
-            infilepath = runner.dump_dir.filename_private_path(input_dfname)
-        else:
-            outfilepath = runner.dump_dir.filename_public_path(
-                self.get_multistream_dfname(output_dfname))
-            outfilepath_index = runner.dump_dir.filename_public_path(
-                self.get_multistream_index_dfname(output_dfname))
-            infilepath = runner.dump_dir.filename_public_path(input_dfname)
+        outfilepath = runner.dump_dir.filename_public_path(
+            self.get_multistream_dfname(output_dfname))
+        outfilepath_index = runner.dump_dir.filename_public_path(
+            self.get_multistream_index_dfname(output_dfname))
+        infilepath = runner.dump_dir.filename_public_path(input_dfname)
         command_pipe = [["%s -dc %s | %s --pagesperstream 100 --buildindex %s -o %s" %
                          (self.wiki.config.bzip2, infilepath, self.wiki.config.recompressxml,
                           DumpFilename.get_inprogress_name(outfilepath_index),
@@ -389,12 +382,8 @@ class XmlRecompressDump(RecompressDump):
             input_dfname = DumpFilename(self.wiki, None, out_dfname.dumpname, out_dfname.file_type,
                                         self.item_for_recompress.file_ext, out_dfname.partnum,
                                         out_dfname.checkpoint)
-            if runner.wiki.is_private():
-                outfilepath = runner.dump_dir.filename_private_path(out_dfname)
-                infilepath = runner.dump_dir.filename_private_path(input_dfname)
-            else:
-                outfilepath = runner.dump_dir.filename_public_path(out_dfname)
-                infilepath = runner.dump_dir.filename_public_path(input_dfname)
+            outfilepath = runner.dump_dir.filename_public_path(out_dfname)
+            infilepath = runner.dump_dir.filename_public_path(input_dfname)
 
             if self.wiki.config.lbzip2threads:
                 # one thread only, as these already run in parallel
@@ -458,11 +447,6 @@ class XmlRecompressDump(RecompressDump):
                     print("would remove", dump_dir.filename_public_path(self.checkpoint_file))
                 else:
                     os.remove(dump_dir.filename_public_path(self.checkpoint_file))
-            elif exists(dump_dir.filename_private_path(self.checkpoint_file)):
-                if runner.dryrun:
-                    print("would remove", dump_dir.filename_private_path(self.checkpoint_file))
-                else:
-                    os.remove(dump_dir.filename_private_path(self.checkpoint_file))
 
         dfnames = self.oflister.list_outfiles_for_cleanup(self.oflister.makeargs(dump_dir))
         if runner.dryrun:
