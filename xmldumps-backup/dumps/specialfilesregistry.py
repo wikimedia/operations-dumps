@@ -57,7 +57,12 @@ class SpecialFileWriter(Registered):
         """
         if fmt not in getattr(classname, 'known_formats'):
             return {}
-        date = wiki.latest_dump()
+        if wiki.date:
+            # use the specified date of the run
+            date = wiki.date
+        else:
+            # no date was specified? go with the latest run
+            date = wiki.latest_dump()
         if date:
             filepath = os.path.join(wiki.public_dir(), date,
                                     getattr(classname, 'FILENAME') + "." + fmt)
