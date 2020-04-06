@@ -467,6 +467,9 @@ class RecombineXmlMultiStreamDump(RecombineDump):
         self.item_for_recombine = item_for_recombine
         self._prerequisite_items = [self.item_for_recombine]
         super().__init__(name, desc, 'bz2')
+        self.oflister = RecombineXmlMultiStreamFileLister(
+            self.dumpname, self.file_type, self.file_ext, self.get_fileparts_list(),
+            self.checkpoint_file, self._checkpoints_enabled, self.list_dumpnames)
 
     @staticmethod
     def get_dumpname_multistream(name):
@@ -481,8 +484,9 @@ class RecombineXmlMultiStreamDump(RecombineDump):
     def get_dumpname(self):
         return self.item_for_recombine.get_dumpname()
 
-    def get_dumpname_multistream_index(self, name):
-        return self.get_dumpname_multistream(name) + "-index"
+    @staticmethod
+    def get_dumpname_multistream_index(name):
+        return RecombineXmlMultiStreamDump.get_dumpname_multistream(name) + "-index"
 
     def get_filepath(self, runner, dfname):
         if runner.wiki.is_private():
@@ -645,6 +649,8 @@ class RecombineXmlMultiStreamFileLister(OutputFileLister):
         args = args._replace(dump_names=[RecombineXmlMultiStreamDump.get_dumpname_multistream(
             self.dumpname)])
         dfnames.extend(super().list_outfiles_to_publish(args))
+        args = args._replace(dump_names=[RecombineXmlMultiStreamDump.get_dumpname_multistream_index(
+            self.dumpname)])
         # FIXME EWWW
         real_filetype = self.file_type
         self.file_type = RecombineXmlMultiStreamDump.INDEX_FILETYPE
