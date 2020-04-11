@@ -43,7 +43,10 @@ class PublicTable(Dump):
                     runner.dump_dir.filename_public_path(output_dfname)))
         return command_series
 
-    def run(self, runner):
+    def do_prep(self, runner):
+        '''
+        do prep work of getting commands set up to run
+        '''
         dfnames = self.oflister.list_outfiles_for_build_command(
             self.oflister.makeargs(runner.dump_dir))
         if len(dfnames) > 1:
@@ -58,7 +61,13 @@ class PublicTable(Dump):
         command_series = self.build_command(runner, output_dfname)
         self.setup_command_info(runner, command_series, [output_dfname],
                                 os.path.join(output_dir, runner.wiki.date))
+        return command_series
 
+    def run_with_retries(self, runner, command_series):
+        '''
+        run the given command series with retries and errors
+        as necessary
+        '''
         retries = 0
         maxretries = runner.wiki.config.max_retries
         error, _broken = self.save_table(runner, command_series)
@@ -68,6 +77,10 @@ class PublicTable(Dump):
             error, _broken = self.save_table(runner, command_series)
         if error:
             raise BackupError("error dumping table %s" % self._table)
+
+    def run(self, runner):
+        command_series = self.do_prep(runner)
+        self.run_with_retries(runner, command_series)
 
     # returns 0 on success, 1 on error
     def save_table(self, runner, command_series):

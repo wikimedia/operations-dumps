@@ -1,0 +1,97 @@
+# default list of public tables to dump
+tables:
+    site_stats:
+      job: sitestats
+      description: A few statistics such as the page count.
+      type: public
+    image:
+      job: image
+      description: Metadata on current versions of uploaded media/files.
+    pagelinks:
+      job: pagelinks
+      description: Wiki page-to-page link records.
+    categorylinks:
+      job: categorylinks
+      description: Wiki category membership link records.
+    imagelinks:
+      job: imagelinks
+      description: Wiki media/files usage records.
+    templatelinks:
+      job: templatelinks
+      description: Wiki template inclusion link records.
+    externallinks:
+      job: externallinks
+      description: Wiki external URL link records.
+    langlinks:
+      job: langlinks
+      description: Wiki interlanguage link records.
+    user_groups:
+      job: usergroups
+      description: User group assignments.
+    user_former_groups:
+      job: userformergroups
+      description: Past user group assignments.
+    category:
+      job: category
+      description: Category information.
+    page:
+      job: page
+      description: Base per-page data (id, title, old restrictions, etc).
+    page_restrictions:
+      job: pagerestrictions
+      description: Newer per-page restrictions table.
+    page_props:
+      job: pageprops
+      description: Name/value pairs for pages.
+    protected_titles:
+      job: protectedtitles
+      description: Nonexistent pages that have been protected.
+    redirect:
+      job: redirect
+      description: Redirect list
+    iwlinks:
+      job: iwlinks
+      description: Interwiki link tracking records
+    geo_tags:
+      job: geotags
+      description: List of pages' geographical coordinates
+    change_tag:
+      job: changetags
+      description: List of annotations (tags) for revisions and log entries
+    change_tag_def:
+      job: changetagdef
+      description: Annotation (tag) names and ids.
+    flaggedpages:
+      job: flaggedpages
+      description: This contains a row for each flagged article containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending.
+    flaggedrevs:
+      job: flaggedrevs
+      description: This contains a row for each flagged revision containing who flagged it, when it was flagged, reviewer comments, the flag values, and the quality tier those flags fall under.
+    wb_items_per_site:
+      job: wbitemspersite
+      description: For each Wikidata item, this contains rows with the corresponding page name on a given wiki project.
+    wb_terms:
+      job: wbterms
+      description: For each Wikidata item, this contains rows with a label, an alias and a description of the item in a given language.
+    wb_entity_per_page:
+      job: wbentityperpage
+      description: Contains a mapping of page ids and entity ids, with an additional entity type column.
+    wb_property_info:
+      job: wbpropertyinfo
+      description: Contains a mapping of Wikidata property ids and data types.
+    wb_changes_subscription:
+      job: wbchangessubscription
+      description: Tracks which Wikibase Client wikis are using which items.
+    sites:
+      job: sites
+      description: This contains the SiteMatrix information from meta.wikimedia.org provided as a table.
+      type: private
+    globalimagelinks:
+      job: globalimagelinks
+      description: Global wiki media/files usage records.
+    wbc_entity_usage:
+      job: wbcentityusage
+      description: Tracks which pages use which Wikidata items or properties and what aspect (e.g. item label) is used.
+    babel:
+      job: babel
+      description: Language proficiency information per user.

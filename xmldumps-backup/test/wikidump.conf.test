@@ -5,6 +5,7 @@ dblist=test/files/test_all.dblist
 privatelist=test/files/private.dblist
 # dir does not exist but must be set for config to be built
 dir=test/mediawiki
+tablejobs=test/files/table_jobs.yaml
 
 [bigwikis]
 # these are overrides for various sections (not tools, database, reporting)
