@@ -197,6 +197,68 @@ class Report(Registered):
         web_path = self.dump_dir.web_path_relative(path)
         return '<a href="%s">(%s)</a>' % (web_path, htype)
 
+    def update_index_html(self, status_items, dump_status=""):
+        '''
+        generate index.html file for the wiki's dump run
+        containing links to downloads and dump steps status
+        '''
+        status_items_html = [item['html'] for item in status_items]
+        status_items_html.reverse()
+        html = "\n".join(status_items_html)
+        checksums = [self.get_checksum_html(htype)
+                     for htype in Checksummer.HASHTYPES]
+        checksums_html = ", ".join(checksums)
+        failed_jobs = sum(1 for item in self.items if item.status() == "failed")
+        txt = self.wiki.config.read_template("report.html") % {
+            "db": self.wiki.db_name,
+            "date": self.wiki.date,
+            "notice": self.dumpjobdata.notice.notice,
+            "status": StatusHtml.report_dump_status(failed_jobs, dump_status),
+            "previous": self.report_previous_dump_link(dump_status),
+            "items": html,
+            "checksum": checksums_html,
+            "index": self.wiki.config.index}
+
+        try:
+            indexpath = os.path.join(self.wiki.public_dir(), self.wiki.date,
+                                     self.wiki.config.perdump_index)
+            FileUtils.write_file_in_place(indexpath, txt, self.wiki.config.fileperms)
+        except Exception:
+            if self.verbose:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value,
+                                                                 exc_traceback)))
+            message = "Couldn't update index.html file. Continuing anyways"
+            if self.error_callback:
+                self.error_callback(message)
+            else:
+                sys.stderr.write("%s\n" % message)
+
+    def update_report_json(self, status_items, dump_status=""):
+        '''
+        write index json file with info about completed files
+        and dump steps status
+        '''
+        json_out = {'jobs': {}}
+        for item in status_items:
+            for jobname in item['json']:
+                json_out['jobs'][jobname] = item['json'][jobname]
+        try:
+            json_filepath = os.path.join(self.wiki.public_dir(), self.wiki.date,
+                                         Report.JSONFILE)
+            FileUtils.write_file_in_place(json_filepath, json.dumps(json_out),
+                                          self.wiki.config.fileperms)
+        except Exception:
+            if self.verbose:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value,
+                                                                 exc_traceback)))
+            message = "Couldn't update index json file. Continuing anyways"
+            if self.error_callback:
+                self.error_callback(message)
+            else:
+                sys.stderr.write("%s\n" % message)
+
     def update_index_html_and_json(self, dump_status=""):
         '''
         generate the index.html file for the wiki's dump run which contains
@@ -208,45 +270,8 @@ class Report(Registered):
             self.dumpjobdata.notice.refresh_notice()
             status_items = [Report.report_dump_step_status(self.dump_dir, item)
                             for item in self.items]
-            status_items_html = [item['html'] for item in status_items]
-            status_items_html.reverse()
-            html = "\n".join(status_items_html)
-            checksums = [self.get_checksum_html(htype)
-                         for htype in Checksummer.HASHTYPES]
-            checksums_html = ", ".join(checksums)
-            failed_jobs = sum(1 for item in self.items if item.status() == "failed")
-            txt = self.wiki.config.read_template("report.html") % {
-                "db": self.wiki.db_name,
-                "date": self.wiki.date,
-                "notice": self.dumpjobdata.notice.notice,
-                "status": StatusHtml.report_dump_status(failed_jobs, dump_status),
-                "previous": self.report_previous_dump_link(dump_status),
-                "items": html,
-                "checksum": checksums_html,
-                "index": self.wiki.config.index}
-
-            json_out = {'jobs': {}}
-            for item in status_items:
-                for jobname in item['json']:
-                    json_out['jobs'][jobname] = item['json'][jobname]
-            try:
-                indexpath = os.path.join(self.wiki.public_dir(), self.wiki.date,
-                                         self.wiki.config.perdump_index)
-                FileUtils.write_file_in_place(indexpath, txt, self.wiki.config.fileperms)
-                json_filepath = os.path.join(self.wiki.public_dir(), self.wiki.date,
-                                             Report.JSONFILE)
-                FileUtils.write_file_in_place(json_filepath, json.dumps(json_out),
-                                              self.wiki.config.fileperms)
-            except Exception:
-                if self.verbose:
-                    exc_type, exc_value, exc_traceback = sys.exc_info()
-                    sys.stderr.write(repr(traceback.format_exception(exc_type, exc_value,
-                                                                     exc_traceback)))
-                message = "Couldn't update status files. Continuing anyways"
-                if self.error_callback:
-                    self.error_callback(message)
-                else:
-                    sys.stderr.write("%s\n" % message)
+            self.update_index_html(status_items, dump_status)
+            self.update_report_json(status_items, dump_status)
 
     def get_all_output_files(self):
         """

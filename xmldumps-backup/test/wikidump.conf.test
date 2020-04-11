@@ -24,7 +24,7 @@ private=test/output/private
 temp=test/output/temp
 index=test/backup-index.html
 webroot=http://localhost/mydumps
-templatedir=test/templs
+templatedir=test/files
 
 [reporting]
 staleage=600

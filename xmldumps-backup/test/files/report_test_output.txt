@@ -1,0 +1,79 @@
+<html>
+<body>
+        <h1>wikidatawiki dump progress on {date}</h1>
+        <p class="notice"></p>
+        <p>See <a href="../../test/backup-index.html">all databases list</a>.</p>
+        <p class="previous">
+                No prior dumps of this database stored.
+        </p>
+        <p class="status">
+                <span class='done'>Dump complete</span>
+        </p>
+        <p class="checksum">
+                Verify downloaded files against the <a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-md5sums.txt">(md5)</a>, <a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-sha1sums.txt">(sha1)</a> checksums
+                to check for corrupted files.
+        </p>
+        <ul>
+                <li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Recombine multiple bz2 streams</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles-multistream.xml.bz2">wikidatawiki-{date}-pages-articles-multistream.xml.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles-multistream-index.txt.bz2">wikidatawiki-{date}-pages-articles-multistream-index.txt.bz2</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Articles, templates, media/file descriptions, and primary meta-pages, in multiple bz2 streams, 100 pages per stream</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles-multistream1.xml-p1p100.bz2">wikidatawiki-{date}-pages-articles-multistream1.xml-p1p100.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles-multistream-index1.txt-p1p100.bz2">wikidatawiki-{date}-pages-articles-multistream-index1.txt-p1p100.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles-multistream2.xml-p101p300.bz2">wikidatawiki-{date}-pages-articles-multistream2.xml-p101p300.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles-multistream-index2.txt-p101p300.bz2">wikidatawiki-{date}-pages-articles-multistream-index2.txt-p101p300.bz2</a> 5 bytes</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream3.xml-p301p600.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream-index3.txt-p301p600.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream4.xml-p1601p2600.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream-index4.txt-p1601p2600.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream4.xml-p2601p3600.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream-index4.txt-p2601p3600.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream4.xml-p3601p4450.bz2</li>
+<li class='missing'>wikidatawiki-{date}-pages-articles-multistream-index4.txt-p3601p4450.bz2</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>All pages with complete edit history (.7z)</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-meta-history1.xml-p1p100.7z">wikidatawiki-{date}-pages-meta-history1.xml-p1p100.7z</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>All pages with complete page edit history (.bz2)</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-meta-history1.xml-p1p100.bz2">wikidatawiki-{date}-pages-meta-history1.xml-p1p100.bz2</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Recombine Log events to all pages and users</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-logging.xml.gz">wikidatawiki-{date}-pages-logging.xml.gz</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Log events to all pages and users.</span><ul><li class='detail'>This contains the log of actions performed on pages and users.</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-logging1.xml.gz">wikidatawiki-{date}-pages-logging1.xml.gz</a> 5 bytes</li>
+<li class='missing'>wikidatawiki-{date}-pages-logging2.xml.gz</li>
+<li class='missing'>wikidatawiki-{date}-pages-logging3.xml.gz</li>
+<li class='missing'>wikidatawiki-{date}-pages-logging4.xml.gz</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Recombine all pages, current versions only.</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-meta-current.xml.bz2">wikidatawiki-{date}-pages-meta-current.xml.bz2</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>All pages, current versions only.</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-meta-current1.xml-p1p100.bz2">wikidatawiki-{date}-pages-meta-current1.xml-p1p100.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-meta-current2.xml-p101p300.bz2">wikidatawiki-{date}-pages-meta-current2.xml-p101p300.bz2</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'><big><b>Recombine articles, templates, media/file descriptions, and primary meta-pages.</b></big></span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles.xml.bz2">wikidatawiki-{date}-pages-articles.xml.bz2</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'><big><b>Articles, templates, media/file descriptions, and primary meta-pages.</b></big></span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles1.xml-p1p100.bz2">wikidatawiki-{date}-pages-articles1.xml-p1p100.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles2.xml-p101p300.bz2">wikidatawiki-{date}-pages-articles2.xml-p101p300.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles3.xml-p301p600.bz2">wikidatawiki-{date}-pages-articles3.xml-p301p600.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles4.xml-p1601p2600.bz2">wikidatawiki-{date}-pages-articles4.xml-p1601p2600.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles4.xml-p2601p3600.bz2">wikidatawiki-{date}-pages-articles4.xml-p2601p3600.bz2</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-pages-articles4.xml-p3601p4450.bz2">wikidatawiki-{date}-pages-articles4.xml-p3601p4450.bz2</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Recombine first-pass for page XML data dumps</span><ul><li class='detail'>These files contain no page text, only revision metadata.</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-meta-history.xml.gz">wikidatawiki-{date}-stub-meta-history.xml.gz</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-meta-current.xml.gz">wikidatawiki-{date}-stub-meta-current.xml.gz</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-articles.xml.gz">wikidatawiki-{date}-stub-articles.xml.gz</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>First-pass for page XML data dumps</span><ul><li class='detail'>These files contain no page text, only revision metadata.</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-meta-history1.xml.gz">wikidatawiki-{date}-stub-meta-history1.xml.gz</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-meta-history2.xml.gz">wikidatawiki-{date}-stub-meta-history2.xml.gz</a> 5 bytes</li>
+<li class='missing'>wikidatawiki-{date}-stub-meta-history3.xml.gz</li>
+<li class='missing'>wikidatawiki-{date}-stub-meta-history4.xml.gz</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-meta-current1.xml.gz">wikidatawiki-{date}-stub-meta-current1.xml.gz</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-meta-current2.xml.gz">wikidatawiki-{date}-stub-meta-current2.xml.gz</a> 5 bytes</li>
+<li class='missing'>wikidatawiki-{date}-stub-meta-current3.xml.gz</li>
+<li class='missing'>wikidatawiki-{date}-stub-meta-current4.xml.gz</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-articles1.xml.gz">wikidatawiki-{date}-stub-articles1.xml.gz</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-articles2.xml.gz">wikidatawiki-{date}-stub-articles2.xml.gz</a> 5 bytes</li>
+<li class='missing'>wikidatawiki-{date}-stub-articles3.xml.gz</li>
+<li class='missing'>wikidatawiki-{date}-stub-articles4.xml.gz</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Recombine extracted page abstracts for Yahoo</span><ul><li class='missing'>wikidatawiki-{date}-abstract.xml.gz</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Extracted page abstracts for Yahoo</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-abstract1.xml.gz">wikidatawiki-{date}-abstract1.xml.gz</a> 5 bytes</li>
+<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-abstract2.xml.gz">wikidatawiki-{date}-abstract2.xml.gz</a> 5 bytes</li>
+<li class='missing'>wikidatawiki-{date}-abstract3.xml.gz</li>
+<li class='missing'>wikidatawiki-{date}-abstract4.xml.gz</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>List of all page titles</span><ul><li class='missing'>wikidatawiki-{date}-all-titles.gz</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>List of page titles in main namespace</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-all-titles-in-ns0.gz">wikidatawiki-{date}-all-titles-in-ns0.gz</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Namespaces, namespace aliases, magic words.</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-siteinfo-namespaces.json.gz">wikidatawiki-{date}-siteinfo-namespaces.json.gz</a> 5 bytes</li></ul></li>
+<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Tracks which pages use which Wikidata items or properties and what aspect (e.g. item label) is used.</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-wbc_entity_usage.sql.gz">wikidatawiki-{date}-wbc_entity_usage.sql.gz</a> 5 bytes</li></ul></li>
+<li class='waiting'><span class='updates'></span> <span class='status'>waiting</span> <span class='title'>For each Wikidata item, this contains rows with the corresponding page name on a given wiki project.</span><ul><li class='missing'>wikidatawiki-{date}-wb_items_per_site.sql.gz</li></ul></li>
+<li class='waiting'><span class='updates'></span> <span class='status'>waiting</span> <span class='title'>A few statistics such as the page count.</span><ul><li class='missing'>wikidatawiki-{date}-site_stats.sql.gz</li></ul></li>
+        </ul>
+</body>
+</html>
