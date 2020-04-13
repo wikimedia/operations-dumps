@@ -504,7 +504,7 @@ class XmlRecompressDump(RecompressDump):
             raise BackupError("error recompressing bz2 file(s)")
 
 
-class XmlRecompressFileLister(OutputFileLister):
+class XmlRecompressFileLister(RecompressFileLister):
     """
     special methods for recompression of page content jobs to 7z
 
