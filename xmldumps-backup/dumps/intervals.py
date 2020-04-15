@@ -174,7 +174,7 @@ def get_preceding_intervals(wanted, have, all_intervals):
         list of grouped intervals for 'all_intervals'
     """
     if have is None:
-        return wanted
+        return [wanted]
     if wanted is None or have[0] <= int(wanted[0]):
         return None
     group_for_start = get_group_for_value(wanted[0], all_intervals)

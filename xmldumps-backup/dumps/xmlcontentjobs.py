@@ -560,6 +560,52 @@ class XmlDump(Dump):
                 stub_pageranges, dfnames_todo, runner.log_and_print)
         return dfnames_todo
 
+    def get_final_output_dfname(self, command_series, runner):
+        """given a command series that produces one output file,
+        return the dfname for the output file as given in the appropriate
+        command_info element in self.commands_submitted, and without any
+        INPROG marker etc. Returns None if none found"""
+        for command_info in self.commands_submitted:
+            if command_info['series'] == command_series:
+                filenames = command_info['output_files']
+        if len(filenames) != 1:
+            return None
+        # turn the one file into a dfname without INPROG marker and return it
+        filename = filenames[0]
+        if filename.endswith(DumpFilename.INPROG):
+            filename = filename[:-1 * len(DumpFilename.INPROG)]
+        dfname = DumpFilename(runner.wiki)
+        dfname.new_from_filename(filename)
+        return dfname
+
+    def get_command_batch(self, commands, runner):
+        '''
+        return a batch of commands, filtered so that any which
+        produce an output file that already exists, are omitted;
+        this prevents us from interfering with runs on another
+        host or manual runs that we may not know about
+        '''
+        commands = self.filter_commands(commands, runner)
+        batchsize = self.get_batchsize()
+        commands_todo = commands[:batchsize]
+        commands_left = commands[batchsize:]
+        return (commands_todo, commands_left)
+
+    def filter_commands(self, commands, runner):
+        '''
+        remove any commands from the list that produce an output file
+        which already exists
+        '''
+        commands_filtered = []
+        for command_series in commands:
+            # each series produces one output file only, and we want the name without INPROG markers
+            final_output_dfname = self.get_final_output_dfname(command_series, runner)
+            # if the file is already there, move on, don't rerun.
+            if final_output_dfname is None or not exists(
+                    os.path.join(runner.dump_dir.filename_public_path(final_output_dfname))):
+                commands_filtered.append(command_series)
+        return commands_filtered
+
     def run_page_content_commands(self, commands, runner):
         """
         generate page content output in batches, with retries if configured
@@ -570,18 +616,19 @@ class XmlDump(Dump):
         failed_commands = []
         max_retries = self.wiki.config.max_retries
         retries = 0
-        while commands and (retries < max_retries or retries == 0):
-            broken = self.run_batch(commands[:batchsize], runner)
+        commands_left = commands
+        while commands_left and (retries < max_retries or retries == 0):
+            commands_todo, commands_left = self.get_command_batch(commands_left, runner)
+            broken = self.run_batch(commands_todo, runner)
             if broken:
                 failed_commands.append(broken)
                 errors = True
-            commands = commands[batchsize:]
 
-            if not commands and failed_commands:
+            if not commands_todo and failed_commands:
                 retries += 1
                 if retries < max_retries:
                     # retry failed commands
-                    commands = failed_commands
+                    commands_todo = failed_commands
                     failed_commands = []
                     # no instant retries, give the servers a break
                     time.sleep(self.wiki.config.retry_wait)

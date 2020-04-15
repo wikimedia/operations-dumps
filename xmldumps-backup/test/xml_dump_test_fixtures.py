@@ -2,6 +2,7 @@
 """
 test suite for xml content job
 """
+import os
 import unittest
 from unittest.mock import patch
 from test.basedumpstest import BaseDumpsTestCase
@@ -254,7 +255,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
             stub_pageranges, dfnames_todo, print)
 
-        # call firstr test method
+        # call first test method
         wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
 
         # grab the list of dfnames wanted to produce
@@ -524,6 +525,113 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                          '--fspecs', fspecs_string]]]
             stub_commands.append(command)
         return stub_commands
+
+    def get_bz2_todos(self, page_ranges):
+        '''
+        given part numbers and page ranges for some output files,
+        produce the commands that would be run to generate them
+        from stubs of the same names
+        '''
+        expected_todo = []
+        dirname = 'test/output/public/{wiki}/{date}'.format(
+            wiki=self.wd['wiki'].db_name, date=self.today)
+        for prange in page_ranges:
+            infile = '{dirname}/{wiki}-{date}-stub-articles{prange}.gz'.format(
+                dirname=dirname, wiki=self.wd['wiki'].db_name,
+                date=self.today, prange=prange)
+            outfile = '{dirname}/{wiki}-{date}-pages-articles{prange}.bz2.inprog'.format(
+                dirname=dirname, wiki=self.wd['wiki'].db_name,
+                date=self.today, prange=prange)
+            # FIXME what do we think about that empty '' entry in there? should we filter it out??
+            expected_todo.append([[[
+                '/usr/bin/php',
+                'test/mediawiki/maintenance/dumpTextPass.php',
+                '--wiki={wiki}'.format(wiki=self.wd['wiki'].db_name),
+                '--stub=gzip:{infile}'.format(infile=infile),
+                '', '--report=1000', '--spawn=/usr/bin/php',
+                '--output=bzip2:{outfile}'.format(outfile=outfile),
+                '--current']]])
+        return expected_todo
+
+    def setup_fake_bz2_files_chkpts(self, wikiname, date, page_ranges):
+        '''
+        make some junk bz2 files with names corresponding to pageranges
+        passed in
+        '''
+        for part in page_ranges:
+            for prange in page_ranges[part]:
+                basefilename = '{wiki}-{date}-pages-articles{part}.xml-{prange}.bz2'.format(
+                    wiki=wikiname, date=date, part=part, prange=prange)
+                outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, wikiname,
+                                       date, basefilename)
+                with open(outpath, "w") as output:
+                    output.write("fake\n")
+
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    def test_batch_command_generation(self, _mock_get_some_stats, _mock_get_known_tables):
+        """
+        make sure that given stub files, we generate good commands for
+        producing  bz2-compressed page content files from those, in batches,
+        for wikis with checkpoints enabled.
+        also check that we skip commands where the page content file has
+        magically appeared before a batch of commands is to be generated
+        """
+        self.setup_xml_files_chkpts(['stub'], self.today)
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
+
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            pages_per_part=pages_per_part)
+
+        content_job = XmlDump("articles", "articlesdump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              pages_per_part=pages_per_part,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # done with setup, now get args for the method
+        stub_pageranges, dfnames_todo = content_job.get_todos_for_checkpoints(
+            self.wd['dump_dir'], self.wd['wiki'].date)
+        # pagerangeinfo should be nonexistent
+        dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
+            stub_pageranges, dfnames_todo, print)
+        wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
+        # we don't filter out anything here, no checks for empty stubs, who cares
+        todo = wanted
+        commands_left = content_job.get_commands_for_pagecontent(todo, runner)
+
+        with self.subTest('unfiltered bz2 command batch'):
+            commands_todo, commands_left = content_job.get_command_batch(commands_left, runner)
+            page_ranges = ['1.xml-p1p500', '1.xml-p501p1000',
+                           '1.xml-p1001p1500', '1.xml-p1501p2000']
+            expected_todo = self.get_bz2_todos(page_ranges)
+            self.assertEqual(commands_todo, expected_todo)
+
+        with self.subTest('bz2 command batch with some output files existing'):
+            # don't actually run any commands, just pretend we did and check the next batch,
+            # but first add a few bz2 files to the directory; we want to see that those
+            # are skipped over when the next command batch is generated
+            page_ranges = {'1': ['p2501p3000', 'p3501p4000']}
+            self.setup_fake_bz2_files_chkpts(self.wd['wiki'].db_name, self.today, page_ranges)
+
+            commands_todo, commands_left = content_job.get_command_batch(commands_left, runner)
+            page_ranges = ['1.xml-p2001p2500', '1.xml-p3001p3500',
+                           '1.xml-p4001p4330', '2.xml-p4331p4443']
+            expected_todo = self.get_bz2_todos(page_ranges)
+            self.assertEqual(commands_todo, expected_todo)
 
 
 if __name__ == '__main__':
