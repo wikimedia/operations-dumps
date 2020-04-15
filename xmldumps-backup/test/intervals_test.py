@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-text suite for intervals module
+test suite for intervals module
 """
 import unittest
 import dumps.dumpitemlist

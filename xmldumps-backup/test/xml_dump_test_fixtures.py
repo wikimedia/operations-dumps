@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-text suite for xml content job
+test suite for xml content job
 """
 import unittest
 from unittest.mock import patch

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-text suite for various methods that list files,
+test suite for various methods that list files,
 across all jobs
 """
 import os
