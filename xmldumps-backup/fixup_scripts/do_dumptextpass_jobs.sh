@@ -307,6 +307,11 @@ run_dumpers() {
 	    wait $pid
 	    if [ $? -ne 0 ]; then
 		echo "failed to generate" ${outfiles[$i]} "with nonzero exit code"
+	    elif $( /usr/local/bin/checkforbz2footer ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.inprog ); then
+		mv ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.inprog ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}
+	    else
+		echo "renaming truncated ${outfiles[$i]}"
+		mv ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.inprog ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.truncated
             fi
 	    ((i++))
 	done
