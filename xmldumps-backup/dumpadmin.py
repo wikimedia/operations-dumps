@@ -38,7 +38,7 @@ def command_has_wiki(pid, wikiname):
         if line:
             fields = line.split("\x00")
             for field in fields:
-                if field in[wikiname, "--wiki=" + wikiname]:
+                if field in [wikiname, "--wiki=" + wikiname]:
                     process_command.close()
                     return True
     process_command.close()
