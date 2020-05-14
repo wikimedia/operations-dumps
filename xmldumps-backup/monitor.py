@@ -10,6 +10,7 @@ from dumps.wikidump import Wiki, Config, Locker
 from dumps.fileutils import FileUtils
 from dumps.report import StatusHtml
 from dumps.runstatusapi import StatusAPI
+from dumps.batch import BatchesFile
 
 
 VERBOSE = False
@@ -20,15 +21,13 @@ def add_to_filename(filename, infix):
     return base + "-" + infix + ("." + suffix if suffix else "")
 
 
-def generate_index(config, other_indexhtml=None, sorted_by_db=False):
+def cleanup_stale_dumplocks(config, dbs):
+    '''
+    clean up all stale locks for dump runs, where staleness
+    is determined by the wiki dump configuration
+    '''
     running = False
     states = []
-
-    if sorted_by_db:
-        dbs = sorted(config.db_list)
-    else:
-        dbs = config.db_list_by_age()
-
     for db_name in dbs:
         try:
             wiki = Wiki(config, db_name)
@@ -43,6 +42,70 @@ def generate_index(config, other_indexhtml=None, sorted_by_db=False):
             # let's show the rest
             if VERBOSE:
                 traceback.print_exc(file=sys.stdout)
+    return running, states
+
+
+def cleanup_batch_jobfile_if_stale(basedir, filename, wiki):
+    '''
+    if the file exists and has an mtime older than the wiki
+    config specifies, remove it and mark the corresponding
+    batch job as aborted
+    '''
+    filepath = os.path.join(basedir, filename)
+    try:
+        age = FileUtils.file_age(filepath)
+    except FileNotFoundError:
+        return
+
+    try:
+        if age > wiki.config.batchjobs_stale_age:
+            os.unlink(filepath)
+            jobname, batch_range = BatchesFile.get_components(filename)
+            batches = BatchesFile(wiki, jobname)
+            # range is of form pnnnpmmm in the filename, but we need
+            # a pair for the batches functions
+            fields = batch_range.split('p')
+            batches.abort((fields[1], fields[2]))
+
+    except Exception:
+        # FIXME we should probably be louder about this
+        if VERBOSE:
+            traceback.print_exc(file=sys.stdout)
+
+
+def cleanup_stale_batch_jobfiles(config, dbs):
+    '''
+    check all existing batch jobfiles (empty files touched periodically
+    as a batch runs) and remove any if they are stale (have not been
+    updated within a certain period of time); also mark the corresponding
+    batch as aborted
+    '''
+    for db_name in dbs:
+        wiki = Wiki(config, db_name)
+        # get the most recent run, assuming that's the one we care about
+        # if someone is rerunning parts of an old run and needs to clean
+        # up stale locks for that, they can manually intervene
+        subdirs = wiki.dump_dirs(private=True)
+        if not subdirs:
+            continue
+        date = subdirs[-1]
+        basedir = os.path.join(wiki.private_dir(), date)
+        files = os.listdir(basedir)
+        for filename in files:
+            if BatchesFile.is_batchjob_file(filename):
+                wiki.set_date(date)
+                cleanup_batch_jobfile_if_stale(basedir, filename, wiki)
+
+
+def generate_index(config, other_indexhtml=None, sorted_by_db=False):
+
+    if sorted_by_db:
+        dbs = sorted(config.db_list)
+    else:
+        dbs = config.db_list_by_age()
+
+    cleanup_stale_batch_jobfiles(config, dbs)
+    running, states = cleanup_stale_dumplocks(config, dbs)
     if running:
         status = "Dumps are in progress..."
     elif exists("maintenance.txt"):

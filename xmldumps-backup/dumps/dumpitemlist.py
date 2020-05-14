@@ -69,7 +69,7 @@ class DumpItemList():
     """
     def __init__(self, wiki, prefetch, prefetchdate, spawn, partnum_todo, checkpoint_file,
                  singleJob, skip_jobs, filepart, page_id_range, dumpjobdata, dump_dir,
-                 verbose):
+                 numbatches, verbose):
         self.wiki = wiki
         self._has_flow = self.wiki.has_flow()
         self._prefetch = prefetch
@@ -84,6 +84,7 @@ class DumpItemList():
         self.dump_dir = dump_dir
         self.jobsperbatch = self.wiki.config.jobsperbatch
         self.page_id_range = page_id_range
+        self.numbatches = numbatches
         self.verbose = verbose
 
         checkpoints = bool(self.wiki.config.checkpoint_time)
@@ -186,7 +187,7 @@ class DumpItemList():
                     self._prefetch, self._prefetchdate, self._spawn,
                     self.wiki, self._get_partnum_todo("articlesdump"),
                     self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
-                    self.checkpoint_file, self.page_id_range, self.verbose))
+                    self.checkpoint_file, self.page_id_range, self.numbatches, self.verbose))
 
         self.append_job_if_needed(
             RecombineXmlDump(
@@ -208,7 +209,7 @@ class DumpItemList():
                     self._prefetch, self._prefetchdate,
                     self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
                     self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
-                    self.checkpoint_file, self.page_id_range, self.verbose))
+                    self.checkpoint_file, self.page_id_range, self.numbatches, self.verbose))
 
         self.append_job_if_needed(
             RecombineXmlDump(
@@ -252,7 +253,8 @@ class DumpItemList():
                 self._prefetch, self._prefetchdate, self._spawn,
                 self.wiki, self._get_partnum_todo("metahistorybz2dump"),
                 self.filepart.get_attr('_pages_per_filepart_history'),
-                checkpoints, self.checkpoint_file, self.page_id_range, self.verbose))
+                checkpoints, self.checkpoint_file, self.page_id_range,
+                self.numbatches, self.verbose))
         self.append_job_if_needed(
             RecombineXmlDump(
                 "metahistorybz2dumprecombine",

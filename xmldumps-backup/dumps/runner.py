@@ -11,6 +11,7 @@ import shutil
 import threading
 import traceback
 import queue
+import socket
 
 from dumps.commandmanagement import CommandsInParallel, CommandPipeline
 from dumps.exceptions import BackupError
@@ -108,7 +109,8 @@ class Runner():
                  job=None, skip_jobs=None,
                  restart=False, notice="", dryrun=False, enabled=None,
                  partnum_todo=None, checkpoint_file=None, page_id_range=None,
-                 skipdone=False, cleanup=False, do_prereqs=False, verbose=False):
+                 skipdone=False, cleanup=False, do_prereqs=False, batches=False,
+                 numbatches=0, verbose=False):
         self.wiki = wiki
         self.db_name = wiki.db_name
         self.prefetch = prefetch
@@ -127,6 +129,8 @@ class Runner():
         self.enabled = enabled
         self.cleanup_old_files = cleanup
         self.do_prereqs = do_prereqs
+        self.batches = batches
+        self.numbatches = numbatches
 
         if self.checkpoint_file is not None:
             dfname = DumpFilename(self.wiki)
@@ -149,6 +153,20 @@ class Runner():
                         "makedir", "clean_old_dumps", "cleanup_old_files",
                         "check_trunc_files", "cleanup_tmp_files"]:
             self.enabled[setting] = True
+
+        if self.batches:
+            # everything done after the job runs is stuff we should skip
+            # as a batchworker
+            # everything during done the course of the job, i.e. check files
+            # for truncation etc, we should do
+            # check_trunc_files is used in move_if_truncated, so keep it,
+            # cleanup_tmp_files is likely dead code
+            for setting in [StatusHtml.NAME, Report.NAME, Checksummer.NAME,
+                            RunInfo.NAME, StatusAPI.NAME, SpecialFileInfo.NAME,
+                            SymLinks.NAME, RunSettings.NAME, Feeds.NAME, Notice.NAME,
+                            "clean_old_dumps"]:
+                if setting in self.enabled:
+                    del self.enabled[setting]
 
         if not self.cleanup_old_files:
             if "cleanup_old_files" in self.enabled:
@@ -204,7 +222,7 @@ class Runner():
         # these must come after the dumpdir setup so we know which directory we are in
         if "logging" in self.enabled and "makedir" in self.enabled:
             dfname = DumpFilename(self.wiki)
-            dfname.new_from_filename(self.wiki.config.log_file)
+            dfname.new_from_filename(self.get_logfile_path())
             self.log_filepath = self.dump_dir.filename_private_path(dfname)
             self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
             self.log = Logger(self.log_filepath)
@@ -225,7 +243,8 @@ class Runner():
                                            self._partnum_todo, self.checkpoint_file,
                                            self.job_requested, self.skip_jobs,
                                            self.filepart_info, self.page_id_range,
-                                           self.dumpjobdata, self.dump_dir, self.verbose)
+                                           self.dumpjobdata, self.dump_dir,
+                                           self.numbatches, self.verbose)
         # only send email failure notices for full runs
         if self.job_requested:
             email = False
@@ -245,6 +264,18 @@ class Runner():
                                            self.log_and_print, self.verbose)
         self.specialfiles_updater = SpecialFileInfo(self.wiki, self.enabled, "json",
                                                     self.log_and_print, self.verbose)
+
+    def get_logfile_path(self):
+        '''
+        if this is a batch worker, we write per batch worker-host logs.
+        for now we assume one batch worker per host, and never running
+        batches for more than one job at a time.
+        before moving to multiple batch workers on the same wiki per host,
+        logging must be revamped.
+        '''
+        if self.batches:
+            return socket.getfqdn() + "-" + self.wiki.config.logfile
+        return self.wiki.config.log_file
 
     def log_queue_reader(self, log):
         """
@@ -439,7 +470,9 @@ class Runner():
                         exc_type, exc_value, exc_traceback)))
                     item.set_status("failed")
 
-        if item.status() == "done":
+        if item.status() == "done" or item.status() == "in-progress":
+            # in progress can happen if we have done some but not all
+            # batches of page content jobs
             self.dumpjobdata.do_after_job(item, self.dump_item_list.dump_items)
         elif item.status() == "waiting" or item.status() == "skipped":
             # don't update the checksum files for this item.
@@ -450,6 +483,78 @@ class Runner():
             # forgets to set the status. This is a failure as well.
             self.run_handle_failure()
         return prereq_job
+
+    def do_run_setup(self):
+        '''
+        make various directories for the run, clean up old stuff lying around,
+        emit messages about the start of the run
+        '''
+        self.make_dir(os.path.join(self.wiki.public_dir(), self.wiki.date))
+        self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
+        FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir, create=True)
+
+        self.show_runner_state("Cleaning up old dumps for %s" % self.db_name)
+        self.clean_old_dumps()
+        self.clean_old_dumps(private=True)
+
+        # Informing what kind backup work we are about to do
+        if self.job_requested:
+            if self.restart:
+                self.log_and_print("Preparing for restart from job %s of %s"
+                                   % (self.job_requested, self.db_name))
+            else:
+                self.log_and_print("Preparing for job %s of %s" %
+                                   (self.job_requested, self.db_name))
+        else:
+            self.show_runner_state("Starting backup of %s" % self.db_name)
+
+    def report_all_the_things(self, status):
+        '''
+        update the index.html, the json file with all the info about files,
+        the status html snippet, pretty much any status info the user could
+        want
+        '''
+        self.report.update_index_html_and_json(status)
+        self.statushtml.update_status_file(status)
+        self.runstatus_updater.write_statusapi_file()
+        self.specialfiles_updater.write_specialfilesinfo_file()
+
+    def show_run_completion_status(self):
+        '''Inform about completion'''
+        if self.job_requested:
+            if self.restart:
+                self.show_runner_state("Completed run restarting from job %s for %s"
+                                       % (self.job_requested, self.db_name))
+            else:
+                self.show_runner_state("Completed job %s for %s"
+                                       % (self.job_requested, self.db_name))
+        else:
+            self.show_runner_state_complete()
+
+    def run_prereqs_and_job(self, item):
+        '''
+        find all preq jobs for current job, run them in order
+        example: we could be given articlesrecombine, for which
+        prereqs are stubs and articles
+        if the prereq chain is longer than 5, there's something wrong
+        so we stop there
+        '''
+        prereq_job = self.do_run_item(item)
+        if self.do_prereqs and prereq_job is not None:
+            doing = []
+            doing.append(item)
+
+            while prereq_job is not None and len(doing) < 5:
+                new_item = self.dump_item_list.find_item_by_name(prereq_job)
+                new_item.set_to_run(True)
+                prereq_job = self.do_run_item(new_item)
+                if prereq_job is not None:
+                    # this job has a dependency too, add to the todo stack
+                    doing.insert(0, new_item)
+            # back up the stack and do the dependents if stack isn't too long.
+            if len(doing) < 5:
+                for subitem in doing:
+                    self.do_run_item(subitem)
 
     def run(self):
         """
@@ -486,74 +591,29 @@ class Runner():
         Maintenance.exit_if_in_maintenance_mode(
             "In maintenance mode, exiting dump of %s" % self.db_name)
 
-        self.make_dir(os.path.join(self.wiki.public_dir(), self.wiki.date))
-        self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
-        FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir, create=True)
-
-        self.show_runner_state("Cleaning up old dumps for %s" % self.db_name)
-        self.clean_old_dumps()
-        self.clean_old_dumps(private=True)
-
-        # Informing what kind backup work we are about to do
-        if self.job_requested:
-            if self.restart:
-                self.log_and_print("Preparing for restart from job %s of %s"
-                                   % (self.job_requested, self.db_name))
-            else:
-                self.log_and_print("Preparing for job %s of %s" %
-                                   (self.job_requested, self.db_name))
-        else:
-            self.show_runner_state("Starting backup of %s" % self.db_name)
+        self.do_run_setup()
 
         self.dumpjobdata.do_before_dump()
 
         for item in self.dump_item_list.dump_items:
-            prereq_job = self.do_run_item(item)
-            if self.do_prereqs and prereq_job is not None:
-                doing = []
-                doing.append(item)
-                # we have the lock so we might as well run the prereq job now.
-                # there may be a string of prereqs not met,
-                # i.e. articlesrecombine -> articles -> stubs
-                # so we're willing to walk back up the list up to five items,
-                # assume there's something really broken if it takes more than that
-                while prereq_job is not None and len(doing) < 5:
-                    new_item = self.dump_item_list.find_item_by_name(prereq_job)
-                    new_item.set_to_run(True)
-                    prereq_job = self.do_run_item(new_item)
-                    if prereq_job is not None:
-                        # this job has a dependency too, add to the todo stack
-                        doing.insert(0, new_item)
-                # back up the stack and do the dependents if stack isn't too long.
-                if len(doing) < 5:
-                    for subitem in doing:
-                        self.do_run_item(subitem)
+            self.run_prereqs_and_job(item)
 
-        # special case
         if self.job_requested == "createdirs":
-            if not os.path.exists(os.path.join(self.wiki.public_dir(), self.wiki.date)):
-                os.makedirs(os.path.join(self.wiki.public_dir(), self.wiki.date))
-            if not os.path.exists(os.path.join(self.wiki.private_dir(), self.wiki.date)):
-                os.makedirs(os.path.join(self.wiki.private_dir(), self.wiki.date))
+            self.make_dir(os.path.join(self.wiki.public_dir(), self.wiki.date))
+            self.make_dir(os.path.join(self.wiki.private_dir(), self.wiki.date))
 
         # we must do this here before the checksums are used for status reports below
         self.dumpjobdata.checksummer.move_chksumfiles_into_place()
 
         if self.dump_item_list.all_possible_jobs_done():
             # All jobs are either in status "done", "waiting", "failed", "skipped"
-            self.report.update_index_html_and_json("done")
-            self.statushtml.update_status_file("done")
-            self.runstatus_updater.write_statusapi_file()
-            self.specialfiles_updater.write_specialfilesinfo_file()
+            self.report_all_the_things('done')
         else:
             # This may happen if we start a dump now and abort before all items are
             # done. Then some are left for example in state "waiting". When
             # afterwards running a specific job, all (but one) of the jobs
             # previously in "waiting" are still in status "waiting"
-            self.report.update_index_html_and_json("partialdone")
-            self.statushtml.update_status_file("partialdone")
-            self.runstatus_updater.write_statusapi_file()
-            self.specialfiles_updater.write_specialfilesinfo_file()
+            self.report_all_the_things('partialdone')
 
         self.dumpjobdata.do_after_dump(self.dump_item_list.dump_items)
 
@@ -562,16 +622,7 @@ class Runner():
                 self.dump_item_list.all_possible_jobs_done()):
             self.dumpjobdata.do_latest_job()
 
-        # Informing about completion
-        if self.job_requested:
-            if self.restart:
-                self.show_runner_state("Completed run restarting from job %s for %s"
-                                       % (self.job_requested, self.db_name))
-            else:
-                self.show_runner_state("Completed job %s for %s"
-                                       % (self.job_requested, self.db_name))
-        else:
-            self.show_runner_state_complete()
+        self.show_run_completion_status()
 
         # let caller know if this was a successful run
         if sum(1 for item in self.dump_item_list.dump_items if item.status() == "failed"):
@@ -634,4 +685,4 @@ class Runner():
                 self.debug("Checkdir dir %s ..." % dirname)
             else:
                 self.debug("Creating %s ..." % dirname)
-                os.makedirs(dirname)
+                os.makedirs(dirname, exist_ok=True)

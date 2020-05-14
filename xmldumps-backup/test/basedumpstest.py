@@ -114,7 +114,7 @@ class BaseDumpsTestCase(unittest.TestCase):
         return dfnames
 
     @staticmethod
-    def setup_xml_files_chkpts(todos, date, excluded=None):
+    def setup_xml_files_chkpts(todos, date, excluded=None, job='articles'):
         """
         make copies of our sample stub and page content files in the right
         directory with the right names
@@ -128,8 +128,8 @@ class BaseDumpsTestCase(unittest.TestCase):
         if 'stub' in todos:
             for part in parts_pageranges:
                 inpath = './test/files/stub-articles-sample' + part + '.xml.gz'
-                basefilename = ('wikidatawiki-{date}-stub-articles'.format(date=date) +
-                                part + '.xml.gz')
+                basefilename = ('wikidatawiki-{date}-stub-{job}'.format(
+                    date=date, job=job) + part + '.xml.gz')
                 outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
                                        date, basefilename)
                 shutil.copyfile(inpath, outpath)
@@ -142,8 +142,8 @@ class BaseDumpsTestCase(unittest.TestCase):
                     inpath = ('./test/files/pages-articles-sample' + part + '.xml-' +
                               pagerange + '.bz2')
                     # wikidatawiki-20200205-pages-articles1.xml-p1p100.bz2
-                    basefilename = ('wikidatawiki-{date}-pages-articles'.format(date=date) +
-                                    part + '.xml-' + pagerange + '.bz2')
+                    basefilename = ('wikidatawiki-{date}-pages-{job}'.format(
+                        date=date, job=job) + part + '.xml-' + pagerange + '.bz2')
                     outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
                                            date, basefilename)
                     shutil.copyfile(inpath, outpath)

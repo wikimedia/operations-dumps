@@ -40,7 +40,7 @@ class TestTablesJobs(BaseDumpsTestCase):
                                       singleJob='tables', skip_jobs=[],
                                       filepart=filepart_info, page_id_range=None,
                                       dumpjobdata=dumpjobdata, dump_dir=self.wd['dump_dir'],
-                                      verbose=False)
+                                      numbatches=0, verbose=False)
 
         runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
                         job=None, skip_jobs=None,

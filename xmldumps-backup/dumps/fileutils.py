@@ -376,7 +376,10 @@ class DumpFilename():
         if '-' not in file_base:
             return False
 
-        (self.db_name, self.date, self.dumpname) = file_base.split('-', 2)
+        try:
+            (self.db_name, self.date, self.dumpname) = file_base.split('-', 2)
+        except ValueError:
+            return False
         if not self.date or not self.dumpname:
             self.dumpname = file_base
         else:

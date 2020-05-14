@@ -136,6 +136,26 @@ class Checksummer(Registered):
                             output_fhandle.write(json.dumps({htype: {"files": {}}}))
                         output_fhandle.close()
 
+    def write_per_file_checksum(self, dfname, dumpjobdata, htype):
+        '''
+        write out a per-file checksum of the specified type, if necessary,
+        returning the checksum if one was produced
+        '''
+        per_file_path = self.get_per_file_path(htype, dfname.filename)
+        if not os.path.exists(per_file_path) or self.is_more_recent(
+                dumpjobdata.dump_dir.filename_public_path(dfname), per_file_path):
+            dcontents = DumpContents(
+                self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
+                None, self.verbose)
+            dumpjobdata.debugfn("Checksumming %s via %s" % (dfname.filename, htype))
+            checksum = dcontents.checksum(htype)
+            if checksum is not None:
+                with open(per_file_path, "wt") as output_perfile_txt:
+                    output_perfile_txt.write("%s  %s\n" % (checksum, dfname.filename))
+                    output_perfile_txt.close()
+                return checksum
+        return None
+
     def checksums(self, dfname, dumpjobdata):
         """
         Run checksum for an output file, and append to the list.
@@ -163,30 +183,20 @@ class Checksummer(Registered):
                     # possibly corrupt file.
                     output = {htype: {"files": {}}}
                 output_json = open(checksum_filename_json, "w")
-                checksum = None
-                update_per_file = False
 
-                per_file_path = self.get_per_file_path(htype, dfname.filename)
-                if os.path.exists(per_file_path) and self.is_more_recent(
-                        per_file_path, dumpjobdata.dump_dir.filename_public_path(dfname)):
+                checksum = self.write_per_file_checksum(dfname, dumpjobdata, htype)
+
+                # no checksum file written because it's already there and is current,
+                # or no checksum was able to be generated. we'll try to read it from
+                # the file where it ought to be
+                if checksum is None:
+                    per_file_path = self.get_per_file_path(htype, dfname.filename)
                     dumpjobdata.debugfn("Reading %s checksum for %s from file %s" % (
                         dfname.filename, htype, per_file_path))
                     checksum = self.get_checksum_from_file(per_file_path)
 
-                if checksum is None:
-                    dcontents = DumpContents(
-                        self.wiki, dumpjobdata.dump_dir.filename_public_path(dfname),
-                        None, self.verbose)
-                    dumpjobdata.debugfn("Checksumming %s via %s" % (dfname.filename, htype))
-                    checksum = dcontents.checksum(htype)
-                    update_per_file = True
-
                 if checksum is not None:
                     output_txt.write("%s  %s\n" % (checksum, dfname.filename))
-                    if update_per_file:
-                        output_perfile_txt = open(per_file_path, "wt")
-                        output_perfile_txt.write("%s  %s\n" % (checksum, dfname.filename))
-                        output_perfile_txt.close()
                     output[htype]["files"][dfname.filename] = checksum
                 # always write a json stanza, even if no file info included.
                 output_json.write(json.dumps(output))

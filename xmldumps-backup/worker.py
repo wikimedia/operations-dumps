@@ -10,6 +10,7 @@ from dumps.wikidump import Wiki, Config, cleanup, Locker
 from dumps.jobs import DumpFilename
 from dumps.runner import Runner
 from dumps.utils import TimeUtils
+from dumps.batch import BatchesFile
 
 
 def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
@@ -83,6 +84,36 @@ def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
         if item.status() != "done":
             return False
     return True
+
+
+def find_next_wiki_with_batches(config, jobs_requested, verbose):
+    # look for wikis that are not done and have batches to be claimed, choose
+    # the.. um... one of them anyways. heh. which one?
+
+    # note that fixed_dump_order had better be used only with the skipdone option,
+    # otherwise the first wiki in the list will be run over and over :-P
+    # we like this order because we can put one of the "bigwikis" that takes
+    # forever to finish, at the head of the list,letting it take however many cores
+    # and be slow, while the rest of the wikis run on the other cores one after
+    # another and finish up.  If we start the slowest one lots later, it might
+    # be the only thing running for several days when the rest of the wikis have
+    # already finished, it doesn't expand to use all available cores (this would be
+    # too hard on the db servers)
+    nextdbs = config.db_list_unsorted
+    maxbatches = 0
+    wiki_todo = None
+
+    if verbose:
+        sys.stderr.write("Finding next wiki with the most unclaimed batches...\n")
+
+    for dbname in nextdbs:
+        wiki = Wiki(config, dbname)
+        batchfile = BatchesFile(wiki, jobs_requested)
+        batches_unclaimed = batchfile.count_unclaimed_batches()
+        if batches_unclaimed > maxbatches:
+            maxbatches = batches_unclaimed
+            wiki_todo = wiki
+    return wiki_todo
 
 
 def find_lock_next_wiki(config, locks_enabled, cutoff, prefetch, prefetchdate,
@@ -159,7 +190,8 @@ def usage(message=None):
     usage_text = """Usage: python3 worker.py [options] [wikidbname]
 Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job,
          --skipjobs, --addnotice, --delnotice, --force, --noprefetch,
-         --prefetchdate, --nospawn, --restartfrom, --log, --cleanup, --cutoff\n")
+         --prefetchdate, --nospawn, --restartfrom, --log, --cleanup, --cutoff,
+         --batches, --numbatches\n")
 --aftercheckpoint: Restart this job from the after specified checkpoint file, doing the
                rest of the job for the appropriate part number if parallel subjobs each
                doing one part are configured, or for the all the rest of the revisions
@@ -211,6 +243,17 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
                run, for the specified job or all jobs
 --prereqs:     If a job fails because the prereq is not done, try to do the prereq,
                a chain of up to 5 such dependencies is permitted.
+--batches:     Look for a batch file, claim and run batches for an executing dump
+               run until there are none left.
+               In this mode the script does not update the index.html file or various
+               status files. This requires the --job argument and the --date argument.
+--numbatches:  If we create a batch file (we are a primary worker), or we simply
+               process an existing batch file (we are a secondary worker invoked with
+               --batches), claim and run only this many batches; if numbatches is 0,
+               do as many as we can with no limit, until done or failure.
+               If we are not either creating batches or processing them but are a
+               regular nonbatched worker, this setting has no effect.
+               default: 0 (do as many batches as we can until done)
 --verbose:     Print lots of stuff (includes printing full backtraces for any exception)
                This is used primarily for debugging
 """
@@ -245,6 +288,8 @@ def main():
         verbose = False
         cleanup_files = False
         do_prereqs = False
+        batchworker = False
+        numbatches = 0
 
         try:
             (options, remainder) = getopt.gnu_getopt(
@@ -252,8 +297,8 @@ def main():
                 ['date=', 'job=', 'skipjobs=', 'configfile=', 'addnotice=',
                  'delnotice', 'force', 'dryrun', 'noprefetch', 'prefetchdate=',
                  'nospawn', 'restartfrom', 'aftercheckpoint=', 'log', 'partnum=',
-                 'checkpoint=', 'pageidrange=', 'cutoff=', "skipdone",
-                 "exclusive", "prereqs", "cleanup", 'verbose'])
+                 'checkpoint=', 'pageidrange=', 'cutoff=', "batches", "numbatches",
+                 "skipdone", "exclusive", "prereqs", "cleanup", 'verbose'])
         except Exception as ex:
             usage("Unknown option specified")
 
@@ -297,6 +342,12 @@ def main():
                 cutoff = val
                 if not cutoff.isdigit() or not len(cutoff) == 8:
                     usage("--cutoff value must be in yyyymmdd format")
+            elif opt == "--batches":
+                batchworker = True
+            elif opt == "--numbatches":
+                numbatches = val
+                if not numbatches.isdigit():
+                    usage("--numbatches must be a number")
             elif opt == "--skipdone":
                 skipdone = True
             elif opt == "--cleanup":
@@ -338,6 +389,12 @@ def main():
             usage("prefetchdate and noprefetch options may not be specified together")
         if prefetchdate is not None and (not prefetchdate.isdigit() or len(prefetchdate) != 8):
             usage("prefetchdate must be of the form YYYYMMDD")
+        if batchworker and not jobs_requested:
+            usage("--batches option requires --job")
+        if batchworker and not date:
+            usage("--batches option requires --date")
+        if batchworker and restart:
+            usage("--batches and --restart options are mutually exclusive")
         if skip_jobs is None:
             skip_jobs = []
         else:
@@ -373,11 +430,10 @@ def main():
             sys.stderr.write("Exiting.\n")
             sys.exit(1)
 
-        if (dryrun or partnum_todo is not None or
-                (jobs_requested is not None and
-                 not restart and
-                 not do_locking and
-                 not force_lock)):
+        if batchworker or dryrun or partnum_todo is not None:
+            locks_enabled = False
+        elif (jobs_requested is not None and
+              not restart and not do_locking and not force_lock):
             locks_enabled = False
         else:
             locks_enabled = True
@@ -419,13 +475,17 @@ def main():
                 check_status_time = bool(jobs_requested is not None)
                 check_job_status = bool(skipdone)
                 check_prereq_status = bool(jobs_requested is not None and skipdone)
-            wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch,
-                                       prefetchdate, spawn,
-                                       html_notice, check_status_time,
-                                       check_job_status, check_prereq_status, date,
-                                       jobs_todo[0] if jobs_todo else None,
-                                       skip_jobs, page_id_range,
-                                       partnum_todo, checkpoint_file, skipdone, restart, verbose)
+            if batchworker:
+                wiki = find_next_wiki_with_batches(config, jobs_requested, verbose=False)
+            else:
+                wiki = find_lock_next_wiki(config, locks_enabled, cutoff, prefetch,
+                                           prefetchdate, spawn,
+                                           html_notice, check_status_time,
+                                           check_job_status, check_prereq_status, date,
+                                           jobs_todo[0] if jobs_todo else None,
+                                           skip_jobs, page_id_range,
+                                           partnum_todo, checkpoint_file,
+                                           skipdone, restart, verbose)
 
         if wiki is not None and wiki:
             if date == 'last':
@@ -473,7 +533,7 @@ def main():
                 runner = Runner(wiki, prefetch, prefetchdate, spawn, None, skip_jobs,
                                 restart, html_notice, dryrun, enabled,
                                 partnum_todo, checkpoint_file, page_id_range, skipdone,
-                                cleanup_files, do_prereqs, verbose)
+                                cleanup_files, do_prereqs, batchworker, numbatches, verbose)
 
                 result = runner.run()
                 if result is not None and result:
@@ -485,7 +545,7 @@ def main():
                     runner = Runner(wiki, prefetch, prefetchdate, spawn, job, skip_jobs,
                                     restart, html_notice, dryrun, enabled,
                                     partnum_todo, checkpoint_file, page_id_range, skipdone,
-                                    cleanup_files, do_prereqs, verbose)
+                                    cleanup_files, do_prereqs, batchworker, numbatches, verbose)
 
                     result = runner.run()
                     if result is not None and result:

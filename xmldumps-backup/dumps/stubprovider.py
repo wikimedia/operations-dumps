@@ -50,7 +50,7 @@ class StubProvider():
         if partnum is not None:
             input_dfnames = [dfname for dfname in input_dfnames
                              if dfname.partnum_int == int(partnum)]
-        if len(input_dfnames) > 1:
+        if len(input_dfnames) > 1 or not input_dfnames:
             # this is an error
             return None
         return input_dfnames[0]

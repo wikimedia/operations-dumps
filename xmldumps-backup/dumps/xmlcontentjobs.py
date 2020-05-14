@@ -10,7 +10,7 @@ import time
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename, DumpContents, FileUtils, PARTS_ANY
 from dumps.utils import MultiVersion
-from dumps.jobs import Dump
+from dumps.jobs import Dump, ProgressCallback
 from dumps.wikidump import Locker
 import dumps.pagerange
 from dumps.pagerange import PageRange, QueryRunner
@@ -19,6 +19,7 @@ from dumps.prefetch import PrefetchFinder
 import dumps.intervals
 from dumps.stubprovider import StubProvider
 from dumps.outfilelister import OutputFileLister
+from dumps.batch import PageContentBatches, BatchProgressCallback
 
 
 class DFNamePageRangeConverter():
@@ -130,7 +131,7 @@ class XmlDump(Dump):
     def __init__(self, subset, name, desc, detail, item_for_stubs, item_for_stubs_recombine,
                  prefetch, prefetchdate, spawn,
                  wiki, partnum_todo, pages_per_part=None, checkpoints=False, checkpoint_file=None,
-                 page_id_range=None, verbose=False):
+                 page_id_range=None, numbatches=0, verbose=False):
         self.jobinfo = {'subset': subset, 'detail': detail, 'desc': desc,
                         'prefetch': prefetch, 'prefetchdate': prefetchdate,
                         'spawn': spawn, 'partnum_todo': partnum_todo,
@@ -161,6 +162,11 @@ class XmlDump(Dump):
                                       self.get_fileparts_list(), self.checkpoint_file,
                                       self._checkpoints_enabled, self.list_dumpnames,
                                       self.jobinfo['pageid_range'])
+
+        # this will get set up only if we are doing batch jobs
+        self.batchprogcallback = None
+        # this is used only if we are configured or called to process batches of page ranges
+        self.numbatches = numbatches
 
     @classmethod
     def check_truncation(cls):
@@ -571,13 +577,33 @@ class XmlDump(Dump):
             commands.append(entry['command'])
         return commands
 
-    def run_batch(self, command_batch, runner):
+    def get_callback(self, callback_type):
+        '''
+        return the right progress callbck depending on whether we are doing
+        batch jobs or not
+        '''
+        if callback_type == 'batch_primary':
+            # we're doing batch jobs on the primary server but we do update status
+            # files and all that
+            return self.batchprogcallback.main_batched_progress_callback
+        if callback_type == 'batch_secondary':
+            # we're doing batch jobs on another host with no updating of
+            # status files and all that
+            return self.batchprogcallback.secondary_batched_progress_callback
+        if callback_type == 'regular':
+            # no batches, no funny stuff. do what we've always done
+            progress = ProgressCallback()
+            return progress.progress_callback
+        return None
+
+    def run_batch(self, command_batch, runner, callback_type):
         """
         run one batch of commands, returning all command series that failed;
         this logs and/or displays error messages to the console on failure
         """
+
         error, broken = runner.run_command(
-            command_batch, callback_stderr=self.progress_callback,
+            command_batch, callback_stderr=self.get_callback(callback_type),
             callback_stderr_arg=runner,
             callback_on_completion=self.command_completion_callback)
         if error:
@@ -686,7 +712,7 @@ class XmlDump(Dump):
                 commands_filtered.append(command_series)
         return commands_filtered
 
-    def run_page_content_commands(self, commands, runner):
+    def run_page_content_commands(self, commands, runner, callback_type):
         """
         generate page content output in batches, with retries if configured
         """
@@ -699,7 +725,7 @@ class XmlDump(Dump):
         commands_left = commands
         while commands_left and (retries < max_retries or retries == 0):
             commands_todo, commands_left = self.get_command_batch(commands_left, runner)
-            broken = self.run_batch(commands_todo, runner)
+            broken = self.run_batch(commands_todo, runner, callback_type)
             if broken:
                 failed_commands.append(broken)
                 errors = True
@@ -715,6 +741,104 @@ class XmlDump(Dump):
                     errors = False
         if errors:
             raise BackupError("error producing xml file(s) %s" % self.get_dumpname())
+
+    def doing_batch_jobs(self, runner):
+        '''
+        return the type of job run we are supposed to be doing
+
+        For right now, this is primary worker if
+            - we normally use multiple processes for this wiki
+            - files are dumped by page ranges
+            - we are not just doing one page range file
+            - we are doing page meta history bz2 dumps
+            - this isn't a batches-only run
+        and secondary worker if the above but it is a batches-only run
+        and regular if neither of the two above apply
+
+        someday everything will be a batch but not for this first take.
+        '''
+        if not runner.wiki.config.content_batches:
+            return 'regular'
+
+        if (self._checkpoints_enabled and self._parts_enabled and
+                self.name() == "metahistorybz2dump" and not self.checkpoint_file):
+            if runner.batches:
+                return 'secondary_batches'
+            return 'primary_batches'
+        return 'regular'
+
+    @staticmethod
+    def get_batch_todos(todo, batch_range):
+        '''
+        return all the todo entries relevant to the specified batch range
+        '''
+        batch_todos = []
+        for entry in todo:
+            if (int(entry['pagerange'][0]) >= int(batch_range[0]) and
+                    int(entry['pagerange'][1]) <= int(batch_range[1])):
+                batch_todos.append(entry)
+        return batch_todos
+
+    def do_run_batches(self, todo, batchsize, batch_type, runner):
+        """
+        Actually run batches; if batch type is primary, we will
+        also do setup of batch files so other workers can claim
+        them
+
+        return True if all batches are complete, False otherwise,
+        throw BackupError on failure
+        """
+        pcbatches = PageContentBatches(self.wiki, self.name(), batchsize)
+        if batch_type == 'batch_primary':
+            # create the initial file with all the batches
+            pcbatches.create()
+        self.batchprogcallback = BatchProgressCallback(pcbatches)
+        batch_range = pcbatches.batchesfile.claim()
+        errors = False
+        batch_counter = 1
+        while batch_range:
+            # set up info for the file used by other processes to check if we are still
+            # running or died
+            pcbatches.set_batchrange("p" + batch_range[0] + "p" + batch_range[1])
+            pcbatches.create_batchfile(pcbatches.batchrange)
+
+            # get the entries from 'todo' for that batch
+            todo_batch = self.get_batch_todos(todo, batch_range)
+            if todo_batch:
+                commands = self.get_commands_for_pagecontent(
+                    todo_batch, runner)
+                try:
+                    self.run_page_content_commands(commands, runner, batch_type)
+                except BackupError:
+                    # we'll try to do all the batches and report an error at
+                    # the end if some of them are failed
+                    errors = True
+            if not errors:
+                pcbatches.batchesfile.done(batch_range)
+                pcbatches.cleanup_batchfile(pcbatches.batchrange)
+            else:
+                pcbatches.batchesfile.fail(batch_range)
+                # FIXME is this the right thing to do?
+                pcbatches.cleanup_batchfile(pcbatches.batchrange)
+            batch_counter += 1
+            # quit now after the requested number of batches (for testing
+            # purposes)
+            if self.numbatches and batch_counter > self.numbatches:
+                break
+            if self.wiki.config.testsleep:
+                time.sleep(self.wiki.config.testsleep)
+            batch_range = pcbatches.batchesfile.claim()
+        if errors:
+            raise BackupError("error producing xml file(s) %s" % self.get_dumpname())
+
+        if self.numbatches:
+            batch_range = pcbatches.batchesfile.claim()
+            if batch_range:
+                # there are still ranges to do. so we are not done
+                # (for testing purposes, do some batches only, leave the rest)
+                pcbatches.batchesfile.unclaim(batch_range)
+                return False
+        return True
 
     def run(self, runner):
         """
@@ -753,21 +877,47 @@ class XmlDump(Dump):
         batchsize = self.get_batchsize(stubs=True)
 
         commands, output_dfnames = self.stubber.get_commands_for_temp_stubs(to_generate, runner)
-        self.stubber.run_temp_stub_commands(runner, commands, batchsize)
 
-        # check that the temp stubs are not garbage, though they may be empty so
-        # we should (but don't yet) skip that check. FIXME
-        self.stubber.check_temp_stubs(runner, self.move_if_truncated, output_dfnames)
+        worker_type = self.doing_batch_jobs(runner)
 
-        # if we had to generate temp stubs, skip over those with no pages in them
+        # secondary batch workers should not generate temp stubs, that should
+        # be done only if we run without batches or by the primary worker
+        if worker_type != 'secondary_batches':
+            self.stubber.run_temp_stub_commands(runner, commands, batchsize)
+            # check that the temp stubs are not garbage, though they may be empty so
+            # we should (but don't yet) skip that check. FIXME
+            self.stubber.check_temp_stubs(runner, self.move_if_truncated, output_dfnames)
+
+        # if we had to generate or need to use temp stubs, skip over those with no pages in them;
         # it's possible a page range has nothing in the stub file because they were all deleted.
         # we have some projects with e.g. 35k pages in a row deleted!
         todo = [entry for entry in wanted if not entry['generate'] or
                 not self.stubber.has_no_pages(entry['stub'], runner, tempdir=True)]
 
-        commands = self.get_commands_for_pagecontent(todo, runner)
+        # now figure out how many page content files we generate at once
+        batchsize = self.get_batchsize()
 
-        self.run_page_content_commands(commands, runner)
+        if worker_type == 'primary_batches':
+            # main worker. do all the setup so other workers as well as this one
+            # can claim and run batches
+            return self.do_run_batches(todo, batchsize, 'batch_primary', runner)
+
+        if worker_type == 'secondary_batches':
+            # claim and run batches only. no index.html or status updates, that's
+            # for the main worker
+
+            # FIXME suppose there are no batch files yet? we exit and that's that?
+            # do we sleep and loop a few times just in case or is there a point?
+            return self.do_run_batches(todo, batchsize, 'batch_secondary', runner)
+
+        if worker_type == 'regular':
+            # the plain old boring 'do everything' code path
+            commands = self.get_commands_for_pagecontent(todo, runner)
+            self.run_page_content_commands(commands, runner, 'regular')
+            return True
+
+        # what kind of batch worker am I? WTF knows.
+        return False
 
     @classmethod
     def build_eta(cls):

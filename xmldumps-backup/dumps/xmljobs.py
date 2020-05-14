@@ -6,7 +6,7 @@ All xml dump jobs except content dump jobs are defined here
 import os
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
-from dumps.jobs import Dump
+from dumps.jobs import Dump, ProgressCallback
 from dumps.outfilelister import OutputFileLister
 
 
@@ -165,12 +165,14 @@ class XmlStub(Dump):
             if not commands:
                 continue
 
+            prog = ProgressCallback()
             error, _broken = runner.run_command(
-                commands, callback_stderr=self.progress_callback,
+                commands, callback_stderr=prog.progress_callback,
                 callback_stderr_arg=runner,
                 callback_on_completion=self.command_completion_callback)
             if error:
                 raise BackupError("error producing stub files")
+        return True
 
 
 class XmlStubFileLister(OutputFileLister):
@@ -325,12 +327,14 @@ class XmlLogging(Dump):
             if not commands:
                 continue
 
+            prog = ProgressCallback()
             error, _broken = runner.run_command(
-                commands, callback_stderr=self.progress_callback,
+                commands, callback_stderr=prog.progress_callback,
                 callback_stderr_arg=runner,
                 callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error dumping log files")
+        return True
 
 
 class AbstractDump(Dump):
@@ -455,12 +459,14 @@ class AbstractDump(Dump):
             if not commands:
                 continue
 
+            prog = ProgressCallback()
             error, _broken = runner.run_command(
-                commands, callback_stderr=self.progress_callback,
+                commands, callback_stderr=prog.progress_callback,
                 callback_stderr_arg=runner,
                 callback_on_completion=self.command_completion_callback)
             if error:
                 raise BackupError("error producing abstract dump")
+        return True
 
     # If the database name looks like it's marked as Chinese language,
     # return a list including Simplified and Traditional versions, so

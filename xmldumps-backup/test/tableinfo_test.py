@@ -38,7 +38,7 @@ class TestTableInfo(BaseDumpsTestCase):
                                       singleJob='tables', skip_jobs=[],
                                       filepart=filepart_info, page_id_range=None,
                                       dumpjobdata=dumpjobdata, dump_dir=self.wd['dump_dir'],
-                                      verbose=False)
+                                      numbatches=0, verbose=False)
 
         # at this point we should have a table info file written, let's make sure
         tinfo = TableInfo(self.wd['wiki'], "json")
@@ -57,7 +57,7 @@ class TestTableInfo(BaseDumpsTestCase):
                                       singleJob='tables', skip_jobs=[],
                                       filepart=filepart_info, page_id_range=None,
                                       dumpjobdata=dumpjobdata, dump_dir=self.wd['dump_dir'],
-                                      verbose=False)
+                                      numbatches=0, verbose=False)
 
         job_names = [item.get_dumpname() for item in dump_item_list.dump_items]
         # check that one of the tables we list as known is in the list of jobs

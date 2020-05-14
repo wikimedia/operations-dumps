@@ -1,6 +1,8 @@
 #!/bin/bash
-tests="basedumpstest command_management_test filelister_test fileutils_test\
-       intervals_test pagerangeinfo_test prefetch_test
+tests="basedumpstest batches_test command_management_test \
+       filelister_test fileutils_test\
+       intervals_test monitor_test pagecontentbatches_test\
+       pagerangeinfo_test prefetch_test\
        recompressjobs_test report_test tableinfo_test\
        tablesjobs_test xml_dump_test_fixtures xml_dump_test"
 

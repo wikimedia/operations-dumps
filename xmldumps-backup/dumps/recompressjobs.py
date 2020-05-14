@@ -8,7 +8,7 @@ from os.path import exists
 import os
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
-from dumps.jobs import Dump
+from dumps.jobs import Dump, ProgressCallback
 from dumps.outfilelister import OutputFileLister
 
 
@@ -192,10 +192,12 @@ class XmlMultiStreamDump(RecompressDump):
         # now we have all the commands, run them in batches til we are done
         batchsize = len(self._pages_per_part)
         errors = False
+
+        prog = ProgressCallback()
         while commands:
             command_batch = commands[:batchsize]
             error, broken = runner.run_command(
-                command_batch, callback_timed=self.progress_callback,
+                command_batch, callback_timed=prog.progress_callback,
                 callback_timed_arg=runner, shell=True,
                 callback_on_completion=self.command_completion_callback)
             if error:
@@ -228,7 +230,7 @@ class XmlMultiStreamDump(RecompressDump):
             self.setup_command_info(runner, command_series, output_dfnames)
         elif self._parts_enabled and not self._partnum_todo:
             self.run_in_batches(runner)
-            return
+            return True
         else:
             content_dfnames = self.oflister.list_outfiles_for_build_command(
                 self.oflister.makeargs(runner.dump_dir))
@@ -239,11 +241,13 @@ class XmlMultiStreamDump(RecompressDump):
                 self.setup_command_info(runner, command_series, output_dfnames)
                 commands.append(command_series)
 
-        error, _broken = runner.run_command(commands, callback_timed=self.progress_callback,
+        prog = ProgressCallback()
+        error, _broken = runner.run_command(commands, callback_timed=prog.progress_callback,
                                             callback_timed_arg=runner, shell=True,
                                             callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
+        return True
 
 
 class XmlMultiStreamFileLister(RecompressFileLister):
@@ -456,8 +460,9 @@ class XmlRecompressDump(RecompressDump):
         if not batch:
             return True
 
+        prog = ProgressCallback()
         error, broken = runner.run_command(
-            batch, callback_timed=self.progress_callback,
+            batch, callback_timed=prog.progress_callback,
             callback_timed_arg=runner, shell=True,
             callback_on_completion=self.command_completion_callback)
         if error:
@@ -538,7 +543,7 @@ class XmlRecompressDump(RecompressDump):
             self.setup_command_info(runner, series, [output_dfname])
         elif self._parts_enabled and not self._partnum_todo:
             self.run_in_batches(runner)
-            return
+            return True
         else:
             output_dfnames_possible = self.oflister.list_outfiles_for_build_command(
                 self.oflister.makeargs(runner.dump_dir))
@@ -548,11 +553,13 @@ class XmlRecompressDump(RecompressDump):
             commands.append(series)
             self.setup_command_info(runner, series, output_dfnames)
 
-        error, _broken = runner.run_command(commands, callback_timed=self.progress_callback,
+        prog = ProgressCallback()
+        error, _broken = runner.run_command(commands, callback_timed=prog.progress_callback,
                                             callback_timed_arg=runner, shell=True,
                                             callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error recompressing bz2 file(s)")
+        return True
 
 
 class XmlRecompressFileLister(RecompressFileLister):

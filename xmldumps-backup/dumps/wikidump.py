@@ -221,6 +221,7 @@ class Config(ConfigParsing):
         self.mail_from = self.conf.get("reporting", "mailfrom")
         self.smtp_server = self.conf.get("reporting", "smtpserver")
         self.stale_age = self.conf.getint("reporting", "staleage")
+        self.batchjobs_stale_age = self.conf.getint("reporting", "batchjobsstaleage")
         self.skip_privatetables = self.conf.getint("reporting", "skipprivatetables")
 
         if not self.conf.has_section('tools'):
@@ -301,6 +302,11 @@ class Config(ConfigParsing):
             "chunks", "maxrevbytes", 1)
         self.revinfostash = self.get_opt_for_proj_or_default(
             "chunks", "revinfostash", 1)
+        self.testsleep = self.get_opt_for_proj_or_default(
+            'chunks', 'testsleep', 1)
+        self.content_batches = self.get_opt_for_proj_or_default(
+            'chunks', 'contentbatchesEnabled', 1)
+
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
         self.multistream_enabled = self.get_opt_for_proj_or_default(

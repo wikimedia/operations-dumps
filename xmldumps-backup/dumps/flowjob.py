@@ -7,7 +7,7 @@ import os
 from dumps.exceptions import BackupError
 from dumps.utils import MultiVersion
 from dumps.fileutils import DumpFilename
-from dumps.jobs import Dump
+from dumps.jobs import Dump, ProgressCallback
 
 
 class FlowDump(Dump):
@@ -59,9 +59,11 @@ class FlowDump(Dump):
         output_dfname = dfnames[0]
         command_series = self.build_command(runner, output_dfname)
         self.setup_command_info(runner, command_series, [output_dfname])
+        prog = ProgressCallback()
         error, _broken = runner.run_command([command_series],
-                                            callback_stderr=self.progress_callback,
+                                            callback_stderr=prog.progress_callback,
                                             callback_stderr_arg=runner,
                                             callback_on_completion=self.command_completion_callback)
         if error:
             raise BackupError("error dumping flow page files")
+        return True

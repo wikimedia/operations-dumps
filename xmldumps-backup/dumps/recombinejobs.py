@@ -8,7 +8,7 @@ import os
 from os.path import exists
 import bz2
 from dumps.exceptions import BackupError
-from dumps.jobs import Dump
+from dumps.jobs import Dump, ProgressCallback
 from dumps.fileutils import DumpFilename
 from dumps.commandmanagement import CommandPipeline
 from dumps.utils import MiscUtils
@@ -201,6 +201,7 @@ class RecombineDump(Dump):
 
     def dd_recombine(self, runner, dfnames, output_dfnames, dumptype):
         error = 0
+        prog = ProgressCallback()
         for output_dfname in output_dfnames:
             input_dfnames = []
             for in_dfname in dfnames:
@@ -213,7 +214,7 @@ class RecombineDump(Dump):
 
             self.setup_command_info(runner, command_series, [output_dfname])
             result, _broken = runner.run_command(
-                [command_series], callback_timed=self.progress_callback,
+                [command_series], callback_timed=prog.progress_callback,
                 callback_timed_arg=runner, shell=False,
                 callback_on_completion=self.command_completion_callback)
             if result:
@@ -254,6 +255,7 @@ class RecombineXmlStub(RecombineDump):
         output_dfnames = self.oflister.list_outfiles_for_build_command(
             self.oflister.makeargs(runner.dump_dir, self.list_dumpnames()))
         self.dd_recombine(runner, dfnames, output_dfnames, 'stubs')
+        return True
 
 
 class RecombineXmlStubFileLister(OutputFileLister):
@@ -326,14 +328,16 @@ class RecombineXmlDump(RecombineDump):
         command_series = self.build_command(runner, input_dfnames, output_dfnames[0])
         self.setup_command_info(runner, command_series, [output_dfnames[0]])
 
+        prog = ProgressCallback()
         error = 0
         error, _broken = runner.run_command(
-            [command_series], callback_timed=self.progress_callback,
+            [command_series], callback_timed=prog.progress_callback,
             callback_timed_arg=runner, shell=True,
             callback_on_completion=self.command_completion_callback)
 
         if error:
             raise BackupError("error recombining xml bz2 files")
+        return True
 
 
 class RecombineXmlRecompressDump(RecombineDump):
@@ -384,17 +388,19 @@ class RecombineXmlRecompressDump(RecombineDump):
         self.cleanup_old_files(runner.dump_dir, runner)
         output_dfnames = self.oflister.list_outfiles_for_build_command(
             self.oflister.makeargs(runner.dump_dir))
+        prog = ProgressCallback()
         for output_dfname in output_dfnames:
             command_series = self.build_command(runner, output_dfname)
             self.setup_command_info(runner, command_series, [output_dfname])
             result, _broken = runner.run_command(
-                [command_series], callback_timed=self.progress_callback,
+                [command_series], callback_timed=prog.progress_callback,
                 callback_timed_arg=runner, shell=True,
                 callback_on_completion=self.command_completion_callback)
             if result:
                 error = result
         if error:
             raise BackupError("error recombining xml bz2 file(s)")
+        return True
 
 
 class RecombineAbstractDump(RecombineDump):
@@ -421,6 +427,7 @@ class RecombineAbstractDump(RecombineDump):
         output_dfnames = self.oflister.list_outfiles_for_build_command(self.oflister.makeargs(
             runner.dump_dir))
         self.dd_recombine(runner, dfnames, output_dfnames, 'abstract')
+        return True
 
 
 class RecombineXmlLoggingDump(RecombineDump):
@@ -445,6 +452,7 @@ class RecombineXmlLoggingDump(RecombineDump):
         output_dfnames = self.oflister.list_outfiles_for_build_command(
             self.oflister.makeargs(runner.dump_dir))
         self.dd_recombine(runner, dfnames, output_dfnames, 'log event')
+        return True
 
 
 class RecombineXmlMultiStreamDump(RecombineDump):
@@ -594,6 +602,7 @@ class RecombineXmlMultiStreamDump(RecombineDump):
 
         self.dd_recombine(runner, content_dfnames, content_output_dfnames, 'multistream')
         self.index_files_recombine(runner, index_dfnames, index_output_dfnames)
+        return True
 
 
 class RecombineXmlMultiStreamFileLister(OutputFileLister):

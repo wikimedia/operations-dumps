@@ -14,6 +14,33 @@ from dumps.utils import TimeUtils
 from dumps.outfilelister import OutputFileLister
 
 
+class ProgressCallback():
+    '''
+    define progress callbacks in their own class
+    '''
+    def __init__(self):
+        self.progress = ''
+
+    def progress_log(self, runner, line):
+        if line:
+            if runner.log:
+                runner.log.add_to_log_queue(line.decode('utf-8'))
+            sys.stderr.write(line.decode('utf-8'))
+        self.progress = line.strip()
+
+    def progress_updates(self, runner):
+        runner.report.update_index_html_and_json()
+        runner.statushtml.update_status_file()
+        runner.dumpjobdata.runinfo.save_dump_runinfo(
+            runner.dumpjobdata.runinfo.report_dump_runinfo(runner.dump_item_list.dump_items))
+
+    def progress_callback(self, runner, line=""):
+        """Receive a status line from a shellout and update the status files."""
+        # pass through...
+        self.progress_log(runner, line)
+        self.progress_updates(runner)
+
+
 class Dump():
     def __init__(self, name, desc, verbose=False):
         self._desc = desc
@@ -148,12 +175,12 @@ class Dump():
                 if prerequisite_item.status() == "failed":
                     raise BackupError("Required job %s failed, not starting job %s" %
                                       (prerequisite_item.name(), self.name()))
-                elif prerequisite_item.status() != "done":
+                if prerequisite_item.status() != "done":
                     raise BackupPrereqError("Required job "
                                             "%s not marked as done, not starting job %s" %
                                             (prerequisite_item.name(), self.name()))
 
-            self.run(runner)
+            done = self.run(runner)
             self.post_run(runner)
         except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -166,11 +193,12 @@ class Dump():
                 self.set_status("failed")
             raise
 
-        self.set_status("done")
+        if done:
+            self.set_status("done")
 
     def run(self, runner):
         """Actually do something!"""
-        pass
+        return True
 
     def post_run(self, runner):
         """Common tasks to run after performing this item's actual dump"""
@@ -265,19 +293,6 @@ class Dump():
             return ret
         return len(self.oflister.list_truncated_empty_outfiles(
             self.oflister.makeargs(runner.dump_dir)))
-
-    def progress_callback(self, runner, line=""):
-        """Receive a status line from a shellout and update the status files."""
-        # pass through...
-        if line:
-            if runner.log:
-                runner.log.add_to_log_queue(line.decode('utf-8'))
-            sys.stderr.write(line.decode('utf-8'))
-        self.progress = line.strip()
-        runner.report.update_index_html_and_json()
-        runner.statushtml.update_status_file()
-        runner.dumpjobdata.runinfo.save_dump_runinfo(
-            runner.dumpjobdata.runinfo.report_dump_runinfo(runner.dump_item_list.dump_items))
 
     def time_to_wait(self):
         # we use wait this many secs for a command to complete that

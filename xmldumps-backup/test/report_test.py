@@ -124,7 +124,7 @@ class TestIndexHtml(BaseDumpsTestCase):
                                       singleJob='noop', skip_jobs=[],
                                       filepart=filepart_info, page_id_range=None,
                                       dumpjobdata=dumpjobdata, dump_dir=self.wd['dump_dir'],
-                                      verbose=False)
+                                      numbatches=0, verbose=False)
         items = dump_item_list.dump_items
 
         reporter = Report(wiki=self.wd['wiki'], enabled=True, dump_dir=self.wd['dump_dir'],

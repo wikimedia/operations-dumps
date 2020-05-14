@@ -43,6 +43,7 @@ class SiteInfoDump(Dump):
             error, _broken = runner.save_command(command_series)
         if error:
             raise BackupError("error dumping siteinfo props %s" % ','.join(self._properties))
+        return True
 
     def build_command(self, runner):
         """

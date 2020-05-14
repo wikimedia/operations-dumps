@@ -81,6 +81,7 @@ class PublicTable(Dump):
     def run(self, runner):
         command_series = self.do_prep(runner)
         self.run_with_retries(runner, command_series)
+        return True
 
     # returns 0 on success, 1 on error
     def save_table(self, runner, command_series):
@@ -122,6 +123,7 @@ class TitleDump(Dump):
             error, _broken = self.save_sql(runner, command_series)
         if error:
             raise BackupError("error dumping titles list")
+        return True
 
     def build_command(self, runner, query, out_dfname):
         if not exists(runner.wiki.config.gzip):
@@ -160,3 +162,4 @@ class AllTitleDump(TitleDump):
             error = self.save_sql(runner, command_series)
         if error:
             raise BackupError("error dumping all titles list")
+        return True
