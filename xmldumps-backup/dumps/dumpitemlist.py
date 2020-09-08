@@ -20,6 +20,7 @@ from dumps.xmljobs import XmlLogging, XmlStub, AbstractDump
 from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 from dumps.flowjob import FlowDump
+from dumps.sample_job import SitelistDump
 
 
 def get_setting(settings, setting_name):
@@ -240,6 +241,8 @@ class DumpItemList():
             FlowDump("xmlflowdump", "content of flow pages in xml format"))
         self.append_job_if_needed(
             FlowDump("xmlflowhistorydump", "history content of flow pages in xml format", True))
+
+        self.append_job_if_needed(SitelistDump("sitelistdump", "List all sites."))
 
         if self.wiki.config.revinfostash:
             recombine_prereq = self.find_item_by_name('xmlstubsdumprecombine')

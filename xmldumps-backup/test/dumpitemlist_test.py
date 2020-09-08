@@ -14,7 +14,7 @@ class TestDumpItemList(BaseDumpsTestCase):
     """
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    def test_do_prep(self, _mock_get_some_stats, mock_get_known_tables):
+    def test_list_creation(self, _mock_get_some_stats, mock_get_known_tables):
         '''
         make sure we get the right command list for tables depending
         on their type (public, None, private)
@@ -54,8 +54,8 @@ class TestDumpItemList(BaseDumpsTestCase):
             item_names = [item.name() for item in dump_item_list.dump_items]
             self.assertEqual(item_names, expected_item_names)
 
-        with self.subTest('skip allpagetitlesdump'):
-            self.wd['wiki'].config.skipjobs = ['allpagetitlesdump']
+        with self.subTest('skip allpagetitlesdump and sitelistdump'):
+            self.wd['wiki'].config.skipjobs = ['allpagetitlesdump', 'sitelistdump']
             dump_item_list = DumpItemList(self.wd['wiki'], prefetch=True, prefetchdate=None,
                                           spawn=True, partnum_todo=None, checkpoint_file=None,
                                           singleJob='tables', skip_jobs=[],
@@ -67,8 +67,8 @@ class TestDumpItemList(BaseDumpsTestCase):
             item_names = [item.name() for item in dump_item_list.dump_items]
             self.assertEqual(item_names, expected_item_names)
 
-        with self.subTest('skip allpagetitlesdump and xmlpagelogsdump'):
-            self.wd['wiki'].config.skipjobs = ['allpagetitlesdump', 'xmlpagelogsdump']
+        with self.subTest('skip allpagetitlesdump, xmlpagelogsdump and sitelistdump'):
+            self.wd['wiki'].config.skipjobs = ['allpagetitlesdump', 'xmlpagelogsdump', 'sitelistdump']
             dump_item_list = DumpItemList(self.wd['wiki'], prefetch=True, prefetchdate=None,
                                           spawn=True, partnum_todo=None, checkpoint_file=None,
                                           singleJob='tables', skip_jobs=[],
