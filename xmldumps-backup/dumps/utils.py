@@ -108,7 +108,7 @@ class DbServerInfo():
 
     def get_db_server_and_prefix(self, do_globals=True):
         """
-        Get the name of a slave server for our cluster; also get
+        Get the name of a db replica for our cluster; also get
         the prefix for all tables for the specific wiki ($wgDBprefix),
         and set attributes db_server, db_port
 
@@ -180,6 +180,7 @@ class DbServerInfo():
         params = ["-h", "%s" % host]  # Host
         if self.get_attr('db_port'):
             params += ["--port", self.get_attr('db_port')]
+        self.wiki.set_db_creds()
         params += ["-u", self.wiki.db_user, self.password_option()]
         params += ["--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet]
         return params

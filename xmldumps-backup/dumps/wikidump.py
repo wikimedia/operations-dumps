@@ -460,10 +460,22 @@ class Wiki():
             if self.config.db_password is not None:
                 self.db_password = self.config.db_password
         else:
-            # ask mediawiki to provide these for us
-            self.db_user, self.db_password = self.get_db_user_and_password()
+            # lazy-load these, because not all jobs or
+            # all uses of this object require db connections
+            self.db_user = None
+            self.db_password = None
 
-    def get_db_user_and_password(self):
+    def set_db_creds(self):
+        '''
+        get and stash credentials if we don't already have them
+        '''
+        if self.db_user is None:
+            # ask mediawiki to provide these for us
+            self.db_user, self.db_password = self._get_db_user_and_password()
+
+    def _get_db_user_and_password(self):
+        # never call this directly, use set_db_creds() instead
+
         # get these by running a MediaWiki maintenance script;
         # yes, this means you need a full installation of MediaWiki
         # (but not web service) in order to use these methods
