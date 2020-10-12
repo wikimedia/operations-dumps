@@ -55,6 +55,38 @@ class StubProvider():
             return None
         return input_dfnames[0]
 
+    def get_stub_dfname_no_parts(self, dump_dir):
+        '''
+        get the stub file pertaining to our dumpname
+        (one of articles, pages-current, pages-history)
+        with no page range or anything else.
+
+        arguments:
+           dump_dir    - DumpDir
+        returns:
+           DumpFilename
+        '''
+        if not self.jobinfo['dumpname'].startswith(self.jobinfo['dumpnamebase']):
+            raise BackupError("dumpname %s of unknown form for this job" % self.jobinfo['dumpname'])
+
+        dumpname = self.jobinfo['dumpname'][len(self.jobinfo['dumpnamebase']):]
+        stub_dumpnames = self.jobinfo['item_for_stubs'].list_dumpnames()
+        for sname in stub_dumpnames:
+            if sname.endswith(dumpname):
+                stub_dumpname = sname
+        input_dfnames = self.jobinfo['item_for_stubs'].oflister.list_outfiles_for_input(
+            self.jobinfo['item_for_stubs'].oflister.makeargs(dump_dir, [stub_dumpname]))
+        if not input_dfnames:
+            return None
+
+        # no partnum, no checkpoint
+        output_dfname = (DumpFilename(input_dfnames[0].wiki, input_dfnames[0].date,
+                                      input_dfnames[0].dumpname, input_dfnames[0].file_type,
+                                      input_dfnames[0].file_ext, None, None,
+                                      input_dfnames[0].temp))
+
+        return output_dfname
+
     def get_commands_for_temp_stubs(self, iofile_pairs, runner):
         """
         put the io file pairs in ascending order (per part if there

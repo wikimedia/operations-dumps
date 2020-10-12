@@ -102,3 +102,4 @@ chunksForPagelogs=
 chunksForAbstract=2
 retryWait=35
 revsMargin=1
+revstashinfo=1

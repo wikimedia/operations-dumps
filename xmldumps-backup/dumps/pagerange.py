@@ -15,6 +15,8 @@ rerunning specific files as needed.
 
 
 import getopt
+import gzip
+import os
 import sys
 import json
 
@@ -178,8 +180,9 @@ class PageRange():
         self.qrunner = qrunner
         self.verbose = verbose
 
-        self.total_pages = qrunner.get_max_id('page')
-        self.total_revs = qrunner.get_max_id('rev')
+        # these only get loaded if we need them
+        self.total_pages = None
+        self.total_revs = None
 
     def get_pageranges_for_jobs(self, numjobs):
         '''
@@ -190,6 +193,10 @@ class PageRange():
                    we want to produce for these parallel runs
         '''
 
+        if self.total_revs is None:
+            self.total_revs = self.qrunner.get_max_id('rev')
+        if self.total_pages is None:
+            self.total_pages = self.qrunner.get_max_id('page')
         ranges = []
         page_start = 1
         numrevs = int(self.total_revs / numjobs) + 1
@@ -214,26 +221,87 @@ class PageRange():
                 break
         return ranges
 
-    def get_pageranges_for_revs(self, page_start, page_end, numrevs, maxbytes):
+    @staticmethod
+    def get_ranges_via_revinfo(revinfo_path, maxbytes, maxrevs,
+                               minpageid, maxpageid, minpagecount=1):
         '''
-        get and return list of tuples consisting of page id start and end
-        which should each, if dumped (full history content dumps) contain about
-        the specified number of revisions (with maxbytes as a hard cutoff to the
-        total byte count of the revisions), and thus run in something
-        close to the same time
-        numrevs    -- number of revisions (approx) for each page range to contain
-        page_start -- don't start at page 1, start at this page instead
-        page_end   -- don't end with last page, end at this page instead
+        given a path to a file with triplets
 
-        all args are ints
-        returns: list of (pagestart, pageend)
+        pageid:bytecount:revcount
+
+        where the bytecount is the length of the revs up to the next
+        page id entry (or until maxpageid, if the entry is the last
+        one in the file), the revcount is the number of revs up to
+        the next page id entry or until maxpageid if the entry is the
+        last in the file,
+
+        return a list of ordered tuples (startpageid, endpageid) covering
+        minpageid to maxpageid,
+        where one or the other or possibly both bytecount or rev count
+        for the range will be over the max specified, but as close as
+        possible given the batched revinfo,
+        OR the number of pages in the range is minpagecount and that
+        puts both revcount and bytecount over the max by an arbitrary
+        amount.
         '''
+        if not os.path.exists(revinfo_path):
+            return []
 
         ranges = []
-        if not page_start:
-            page_start = 1
-        if not page_end:
-            page_end = self.total_pages
+        done = False
+        range_start = minpageid
+        bytecount_sum = 0
+        revcount_sum = 0
+        with gzip.open(revinfo_path, "r") as page_info:
+            while not done:
+                entry = page_info.readline().rstrip()
+                if not entry:
+                    # eof, stash last range
+                    if (range_start < maxpageid):
+                        ranges.append((range_start, maxpageid))
+                    break
+
+                fields = entry.split(b':')
+                pageid = int(fields[0])
+                bytecount = int(fields[1])
+                revcount = int(fields[2])
+
+                if pageid < minpageid:
+                    bytecount_sum = bytecount
+                    revcount_sum = revcount
+                elif pageid >= maxpageid:
+                    # past the range of pages we want, stash last range
+                    ranges.append((range_start, maxpageid))
+                    break
+                elif ((bytecount_sum + bytecount > maxbytes or
+                       revcount_sum + revcount > maxrevs) and
+                      pageid - range_start >= minpagecount):
+                    # we're over maxbytes or max revcount
+                    # and we're over min page count for a range,
+                    # stash the range
+                    ranges.append((range_start, pageid - 1))
+                    range_start = pageid
+                    # we expect that the bulk of the byte and rev count will be in the rest of the
+                    # interval, not the last page. this can be wrong but it won't be a disaster.
+                    bytecount_sum = 0
+                    revcount_sum = 0
+                else:
+                    bytecount_sum += bytecount
+                    revcount_sum += revcount
+            return ranges
+
+    def get_ranges_via_db(self, page_start, page_end, numrevs, maxbytes):
+        '''
+        get page ranges for small page content jobs by repeated
+        queries to the db about the size and length of revisions
+        per range of pages. truly despicable.
+        '''
+        # do it the hard way. wow this is horrible.
+        if self.total_revs is None:
+            self.total_revs = self.qrunner.get_max_id('rev')
+        if self.total_pages is None:
+            self.total_pages = self.qrunner.get_max_id('page')
+        ranges = []
         prevguess = page_start
         if page_start == 1 and page_end == self.total_pages:
             numjobs = int(self.total_revs / numrevs) + 1
@@ -266,6 +334,41 @@ class PageRange():
             ranges.append((start, end))
             if page_start > page_end:
                 break
+        return ranges
+
+    def get_pageranges_for_revs(self, page_start, page_end, numrevs, maxbytes,
+                                revinfo_path=None, minpagecount=5):
+        '''
+        get and return list of tuples consisting of page id start and end
+        which should each, if dumped (full history content dumps) contain about
+        the specified number of revisions (with maxbytes as a hard cutoff to the
+        total byte count of the revisions), and thus run in something
+        close to the same time
+        numrevs    -- number of revisions (approx) for each page range to contain
+        page_start -- don't start at page 1, start at this page instead
+        page_end   -- don't end with last page, end at this page instead
+
+        all args are ints
+        returns: list of (pagestart, pageend)
+        '''
+
+        ranges = []
+        if not page_start:
+            page_start = 1
+        if not page_end:
+            if self.total_pages is None:
+                self.total_pages = self.qrunner.get_max_id('page')
+            page_end = self.total_pages
+
+        if revinfo_path:
+            ranges = self.get_ranges_via_revinfo(revinfo_path, maxbytes, numrevs,
+                                                 page_start, page_end, minpagecount)
+            if ranges:
+                if self.verbose:
+                    print("page ranges retrieved via revinfo for", page_start, page_end)
+                return ranges
+
+        ranges = self.get_ranges_via_db(page_start, page_end, numrevs, maxbytes)
         return ranges
 
     def get_revcount(self, page_start, page_end, estimate):

@@ -239,6 +239,7 @@ class Config(ConfigParsing):
         self.checkforbz2footer = self.conf.get("tools", "checkforbz2footer")
         self.dumplastbz2block = self.conf.get("tools", "dumplastbz2block")
         self.writeuptopageid = self.conf.get("tools", "writeuptopageid")
+        self.revsperpage = self.conf.get("tools", "revsperpage")
         self.recompressxml = self.conf.get("tools", "recompressxml")
 
         if not self.conf.has_section('query'):
@@ -297,7 +298,8 @@ class Config(ConfigParsing):
             "chunks", "lbzip2threads", 0)
         self.maxrevbytes = self.get_opt_for_proj_or_default(
             "chunks", "maxrevbytes", 1)
-
+        self.revinfostash = self.get_opt_for_proj_or_default(
+            "chunks", "revinfostash", 1)
         if not self.conf.has_section('otherformats'):
             self.conf.add_section('otherformats')
         self.multistream_enabled = self.get_opt_for_proj_or_default(

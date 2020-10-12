@@ -3,6 +3,7 @@
 test suite for xml content job
 """
 import os
+import gzip
 import unittest
 from unittest.mock import patch
 from test.basedumpstest import BaseDumpsTestCase
@@ -15,6 +16,7 @@ from dumps.fileutils import DumpFilename
 from dumps.xmljobs import XmlStub
 from dumps.runner import Runner
 from dumps.pagerangeinfo import PageRangeInfo
+from dumps.pagerange import PageRange, QueryRunner
 
 
 class TestXmlDumpWithFixtures(BaseDumpsTestCase):
@@ -32,7 +34,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
             self.wd['wiki'].config.pages_per_filepart_history)
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -51,6 +54,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         make sure that we get good list of page ranges covered by
         stubs when we have sample stub files
         """
+
         self.setup_xml_files_chkpts(['stub'], self.today)
 
         pages_per_part = FilePartInfo.convert_comma_sep(
@@ -64,7 +68,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -91,7 +96,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -124,7 +130,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -147,12 +154,16 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
             self.wd['dump_dir'], self.wd['wiki'].date, stub_pageranges)
         self.assertEqual(todo_dfnames, expected_dfnames)
 
-    def test_get_dfnames_from_cached_pageranges(self):
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    def test_get_dfnames_from_cached_pageranges(self, _mock_get_some_stats, _mock_get_known_tables):
         """
         make sure we can get good dfnames todo given stub files,
         and some content files with some page ranges missing,
         for wikis with checkpoints enabled
         """
+        # we don't need to run the revinfo generation in this test
+        self.wd['wiki'].config.revinfostash = 0
 
         missing = {1: ['p1501p4000', 'p4322p4330'],
                    3: ['p4446p4600', 'p4601p4605'],
@@ -161,9 +172,16 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         missing_ranges = missing[1] + missing[3] + missing[4]
 
         self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
+        self.setup_xml_files_noparts(['stub'], self.today)
 
         pages_per_part = FilePartInfo.convert_comma_sep(
             self.wd['wiki'].config.pages_per_filepart_history)
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
 
         stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                             partnum_todo=False,
@@ -173,7 +191,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -185,7 +204,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         # call our method for testing at last
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
-            stub_pageranges, dfnames_todo, print)
+            stub_pageranges, dfnames_todo, print, runner)
 
         # split up the jobs per number of revisions according to the config
         expected_ranges = {1: ['p1501p2000', 'p2001p2500', 'p2501p3000', 'p3001p3500',
@@ -214,7 +233,12 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         missing_ranges = missing[1] + missing[3] + missing[4]
 
+        # we don't want to run the revinfo generation in this test
+        self.wd['wiki'].config.revinfostash = 0
+
         self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
+        self.setup_xml_files_noparts(['stub'], self.today)
+
         # set up a fake pagerangeinfo file too
         fake_pageranges = [(1501, 4000, 1), (1, 1500, 1), (4001, 4321, 1), (4322, 4330, 1),
                            (4331, 4350, 2), (4351, 4380, 2), (4381, 4443, 2),
@@ -241,7 +265,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -253,7 +278,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         # see what pagerangeinfo has for us
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
-            stub_pageranges, dfnames_todo, print)
+            stub_pageranges, dfnames_todo, print, runner)
 
         # call first test method
         wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
@@ -306,7 +331,12 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         this is the code path that would be executed on a first
         run of the job
         """
+        # we don't want to run the revinfo generation in this test
+        self.wd['wiki'].config.revinfostash = 0
+
         self.setup_xml_files_chkpts(['stub'], self.today)
+        # self.setup_stub_history_files(self.today)
+        self.setup_xml_files_noparts(['stub'], self.today)
 
         runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
                         job=None, skip_jobs=None,
@@ -324,7 +354,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -336,7 +367,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         # pagerangeinfo should be nonexistent
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
-            stub_pageranges, dfnames_todo, print)
+            stub_pageranges, dfnames_todo, print, runner)
 
         # call our first test method
         wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
@@ -391,6 +422,9 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         and some content files with some parts missing,
         for wikis without checkpoints enabled
         """
+        # we don't want to run the revinfo generation in this test
+        self.wd['wiki'].config.revinfostash = 0
+
         self.setup_xml_files_parts(['stub', 'content'], self.today, excluded=['2', '4'])
         self.wd['wiki'].config.checkpoint_time = 0
 
@@ -411,7 +445,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=False, checkpoint_file=None,
@@ -471,7 +506,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=None,
                               checkpoints=False, checkpoint_file=None,
@@ -577,7 +613,11 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         also check that we skip commands where the page content file has
         magically appeared before a batch of commands is to be generated
         """
+        # we don't want to run the revinfo generation in this test
+        self.wd['wiki'].config.revinfostash = 0
+
         self.setup_xml_files_chkpts(['stub'], self.today)
+        self.setup_xml_files_noparts(['stub'], self.today)
 
         runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
                         job=None, skip_jobs=None,
@@ -596,7 +636,8 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=False, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=False, prefetchdate=None,
                               spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -607,7 +648,7 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
             self.wd['dump_dir'], self.wd['wiki'].date)
         # pagerangeinfo should be nonexistent
         dfnames_todo = content_job.get_dfnames_from_cached_pageranges(
-            stub_pageranges, dfnames_todo, print)
+            stub_pageranges, dfnames_todo, print, runner)
         wanted = content_job.get_wanted(dfnames_todo, runner, prefetcher=None)
         # we don't filter out anything here, no checks for empty stubs, who cares
         todo = wanted
@@ -632,6 +673,96 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                            '1.xml-p4001p4330', '2.xml-p4331p4443']
             expected_todo = self.get_bz2_todos(page_ranges)
             self.assertEqual(commands_todo, expected_todo)
+
+    @patch('dumps.xmlcontentjobs.XmlDump.get_revinfofile_path')
+    @patch('dumps.wikidump.Wiki.get_known_tables')
+    @patch('dumps.runner.FilePartInfo.get_some_stats')
+    def test_revinfo_generation(self, _mock_get_some_stats, _mock_get_known_tables,
+                                mock_get_revinfofile_path):
+        '''
+        generate revinfo from a sample stub, writing it to a file via the c util,
+        and verify the output
+        '''
+        self.wd['wiki'].config.revinfostash = 1
+
+        temp_dir = self.TEMPDIR + '/' + self.wd['wiki'].db_name[0] + '/' + self.wd['wiki'].db_name
+        # ordinarily we call wiki_tempdir to get the temp dir name and that mkdirs for us
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
+        revinfo_path = os.path.join(temp_dir, 'wikidata-' + self.today + '-revinfo.gz')
+        mock_get_revinfofile_path.return_value = revinfo_path
+
+        self.setup_stub_history_files(self.today)
+
+        runner = Runner(self.wd['wiki'], prefetch=False, prefetchdate=None, spawn=True,
+                        job=None, skip_jobs=None,
+                        restart=False, notice="", dryrun=False, enabled=None,
+                        partnum_todo=None, checkpoint_file=None, page_id_range=None,
+                        skipdone=False, cleanup=False, do_prereqs=False, verbose=False)
+
+        pages_per_part = FilePartInfo.convert_comma_sep(
+            self.wd['wiki'].config.pages_per_filepart_history)
+
+        stubs_job = XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                            partnum_todo=False,
+                            jobsperbatch=dumps.dumpitemlist.get_int_setting(
+                                self.wd['wiki'].config.jobsperbatch, "xmlstubsdump"),
+                            pages_per_part=pages_per_part)
+
+        content_job = XmlDump("meta-history", "metahistorybz2dump", "short description here",
+                              "long description here",
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=False, prefetchdate=None,
+                              spawn=True, wiki=self.wd['wiki'], partnum_todo=False,
+                              pages_per_part=pages_per_part,
+                              checkpoints=True, checkpoint_file=None,
+                              page_id_range=None, verbose=False)
+
+        # put the rev info into a file in the right location
+        content_job.stash_revinfo(runner, batchsize=2)
+        revinfo_path = content_job.get_revinfofile_path()
+        with gzip.open(revinfo_path, "r") as revinfo_in:
+            revinfo = revinfo_in.read().decode('utf-8')
+        expected_revinfo = "\n".join(["40:11798:8", "42:38582:11", "44:449:7",
+                                      "46:402:8", "48:372:8", "52:411:8",
+                                      "54:438:10", "56:1321:11", "58:440:9",
+                                      "60:154253:38"]) + "\n"
+        self.assertEqual(revinfo, expected_revinfo)
+
+    def test_revinfo_use(self):
+        '''
+        write fake revinfo to the appropriate file, then use this to generate
+        small job page ranges for a specific page start and end of a (presumed) range
+        too large for one job
+        '''
+        temp_dir = self.TEMPDIR + '/' + self.wd['wiki'].db_name[0] + '/' + self.wd['wiki'].db_name
+
+        revinfo_path = os.path.join(temp_dir, 'wikidata-' + self.today + '-revinfo.gz')
+
+        page_start = 40
+        page_end = 60
+
+        revinfo = "\n".join(["40:11798:8", "42:38582:11", "44:449:7",
+                             "46:402:8", "48:372:8", "52:411:8",
+                             "54:438:10", "56:1321:11", "58:440:9",
+                             "60:154253:38"]) + "\n"
+
+        # ordinarily we call wiki_tempdir to get the temp dir name and that mkdirs for us
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+        with gzip.open(revinfo_path, "w+") as revinfo_out:
+            revinfo_out.write(revinfo.encode("utf-8"))
+
+        prange = PageRange(QueryRunner(self.wd['wiki'].db_name, self.wd['wiki'].config,
+                                       False), False)
+
+        # FIXME here we should make sure the output is right
+        ranges = prange.get_pageranges_for_revs(page_start, page_end,
+                                                20, 20000, revinfo_path, 2)
+
+        expected_ranges = [(40, 41), (42, 47), (48, 55), (56, 60)]
+        self.assertEqual(ranges, expected_ranges)
 
 
 if __name__ == '__main__':

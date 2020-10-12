@@ -207,6 +207,30 @@ class BaseDumpsTestCase(unittest.TestCase):
                 with open(outpath, "w") as outfile:
                     outfile.write("<mediawiki></mediawiki>")
 
+    @staticmethod
+    def setup_stub_history_files(date):
+        """
+        make copies of our sample stub history file in the right
+        directory with the right name, then copy the other sample
+        stub parts and pretend they are history ones and the same wiki, heh
+        """
+        inpath = './test/files/stub-history-sample.xml.gz'
+        basefilename = ('wikidatawiki-{date}-stub-meta-history'.format(date=date) +
+                        '.xml.gz')
+        outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                               date, basefilename)
+        shutil.copyfile(inpath, outpath)
+
+        parts = ['1', '2', '3', '4']
+
+        for part in parts:
+            inpath = './test/files/stub-articles-sample' + part + '.xml.gz'
+            basefilename = ('wikidatawiki-{date}-stub-meta-history'.format(date=date) +
+                            part + '.xml.gz')
+            outpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, 'wikidatawiki',
+                                   date, basefilename)
+            shutil.copyfile(inpath, outpath)
+
 
 if __name__ == '__main__':
     unittest.main()

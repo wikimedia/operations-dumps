@@ -107,7 +107,8 @@ class TestFileLister(BaseDumpsTestCase):
         this can be any of the article, meta-current or meta-history jobs'''
         return XmlDump(shortname, self.get_xmlcontent_type(shortname), "short description here",
                        "long description here",
-                       item_for_stubs=xmlstubs_job, prefetch=False, prefetchdate=None,
+                       item_for_stubs=xmlstubs_job, item_for_stubs_recombine=None,
+                       prefetch=False, prefetchdate=None,
                        spawn=True, wiki=wiki, partnum_todo=partnum_todo,
                        pages_per_part=pages_per_part,
                        checkpoints=checkpoints, checkpoint_file=checkpoint_file,

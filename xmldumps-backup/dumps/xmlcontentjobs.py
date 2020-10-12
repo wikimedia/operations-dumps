@@ -8,7 +8,7 @@ from os.path import exists
 import time
 
 from dumps.exceptions import BackupError
-from dumps.fileutils import DumpFilename, FileUtils, PARTS_ANY
+from dumps.fileutils import DumpFilename, DumpContents, FileUtils, PARTS_ANY
 from dumps.utils import MultiVersion
 from dumps.jobs import Dump
 from dumps.wikidump import Locker
@@ -93,7 +93,8 @@ class DFNamePageRangeConverter():
             dfnames.append(dfname)
         return dfnames
 
-    def get_pagerange_jobs_for_file(self, partnum, page_start, page_end, jobinfo):
+    def get_pagerange_jobs_for_file(self, partnum, page_start, page_end, jobinfo,
+                                    revinfo_path=None):
         """
         given an output filename, the start and end pages it should cover,
         split up into output filenames that will each contain roughly the same
@@ -109,7 +110,8 @@ class DFNamePageRangeConverter():
                                            self.verbose), self.verbose)
             ranges = prange.get_pageranges_for_revs(page_start, page_end,
                                                     self.wiki.config.revs_per_job,
-                                                    self.wiki.config.maxrevbytes)
+                                                    self.wiki.config.maxrevbytes,
+                                                    revinfo_path, 5)
         else:
             # strictly speaking this splits up the pages-articles
             # dump more than is needed but who cares
@@ -125,8 +127,8 @@ class DFNamePageRangeConverter():
 
 class XmlDump(Dump):
     """Primary XML dumps, one section at a time."""
-    def __init__(self, subset, name, desc, detail, item_for_stubs, prefetch,
-                 prefetchdate, spawn,
+    def __init__(self, subset, name, desc, detail, item_for_stubs, item_for_stubs_recombine,
+                 prefetch, prefetchdate, spawn,
                  wiki, partnum_todo, pages_per_part=None, checkpoints=False, checkpoint_file=None,
                  page_id_range=None, verbose=False):
         self.jobinfo = {'subset': subset, 'detail': detail, 'desc': desc,
@@ -144,6 +146,8 @@ class XmlDump(Dump):
         self.wiki = wiki
         self.verbose = verbose
         self._prerequisite_items = [self.jobinfo['item_for_stubs']]
+        if item_for_stubs_recombine is not None:
+            self._prerequisite_items.append(item_for_stubs_recombine)
         self.stubber = StubProvider(
             self.wiki, {'dumpname': self.get_dumpname(), 'pagesperpart': self._pages_per_part,
                         'dumpnamebase': self.get_dumpname_base(),
@@ -322,6 +326,7 @@ class XmlDump(Dump):
 
         args: list of DumpFilename, list of (startpage, endpage, partnum)
         """
+        revinfo_path = self.get_revinfofile_path()
         to_return = []
         for dfname in output_dfnames:
             if not dfname.is_checkpoint_file:
@@ -330,12 +335,12 @@ class XmlDump(Dump):
                 # we get all the ranges for the whole part
                 for prange in pageranges:
                     to_return.extend(self.converter.get_pagerange_jobs_for_file(
-                        dfname.partnum_int, prange[0], prange[1], self.jobinfo))
+                        dfname.partnum_int, prange[0], prange[1], self.jobinfo, revinfo_path))
             else:
                 # we get just the one range
                 to_return.extend(self.converter.get_pagerange_jobs_for_file(
                     dfname.partnum_int, dfname.first_page_id_int, dfname.last_page_id_int,
-                    self.jobinfo))
+                    self.jobinfo, revinfo_path))
         return to_return
 
     def setup_wanted(self, dfname, runner, prefetcher):
@@ -366,7 +371,77 @@ class XmlDump(Dump):
             wanted['prefetch'] = ""
         return wanted
 
-    def get_dfnames_from_cached_pageranges(self, stub_pageranges, dfnames_todo, logger):
+    def get_revinfo_dfname(self):
+        '''
+        get the dfname for the revinfo file for this wiki and date
+        '''
+        return DumpFilename(self.wiki, self.wiki.date, "revinfo", filetype=None,
+                            ext="gz", partnum=None, checkpoint=None)
+
+    def get_revinfofile_path(self):
+        '''
+        return the path to the revinfo file for this wiki and dump run
+        the file should contain information about the number and length of revisions
+        for each page or batch of pages
+        '''
+        dfname = self.get_revinfo_dfname()
+        return os.path.join(
+            FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir, True),
+            dfname.filename)
+
+    def get_temp_revinfofile_path(self):
+        '''
+        return the path to the temp revinfo file for this wiki and dump run
+        the file as it is generated should be written here, and only moved into
+        its proper name once output has been verified
+        '''
+        dfname = self.get_revinfo_dfname()
+        dfname_tmp = DumpFilename(dfname.wiki, dfname.date, dfname.dumpname, dfname.file_type,
+                                  dfname.file_ext, dfname.partnum, dfname.checkpoint, True)
+
+        return os.path.join(
+            FileUtils.wiki_tempdir(self.wiki.db_name, self.wiki.config.temp_dir, True),
+            dfname_tmp.filename)
+
+    def stash_revinfo(self, runner, batchsize=10):
+        '''
+        get information from the latest stubs history file about the number and length
+        of revisions for each batch of ten pages and save the output
+        '''
+        if not runner.wiki.config.revinfostash:
+            return
+        revinfo_path = self.get_revinfofile_path()
+        if os.path.exists(revinfo_path):
+            return
+        revinfo_path_tmp = self.get_temp_revinfofile_path()
+        stubs_filename = self.stubber.get_stub_dfname_no_parts(runner.dump_dir)
+
+        stubs_path = os.path.join(self.wiki.public_dir(), self.wiki.date, stubs_filename.filename)
+        if not os.path.exists(stubs_path):
+            raise BackupError("no stub input available to generate rev info")
+
+        commands = [[self.wiki.config.gzip, '-dc', stubs_path],
+                    [self.wiki.config.revsperpage, '-B', str(batchsize), '-a', '-c', '-b'],
+                    [self.wiki.config.gzip]]
+        command_series = runner.get_save_command_series(commands, revinfo_path_tmp)
+        retries = 0
+        maxretries = 3
+        error, _broken = runner.save_command(command_series)
+        while error and retries < maxretries:
+            retries = retries + 1
+            time.sleep(15)
+            error, _broken = runner.save_command(command_series)
+        if error:
+            raise BackupError("error generating revision count info")
+        # check that the file is ok
+        dcontents = DumpContents(runner.wiki, revinfo_path_tmp)
+        if (dcontents.check_if_empty() or dcontents.check_if_truncated() or
+                dcontents.check_if_binary_crap()):
+            os.unlink(revinfo_path_tmp)
+            raise BackupError("error in writing revision count info file")
+        os.rename(revinfo_path_tmp, revinfo_path)
+
+    def get_dfnames_from_cached_pageranges(self, stub_pageranges, dfnames_todo, logger, runner):
         """
         if there is a pagerangeinfo file, get a list of page ranges suitable
         for small jobs (i.e. they don't take forever) from the file;
@@ -392,6 +467,7 @@ class XmlDump(Dump):
             dfnames_todo = self.converter.get_dfnames_from_pageranges(
                 bitesize_pageranges)
         else:
+            self.stash_revinfo(runner)
             dfnames_todo = self.make_bitesize_jobs(dfnames_todo, stub_pageranges)
             bitesize_pageranges = self.converter.get_pageranges_from_dfnames(dfnames_todo)
             pr_info.update_pagerangeinfo(self.wiki, self.jobinfo['subset'], bitesize_pageranges)
@@ -502,8 +578,7 @@ class XmlDump(Dump):
         if error:
             for series in broken:
                 for pipeline in series:
-                    runner.log_and_print("error from commands: %s" % " ".join(
-                        [entry for entry in pipeline]))
+                    runner.log_and_print("error from commands: %s" % " ".join(pipeline))
         return broken
 
     def get_prefetcher(self, wiki):
@@ -557,7 +632,7 @@ class XmlDump(Dump):
 
         if self._checkpoints_enabled and do_bitesize:
             dfnames_todo = self.get_dfnames_from_cached_pageranges(
-                stub_pageranges, dfnames_todo, runner.log_and_print)
+                stub_pageranges, dfnames_todo, runner.log_and_print, runner)
         return dfnames_todo
 
     def get_final_output_dfname(self, command_series, runner):
@@ -763,7 +838,6 @@ class XmlDump(Dump):
         returns:
             list of DumpFilename
         """
-        # FIXME check that we want this and not super of oflister somehow
         dfnames = self.oflister.list_outfiles_for_cleanup(
             self.oflister.makeargs(dump_dir, dump_names))
         return [dfname for dfname in dfnames if dfname.is_temp_file]

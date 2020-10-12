@@ -181,8 +181,9 @@ class DumpItemList():
                     "and primary meta-pages.</b></big>",
                     "This contains current versions of article content, " +
                     "and is the archive most mirror sites will probably want.",
-                    self.find_item_by_name('xmlstubsdump'), self._prefetch,
-                    self._prefetchdate, self._spawn,
+                    self.find_item_by_name('xmlstubsdump'),
+                    None,
+                    self._prefetch, self._prefetchdate, self._spawn,
                     self.wiki, self._get_partnum_todo("articlesdump"),
                     self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
                     self.checkpoint_file, self.page_id_range, self.verbose))
@@ -202,8 +203,9 @@ class DumpItemList():
                     "All pages, current versions only.",
                     "Discussion and user pages are included in this complete archive. " +
                     "Most mirrors won't want this extra material.",
-                    self.find_item_by_name('xmlstubsdump'), self._prefetch,
-                    self._prefetchdate,
+                    self.find_item_by_name('xmlstubsdump'),
+                    None,
+                    self._prefetch, self._prefetchdate,
                     self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
                     self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
                     self.checkpoint_file, self.page_id_range, self.verbose))
@@ -231,6 +233,11 @@ class DumpItemList():
         self.append_job_if_needed(
             FlowDump("xmlflowhistorydump", "history content of flow pages in xml format", True))
 
+        if self.wiki.config.revinfostash:
+            recombine_prereq = self.find_item_by_name('xmlstubsdumprecombine')
+        else:
+            recombine_prereq = None
+
         self.dump_items.append(
             BigXmlDump(
                 "meta-history",
@@ -240,8 +247,9 @@ class DumpItemList():
                 "20 times the archive download size. " +
                 "Suitable for archival and statistical use, " +
                 "most mirror sites won't want or need this.",
-                self.find_item_by_name('xmlstubsdump'), self._prefetch,
-                self._prefetchdate, self._spawn,
+                self.find_item_by_name('xmlstubsdump'),
+                recombine_prereq,
+                self._prefetch, self._prefetchdate, self._spawn,
                 self.wiki, self._get_partnum_todo("metahistorybz2dump"),
                 self.filepart.get_attr('_pages_per_filepart_history'),
                 checkpoints, self.checkpoint_file, self.page_id_range, self.verbose))

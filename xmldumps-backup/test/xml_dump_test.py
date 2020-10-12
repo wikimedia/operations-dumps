@@ -44,7 +44,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -64,7 +65,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=None,
                               checkpoints=True, checkpoint_file=None,
@@ -99,7 +101,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -135,7 +138,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=FilePartInfo.convert_comma_sep(
                                   self.en['wiki'].config.pages_per_filepart_history),
@@ -230,7 +234,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=stubs_job, prefetch=True, prefetchdate=None,
+                              item_for_stubs=stubs_job, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -283,7 +288,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=pages_per_part,
                               checkpoints=True, checkpoint_file=None,
@@ -327,7 +333,8 @@ class TestXmlDump(BaseDumpsTestCase):
 
         content_job = XmlDump("articles", "articlesdump", "short description here",
                               "long description here",
-                              item_for_stubs=None, prefetch=True, prefetchdate=None,
+                              item_for_stubs=None, item_for_stubs_recombine=None,
+                              prefetch=True, prefetchdate=None,
                               spawn=True, wiki=self.en['wiki'], partnum_todo=False,
                               pages_per_part=None,
                               checkpoints=True, checkpoint_file=None,
