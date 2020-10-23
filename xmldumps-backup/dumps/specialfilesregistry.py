@@ -35,7 +35,7 @@ class Registered(metaclass=SpecialFilesRegistry):
         for a given registered class, pass in a configured Wiki object,
         get back a list of the special output files it writes.
         """
-        filewriter = classname(wiki, True)
+        filewriter = classname(wiki)
         return filewriter.get_all_output_files()
 
 

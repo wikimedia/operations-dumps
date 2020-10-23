@@ -13,6 +13,7 @@ import yaml
 from dumps.report import StatusHtml
 from dumps.fileutils import FileUtils
 from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand, MultiVersion
+from dumps.tableinfo import TableInfo
 
 
 class ConfigParsing():
@@ -579,13 +580,48 @@ class Wiki():
         return dates
 
     def get_known_tables(self):
+        '''
+        try to read the list of known tables from a file first, if
+        there's no file, get from the db and, if we have a date for
+        the run, stash the file in the run directory for this
+        wiki and date
+        then return the list of tables
+
+        no locking mechanism used for this method, although it might
+        write out a file into the dump run directory for the given
+        wiki and date. It will move the file into place atomically,
+        and any subsequent reads should get the new file, so I think
+        we'll be ok
+        '''
+        if self.date:
+            tableinfo = TableInfo(self, "json", True)
+            known_tables = tableinfo.get_tableinfo()
+            if known_tables:
+                return known_tables
+
+        # we have no date, or the known tables info file is missing.
+        contents = self.get_known_tables_from_db()
+
+        # only save the file if we have a date for a run to know
+        # where the file goes.
+        if self.date:
+            tableinfo = TableInfo(self, "json", True)
+            tableinfo.write_tableinfo(contents)
+
+        return contents
+
+    def get_known_tables_from_db(self):
+        '''
+        query the database for tables for this wiki and return them
+        '''
         dbserver = DbServerInfo(self, self.db_name)
         commands = dbserver.build_sql_command("'show tables'")
         echocmd = commands[0]
         mysqlcmd = commands[1]
         to_run = " ".join(echocmd) + " | " + " ".join(mysqlcmd) + " --silent"
         results = RunSimpleCommand.run_with_output(to_run, shell=True)
-        return results.decode('utf-8').splitlines()
+        contents = results.decode('utf-8').splitlines()
+        return contents
 
 
 class Locker():
