@@ -184,7 +184,7 @@ class Runner():
                     del self.enabled[setting]
 
         if self.job_requested == "latestlinks" or self.job_requested == "createdirs":
-            for setting in [Checksummer.NAME, Notice.NAME, "makedir",
+            for setting in [Checksummer.NAME, Notice.NAME,
                             "clean_old_dumps", "check_trunc_files"]:
                 if setting in self.enabled:
                     del self.enabled[setting]

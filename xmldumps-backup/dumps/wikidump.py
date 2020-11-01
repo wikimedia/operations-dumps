@@ -594,7 +594,7 @@ class Wiki():
         we'll be ok
         '''
         if self.date:
-            tableinfo = TableInfo(self, "json", True)
+            tableinfo = TableInfo(self, "json")
             known_tables = tableinfo.get_tableinfo()
             if known_tables:
                 return known_tables
@@ -605,7 +605,7 @@ class Wiki():
         # only save the file if we have a date for a run to know
         # where the file goes.
         if self.date:
-            tableinfo = TableInfo(self, "json", True)
+            tableinfo = TableInfo(self, "json")
             tableinfo.write_tableinfo(contents)
 
         return contents
