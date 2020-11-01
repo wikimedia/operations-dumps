@@ -212,6 +212,9 @@ class Runner():
             self.log.daemon = True
             self.log.start()
 
+        # this may need to be available in advance
+        self.make_dir(os.path.join(self.wiki.public_dir(), self.wiki.date))
+
         self.dumpjobdata = DumpRunJobData(self.wiki, self.dump_dir, notice,
                                           self.log_and_print, self.debug, self.enabled,
                                           self.verbose)
