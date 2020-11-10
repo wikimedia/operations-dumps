@@ -19,6 +19,7 @@ usage() {
     cat<<EOF
 Usage: $0 --wiki <dbname> --config <pathtofile>
           --date <YYYYMMDD> --jobinfo num:num:num,...
+	 [--outdir <path>]
          [--skiplock] [--dryrun] [--verbose]
 
 Arguments:
@@ -27,6 +28,10 @@ Arguments:
   --jobinfo  partnum:start:end,partnum2:start:end,...
   --date     date of run
   --numjobs  number of jobs to run simultaneously
+  --outdir   directory into which to write output files
+             (overrides values derived from config file)
+             prefetchs and locks will be read/written to
+	     the configured location however
   --skiplock don't lock the wiki (use with care!)
   --dryrun   don't run commands, show what would have been done
   --verbose  print commands as they are run, etc
@@ -51,6 +56,7 @@ set_defaults() {
     WIKI=""
     RANGEINFO=""
     DATE=""
+    OUTDIR=""
     NUMJOBS=""
     SKIPLOCK=""
     DRYRUN=""
@@ -73,6 +79,9 @@ process_opts () {
 		shift; shift
 	elif [ $1 == "--numjobs" ]; then
 		NUMJOBS="$2"
+		shift; shift
+	elif [ $1 == "--outdir" ]; then
+		OUTDIR="$2"
 		shift; shift
 	elif [ $1 == "--skiplock" ]; then
 		SKIPLOCK="true"
@@ -136,6 +145,12 @@ get_config_settings() {
 	echo "Failed to get base MediaWiki dir from config file, giving up"
 	exit 1
     fi
+
+    # now that we have the root of the dumps output tree, we can set the
+    # output dir if not given by the user
+    if [ -z "$OUTDIR" ]; then
+	OUTDIR="${DUMPFILESBASE}/${WIKI}/${DATE}"
+    fi
 }
 
 get_stub_range() {
@@ -189,7 +204,7 @@ setup_textpass_args() {
     dumptextargs=( "${dumptextargs[@]}" "--wiki=${WIKI}" "--report=1000" "--spawn=$PHP" )
     dumptextargs=( "${dumptextargs[@]}" "--full" )
     dumptextargs=( "${dumptextargs[@]}" "--stub=gzip:${STUB}" )
-    dumptextargs=( "${dumptextargs[@]}" "--output=bzip2:${DUMPFILESBASE}/${WIKI}/${DATE}/${OFILE}.inprog" )
+    dumptextargs=( "${dumptextargs[@]}" "--output=bzip2:${OUTDIR}/${OFILE}.inprog" )
     if [ -n "$PREFETCHES" ]; then
 	dumptextargs=( "${dumptextargs[@]}" "--prefetch=7zip:${PREFETCHES}" )
     fi
@@ -307,11 +322,11 @@ run_dumpers() {
 	    wait $pid
 	    if [ $? -ne 0 ]; then
 		echo "failed to generate" ${outfiles[$i]} "with nonzero exit code"
-	    elif $( /usr/local/bin/checkforbz2footer ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.inprog ); then
-		mv ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.inprog ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}
+	    elif $( /usr/local/bin/checkforbz2footer ${OUTDIR}/${outfiles[$i]}.inprog ); then
+		mv ${OUTDIR}/${outfiles[$i]}.inprog ${OUTDIR}/${outfiles[$i]}
 	    else
 		echo "renaming truncated ${outfiles[$i]}"
-		mv ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.inprog ${DUMPFILESBASE}/${WIKI}/${DATE}/${outfiles[$i]}.truncated
+		mv ${OUTDIR}/${outfiles[$i]}.inprog ${OUTDIR}/${outfiles[$i]}.truncated
             fi
 	    ((i++))
 	done
