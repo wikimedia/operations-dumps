@@ -257,7 +257,7 @@ class PageRange():
                 entry = page_info.readline().rstrip()
                 if not entry:
                     # eof, stash last range
-                    if (range_start < maxpageid):
+                    if range_start < maxpageid:
                         ranges.append((range_start, maxpageid))
                     break
 
@@ -446,6 +446,9 @@ class PageRange():
 
     def adjust_pagerange_for_revbytes(self, page_start, page_end, total_revs, maxbytes):
         """
+        given a page range that might be a candidate, get a good estimate of the
+        cumulative number of bytes in the revisions and adjust the end of the page
+        range accordingly, returning the new end
         """
         # don't do a check, return what we got
         if maxbytes is None:
@@ -584,22 +587,26 @@ def usage(message=None):
         sys.stderr.write("\n")
     usage_message = """
 Usage: pagerange.py --wiki <wikiname> --jobs|--revs <int>
+        [--revinfopath <path>] [--maxbytes <int>]
         [--pagestart <int>] [--pageend <int>]
         [--pad <int>] [--json]
         [--configfile <path>] [--verbose] [--help]
 
---wiki       (-w):  name of db of wiki for which to run
---jobs       (-j):  generate page ranges for this number of jobs
---revs       (-r):  generate page ranges for this number of
-                    revisions per interval
---pagestart  (-s):  page id start for --revs option, default 1
---pageend    (-e):  page id end for --revs option, default last
---configfile (-c):  path to config file
---pad        (-p):  pad numbers out to specified length with
-                    leading zeros for json format
---json       (-J):  write results as json formatted output
---verbose    (-v):  display messages about what the script is doing
---help       (-h):  display this help message
+--wiki        (-w):  name of db of wiki for which to run
+--jobs        (-j):  generate page ranges for this number of jobs
+--revs        (-r):  generate page ranges for this number of
+                     revisions per interval
+--revinfopath (-R):  path to revinfo file, default None
+                     this option requires --revs
+--maxbytes    (-m):  max bytes per pagerange (uncompressed)
+--pagestart   (-s):  page id start for --revs option, default 1
+--pageend     (-e):  page id end for --revs option, default last
+--configfile  (-c):  path to config file
+--pad         (-p):  pad numbers out to specified length with
+                     leading zeros for json format
+--json        (-J):  write results as json formatted output
+--verbose     (-v):  display messages about what the script is doing
+--help        (-h):  display this help message
 """
     sys.stderr.write(usage_message)
     sys.exit(1)
@@ -610,13 +617,15 @@ def check_args(remainder, wiki, revs, jobs):
     whine if there are command line arg problems,
     and exit
     """
-    if remainder > 0:
+    if remainder:
         usage("Unknown option specified")
 
     if wiki is None:
         usage("Mandatory option 'wiki' is not specified")
-    if (revs is None and jobs is None) or (revs and jobs):
-        usage("Exactly one of 'revs' or 'jobs' must be specified")
+    if revs is None and jobs is None:
+        usage("One of 'revs' or 'jobs' must be specified")
+    elif revs and jobs:
+        usage("Only one of 'revs' or 'jobs' must be specified.")
 
 
 def check_int_range_opts(range_opts, names):
@@ -673,7 +682,8 @@ def do_pageranges(prange, range_opts, pad, jsonfmt):
             print(pages_per_job)
     else:
         ranges = prange.get_pageranges_for_revs(range_opts['start'], range_opts['end'],
-                                                range_opts['revs'], range_opts['maxbytes'])
+                                                range_opts['revs'], range_opts['maxbytes'],
+                                                range_opts['revinfopath'])
         if jsonfmt:
             print(json.dumps(jsonify(ranges, pad)))
         else:
@@ -687,17 +697,19 @@ def do_main():
     """
     main entry point
     """
-    range_opts = {'jobs': None, 'revs': None, 'start': None, 'end': None, 'maxbytes': None}
+    range_opts = {'jobs': None, 'revs': None, 'start': None, 'end': None,
+                  'maxbytes': None, 'revinfopath': None}
     wiki = None
     configpath = "wikidump.conf"
     jsonfmt = False
     verbose = False
     pad = 0
     try:
-        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:w:j:s:e:m:r:p:vh",
+        (options, remainder) = getopt.gnu_getopt(sys.argv[1:], "c:w:j:s:e:m:r:R:p:vh",
                                                  ["configfile=", "wiki=", "jobs=", "maxbytes=",
                                                   "pagestart=", "pageend=", "revs=",
-                                                  "pad=", "json", "verbose", "help"])
+                                                  "revinfopath=", "pad=", "json",
+                                                  "verbose", "help"])
     except getopt.GetoptError as err:
         usage("Unknown option specified: " + str(err))
 
@@ -709,9 +721,11 @@ def do_main():
         elif opt in ["-j", "--jobs"]:
             range_opts['jobs'] = val
         elif opt in ["-m", "--maxbytes"]:
-            range_opts['maxbytes'] = int(val)
+            range_opts['maxbytes'] = val
         elif opt in ["-r", "--revs"]:
             range_opts['revs'] = val
+        elif opt in ["-R", "--revinfopath"]:
+            range_opts['revinfopath'] = val
         elif opt in ["-e", "--pageend"]:
             range_opts['end'] = val
         elif opt in ["-s", "--pagestart"]:
@@ -729,7 +743,8 @@ def do_main():
             usage("Help for this script")
 
     check_int_range_opts(range_opts, {'jobs': 'jobs', 'revs': 'revs',
-                                      'end': 'pageend', 'start': 'pagestart'})
+                                      'end': 'pageend', 'start': 'pagestart',
+                                      'maxbytes': 'maxbytes'})
     check_args(remainder, wiki, range_opts['revs'], range_opts['jobs'])
 
     prange = PageRange(QueryRunner(wiki, Config(configpath), verbose), verbose)
