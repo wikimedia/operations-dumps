@@ -162,9 +162,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         and some content files with some page ranges missing,
         for wikis with checkpoints enabled
         """
-        # we don't need to run the revinfo generation in this test
-        self.wd['wiki'].config.revinfostash = 0
-
         missing = {1: ['p1501p4000', 'p4322p4330'],
                    3: ['p4446p4600', 'p4601p4605'],
                    4: ['p5341p5345']}
@@ -232,9 +229,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
                    4: ['p5341p5345']}
 
         missing_ranges = missing[1] + missing[3] + missing[4]
-
-        # we don't want to run the revinfo generation in this test
-        self.wd['wiki'].config.revinfostash = 0
 
         self.setup_xml_files_chkpts(['stub', 'content'], self.today, excluded=missing_ranges)
         self.setup_xml_files_noparts(['stub'], self.today)
@@ -331,9 +325,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         this is the code path that would be executed on a first
         run of the job
         """
-        # we don't want to run the revinfo generation in this test
-        self.wd['wiki'].config.revinfostash = 0
-
         self.setup_xml_files_chkpts(['stub'], self.today)
         # self.setup_stub_history_files(self.today)
         self.setup_xml_files_noparts(['stub'], self.today)
@@ -422,9 +413,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         and some content files with some parts missing,
         for wikis without checkpoints enabled
         """
-        # we don't want to run the revinfo generation in this test
-        self.wd['wiki'].config.revinfostash = 0
-
         self.setup_xml_files_parts(['stub', 'content'], self.today, excluded=['2', '4'])
         self.wd['wiki'].config.checkpoint_time = 0
 
@@ -613,9 +601,6 @@ class TestXmlDumpWithFixtures(BaseDumpsTestCase):
         also check that we skip commands where the page content file has
         magically appeared before a batch of commands is to be generated
         """
-        # we don't want to run the revinfo generation in this test
-        self.wd['wiki'].config.revinfostash = 0
-
         self.setup_xml_files_chkpts(['stub'], self.today)
         self.setup_xml_files_noparts(['stub'], self.today)
 

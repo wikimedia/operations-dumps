@@ -407,9 +407,14 @@ class XmlDump(Dump):
         '''
         get information from the latest stubs history file about the number and length
         of revisions for each batch of ten pages and save the output
+
+        this is only generated when full page content history is being produced
         '''
         if not runner.wiki.config.revinfostash:
             return
+        if 'history' not in self.jobinfo['subset']:
+            return
+
         revinfo_path = self.get_revinfofile_path()
         if os.path.exists(revinfo_path):
             return
