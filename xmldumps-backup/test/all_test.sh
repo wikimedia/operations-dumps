@@ -1,5 +1,6 @@
 #!/bin/bash
 tests="basedumpstest batches_test command_management_test \
+       dumpitemlist_test \
        filelister_test fileutils_test\
        intervals_test monitor_test pagecontentbatches_test\
        pagerangeinfo_test prefetch_test\

@@ -123,7 +123,7 @@ class DumpItemList():
                 # keep the public type check around for back compat for now
                 if ('type' not in tables_configured[table] or
                         tables_configured[table]['type'] == 'public'):
-                    self.dump_items.append(PublicTable(
+                    self.append_job_if_needed(PublicTable(
                         table,
                         normalize_tablejob_name(tables_configured[table]['job']),
                         tables_configured[table]['description']))
@@ -141,93 +141,100 @@ class DumpItemList():
         for apijob_type in apijobs_configured:
             if apijob_type == 'siteinfo':
                 for apijob in apijobs_configured[apijob_type]:
-                    self.dump_items.append(SiteInfoDump(
+                    self.append_job_if_needed(SiteInfoDump(
                         apijobs_configured[apijob_type][apijob]['properties'],
                         apijobs_configured[apijob_type][apijob]['job'],
                         apijobs_configured[apijob_type][apijob]['description']))
             else:
                 raise BackupError("Unknown api job type in config: " + apijob_type)
 
-        self.dump_items.extend([TitleDump("pagetitlesdump",
-                                          "List of page titles in main namespace"),
-                                AllTitleDump("allpagetitlesdump",
-                                             "List of all page titles"),
-                                AbstractDump("abstractsdump",
-                                             "Extracted page abstracts for Yahoo",
-                                             self._get_partnum_todo("abstractsdump"),
-                                             self.wiki.db_name,
-                                             get_int_setting(self.jobsperbatch, "abstractsdump"),
-                                             self.filepart.get_attr(
-                                                 '_pages_per_filepart_abstract'))])
+        self.append_job_if_needed(TitleDump("pagetitlesdump",
+                                            "List of page titles in main namespace"))
+        self.append_job_if_needed(AllTitleDump("allpagetitlesdump",
+                                               "List of all page titles"))
+        self.append_job_if_needed(AbstractDump("abstractsdump",
+                                               "Extracted page abstracts for Yahoo",
+                                               self._get_partnum_todo("abstractsdump"),
+                                               self.wiki.db_name,
+                                               get_int_setting(self.jobsperbatch, "abstractsdump"),
+                                               self.filepart.get_attr(
+                                                   '_pages_per_filepart_abstract')))
 
-        self.append_job_if_needed(RecombineAbstractDump(
-            "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
-            self.find_item_by_name('abstractsdump')))
+        if self.find_item_by_name('abstractsdump') is not None:
+            self.append_job_if_needed(RecombineAbstractDump(
+                "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
+                self.find_item_by_name('abstractsdump')))
 
-        self.dump_items.append(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
-                                       self._get_partnum_todo("xmlstubsdump"),
-                                       get_int_setting(self.jobsperbatch, "xmlstubsdump"),
-                                       self.filepart.get_attr('_pages_per_filepart_history')))
+        self.append_job_if_needed(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+                                          self._get_partnum_todo("xmlstubsdump"),
+                                          get_int_setting(self.jobsperbatch, "xmlstubsdump"),
+                                          self.filepart.get_attr('_pages_per_filepart_history')))
 
-        self.append_job_if_needed(RecombineXmlStub(
-            "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
-            self.find_item_by_name('xmlstubsdump')))
+        if self.find_item_by_name('xmlstubsdump') is not None:
+            self.append_job_if_needed(RecombineXmlStub(
+                "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
+                self.find_item_by_name('xmlstubsdump')))
 
         # NOTE that _pages_per_filepart_history passed here should be the same
         # as the stubs job, since these files get generated from the stubs
-        self.dump_items.append(
-            XmlDump("articles",
-                    "articlesdump",
-                    "<big><b>Articles, templates, media/file descriptions, " +
+        if self.find_item_by_name('xmlstubsdump') is not None:
+            self.append_job_if_needed(
+                XmlDump("articles",
+                        "articlesdump",
+                        "<big><b>Articles, templates, media/file descriptions, " +
+                        "and primary meta-pages.</b></big>",
+                        "This contains current versions of article content, " +
+                        "and is the archive most mirror sites will probably want.",
+                        self.find_item_by_name('xmlstubsdump'),
+                        None,
+                        self._prefetch, self._prefetchdate, self._spawn,
+                        self.wiki, self._get_partnum_todo("articlesdump"),
+                        self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
+                        self.checkpoint_file, self.page_id_range, self.numbatches, self.verbose))
+
+        if self.find_item_by_name('articlesdump') is not None:
+            self.append_job_if_needed(
+                RecombineXmlDump(
+                    "articlesdumprecombine",
+                    "<big><b>Recombine articles, templates, media/file descriptions, " +
                     "and primary meta-pages.</b></big>",
-                    "This contains current versions of article content, " +
-                    "and is the archive most mirror sites will probably want.",
-                    self.find_item_by_name('xmlstubsdump'),
-                    None,
-                    self._prefetch, self._prefetchdate, self._spawn,
-                    self.wiki, self._get_partnum_todo("articlesdump"),
-                    self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
-                    self.checkpoint_file, self.page_id_range, self.numbatches, self.verbose))
+                    "This contains current versions of article content, and is " +
+                    "the archive most mirror sites will probably want.",
+                    self.find_item_by_name('articlesdump')))
 
-        self.append_job_if_needed(
-            RecombineXmlDump(
-                "articlesdumprecombine",
-                "<big><b>Recombine articles, templates, media/file descriptions, " +
-                "and primary meta-pages.</b></big>",
-                "This contains current versions of article content, and is " +
-                "the archive most mirror sites will probably want.",
-                self.find_item_by_name('articlesdump')))
+        if self.find_item_by_name('xmlstubsdump') is not None:
+            self.append_job_if_needed(
+                XmlDump("meta-current",
+                        "metacurrentdump",
+                        "All pages, current versions only.",
+                        "Discussion and user pages are included in this complete archive. " +
+                        "Most mirrors won't want this extra material.",
+                        self.find_item_by_name('xmlstubsdump'),
+                        None,
+                        self._prefetch, self._prefetchdate,
+                        self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
+                        self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
+                        self.checkpoint_file, self.page_id_range, self.numbatches, self.verbose))
 
-        self.dump_items.append(
-            XmlDump("meta-current",
-                    "metacurrentdump",
-                    "All pages, current versions only.",
+        if self.find_item_by_name('metacurrentdump') is not None:
+            self.append_job_if_needed(
+                RecombineXmlDump(
+                    "metacurrentdumprecombine",
+                    "Recombine all pages, current versions only.",
                     "Discussion and user pages are included in this complete archive. " +
                     "Most mirrors won't want this extra material.",
-                    self.find_item_by_name('xmlstubsdump'),
-                    None,
-                    self._prefetch, self._prefetchdate,
-                    self._spawn, self.wiki, self._get_partnum_todo("metacurrentdump"),
-                    self.filepart.get_attr('_pages_per_filepart_history'), checkpoints,
-                    self.checkpoint_file, self.page_id_range, self.numbatches, self.verbose))
+                    self.find_item_by_name('metacurrentdump')))
 
         self.append_job_if_needed(
-            RecombineXmlDump(
-                "metacurrentdumprecombine",
-                "Recombine all pages, current versions only.",
-                "Discussion and user pages are included in this complete archive. " +
-                "Most mirrors won't want this extra material.",
-                self.find_item_by_name('metacurrentdump')))
-
-        self.dump_items.append(
             XmlLogging("Log events to all pages and users.",
                        self._get_partnum_todo("xmlpagelogsdump"),
                        get_int_setting(self.jobsperbatch, "xmlpagelogsdump"),
                        self.filepart.get_attr('_logitems_per_filepart_pagelogs')))
 
-        self.append_job_if_needed(RecombineXmlLoggingDump(
-            "xmlpagelogsdumprecombine", "Recombine Log events to all pages and users",
-            self.find_item_by_name('xmlpagelogsdump')))
+        if self.find_item_by_name('xmlpagelogsdump') is not None:
+            self.append_job_if_needed(RecombineXmlLoggingDump(
+                "xmlpagelogsdumprecombine", "Recombine Log events to all pages and users",
+                self.find_item_by_name('xmlpagelogsdump')))
 
         self.append_job_if_needed(
             FlowDump("xmlflowdump", "content of flow pages in xml format"))
@@ -239,7 +246,7 @@ class DumpItemList():
         else:
             recombine_prereq = None
 
-        self.dump_items.append(
+        self.append_job_if_needed(
             BigXmlDump(
                 "meta-history",
                 "metahistorybz2dump",
@@ -255,55 +262,60 @@ class DumpItemList():
                 self.filepart.get_attr('_pages_per_filepart_history'),
                 checkpoints, self.checkpoint_file, self.page_id_range,
                 self.numbatches, self.verbose))
-        self.append_job_if_needed(
-            RecombineXmlDump(
-                "metahistorybz2dumprecombine",
-                "Recombine all pages with complete edit history (.bz2)",
-                "These dumps can be *very* large, uncompressing up to " +
-                "100 times the archive download size. " +
-                "Suitable for archival and statistical use, " +
-                "most mirror sites won't want or need this.",
-                self.find_item_by_name('metahistorybz2dump')))
-        self.dump_items.append(
-            XmlRecompressDump(
-                "meta-history",
-                "metahistory7zdump",
-                "All pages with complete edit history (.7z)",
-                "These dumps can be *very* large, uncompressing up to " +
-                "100 times the archive download size. " +
-                "Suitable for archival and statistical use, " +
-                "most mirror sites won't want or need this.",
-                self.find_item_by_name('metahistorybz2dump'),
-                self.wiki, self._get_partnum_todo("metahistory7zdump"),
-                self.filepart.get_attr('_pages_per_filepart_history'),
-                checkpoints, self.checkpoint_file))
-        self.append_job_if_needed(
-            RecombineXmlRecompressDump(
-                "metahistory7zdumprecombine",
-                "Recombine all pages with complete edit history (.7z)",
-                "These dumps can be *very* large, uncompressing " +
-                "up to 100 times the archive download size. " +
-                "Suitable for archival and statistical use, " +
-                "most mirror sites won't want or need this.",
-                self.find_item_by_name('metahistory7zdump'), self.wiki))
+        if self.find_item_by_name('metahistorybz2dump') is not None:
+            self.append_job_if_needed(
+                RecombineXmlDump(
+                    "metahistorybz2dumprecombine",
+                    "Recombine all pages with complete edit history (.bz2)",
+                    "These dumps can be *very* large, uncompressing up to " +
+                    "100 times the archive download size. " +
+                    "Suitable for archival and statistical use, " +
+                    "most mirror sites won't want or need this.",
+                    self.find_item_by_name('metahistorybz2dump')))
+        if self.find_item_by_name('metahistorybz2dump') is not None:
+            self.append_job_if_needed(
+                XmlRecompressDump(
+                    "meta-history",
+                    "metahistory7zdump",
+                    "All pages with complete edit history (.7z)",
+                    "These dumps can be *very* large, uncompressing up to " +
+                    "100 times the archive download size. " +
+                    "Suitable for archival and statistical use, " +
+                    "most mirror sites won't want or need this.",
+                    self.find_item_by_name('metahistorybz2dump'),
+                    self.wiki, self._get_partnum_todo("metahistory7zdump"),
+                    self.filepart.get_attr('_pages_per_filepart_history'),
+                    checkpoints, self.checkpoint_file))
+        if self.find_item_by_name('metahistory7zdump') is not None:
+            self.append_job_if_needed(
+                RecombineXmlRecompressDump(
+                    "metahistory7zdumprecombine",
+                    "Recombine all pages with complete edit history (.7z)",
+                    "These dumps can be *very* large, uncompressing " +
+                    "up to 100 times the archive download size. " +
+                    "Suitable for archival and statistical use, " +
+                    "most mirror sites won't want or need this.",
+                    self.find_item_by_name('metahistory7zdump'), self.wiki))
         # doing this only for recombined/full articles dump
         if self.wiki.config.multistream_enabled:
             input_for_multistream = "articlesdump"
-            self.dump_items.append(
-                XmlMultiStreamDump(
-                    "articles",
-                    "articlesmultistreamdump",
-                    "Articles, templates, media/file descriptions, and " +
-                    "primary meta-pages, in multiple bz2 streams, 100 pages per stream",
-                    "This contains current versions of article content, " +
-                    "in concatenated bz2 streams, 100 pages per stream, plus a separate" +
-                    "index of page titles/ids and offsets into the file.  " +
-                    "Useful for offline readers, or for parallel processing of pages.",
-                    self.find_item_by_name(input_for_multistream), self.wiki, None,
-                    self.filepart.get_attr('_pages_per_filepart_history')))
-            self.append_job_if_needed(RecombineXmlMultiStreamDump(
-                "articlesmultistreamdumprecombine", "Recombine multiple bz2 streams",
-                self.find_item_by_name('articlesmultistreamdump')))
+            if self.find_item_by_name(input_for_multistream) is not None:
+                self.append_job_if_needed(
+                    XmlMultiStreamDump(
+                        "articles",
+                        "articlesmultistreamdump",
+                        "Articles, templates, media/file descriptions, and " +
+                        "primary meta-pages, in multiple bz2 streams, 100 pages per stream",
+                        "This contains current versions of article content, " +
+                        "in concatenated bz2 streams, 100 pages per stream, plus a separate" +
+                        "index of page titles/ids and offsets into the file.  " +
+                        "Useful for offline readers, or for parallel processing of pages.",
+                        self.find_item_by_name(input_for_multistream), self.wiki, None,
+                        self.filepart.get_attr('_pages_per_filepart_history')))
+            if self.find_item_by_name('articlesmultistreamdump') is not None:
+                self.append_job_if_needed(RecombineXmlMultiStreamDump(
+                    "articlesmultistreamdumprecombine", "Recombine multiple bz2 streams",
+                    self.find_item_by_name('articlesmultistreamdump')))
 
         results = self.dumpjobdata.runinfo.get_old_runinfo_from_file()
         if results:
@@ -320,6 +332,10 @@ class DumpItemList():
         according to the config settings for the wiki etc,
         this job can be run here
         """
+        if job.name() in self.wiki.config.skipjobs:
+            # these are jobs we always skip, such as sample jobs
+            # intended as examples only
+            return
         if job.name().endswith("recombine"):
             if self.filepart.parts_enabled():
                 if (('metahistory' in job.name() and self.filepart._recombine_history) or
@@ -329,6 +345,8 @@ class DumpItemList():
         elif 'flow' in job.name():
             if self._has_flow:
                 self.dump_items.append(job)
+        else:
+            self.dump_items.append(job)
 
     def all_possible_jobs_done(self):
         '''
