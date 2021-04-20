@@ -167,7 +167,7 @@ class DbServerInfo():
 
         self.apibase = "/".join([
             wgcanonserver.rstrip('/'),
-            wgscriptpath.rstrip('/'),
+            wgscriptpath.strip('/'),
             "api.php"])
 
     def mysql_standard_parameters(self):
