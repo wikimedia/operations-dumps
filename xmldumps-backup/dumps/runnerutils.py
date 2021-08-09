@@ -38,8 +38,7 @@ class Maintenance():
         if Maintenance.in_maintenance_mode():
             if message:
                 raise BackupError(message)
-            else:
-                raise BackupError("In maintenance mode, exiting.")
+            raise BackupError("In maintenance mode, exiting.")
 
 
 class FailureHandler():
@@ -489,7 +488,8 @@ class RunInfo(Registered):
                     exc_type, exc_value, exc_traceback)))
             return False
 
-    def get_all_output_files(self):
+    @staticmethod
+    def get_all_output_files():
         """
         return list of all runinfo files in all formats
         """
@@ -519,8 +519,9 @@ class RunInfo(Registered):
             return os.path.join(self.wiki.public_dir(), date)
         return os.path.join(self.wiki.public_dir(), self.wiki.date)
 
-    # format: name:%; updated:%; status:%
-    def _get_old_runinfo_from_line(self, line):
+    @staticmethod
+    def _get_old_runinfo_from_line(line):
+        # format: name:%; updated:%; status:%
         # get rid of leading/trailing/blanks
         line = line.strip(" ")
         line = line.replace("\n", "")
@@ -541,8 +542,9 @@ class RunInfo(Registered):
             FileUtils.write_file_in_place(dump_runinfo_filename, content[fmt],
                                           self.wiki.config.fileperms)
 
-    # format: name:%; updated:%; status:%
-    def _get_status_from_runinfo_line(self, line, job_name):
+    @staticmethod
+    def _get_status_from_runinfo_line(line, job_name):
+        # format: name:%; updated:%; status:%
         # get rid of leading/trailing/embedded blanks
         line = line.replace(" ", "")
         line = line.replace("\n", "")
@@ -576,8 +578,9 @@ class RunInfo(Registered):
                     exc_type, exc_value, exc_traceback)))
             return None
 
-    # find desc in there, look for "class='done'"
-    def _get_status_from_html_line(self, line, desc):
+    @staticmethod
+    def _get_status_from_html_line(line, desc):
+        # find desc in there, look for "class='done'"
         if ">" + desc + "<" not in line:
             return None
         if "<li class='done'>" in line:
