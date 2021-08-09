@@ -212,6 +212,8 @@ class RunSettings():
         with open(settings_path, "r") as settings_fhandle:
             contents = settings_fhandle.read()
             settings_fhandle.close()
+        if not contents:
+            return None
         if contents[-1] == '\n':
             contents = contents[:-1]
         return json.loads(contents)
