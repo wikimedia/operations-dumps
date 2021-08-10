@@ -190,7 +190,9 @@ class RunSettings():
 
         settings_path = self.get_settings_path()
         if os.path.exists(settings_path):
-            return
+            # if there are valid settings in it, we'll use those
+            if self.read_settings():
+                return
         setting_info = self.get_settings_from_config()
 
         if not os.path.exists(os.path.join(self.wiki.public_dir(), self.wiki.date)):
