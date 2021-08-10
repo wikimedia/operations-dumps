@@ -215,7 +215,10 @@ class RunSettings():
             return None
         if contents[-1] == '\n':
             contents = contents[:-1]
-        return json.loads(contents)
+        try:
+            return json.loads(contents)
+        except json.JSONDecodeError:
+            return None
 
     def apply_settings_to_config(self, settings=None):
         '''
