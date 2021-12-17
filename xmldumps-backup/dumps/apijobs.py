@@ -11,6 +11,7 @@ class SiteInfoDump(Dump):
         self._properties = properties
         self._parts_enabled = False
         Dump.__init__(self, name, desc)
+        self._version = "1"
 
     def get_dumpname(self):
         return "siteinfo-" + self.name()
@@ -51,10 +52,24 @@ class SiteInfoDump(Dump):
         for the wiki via the MediaWiki ai
         """
         #  https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo
-        #         &siprop=namespaces|namespacealiases|magicwords&format=json
+        #         &siprop=namespaces|namespacealiases|magicwords&format=json*formatversion=1
         base_url = runner.db_server_info.get_attr('apibase')
         properties = '|'.join(self._properties)
-        api_url = "{baseurl}?action=query&meta=siteinfo&siprop={props}&format=json"
-        url = api_url.format(baseurl=base_url, props=properties)
+        api_url = "{baseurl}?action=query&meta=siteinfo&siprop={props}&format=json&formatversion={vers}"
+        url = api_url.format(baseurl=base_url, props=properties, vers=self._version)
         command = [["/usr/bin/curl", "-s", url], [runner.wiki.config.gzip]]
         return command
+
+
+class SiteInfoV2Dump(SiteInfoDump):
+    """
+    Dump of siteinfo properties using API formatversion=2
+
+    https://www.mediawiki.org/wiki/API:JSON_version_2
+    """
+    def __init__(self, properties, name, desc):
+        super().__init__(properties, name, desc)
+        self._version = "2"
+
+    def get_dumpname(self):
+        return "siteinfo2-" + self.name()

@@ -11,7 +11,7 @@ import traceback
 
 from dumps.exceptions import BackupError
 
-from dumps.apijobs import SiteInfoDump
+from dumps.apijobs import SiteInfoDump, SiteInfoV2Dump
 from dumps.tablesjobs import PublicTable, TitleDump, AllTitleDump
 from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
@@ -143,6 +143,12 @@ class DumpItemList():
             if apijob_type == 'siteinfo':
                 for apijob in apijobs_configured[apijob_type]:
                     self.append_job_if_needed(SiteInfoDump(
+                        apijobs_configured[apijob_type][apijob]['properties'],
+                        apijobs_configured[apijob_type][apijob]['job'],
+                        apijobs_configured[apijob_type][apijob]['description']))
+            elif apijob_type == "siteinfov2":
+                for apijob in apijobs_configured[apijob_type]:
+                    self.append_job_if_needed(SiteInfoV2Dump(
                         apijobs_configured[apijob_type][apijob]['properties'],
                         apijobs_configured[apijob_type][apijob]['job'],
                         apijobs_configured[apijob_type][apijob]['description']))
