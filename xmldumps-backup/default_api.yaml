@@ -5,7 +5,7 @@ siteinfo:
       description: Namespaces, namespace aliases, magic words.
       properties: [namespaces,namespacealiases,magicwords,general]
 siteinfov2:
-    namespaces:
-      job: namespaces
+    namespacesv2:
+      job: namespacesv2
       description: Namespaces, namespace aliases, magic words (formatversion=2).
       properties: [namespaces,namespacealiases,magicwords,general]
