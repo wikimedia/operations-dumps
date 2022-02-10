@@ -139,6 +139,9 @@ class DumpItemList():
                     exc_type, exc_value, exc_traceback)))
 
         apijobs_configured = self.wiki.config.get_apijobs_from_conf()
+        if not self.check_dup_api_jobnames(apijobs_configured):
+            raise BackupError("More than one api job has the same job name, fix your yaml config")
+
         for apijob_type in apijobs_configured:
             if apijob_type == 'siteinfo':
                 for apijob in apijobs_configured[apijob_type]:
@@ -457,3 +460,13 @@ class DumpItemList():
                     item.set_to_run(runinfo["to_run"])
                 return True
         return False
+
+    @staticmethod
+    def check_dup_api_jobnames(apijobs_configured):
+        '''return True if the jobnames in the configured api jobs have no duplicates,
+        False otherwise'''
+        api_jobnames = []
+        for apijob_type in apijobs_configured:
+            for apijob in apijobs_configured[apijob_type]:
+                api_jobnames.append(apijobs_configured[apijob_type][apijob]['job'])
+        return len(api_jobnames) == len(set(api_jobnames))
