@@ -179,6 +179,15 @@ def gzippit_append(outfile):
     return process
 
 
+def bzip2it_append(outfile):
+    '''
+    start a bzip2 process that reads from stdin
+    and appends to the specified file
+    '''
+    process = Popen("bzip2 >> %s" % outfile, stdin=PIPE, shell=True, bufsize=-1)
+    return process
+
+
 def gzippit(outfile):
     '''
     start a gzip process that reads from stdin

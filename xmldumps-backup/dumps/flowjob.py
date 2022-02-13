@@ -5,7 +5,6 @@ Dumps of Flow pages
 
 import os
 from dumps.exceptions import BackupError
-from dumps.utils import MultiVersion
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump, ProgressCallback
 
@@ -36,16 +35,17 @@ class FlowDump(Dump):
             raise BackupError("php command %s not found" % runner.wiki.config.php)
 
         flow_output_fpath = runner.dump_dir.filename_public_path(output_dfname)
-        script_command = MultiVersion.mw_script_as_array(
-            runner.wiki.config, "extensions/Flow/maintenance/dumpBackup.php")
 
-        command = [runner.wiki.config.php]
-        command.extend(script_command)
-        command.extend(["--wiki=%s" % runner.db_name,
-                        "--current", "--report=1000",
-                        "--output=bzip2:%s" % DumpFilename.get_inprogress_name(flow_output_fpath)])
+        config_file_arg = runner.wiki.config.files[0]
+        if runner.wiki.config.override_section:
+            config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
+        command = ["/usr/bin/python3", "xmlflow.py", "--config",
+                   config_file_arg, "--wiki", runner.db_name,
+                   "--outfile", DumpFilename.get_inprogress_name(flow_output_fpath)]
+
         if self.history:
-            command.append("--full")
+            command.append("--history")
+
         pipeline = [command]
         series = [pipeline]
         return series
