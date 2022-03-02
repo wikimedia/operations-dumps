@@ -977,6 +977,7 @@ class XmlDump(Dump):
         dump_command.extend(["--wiki=%s" % runner.db_name,
                              "%s" % stub_option,
                              "%s" % prefetch,
+                             "--dbgroupdefault=dump",
                              "--report=1000",
                              "%s" % spawn])
 

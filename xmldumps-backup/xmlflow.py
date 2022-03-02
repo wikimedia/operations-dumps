@@ -40,6 +40,7 @@ def do_flowbackup(wikidb, outfile, history,
     command = [wikiconf.php] + script_command
 
     command.extend(["--wiki=%s" % wikidb,
+                    "--dbgroupdefault=dump",
                     "--output=file:%s" % outfiles['flow']['temp'],
                     "--current", "--report=1000"])
 

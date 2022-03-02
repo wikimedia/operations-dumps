@@ -58,6 +58,7 @@ class SitelistDump(Dump):
         commands = [runner.wiki.config.php]
         commands.extend(script_command)
         commands.extend(["--wiki={wiki}".format(wiki=runner.db_name),
+                         "--dbgroupdefault=dump",
                          "php://stdout"])
         pipeline = [commands, [runner.wiki.config.gzip]]
         return pipeline

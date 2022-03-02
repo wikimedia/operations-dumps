@@ -39,6 +39,7 @@ def dologsbackup(wikidb, outfile,
 
     command.extend(["--wiki=%s" % wikidb,
                     "--logs", "--report=1000",
+                    "--dbgroupdefault=dump",
                     "--output=file:%s" % outfiles['logs']['temp']
                     ])
 

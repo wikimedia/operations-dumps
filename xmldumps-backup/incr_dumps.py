@@ -334,6 +334,7 @@ class IncrDump(MiscDumpBase):
         command = [self.wiki.config.php]
         command.extend(script_command)
         command.extend(["--wiki=%s" % self.wiki.db_name, "--stub", "--quiet",
+                        "--dbgroupdefault=dump",
                         "--output=gzip:%s" % os.path.join(outputdir, outputfile),
                         "--revrange", "--revstart=%s" % start_revid,
                         "--revend=%s" % end_revid])
@@ -368,7 +369,7 @@ class IncrDump(MiscDumpBase):
         stuboutputfile = stubfile.get_filename()
         command.extend(["--wiki=%s" % self.wiki.db_name,
                         "--stub=gzip:%s" % os.path.join(outputdir, stuboutputfile),
-                        "--quiet",
+                        "--quiet", "--dbgroupdefault=dump",
                         "--spawn=%s" % self.wiki.config.php,
                         "--output=bzip2:%s" % os.path.join(outputdir, outputfile)])
         if self.dryrun:

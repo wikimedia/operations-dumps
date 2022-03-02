@@ -54,6 +54,7 @@ def do_abstractsbackup(wikidb, output_files, variants,
 
     command.extend(["--wiki=%s" % wikidb, abstract_cmd_dir,
                     abstract_filter,
+                    "--dbgroupdefault=dump",
                     "--current", "--report=1000", "--namespaces=0"])
 
     for filetype in outfiles:

@@ -71,10 +71,6 @@ class TimeUtils():
 
 class MultiVersion():
     @staticmethod
-    def mw_script_as_string(config, maintenance_script):
-        return " ".join(MultiVersion.mw_script_as_array(config, maintenance_script))
-
-    @staticmethod
     def mw_script_as_array(config, maintenance_script):
         mw_script_location = os.path.join(config.multiversion, "MWScript.php")
         if exists(mw_script_location):

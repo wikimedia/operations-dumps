@@ -127,6 +127,7 @@ def dostubsbackup(wikidb, history_file, current_file, articles_file,
     command = [wikiconf.php] + script_command
 
     command.extend(["--wiki=%s" % wikidb,
+                    "--dbgroupdefault=dump",
                     "--full", "--stub", "--report=1000"])
     if history_file is not None:
         command.append("--output=file:%s" % outfiles['history']['temp'])
