@@ -10,6 +10,9 @@
 # page-meta-history bz2 output files
 # optionally locks wiki for date during the run
 #
+# output files are written to the wiki's temp dir and only
+# moved into place once they are verified
+#
 # does NOT: update md5s, status, dumpruninfo, symlinks, etc.
 # does NOT: clean up old dumps, remove old files from run
 # this should be done by running a noop via the regular dumps system
@@ -183,7 +186,7 @@ get_stub_files() {
 }
 
 setup_textpass_args() {
-    #/usr/bin/php7.2 /srv/mediawiki/multiversion/MWScript.php dumpTextPass.php --wiki=wikidatawiki --stub=gzip:/mnt/dumpsdata/xmldatadumps/temp/w/wikidatawiki/wikidatawiki-20190901-stub-meta-history1.xml-p82872p98330.gz --prefetch=7zip:/mnt/dumpsdata/xmldatadumps/public/wikidatawiki/20190801/wikidatawiki-20190801-pages-meta-history1.xml-p74429p85729.7z;/mnt/dumpsdata/xmldatadumps/public/wikidatawiki/20190801/wikidatawiki-20190801-pages-meta-history1.xml-p85730p103181.7z --report=1000 --spawn=/usr/bin/php7.2 --output=bzip2:/mnt/dumpsdata/xmldatadumps/public/wikidatawiki/20190901/wikidatawiki-20190901-pages-meta-history1.xml-p82872p98330.bz2.inprog --full
+    #/usr/bin/php7.2 /srv/mediawiki/multiversion/MWScript.php dumpTextPass.php --wiki=wikidatawiki --stub=gzip:/mnt/dumpsdata/xmldatadumps/temp/w/wikidatawiki/wikidatawiki-20190901-stub-meta-history1.xml-p82872p98330.gz --prefetch=7zip:/mnt/dumpsdata/xmldatadumps/public/wikidatawiki/20190801/wikidatawiki-20190801-pages-meta-history1.xml-p74429p85729.7z;/mnt/dumpsdata/xmldatadumps/public/wikidatawiki/20190801/wikidatawiki-20190801-pages-meta-history1.xml-p85730p103181.7z --report=1000 --spawn=/usr/bin/php7.2 --output=bzip2:/mnt/dumpsdata/xmldatadumps/temp/w/wikidatawiki/wikidatawiki-20190901-pages-meta-history1.xml-p82872p98330.bz2.inprog --full
 
     # sanity check of date
     result=`date -d "$DATE"`
@@ -204,7 +207,7 @@ setup_textpass_args() {
     dumptextargs=( "${dumptextargs[@]}" "--wiki=${WIKI}" "--report=1000" "--spawn=$PHP" )
     dumptextargs=( "${dumptextargs[@]}" "--full" )
     dumptextargs=( "${dumptextargs[@]}" "--stub=gzip:${STUB}" )
-    dumptextargs=( "${dumptextargs[@]}" "--output=bzip2:${OUTDIR}/${OFILE}.inprog" )
+    dumptextargs=( "${dumptextargs[@]}" "--output=bzip2:${TEMPFILESDIR}/${OFILE}.inprog" )
     if [ -n "$PREFETCHES" ]; then
 	dumptextargs=( "${dumptextargs[@]}" "--prefetch=7zip:${PREFETCHES}" )
     fi
@@ -303,15 +306,27 @@ run_dumpers() {
 	    echo "New batch..."
 	fi
 	for stub_doing in ${stubs_batch[@]}; do
+	    EXISTS=""
 	    get_stub_range $stub_doing
 	    outputfile="${WIKI}-${DATE}-pages-meta-history${PARTNUM}.xml-p${STUBSTART}p${STUBEND}.bz2"
 	    get_prefetches $STUBSTART $STUBEND || exit 1
 	    combine_prefetches
 	    setup_textpass_args "$stub_doing" "$outputfile" ${prefetches[@]}
-	    if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
-		echo "$PHP ${dumptextargs[@]}"
+
+	    # skip if there is a partial or complete output file already there
+	    if [[ -f "${OUTDIR}/${outputfile}.inprog" ]] || [[ -f "${OUTDIR}/${outputfile}" ]]; then
+		if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
+	            echo "Output file ${OUTDIR}/${outputfile} already in progress, skipping"
+		fi
+		EXISTS="true"
 	    fi
-	    if [ -z "$DRYRUN" ]; then
+
+	    if [ -z "$EXISTS" ]; then
+		if [ -n "$DRYRUN" -o -n "$VERBOSE" ]; then
+		    echo "$PHP ${dumptextargs[@]}"
+		fi
+	    fi
+	    if [ -z "$DRYRUN" -a -z "$EXISTS" ]; then
 	        $PHP ${dumptextargs[@]} &
 	        wait_pids+=($!)
 		outfiles+=("$outputfile")
@@ -322,11 +337,18 @@ run_dumpers() {
 	    wait $pid
 	    if [ $? -ne 0 ]; then
 		echo "failed to generate" ${outfiles[$i]} "with nonzero exit code"
-	    elif $( /usr/local/bin/checkforbz2footer ${OUTDIR}/${outfiles[$i]}.inprog ); then
-		mv ${OUTDIR}/${outfiles[$i]}.inprog ${OUTDIR}/${outfiles[$i]}
+	    elif $( /usr/local/bin/checkforbz2footer ${TEMPFILESDIR}/${outfiles[$i]}.inprog ); then
+		# should we move over an existing file? no, we don't know what put it there, so manual
+		# intervention will be required in that case. this may not indicate an error though
+		if [ -f "${OUTDIR}/${outfiles[$i]}" ]; then
+		    echo "File ${OUTDIR}/${outfiles[$i]} already exists, not writing over it"
+		    mv ${TEMPFILESDIR}/${outfiles[$i]}.inprog ${TEMPFILESDIR}/${outfiles[$i]}
+		else
+		    mv ${TEMPFILESDIR}/${outfiles[$i]}.inprog ${OUTDIR}/${outfiles[$i]}
+		fi
 	    else
 		echo "renaming truncated ${outfiles[$i]}"
-		mv ${OUTDIR}/${outfiles[$i]}.inprog ${OUTDIR}/${outfiles[$i]}.truncated
+		mv ${TEMPFILESDIR}/${outfiles[$i]}.inprog ${TEMPFILESDIR}/${outfiles[$i]}.truncated
             fi
 	    ((i++))
 	done
