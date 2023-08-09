@@ -12,8 +12,8 @@
 #
 # does NOT: update md5s, status, dumpruninfo, symlinks, etc.
 # does NOT: clean up old dumps, remove old files from run
-# does NOT: move inprog files to their final locations, this
-# must be done by hand later (should it though? consider)
+# this should be done by running a noop via the regular dumps system
+# or some similar means
 
 usage() {
     cat<<EOF

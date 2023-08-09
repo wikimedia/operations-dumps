@@ -44,7 +44,7 @@ class Runner():
                 print("Skipping wiki %s, file %s exists already"
                       % (wiki.db_name, outfile_path))
             return None, None
-        return(outfile_base, outfile_path)
+        return (outfile_base, outfile_path)
 
     def run(self, wiki, filenameformat, output_dir, overwrite, base):
         '''
@@ -428,9 +428,9 @@ def get_args():
         elif opt in ["-h", "--help"]:
             usage("Help for this script:")
 
-    return(configfile, date, dryrun, filenameformat,
-           output_dir, overwrite, wikiname, script,
-           basename, query, retries, verbose, remainder)
+    return (configfile, date, dryrun, filenameformat,
+            output_dir, overwrite, wikiname, script,
+            basename, query, retries, verbose, remainder)
 
 
 def do_main():

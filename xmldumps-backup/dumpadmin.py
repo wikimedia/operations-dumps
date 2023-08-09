@@ -97,9 +97,9 @@ def get_lockfile_content(filename):
         content = lockfile.read()
         lines = content.splitlines()
         if len(lines) != 1:
-            return(None, None)
+            return (None, None)
         host, pid = lines[0].split(" ", 1)
-        return(host, pid)
+        return (host, pid)
 
 
 def create_file(filename):

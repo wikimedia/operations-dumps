@@ -115,7 +115,7 @@ def get_args():
 
     if not wiki or not date or not configfile:
         usage("Arguments 'wiki', 'date' and 'configfile' must be set")
-    return(wiki, date, configfile, verbose)
+    return (wiki, date, configfile, verbose)
 
 
 def do_main():

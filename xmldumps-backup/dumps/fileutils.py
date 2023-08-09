@@ -123,7 +123,7 @@ class FileUtils():
             size = os.path.getsize(path)
             return (timestamp, size)
         except Exception as ex:
-            return(None, None)
+            return (None, None)
 
     @staticmethod
     def wiki_tempdir(wikiname, tempdirbase, create=False):
