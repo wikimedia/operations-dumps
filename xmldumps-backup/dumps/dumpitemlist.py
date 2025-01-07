@@ -13,10 +13,10 @@ from dumps.exceptions import BackupError
 
 from dumps.apijobs import SiteInfoDump, SiteInfoV2Dump
 from dumps.tablesjobs import PublicTable, TitleDump, AllTitleDump
-from dumps.recombinejobs import RecombineAbstractDump, RecombineXmlDump
+from dumps.recombinejobs import RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
 from dumps.recombinejobs import RecombineXmlLoggingDump, RecombineXmlMultiStreamDump
-from dumps.xmljobs import XmlLogging, XmlStub, AbstractDump
+from dumps.xmljobs import XmlLogging, XmlStub
 from dumps.xmlcontentjobs import XmlDump, BigXmlDump
 from dumps.recompressjobs import XmlMultiStreamDump, XmlRecompressDump
 from dumps.flowjob import FlowDump
@@ -162,18 +162,6 @@ class DumpItemList():
                                             "List of page titles in main namespace"))
         self.append_job_if_needed(AllTitleDump("allpagetitlesdump",
                                                "List of all page titles"))
-        self.append_job_if_needed(AbstractDump("abstractsdump",
-                                               "Extracted page abstracts for Yahoo",
-                                               self._get_partnum_todo("abstractsdump"),
-                                               self.wiki.db_name,
-                                               get_int_setting(self.jobsperbatch, "abstractsdump"),
-                                               self.filepart.get_attr(
-                                                   '_pages_per_filepart_abstract')))
-
-        if self.find_item_by_name('abstractsdump') is not None:
-            self.append_job_if_needed(RecombineAbstractDump(
-                "abstractsdumprecombine", "Recombine extracted page abstracts for Yahoo",
-                self.find_item_by_name('abstractsdump')))
 
         self.append_job_if_needed(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
                                           self._get_partnum_todo("xmlstubsdump"),
