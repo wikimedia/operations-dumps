@@ -403,33 +403,6 @@ class RecombineXmlRecompressDump(RecombineDump):
         return True
 
 
-class RecombineAbstractDump(RecombineDump):
-    def __init__(self, name, desc, item_for_recombine):
-        # no partnum_todo, no parts generally (False, None), even though input may have it
-        self.item_for_recombine = item_for_recombine
-        self._prerequisite_items = [self.item_for_recombine]
-        super().__init__(name, desc, 'gz')
-        # the input may have checkpoints but the output will not.
-        self._checkpoints_enabled = False
-
-    def get_filetype(self):
-        return self.item_for_recombine.get_filetype()
-
-    def get_file_ext(self):
-        return self.item_for_recombine.get_file_ext()
-
-    def get_dumpname(self):
-        return self.item_for_recombine.get_dumpname()
-
-    def run(self, runner):
-        dfnames = self.item_for_recombine.oflister.list_outfiles_for_input(
-            self.oflister.makeargs(runner.dump_dir))
-        output_dfnames = self.oflister.list_outfiles_for_build_command(self.oflister.makeargs(
-            runner.dump_dir))
-        self.dd_recombine(runner, dfnames, output_dfnames, 'abstract')
-        return True
-
-
 class RecombineXmlLoggingDump(RecombineDump):
     def __init__(self, name, desc, item_for_recombine):
         # no partnum_todo, no parts generally (False, None), even though input may have it

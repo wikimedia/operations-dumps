@@ -159,7 +159,7 @@ class Report(Registered):
         # find the one prev to me.
         # why? we might be rerunning a job from an older dumps. we might have two
         # runs going at once (think en pedia, one finishing up the history, another
-        # starting at the beginning to get the new abstracts and stubs).
+        # starting at the beginning to get the new stubs).
         try:
             dumps_in_order = self.wiki.latest_dump(return_all=True)
             me_index = dumps_in_order.index(self.wiki.date)

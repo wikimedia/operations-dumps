@@ -49,7 +49,6 @@ class RuntimeRetriever():
         jobs.append({'name': 'meta-current'})
         jobs.append({'name': 'multistream'})
         jobs.append({'name': 'articles', 'type': 'bz2', 'exclude': 'multistream'})
-        jobs.append({'name': 'abstract'})
         jobs.append({'name': 'logging'})
         jobs.append({'name': 'stub'})
         return jobs
@@ -163,7 +162,7 @@ Arguments:
   --jobs      (-j):  comma-separated list of known jobnames to check; if none are specified
                      the full list will be checked. The full list is:
                          meta-history-7z, meta-history-bz2, meta-current, multistream,
-                         articles-bz2, abstract, logging, stub
+                         articles-bz2, logging, stub
   --slowjobs  (-s):  show only this many slowest entries for each job
   --rundate   (-r):  date in YYYYMMDD format of dump run to check
   --help      (-h):  display this help message

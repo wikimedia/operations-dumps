@@ -11,7 +11,6 @@
   information on MediaWiki with PHP, see http://www.mediawiki.org/wiki/PHP_configuration
 * A fully functional MediaWiki installation with some data in it (depends on 
   mysql server and client and a functioning webserver)
-* Installed ActiveAbstract extension for MediaWiki
 * The applications gzip, bzip2, 7zip version 4.58 or better, the library libxml2
 * Command line utilities head, tail, cat, grep
 * Build the utfnormal php module, located in svn:

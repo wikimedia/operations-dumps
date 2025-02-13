@@ -63,11 +63,6 @@
 <li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-articles2.xml.gz">wikidatawiki-{date}-stub-articles2.xml.gz</a> 5 bytes</li>
 <li class='missing'>wikidatawiki-{date}-stub-articles3.xml.gz</li>
 <li class='missing'>wikidatawiki-{date}-stub-articles4.xml.gz</li></ul></li>
-<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Recombine extracted page abstracts for Yahoo</span><ul><li class='missing'>wikidatawiki-{date}-abstract.xml.gz</li></ul></li>
-<li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Extracted page abstracts for Yahoo</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-abstract1.xml.gz">wikidatawiki-{date}-abstract1.xml.gz</a> 5 bytes</li>
-<li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-abstract2.xml.gz">wikidatawiki-{date}-abstract2.xml.gz</a> 5 bytes</li>
-<li class='missing'>wikidatawiki-{date}-abstract3.xml.gz</li>
-<li class='missing'>wikidatawiki-{date}-abstract4.xml.gz</li></ul></li>
 <li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>List of all page titles</span><ul><li class='missing'>wikidatawiki-{date}-all-titles.gz</li></ul></li>
 <li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>List of page titles in main namespace</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-all-titles-in-ns0.gz">wikidatawiki-{date}-all-titles-in-ns0.gz</a> 5 bytes</li></ul></li>
 <li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>Namespaces, namespace aliases, magic words.</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-siteinfo-namespaces.json.gz">wikidatawiki-{date}-siteinfo-namespaces.json.gz</a> 5 bytes</li></ul></li>

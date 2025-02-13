@@ -29,7 +29,6 @@ class TestIndexHtml(BaseDumpsTestCase):
                 'metacurrentdumprecombine', 'metacurrentdump',
                 'articlesdumprecombine', 'articlesdump',
                 'xmlstubsdumprecombine', 'xmlstubsdump',
-                'abstractsdumprecombine', 'abstractsdump',
                 'allpagetitlesdump', 'pagetitlesdump',
                 'namespaces', 'wbcentityusagetable',
                 'sitestable', 'wbchangessubscriptiontable',
@@ -44,7 +43,6 @@ class TestIndexHtml(BaseDumpsTestCase):
 
         # now set up a couple fake checksum files
         outfiles = [
-            'abstract1.xml.gz', 'abstract2.xml.gz', 'abstract.xml.gz'
             'all-titles.gz', 'all-titles-in-ns0.gz',
             'pages-articles1.xml-p1p100.bz2', 'pages-articles2.xml-p101p300.bz2',
             'pages-articles3.xml-p301p600.bz2', 'pages-articles4.xml-p1601p2600.bz2',
@@ -113,7 +111,6 @@ class TestIndexHtml(BaseDumpsTestCase):
         mock_get_known_tables.return_value = known_tables
 
         filepart_info = FilePartInfo(self.wd['wiki'], self.wd['wiki'].db_name)
-        filepart_info._pages_per_filepart_abstract = [100, 1000, 1000, 1000]
         filepart_info._logitems_per_filepart_pagelogs = [100, 1000, 1000, 1000]
 
         dumpjobdata = DumpRunJobData(self.wd['wiki'], self.wd['dump_dir'], notice="",

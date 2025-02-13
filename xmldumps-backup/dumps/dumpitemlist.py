@@ -105,8 +105,7 @@ class DumpItemList():
                     self._single_job[-9:] == 'recombine' or
                     self._single_job in ['createdirs', 'noop', 'latestlinks',
                                          'xmlpagelogsdump', 'pagetitlesdump',
-                                         'alllpagetitlesdump', 'abstractsdump',
-                                         'xmlstubsdump'] or
+                                         'alllpagetitlesdump', 'xmlstubsdump'] or
                     self._single_job.endswith('recombine')):
                 raise BackupError("You cannot specify a checkpoint file with the job %s, exiting.\n"
                                   % self._single_job)

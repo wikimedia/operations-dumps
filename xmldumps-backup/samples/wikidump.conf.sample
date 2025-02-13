@@ -53,7 +53,6 @@ keep=10
 [chunks]
 chunksEnabled=1
 pagesPerChunkHistory=10000,50000,50000,50000,50000
-pagesPerChunkAbstract=100000,100000
 
 [otherformats]
 multistream=1

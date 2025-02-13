@@ -452,16 +452,13 @@ class FilePartInfo():
         self.wiki = wiki
         self._parts_enabled = self.wiki.config.parts_enabled
         self.stats = None
-        self._pages_per_filepart_abstract = None
         self._logitems_per_filepart_pagelogs = None
         self._pages_per_filepart_history = None
         self._revs_per_filepart_history = None
-        self._pages_per_filepart_abstract = None
         self._logitems_per_filepart_pagelogs = None
         self._recombine_metacurrent = None
         self._recombine_history = None
         self._num_parts_pagelogs = None
-        self._num_parts_abstract = None
         self._num_parts_history = None
         self.init_cheap_stuff()
 
@@ -476,23 +473,12 @@ class FilePartInfo():
     def get_some_stats(self):
         """
         if all goes well, polls the db and sets the following attributes:
-        _pages_per_filepart_abstract
         _logitems_per_filepart_pagelogs
         """
         if not self.stats:
             self.stats = PageAndEditStats(self.wiki, self._db_name, self.error_callback)
         if not self.stats.get_total_edits() or not self.stats.get_total_pages():
             raise BackupError("Failed to get DB stats, exiting")
-        if (self.wiki.config.numparts_for_abstract and
-                self.wiki.config.numparts_for_abstract != "0"):
-            # we add 200 padding to cover new pages that may be added
-            pages_per_filepart = 200 + self.stats.get_total_pages() / int(
-                self.wiki.config.numparts_for_abstract)
-            self._pages_per_filepart_abstract = [pages_per_filepart for i in range(
-                0, int(self.wiki.config.numparts_for_abstract))]
-        else:
-            self._pages_per_filepart_abstract = self.convert_comma_sep(
-                self.wiki.config.pages_per_filepart_abstract)
 
         if (self.wiki.config.numparts_for_pagelogs and
                 self.wiki.config.numparts_for_pagelogs != "0"):
@@ -508,7 +494,6 @@ class FilePartInfo():
     def set_stats_false(self):
         self._pages_per_filepart_history = False
         self._revs_per_filepart_history = False
-        self._pages_per_filepart_abstract = False
         self._logitems_per_filepart_pagelogs = False
         self._recombine_metacurrent = False
         self._recombine_history = False
@@ -529,22 +514,6 @@ class FilePartInfo():
                 self._num_parts_pagelogs = len(self._logitems_per_filepart_pagelogs)
         else:
             self._num_parts_pagelogs = 0
-
-    def set_abstract_parts(self):
-        """
-        set the _num_parts_abstract attribute
-        """
-        if self._pages_per_filepart_abstract:
-            if (len(self._pages_per_filepart_abstract) == 1 and
-                    self._pages_per_filepart_abstract[0]):
-                self._num_parts_abstract = self.get_num_parts_for_xml_dumps(
-                    self.stats.get_total_pages(), self._pages_per_filepart_abstract[0])
-                self._pages_per_filepart_abstract = [self._pages_per_filepart_abstract[0]
-                                                     for i in range(self._num_parts_abstract)]
-            else:
-                self._num_parts_abstract = len(self._pages_per_filepart_abstract)
-        else:
-            self._num_parts_abstract = 0
 
     def set_revs_or_pages_parts(self):
         """
@@ -592,7 +561,6 @@ class FilePartInfo():
         if self._parts_enabled:
             self.get_some_stats()  # db access
             self.set_revs_or_pages_parts()
-            self.set_abstract_parts()
             self.set_pagelog_parts()
 
     def get_attr(self, attribute):

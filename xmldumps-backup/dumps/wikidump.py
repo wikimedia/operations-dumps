@@ -276,10 +276,6 @@ class Config(ConfigParsing):
             "chunks", "pagesPerChunkHistory", 0)
         self.revs_per_filepart_history = self.get_opt_for_proj_or_default(
             "chunks", "revsPerChunkHistory", 0)
-        self.numparts_for_abstract = self.get_opt_for_proj_or_default(
-            "chunks", "chunksForAbstract", 0)
-        self.pages_per_filepart_abstract = self.get_opt_for_proj_or_default(
-            "chunks", "pagesPerChunkAbstract", 0)
         self.numparts_for_pagelogs = self.get_opt_for_proj_or_default(
             "chunks", "chunksForPagelogs", 0)
         self.logitems_per_filepart_pagelogs = self.get_opt_for_proj_or_default(
@@ -329,7 +325,6 @@ class Config(ConfigParsing):
         self.lbzip2forhistory = self.get_opt_in_overrides_or_default("misc", "lbzip2forhistory", 0)
         self.lbzip2forhistory = int(self.lbzip2forhistory, 0)
         self.max_retries = self.get_opt_for_proj_or_default("misc", "maxRetries", 1)
-        self.empty_abstracts = self.get_opt_for_proj_or_default("misc", "emptyAbstracts", 1)
         self.skipjobs = self.get_opt_for_proj_or_default("misc", "skipJobs", 0).split(',')
         self.skipjobs = list(filter(None, self.skipjobs))
 

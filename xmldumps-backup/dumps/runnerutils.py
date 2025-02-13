@@ -173,9 +173,7 @@ class RunSettings():
         return [self.wiki.config.parts_enabled,
                 self.wiki.config.pages_per_filepart_history,
                 self.wiki.config.revs_per_filepart_history,
-                self.wiki.config.numparts_for_abstract,
                 self.wiki.config.numparts_for_pagelogs,
-                self.wiki.config.pages_per_filepart_abstract,
                 self.wiki.config.recombine_metacurrent,
                 self.wiki.config.recombine_history,
                 self.wiki.config.checkpoint_time]
@@ -235,9 +233,7 @@ class RunSettings():
         self.wiki.config.parts_enabled = settings[0]
         self.wiki.config.pages_per_filepart_history = settings[1]
         self.wiki.config.revs_per_filepart_history = settings[2]
-        self.wiki.config.numparts_for_abstract = settings[3]
         self.wiki.config.numparts_for_pagelogs = settings[4]
-        self.wiki.config.pages_per_filepart_abstract = settings[5]
         self.wiki.config.recombine_metacurrent = settings[6]
         self.wiki.config.recombine_history = settings[7]
         self.wiki.config.checkpoint_time = settings[8]

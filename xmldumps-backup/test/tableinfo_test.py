@@ -27,7 +27,6 @@ class TestTableInfo(BaseDumpsTestCase):
         mock_get_known_tables_from_db.return_value = known_tables
 
         filepart_info = FilePartInfo(self.wd['wiki'], self.wd['wiki'].db_name)
-        filepart_info._pages_per_filepart_abstract = [100, 1000, 1000, 1000]
         filepart_info._logitems_per_filepart_pagelogs = [100, 1000, 1000, 1000]
 
         dumpjobdata = DumpRunJobData(self.wd['wiki'], self.wd['dump_dir'], notice="",

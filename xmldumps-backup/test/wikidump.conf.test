@@ -12,7 +12,6 @@ tablejobs=test/files/table_jobs.yaml
 # passed via --configfile=path-to-config:bigwikis
 multistream=1
 chunksEnabled=1
-chunksForAbstract=2
 chunksForPagelogs=2
 pagesPerChunkHistory=100,200,300,2000
 fixeddumporder=1
@@ -74,7 +73,6 @@ recombineHistory=0
 checkpointTime=720
 pagesPerChunkHistory=10000,50000,50000,50000,50000
 checkpointTime=1
-chunksForAbstract=4
 maxrevbytes=1000000
 
 [otherformats]
@@ -85,21 +83,19 @@ fixeddumporder=0
 sevenzipprefetch=1
 
 [enwiki]
-jobsperbatch=xmlstubsdump=2,abstractsdump=1
+jobsperbatch=xmlstubsdump=2
 revsPerJob=1000
 chunksEnabled=1
 chunksForPagelogs=
-chunksForAbstract=2
 retryWait=35
 revsMargin=200
 
 [wikidatawiki]
-jobsperbatch=xmlstubsdump=2,abstractsdump=1
+jobsperbatch=xmlstubsdump=2
 revsPerJob=500
 pagesPerChunkHistory=4330,113,162,740
 chunksEnabled=1
 chunksForPagelogs=
-chunksForAbstract=2
 retryWait=35
 revsMargin=1
 revstashinfo=1

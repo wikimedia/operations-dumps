@@ -335,7 +335,6 @@ class DumpFilename():
 
         # example filenames:
         # elwikidb-20110729-all-titles-in-ns0.gz
-        # elwikidb-20110729-abstract.xml
         # elwikidb-20110727-pages-meta-history2.xml-p000048534p000051561.bz2
         # elwikidb-20110727-pages-meta-history2.xml-p000048534p000051561.bz2.truncated
 

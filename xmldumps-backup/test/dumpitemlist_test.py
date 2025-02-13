@@ -27,7 +27,6 @@ class TestDumpItemList(BaseDumpsTestCase):
         mock_get_known_tables.return_value = known_tables
 
         filepart_info = FilePartInfo(self.wd['wiki'], self.wd['wiki'].db_name)
-        filepart_info._pages_per_filepart_abstract = [100, 1000, 1000, 1000]
         filepart_info._logitems_per_filepart_pagelogs = [100, 1000, 1000, 1000]
 
         dumpjobdata = DumpRunJobData(self.wd['wiki'], self.wd['dump_dir'], notice="",
@@ -35,10 +34,9 @@ class TestDumpItemList(BaseDumpsTestCase):
 
         expected_item_names = ['sitestatstable', 'langlinkstable', 'pagepropstable',
                                'wbitemspersitetable', 'wbcentityusagetable', 'namespaces',
-                               'pagetitlesdump', 'allpagetitlesdump', 'abstractsdump',
-                               'abstractsdumprecombine', 'xmlstubsdump', 'xmlstubsdumprecombine',
-                               'articlesdump', 'articlesdumprecombine', 'metacurrentdump',
-                               'metacurrentdumprecombine', 'xmlpagelogsdump',
+                               'pagetitlesdump', 'allpagetitlesdump', 'xmlstubsdump',
+                               'xmlstubsdumprecombine', 'articlesdump', 'articlesdumprecombine',
+                               'metacurrentdump', 'metacurrentdumprecombine', 'xmlpagelogsdump',
                                'xmlpagelogsdumprecombine', 'metahistorybz2dump',
                                'metahistory7zdump', 'articlesmultistreamdump',
                                'articlesmultistreamdumprecombine']
