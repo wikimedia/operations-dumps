@@ -105,14 +105,14 @@ class Config(ConfigParsing):
     """
     def __init__(self, config_file=None):
         super().__init__()
-        home = os.path.dirname(sys.argv[0])
+        self.script_dirname = os.path.abspath(os.path.dirname(sys.argv[0]))
         if config_file and ':' in config_file:
             config_file, self.override_section = config_file.split(':')
 
         if not config_file:
             config_file = "wikidump.conf"
         self.files = [
-            os.path.join(home, config_file),
+            os.path.join(self.script_dirname, config_file),
             "/etc/wikidump.conf"
         ]
         home = os.getenv("HOME")
@@ -121,7 +121,7 @@ class Config(ConfigParsing):
                                            ".wikidump.conf"))
 
         self.conf = configparser.ConfigParser(strict=False)
-        with open('defaults.conf') as defaults_fp:
+        with open(os.path.join(self.script_dirname, 'defaults.conf')) as defaults_fp:
             self.conf.read_file(defaults_fp)
         self.conf.read(self.files)
 
@@ -427,7 +427,7 @@ class Config(ConfigParsing):
                 with open(self.tablejobs) as infile:
                     contents = infile.read()
             else:
-                with open("default_tables.yaml") as infile:
+                with open(os.path.join(self.script_dirname, "default_tables.yaml")) as infile:
                     contents = infile.read()
             return yaml.safe_load(contents)
         except Exception as ex:
@@ -442,7 +442,7 @@ class Config(ConfigParsing):
                 with open(self.apijobs) as infile:
                     contents = infile.read()
             else:
-                with open("default_api.yaml") as infile:
+                with open(os.path.join(self.script_dirname, "default_api.yaml")) as infile:
                     contents = infile.read()
             return yaml.safe_load(contents)
         except Exception as ex:
