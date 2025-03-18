@@ -233,10 +233,10 @@ class RunSettings():
         self.wiki.config.parts_enabled = settings[0]
         self.wiki.config.pages_per_filepart_history = settings[1]
         self.wiki.config.revs_per_filepart_history = settings[2]
-        self.wiki.config.numparts_for_pagelogs = settings[4]
-        self.wiki.config.recombine_metacurrent = settings[6]
-        self.wiki.config.recombine_history = settings[7]
-        self.wiki.config.checkpoint_time = settings[8]
+        self.wiki.config.numparts_for_pagelogs = settings[3]
+        self.wiki.config.recombine_metacurrent = settings[4]
+        self.wiki.config.recombine_history = settings[5]
+        self.wiki.config.checkpoint_time = settings[6]
 
 
 class DumpRunJobData():
