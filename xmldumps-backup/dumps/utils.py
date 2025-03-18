@@ -587,3 +587,12 @@ class FilePartInfo():
         if parts == 1:
             return 0
         return parts
+
+
+def redact_command_parameters(command):
+    redacted_command = []
+    for part in command:
+        if 'mysql' in command[0] and part.startswith('-p'):
+            part = '-p[REDACTED]'
+        redacted_command.append(part)
+    return redacted_command

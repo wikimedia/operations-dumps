@@ -8,6 +8,7 @@ import threading
 
 from subprocess import Popen, PIPE
 
+
 # FIXME no explicit stderr handling, is this ok?
 
 
@@ -90,12 +91,14 @@ class CommandPipeline():
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
     def start_commands(self, read_input_from_caller=False):
+        from .utils import redact_command_parameters
         previous_process = None
         if self.save_filename():
             if not self.save_file():
                 self.open_save_file()
         for command in self._commands:
             command_string = " ".join(command)
+            redacted_command_string = " ".join(redact_command_parameters(command))
 
             # first process might read from us
             if command == self._commands[0]:
@@ -129,7 +132,7 @@ class CommandPipeline():
                 previous_process.stdout.close()
 
             if not self._quiet:
-                print("command %s (%s) started... " % (command_string, process.pid))
+                print("command %s (%s) started... " % (redacted_command_string, process.pid))
             self._processes.append(process)
             previous_process = process
 
