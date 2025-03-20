@@ -3,6 +3,7 @@ import time
 from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump
+from dumps.utils import is_runnning_in_kubernetes
 
 
 class SiteInfoDump(Dump):
@@ -57,7 +58,14 @@ class SiteInfoDump(Dump):
         properties = '|'.join(self._properties)
         api_url = "{baseurl}?action=query&meta=siteinfo&siprop={props}&format=json&formatversion={vers}"
         url = api_url.format(baseurl=base_url, props=properties, vers=self._version)
-        command = [["/usr/bin/curl", "-s", url], [runner.wiki.config.gzip]]
+        extra_flags = []
+        # In Kubernetes, the curl command is sent to envoy, and requires a 'Host' header set to the
+        # public wiki domain
+        if is_runnning_in_kubernetes():
+            api_host = runner.db_server_info.get_attr("api_host")
+            extra_flags.extend(['-H', f'Host:{api_host}'])
+        curl_command = ["/usr/bin/curl", "-s", url] + extra_flags
+        command = [curl_command, [runner.wiki.config.gzip]]
         return command
 
 

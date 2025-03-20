@@ -158,7 +158,11 @@ class DbServerInfo():
                 "wgScriptPath for {wiki}".format(wiki=self.db_name))
 
         self.db_table_prefix = settings['wgDBprefix']
-        wgcanonserver = settings['wgCanonicalServer']
+        self.api_host = settings['wgCanonicalServer'].replace('https://', '')
+        if is_runnning_in_kubernetes():
+            wgcanonserver = os.environ['ENVOY_MW_API_HOST']
+        else:
+            wgcanonserver = settings['wgCanonicalServer']
         wgscriptpath = settings['wgScriptPath']
 
         self.apibase = "/".join([
@@ -596,3 +600,10 @@ def redact_command_parameters(command):
             part = '-p[REDACTED]'
         redacted_command.append(part)
     return redacted_command
+
+
+def is_runnning_in_kubernetes():
+    return (
+        # This file always exists in Kubernetes containers
+        exists("/run/secrets/kubernetes.io/serviceaccount/token")
+    )
