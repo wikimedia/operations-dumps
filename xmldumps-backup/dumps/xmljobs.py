@@ -82,7 +82,7 @@ class XmlStub(Dump):
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
-        command = ["/usr/bin/python3", "xmlstubs.py", "--config", config_file_arg,
+        command = ["/usr/bin/python3", self.get_command_abspath("xmlstubs.py"), "--config", config_file_arg,
                    "--wiki", runner.db_name]
         output_dir = self.get_output_dir(runner)
         if output_dfname is not None:
@@ -281,7 +281,7 @@ class XmlLogging(Dump):
         config_file_arg = runner.wiki.config.files[0]
         if runner.wiki.config.override_section:
             config_file_arg = config_file_arg + ":" + runner.wiki.config.override_section
-        command = ["/usr/bin/python3", "xmllogs.py", "--config",
+        command = ["/usr/bin/python3", self.get_command_abspath("xmllogs.py"), "--config",
                    config_file_arg, "--wiki", runner.db_name,
                    "--outfile", DumpFilename.get_inprogress_name(logging_path)]
 

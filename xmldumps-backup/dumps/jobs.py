@@ -4,6 +4,7 @@ base class dump job is defined here
 '''
 
 import os
+import os.path
 from os.path import exists
 import sys
 import traceback
@@ -75,6 +76,12 @@ class Dump():
 
     def get_output_dir(self, runner):
         return os.path.join(runner.wiki.public_dir(), runner.wiki.date)
+
+    def get_command_abspath(self, command: str):
+        current_dir = os.path.dirname(__file__)
+        # we assume the command is located at the root dir of the dumps project
+        command_relpath = os.path.join(current_dir, "..", command)
+        return os.path.abspath(command_relpath)
 
     def setup_command_info(self, runner, command_series, output_dfnames, output_dir=None):
         command_info = {}
