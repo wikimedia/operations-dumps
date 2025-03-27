@@ -607,3 +607,10 @@ def is_runnning_in_kubernetes():
         # This file always exists in Kubernetes containers
         exists("/run/secrets/kubernetes.io/serviceaccount/token")
     )
+
+
+def is_nested_list_empty(nested_list):
+    """Return true if every sublist in the argument list is recursively composed of empty lists"""
+    if isinstance(nested_list, list):
+        return all(map(is_nested_list_empty, nested_list))
+    return False

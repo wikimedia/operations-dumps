@@ -553,7 +553,10 @@ class XmlDump(Dump):
                 batchsize = len(self._pages_per_part)
         else:
             batchsize = 1
-        return batchsize
+        # if we ever return a batchsize of 0, all sorts of funny things start happenning,
+        # like the whole system stopping and getting stuck in an infinite loop.
+        # See T390059
+        return batchsize if batchsize > 0 else 1
 
     def get_commands_for_pagecontent(self, wanted, runner):
         """
