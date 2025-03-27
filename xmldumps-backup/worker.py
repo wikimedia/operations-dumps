@@ -5,12 +5,22 @@ import getopt
 import os
 from os.path import exists
 import sys
+import signal
+import traceback
 
 from dumps.wikidump import Wiki, Config, cleanup, Locker
 from dumps.jobs import DumpFilename
 from dumps.runner import Runner
 from dumps.utils import TimeUtils
 from dumps.batch import BatchesFile
+
+
+def handle_sigusr1(signum, frame):
+    traceback.print_stack()
+
+
+def handle_sigusr2(signum, frame):
+    breakpoint()
 
 
 def check_jobs(wiki, date, job, skipjobs, page_id_range, partnum_todo,
@@ -263,6 +273,8 @@ Options: --aftercheckpoint, --checkpoint, --partnum, --configfile, --date, --job
 
 def main():
     os.environ['DUMPS'] = str(os.getpid())
+    signal.signal(signalnum=signal.SIGUSR1, handler=handle_sigusr1)
+    signal.signal(signalnum=signal.SIGUSR2, handler=handle_sigusr2)
 
     try:
         date = None
