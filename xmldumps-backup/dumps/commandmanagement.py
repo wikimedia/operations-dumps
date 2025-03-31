@@ -8,8 +8,6 @@ import threading
 
 from subprocess import Popen, PIPE
 
-from .utils import is_nested_list_empty
-
 
 # FIXME no explicit stderr handling, is this ok?
 
@@ -541,6 +539,7 @@ class CommandsInParallel():
                  callback_timed=None, callback_stderr_arg=None, callbackStdoutArg=None,
                  callback_timed_arg=None, quiet=False, shell=False, callback_interval=20000,
                  callback_on_completion=None):
+        from .utils import is_nested_list_empty
         if is_nested_list_empty(command_series_list):
             print("WARNING: CommandsInParallel was given an empty series of pipelines!")
 
