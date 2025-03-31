@@ -8,7 +8,7 @@ import threading
 
 from subprocess import Popen, PIPE
 
-from utils import is_nested_list_empty
+from .utils import is_nested_list_empty
 
 
 # FIXME no explicit stderr handling, is this ok?
