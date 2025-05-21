@@ -114,8 +114,6 @@ fi
 
 filename=${projectName}-$today-$dumpName
 failureFile=/tmp/dump${projectName}json-$dumpName-failure
-logLocation="/var/log/${projectName}dump"
-mainLogFile="${logLocation}/dump${projectName}-${filename}-main.json.log"
 
 setDumpNameToMinSize
 
@@ -141,7 +139,6 @@ fi
 while [ $i -lt $shards ]; do
 	(
 		set -o pipefail
-		errorLog=${logLocation}/dump$projectName-$filename-$i.json.log
 
 		batch=0
 
@@ -153,7 +150,7 @@ while [ $i -lt $shards ]; do
 		while [ $batch -lt $numberOfBatchesNeeded ] && [ ! -f $failureFile ]; do
 			setPerBatchVars
 
-			echo "(`date --iso-8601=minutes`) Starting batch $batch" >> $errorLog
+			echo "(`date --iso-8601=minutes`) Starting batch $batch"
 			$php $multiversionscript extensions/Wikibase/repo/maintenance/dumpJson.php \
 				--wiki ${projectName}wiki \
 				--shard $i \
@@ -165,7 +162,7 @@ while [ $i -lt $shards ]; do
 				$extraArgs \
 				$firstPageIdParam \
 				$lastPageIdParam \
-				2>> $errorLog | gzip -9 > "${tempDir}/${projectName}-${dumpName}.${i}-batch${batch}.json.gz"
+				| gzip -9 > "${tempDir}/${projectName}-${dumpName}.${i}-batch${batch}.json.gz"
 
 			exitCode=$?
 			if [ $exitCode -gt 0 ]; then
@@ -183,7 +180,7 @@ done
 wait
 
 if [ -f $failureFile ]; then
-	echo -e "\n\n(`date --iso-8601=minutes`) Giving up after a shard failed." >> $mainLogFile
+	echo -e "\n\n(`date --iso-8601=minutes`) Giving up after a shard failed."
 	rm -f $failureFile
 
 	exit 1
@@ -198,12 +195,12 @@ while [ $i -lt $shards ]; do
 
 	getTempFiles "${tempDir}/${projectName}-${dumpName}.${i}-batch*.gz"
 	if [ -z "$tempFiles" ]; then
-		echo "No files for shard $i!" >> $mainLogFile
+		echo "No files for shard $i!"
 		exit 1
 	fi
 	getFileSize "$tempFiles"
 	if [ $fileSize -lt ${dumpNameToMinSize[$dumpName]} ]; then
-		echo "File size for shard $i is only $fileSize. Aborting." >> $mainLogFile
+		echo "File size for shard $i is only $fileSize. Aborting."
 		exit 1
 	fi
 	for tempFile in $tempFiles; do
@@ -246,6 +243,5 @@ ln -s "../wikibase/${projectName}wiki/$today/$filename.json.gz" "$legacyDirector
 find $legacyDirectory -name '*.json.gz' -mtime +`expr $daysToKeep + 1` -delete
 
 
-pruneOldLogs
 setDcatConfig
 runDcat

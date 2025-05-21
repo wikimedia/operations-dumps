@@ -63,10 +63,6 @@ if [ ! -f "$dbList" ]; then
 	exit 1
 fi
 
-function log_err {
-	logger --no-act -s -- "$@"
-}
-
 today=$(date +'%Y%m%d')
 targetDirBase="${systemdjobsdir}/cirrussearch"
 targetDir="$targetDirBase/$today"
@@ -100,24 +96,23 @@ while read wiki; do
 			targetFile="$targetDir/$filename.json.gz"
 			tempFile="$tempDir/$filename.json.gz"
 			if [ -e "$tempFile" ] || [ -e "$targetFile" ]; then
-				log_err "$targetFile or $tempFile already exists, skipping..."
+				echo "$targetFile or $tempFile already exists, skipping..."
 				hasErrors=1
 			else
 				if [ "$dryrun" = "true" ]; then
-					echo "$php '$multiVersionScript' extensions/CirrusSearch/maintenance/DumpIndex.php --wiki='$wiki' --indexSuffix='$indexSuffix' 2> '/var/log/cirrusdump/cirrusdump-$filename.log' | $gzip > '$tempFile'"
+					echo "$php '$multiVersionScript' extensions/CirrusSearch/maintenance/DumpIndex.php --wiki='$wiki' --indexSuffix='$indexSuffix' | $gzip > '$tempFile'"
 					echo "mv '$tempFile' '$targetFile'"
 				else
 					$php "$multiVersionScript" \
 						extensions/CirrusSearch/maintenance/DumpIndex.php \
 						--wiki="$wiki" \
 						--indexSuffix="$indexSuffix" \
-						2> "/var/log/cirrusdump/cirrusdump-$filename.log" \
 						| $gzip > "$tempFile"
 					PSTATUS_COPY=( "${PIPESTATUS[@]}" )
 					if [ "${PSTATUS_COPY[0]}" = "0" ] && [ "${PSTATUS_COPY[1]}" = "0" ]; then
 						mv "$tempFile" "$targetFile"
 					else
-						log_err "extensions/CirrusSearch/maintenance/DumpIndex.php failed for $targetFile"
+						echo "extensions/CirrusSearch/maintenance/DumpIndex.php failed for $targetFile"
 						rm "$tempFile"
 						hasErrors=1
 					fi
@@ -136,8 +131,5 @@ if [ "$dryrun" = "false" ]; then
 	rm -f "current"
 	ln -s "$today" "current"
 fi
-
-# clean up old log files
-find /var/log/cirrusdump/ -name 'cirrusdump-*.log*' -mtime +22 -delete
 
 exit $hasErrors

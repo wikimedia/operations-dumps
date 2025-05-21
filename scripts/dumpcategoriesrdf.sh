@@ -21,10 +21,10 @@ cat "$dbList" | while read wiki; do
 		targetFile="${targetDir}/${filename}.${fileSuffix}"
 		tsFile="${timestampsDir}/${wiki}-categories.last"
 		if [ "$dryrun" == "true" ]; then
-			echo "$php $multiVersionScript maintenance/dumpCategoriesAsRdf.php --wiki=$wiki --format=$dumpFormat 2> /var/log/categoriesrdf/${filename}.log | $gzip > $targetFile"
+			echo "$php $multiVersionScript maintenance/dumpCategoriesAsRdf.php --wiki=$wiki --format=$dumpFormat | $gzip > $targetFile"
 			echo "Timestamp: $ts > $tsFile"
 		else
-			$php "$multiVersionScript" maintenance/dumpCategoriesAsRdf.php --wiki="$wiki" --format="$dumpFormat" 2> "/var/log/categoriesrdf/${filename}.log" | "$gzip" > "$targetFile"
+			$php "$multiVersionScript" maintenance/dumpCategoriesAsRdf.php --wiki="$wiki" --format="$dumpFormat" | "$gzip" > "$targetFile"
 			echo "$ts" > "$tsFile"
 		fi
 	fi

@@ -131,8 +131,6 @@ fi
 setFilename
 
 failureFile="/tmp/dump${projectName}${dumpFormat}-${dumpName}-failure"
-logLocation="/var/log/${projectName}dump"
-mainLogFile="${logLocation}/dump${projectName}${dumpFormat}-${filename}-main.log"
 
 i=0
 rm -f $failureFile
@@ -155,7 +153,6 @@ setEntityType
 while [ $i -lt $shards ]; do
 	(
 		set -o pipefail
-		errorLog=${logLocation}/dump$projectName$dumpFormat-$filename-$i.log
 
 		batch=0
 
@@ -167,7 +164,7 @@ while [ $i -lt $shards ]; do
 		while [ $batch -lt $numberOfBatchesNeeded ] && [ ! -f $failureFile ]; do
 			setPerBatchVars
 
-			echo "(`date --iso-8601=minutes`) Starting batch $batch" >> $errorLog
+			echo "(`date --iso-8601=minutes`) Starting batch $batch"
 			$php $multiversionscript extensions/Wikibase/repo/maintenance/dumpRdf.php \
 				--wiki ${projectName}wiki \
 				--shard $i \
@@ -178,7 +175,7 @@ while [ $i -lt $shards ]; do
 				--dbgroupdefault dump \
 				--part-id $i-$batch \
 				$firstPageIdParam \
-				$lastPageIdParam 2>> $errorLog | gzip -9 > $tempDir/$projectName$dumpFormat-$dumpName.$i-batch$batch.gz
+				$lastPageIdParam | gzip -9 > $tempDir/$projectName$dumpFormat-$dumpName.$i-batch$batch.gz
 
 			exitCode=$?
 			if [ $exitCode -gt 0 ]; then
@@ -196,7 +193,7 @@ done
 wait
 
 if [ -f $failureFile ]; then
-	echo -e "\n\n(`date --iso-8601=minutes`) Giving up after a shard failed." >> $mainLogFile
+	echo -e "\n\n(`date --iso-8601=minutes`) Giving up after a shard failed."
 	rm -f $failureFile
 
 	exit 1
@@ -206,12 +203,12 @@ i=0
 while [ $i -lt $shards ]; do
 	getTempFiles "$tempDir/$projectName$dumpFormat-$dumpName.$i-batch*.gz"
 	if [ -z "$tempFiles" ]; then
-		echo "No files for shard $i!" >> $mainLogFile
+		echo "No files for shard $i!"
 		exit 1
 	fi
 	getFileSize "$tempFiles"
 	if [ $fileSize -lt ${dumpNameToMinSize[$dumpName]} ]; then
-		echo "File size of $tempFile is only $fileSize. Aborting." >> $mainLogFile
+		echo "File size of $tempFile is only $fileSize. Aborting."
 		exit 1
 	fi
 	cat $tempFiles >> $tempDir/$projectName$dumpFormat-$dumpName.gz
@@ -230,7 +227,7 @@ if [ -n "$extraFormat" ]; then
 				gzip -dc $tempFile | serdi -i $extraIn -o $extraOut -b -q - | gzip -9 > $extraFile
 				exitCode=$?
 				if [ $exitCode -gt 0 ]; then
-					echo -e "\n\n(`date --iso-8601=minutes`) Converting $tempFile failed with exit code $exitCode" >> $errorLog
+					echo -e "\n\n(`date --iso-8601=minutes`) Converting $tempFile failed with exit code $exitCode"
 				fi
 			done
 		) &
@@ -266,6 +263,5 @@ if [ -n "$extraFormat" ]; then
 	moveLinkFile $projectName$extraFormat-$dumpName.bz2 $filename.$extraFormat.bz2 latest-$dumpName.$extraFormat.bz2 $projectName
 fi
 
-pruneOldLogs
 setDcatConfig
 runDcat

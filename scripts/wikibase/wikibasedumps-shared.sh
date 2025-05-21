@@ -29,11 +29,6 @@ multiversionscript="${multiversion}/MWScript.php"
 # Create the dir for the day: This may or may not already exist, we don't care
 mkdir -p $targetDir
 
-function pruneOldLogs {
-	# Remove old logs (keep 35 days)
-	find /var/log/${projectName}dump/ -name "dump${projectName}"'*-*-*.log' -mtime +36 -delete
-}
-
 function runDcat {
 	if [[ -n "$dcatConfig" ]]; then
 		$php /usr/local/share/dcat/DCAT.php --config=$dcatConfig --dumpDir=$targetDirBase --outputDir=$targetDirBase
@@ -88,13 +83,13 @@ function getFileSize {
 
 # Handle the failure of a batch run.
 function handleBatchFailure {
-	echo -e "\n\n(`date --iso-8601=minutes`) Process for batch $batch of shard $i failed with exit code $exitCode" >> $errorLog
+	echo -e "\n\n(`date --iso-8601=minutes`) Process for batch $batch of shard $i failed with exit code $exitCode"
 
 	let retries++
 
 	if [ $retries -gt 5 ]; then
 		# Give up with this shard.
-		echo -e "\n\n(`date --iso-8601=minutes`) Giving up after $(($retries - 1)) retries." >> $errorLog
+		echo -e "\n\n(`date --iso-8601=minutes`) Giving up after $(($retries - 1)) retries."
 		echo 1 > $failureFile
 		return 1
 	fi

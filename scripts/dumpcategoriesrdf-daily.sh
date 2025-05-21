@@ -42,17 +42,17 @@ cat "$dbList" | while read wiki; do
 			fromTargetFile="${targetDir}/fromDump${dumpTs}-${filename}.${fileSuffix}"
 			if [ "$dryrun" == "true" ]; then
 				# get only day TS
-				echo "$php $multiVersionScript maintenance/categoryChangesAsRdf.php --wiki=$wiki -s $fullTs -e $ts 2> /var/log/categoriesrdf/${filename}-daily.log | $gzip > $fromTargetFile"
+				echo "$php $multiVersionScript maintenance/categoryChangesAsRdf.php --wiki=$wiki -s $fullTs -e $ts | $gzip > $fromTargetFile"
 			else
-				$php "$multiVersionScript" maintenance/categoryChangesAsRdf.php --wiki="$wiki" -s $fullTs -e $ts 2> "/var/log/categoriesrdf/${filename}-daily.log" | "$gzip" > "$fromTargetFile"
+				$php "$multiVersionScript" maintenance/categoryChangesAsRdf.php --wiki="$wiki" -s $fullTs -e $ts | "$gzip" > "$fromTargetFile"
 			fi
 		fi
 		# create daily diff
 		if [ "$dryrun" == "true" ]; then
-			echo "$php $multiVersionScript maintenance/categoryChangesAsRdf.php --wiki=$wiki -s $lastTs -e $ts 2>> /var/log/categoriesrdf/${filename}-daily.log | $gzip > $targetFile"
+			echo "$php $multiVersionScript maintenance/categoryChangesAsRdf.php --wiki=$wiki -s $lastTs -e $ts | $gzip > $targetFile"
 			echo "Timestamp: $ts > $tsFile"
 		else
-			$php "$multiVersionScript" maintenance/categoryChangesAsRdf.php --wiki="$wiki" -s $lastTs -e $ts 2>> "/var/log/categoriesrdf/${filename}-daily.log" | "$gzip" > "$targetFile"
+			$php "$multiVersionScript" maintenance/categoryChangesAsRdf.php --wiki="$wiki" -s $lastTs -e $ts | "$gzip" > "$targetFile"
 			echo "$ts" > "$tsFile"
 		fi
 
