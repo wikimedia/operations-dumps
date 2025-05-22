@@ -249,7 +249,7 @@ class DumpItemList():
             BigXmlDump(
                 "meta-history",
                 "metahistorybz2dump",
-                "All pages with complete page edit history (.bz2)",
+                "All pages with complete edit history (.bz2)",
                 "These dumps can be *very* large, uncompressing up to " +
                 "20 times the archive download size. " +
                 "Suitable for archival and statistical use, " +
