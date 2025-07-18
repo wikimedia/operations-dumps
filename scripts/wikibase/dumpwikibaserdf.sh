@@ -10,6 +10,8 @@
 # suffix. If someday we move to run wikibase on wiktionaries
 # or what have you, we'll redo the project and file name logic!
 
+set -e
+
 PROJECTS="wikidata|commons"
 
 source /usr/local/etc/dump_functions.sh

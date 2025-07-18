@@ -2,6 +2,8 @@
 
 # Generate a json dump for wikibase (wikidata or commons) and remove old ones.
 
+set -e
+
 PROJECTS=("wikidata" "commons")
 
 source /usr/local/etc/dump_functions.sh
