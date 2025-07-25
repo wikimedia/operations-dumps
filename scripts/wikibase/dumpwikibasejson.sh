@@ -2,7 +2,9 @@
 
 # Generate a json dump for wikibase (wikidata or commons) and remove old ones.
 
-set -e
+# Disable set -e for now. See #T400383
+# set -e
+set -o pipefail
 
 PROJECTS=("wikidata" "commons")
 
@@ -140,8 +142,6 @@ if  [ -n "$extra" ]; then
 fi
 while [ $i -lt $shards ]; do
 	(
-		set -o pipefail
-
 		batch=0
 
 		if [ $continue -gt 0 ]; then

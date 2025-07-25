@@ -10,7 +10,10 @@
 # suffix. If someday we move to run wikibase on wiktionaries
 # or what have you, we'll redo the project and file name logic!
 
-set -e
+# Disable set -e for now. See #T400383
+# set -e
+set -o pipefail
+
 
 PROJECTS="wikidata|commons"
 
@@ -154,7 +157,6 @@ setEntityType
 
 while [ $i -lt $shards ]; do
 	(
-		set -o pipefail
 
 		batch=0
 
@@ -223,7 +225,6 @@ if [ -n "$extraFormat" ]; then
 	while [ $i -lt $shards ]; do
 		getTempFiles "$tempDir/$projectName$dumpFormat-$dumpName.$i-batch*.gz"
 		(
-			set -o pipefail
 			for tempFile in $tempFiles; do
 				extraFile=${tempFile/$projectName$dumpFormat/$projectName$extraFormat}
 				gzip -dc $tempFile | serdi -i $extraIn -o $extraOut -b -q - | gzip -9 > $extraFile
