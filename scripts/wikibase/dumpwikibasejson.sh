@@ -142,6 +142,8 @@ if  [ -n "$extra" ]; then
 fi
 while [ $i -lt $shards ]; do
 	(
+		set -o pipefail
+
 		batch=0
 
 		if [ $continue -gt 0 ]; then

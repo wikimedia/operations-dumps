@@ -157,6 +157,7 @@ setEntityType
 
 while [ $i -lt $shards ]; do
 	(
+		set -o pipefail
 
 		batch=0
 
@@ -225,6 +226,7 @@ if [ -n "$extraFormat" ]; then
 	while [ $i -lt $shards ]; do
 		getTempFiles "$tempDir/$projectName$dumpFormat-$dumpName.$i-batch*.gz"
 		(
+			set -o pipefail
 			for tempFile in $tempFiles; do
 				extraFile=${tempFile/$projectName$dumpFormat/$projectName$extraFormat}
 				gzip -dc $tempFile | serdi -i $extraIn -o $extraOut -b -q - | gzip -9 > $extraFile
