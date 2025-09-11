@@ -177,11 +177,10 @@ class DbServerInfo():
             # so we rewrite the localhost to it's ip address
             host = socket.gethostbyname(self.get_attr('db_server'))
 
-        params = ["-h", "%s" % host]  # Host
+        params = ["--defaults-extra-file=%s" % self.wiki.config.db_client_config_file]
+        params += ["-h", "%s" % host]  # Host
         if self.get_attr('db_port'):
             params += ["--port", self.get_attr('db_port')]
-        self.wiki.set_db_creds()
-        params += ["-u", self.wiki.db_user, self.password_option()]
         params += ["--max_allowed_packet=%s" % self.wiki.config.max_allowed_packet]
         return params
 
@@ -243,13 +242,6 @@ class DbServerInfo():
                 continue
             return results
         return results
-
-    def password_option(self):
-        """If you pass '-pfoo' mysql uses the password 'foo',
-        but if you pass '-p' it prompts. Sigh."""
-        if self.wiki.db_password == "":
-            return None
-        return "-p" + self.wiki.db_password
 
     def get_attr(self, attribute):
         """

@@ -428,9 +428,6 @@ class MiscDumpConfig(ConfigParsing):
             print("The mandatory setting 'mediawiki' in the section 'wiki' was not defined.")
             raise configparser.NoOptionError('wiki', 'mediawiki')
 
-        self.db_user = None
-        self.db_password = None
-
         self.parse_conffile()
 
     def parse_conffile(self):
@@ -470,8 +467,7 @@ class MiscDumpConfig(ConfigParsing):
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
-
-        self.get_db_creds()
+        self.db_client_config_file = self.conf.get("database", "client_config_file")
 
     def parse_conffile_per_project(self, project_name=None):
         if project_name:
@@ -480,18 +476,6 @@ class MiscDumpConfig(ConfigParsing):
         if not self.conf.has_section('wiki'):
             self.conf.add_section('wiki')
         self.wiki_dir = self.get_opt_for_proj_or_default("wiki", "mediawiki", 0)
-
-        dbuser = self.get_opt_for_proj_or_default("database", "user", 0)
-        self.db_user = None
-        self.db_password = None
-        if dbuser:
-            self.db_user = dbuser
-        dbpassword = self.get_opt_for_proj_or_default("database", "password", 0)
-        if dbpassword:
-            self.db_password = dbpassword
-        elif self.db_user:
-            # this is a bad idea! but for testing some folks may have an empty password
-            self.db_password = ""
 
     def read_template(self, name):
         '''

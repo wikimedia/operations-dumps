@@ -50,8 +50,10 @@ class TestTablesJobs(BaseDumpsTestCase):
         runner.db_server_info.db_port = '3306'
         runner.db_server_info.db_table_prefix = ''
 
-        expected_command_part = ['/usr/bin/mysqldump', '-h', '127.0.0.1', '--port', '3306',
-                                 '-u', 'root', '-ptestpassword', '--max_allowed_packet=32M',
+        expected_command_part = ['/usr/bin/mysqldump',
+                                 '--defaults-extra-file=/etc/dumps/mariadb/my-client.cnf',
+                                 '-h', '127.0.0.1', '--port', '3306',
+                                 '--max_allowed_packet=32M',
                                  '--opt', '--quick', '--skip-add-locks', '--skip-lock-tables',
                                  'wikidatawiki']
         fullpath = os.path.join(BaseDumpsTestCase.PUBLICDIR, self.wd['wiki'].db_name, self.today)

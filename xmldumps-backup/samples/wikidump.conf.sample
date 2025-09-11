@@ -35,6 +35,7 @@ password=""
 # Arbitrary configuration parameters:
 #
 max_allowed_packet=32M
+client_config_file=/etc/dumps/extra/my-client.cnf
 
 [tools]
 php=/usr/bin/php
@@ -43,7 +44,7 @@ mysqldump=/usr/bin/mysqldump
 gzip=/usr/bin/gzip
 bzip2=/usr/bin/bzip2
 sevenzip=/usr/bin/7za
-checkforbz2footer=/usr/local/bin/checkforbz2footer		  
+checkforbz2footer=/usr/local/bin/checkforbz2footer
 recompressxml=/usr/local/bin/recompressxml
 writeuptopageid=/usr/local/bin/writeuptopageid
 

@@ -36,9 +36,8 @@ skipprivatetables=1
 
 [database]
 # dummies but needed for wikidump object to be built
-user=root
-password=testpassword
 max_allowed_packet=32M
+client_config_file=/etc/dumps/extra/my-client.conf
 
 [tools]
 php=/usr/bin/php

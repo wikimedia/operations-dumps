@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import configparser
 import os
-import json
 import re
 import socket
 import sys
@@ -12,7 +11,7 @@ import yaml
 
 from dumps.report import StatusHtml
 from dumps.fileutils import FileUtils
-from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand, MultiVersion
+from dumps.utils import MiscUtils, TimeUtils, DbServerInfo, RunSimpleCommand
 from dumps.tableinfo import TableInfo
 
 
@@ -25,9 +24,6 @@ class ConfigParsing():
     def __init__(self, config_file=None):
         self.project_name = None
         self.override_section = None
-        self.conf = None
-        self.db_user = None
-        self.db_password = None
 
     def get_opt_from_sections(self, sections_to_check, item_name, is_int):
         """
@@ -73,29 +69,6 @@ class ConfigParsing():
         return self.get_opt_from_sections(
             [self.project_name, self.override_section, section_name],
             item_name, is_int)
-
-    def get_db_creds(self):
-        """
-        try to get db credentials from the project (wiki) section of
-        the config, if there is one, or from the database section of the
-        config, if they are there
-        if no dbuser is set in the config, set user to None and caller
-        may fill it and the password in with other means
-        if a dbuser is set in the config and no password is specified
-        in the config file, treat this as an empty password and set
-        creds accordingly
-        """
-        dbuser = self.get_opt_for_proj_or_default("database", "user", 0)
-        self.db_user = None
-        self.db_password = None
-        if dbuser:
-            self.db_user = dbuser
-        dbpassword = self.get_opt_for_proj_or_default("database", "password", 0)
-        if dbpassword:
-            self.db_password = dbpassword
-        elif self.db_user:
-            # this is a bad idea! but for testing some folks may have an empty password
-            self.db_password = ""
 
 
 class Config(ConfigParsing):
@@ -214,6 +187,7 @@ class Config(ConfigParsing):
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
         self.max_allowed_packet = self.conf.get("database", "max_allowed_packet")
+        self.db_client_config_file = self.conf.get("database", "client_config_file")
 
         if not self.conf.has_section('reporting'):
             self.conf.add_section('reporting')
@@ -254,8 +228,6 @@ class Config(ConfigParsing):
 
         if not self.conf.has_section('database'):
             self.conf.add_section('database')
-
-        self.get_db_creds()
 
         max_allowed_packet = self.get_opt_for_proj_or_default(
             "database", "max_allowed_packet", 0)
@@ -460,46 +432,6 @@ class Wiki():
         self.watchdog = None
         # pick up config settings for this wiki if needed
         self.config.parse_conffile_per_project(db_name)
-        if self.config.db_user is not None:
-            # grab the config file values
-            self.db_user = self.config.db_user
-            if self.config.db_password is not None:
-                self.db_password = self.config.db_password
-        else:
-            # lazy-load these, because not all jobs or
-            # all uses of this object require db connections
-            self.db_user = None
-            self.db_password = None
-
-    def set_db_creds(self):
-        '''
-        get and stash credentials if we don't already have them
-        '''
-        if self.db_user is None:
-            # ask mediawiki to provide these for us
-            self.db_user, self.db_password = self._get_db_user_and_password()
-
-    def _get_db_user_and_password(self):
-        # never call this directly, use set_db_creds() instead
-
-        # get these by running a MediaWiki maintenance script;
-        # yes, this means you need a full installation of MediaWiki
-        # (but not web service) in order to use these methods
-
-        command_list = MultiVersion.mw_script_as_array(self.config, "getConfiguration.php")
-        pull_vars = ["wgDBuser", "wgDBpassword"]
-        command = "{php} {command} --wiki={dbname} --format=json --regex='{vars}'"
-        command = command.format(
-            php=MiscUtils.shell_escape(self.config.php),
-            command=" ".join(command_list),
-            dbname=MiscUtils.shell_escape(self.db_name),
-            vars="|".join(pull_vars))
-        results = RunSimpleCommand.run_with_output(command, shell=True).strip()
-        settings = json.loads(results.decode('utf-8'))
-        db_user = settings['wgDBuser']
-        db_password = settings['wgDBpassword']
-
-        return db_user, db_password
 
     def is_private(self):
         return self.db_name in self.config.private_list
