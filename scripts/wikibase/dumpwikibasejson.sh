@@ -9,6 +9,9 @@
 set -euo pipefail
 
 PROJECTS=("wikidata" "commons")
+DUMP_REPORT="/tmp/wikibasejson-reports.log"
+echo "" > $DUMP_REPORT
+PROMETHEUS_PUSH_URL="http://prometheus-pushgateway.discovery.wmnet/metrics/job/wikidata_dumps"
 
 source /usr/local/etc/dump_functions.sh
 
@@ -168,6 +171,7 @@ while [ $i -lt $shards ]; do
 				--batch-size $(($shards * 250)) \
 				--snippet 2 \
 				--page-metadata \
+				--log ${DUMP_REPORT} \
 				"${entityTypes[@]}" \
 				$extraArgs \
 				$firstPageIdParam \
@@ -230,6 +234,16 @@ done
 
 # Close the json list
 echo -e '\n]' | gzip -f >> "$tempDir/${projectName}-${dumpName}.json.gz"
+
+# count the number of skipped entities from Exception log tag
+skipped_entities=$( grep "failed-to-dump" $DUMP_REPORT | wc -l || true)
+echo "Number of skipped entities: $skipped_entities"
+if ! curl_output=$(
+	echo "wikidata_dumps_skipped_entities_json ${skipped_entities}" \
+	| curl -sS --data-binary @- ${PROMETHEUS_PUSH_URL} 2>&1
+); then
+    echo "Warning: Failed to push metrics to Prometheus: ${curl_output}" >&2
+fi
 
 i=0
 while [ $i -lt $shards ]; do
