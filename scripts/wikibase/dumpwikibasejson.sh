@@ -113,6 +113,8 @@ done
 
 targetDir=${targetDirDefault}
 
+makeTargetDir "$targetDir"
+
 if [ $continue -eq 0 ]; then
 	# Remove old leftovers, as we start from scratch.
 	rm -f "${tempDir}/${projectName}-${dumpName}."*-batch*.json.gz

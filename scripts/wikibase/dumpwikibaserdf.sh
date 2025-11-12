@@ -111,6 +111,7 @@ fi
 . /usr/local/bin/${projectName}rdf_functions.sh
 
 targetDir=${targetDirDefault}
+makeTargetDir "$targetDir"
 
 if [ $continue -gt 0 ]; then
 	# Remove old leftovers, as we start from scratch.

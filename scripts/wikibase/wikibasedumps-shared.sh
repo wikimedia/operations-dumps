@@ -26,8 +26,9 @@ targetDirDefault=$targetDirBase/$today
 
 multiversionscript="${multiversion}/MWScript.php"
 
-# Create the dir for the day: This may or may not already exist, we don't care
-mkdir -p $targetDirDefault
+function makeTargetDir {
+	mkdir -p "$1"
+}
 
 function runDcat {
 	if [[ -n "$dcatConfig" ]]; then
