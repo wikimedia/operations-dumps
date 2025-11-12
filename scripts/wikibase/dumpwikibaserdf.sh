@@ -3,7 +3,7 @@
 # Generate a RDF dump for wikibase datasets and remove old ones.
 # This script requires a second shell script with function definitions
 # in it specific to the given wikibase project and entity types;
-# place it in modules/snapshot/systemdjobs/wikibase/<projectname>rdf_functions.sh
+# place it in the ./scripts/wikibase/<projectname>rdf_functions.sh
 # using one of the existing files as a guide, and then add the
 # project name to PROJECTS below.
 # The project name should be the wiki db name without the 'wiki'
