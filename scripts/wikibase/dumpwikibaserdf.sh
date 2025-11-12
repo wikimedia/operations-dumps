@@ -32,6 +32,8 @@ usage() {
     echo "                 or 'mediainfo' (for commons)" >& 2
     echo "  --format  (-f) output format, one of 'ttl' or 'nt'" >& 2
     echo "  --extra   (-e) convert to this format, one of 'ttl' or 'nt'" >& 2
+    echo "  --output-dir (-o) target directory for dumps" >& 2
+    echo "                  (default value: Today's date formatted as YYYYMMDD)" >& 2
     echo >& 2
     echo "Flags: " >& 2
     echo "  --continue (-C) resume the specified dump from where it left off" >& 2
@@ -46,6 +48,7 @@ configfile="${confsdir}/wikidump.conf.other"
 dryrun="false"
 continue=0
 extraFormat=""
+outputDir=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -69,6 +72,10 @@ while [ $# -gt 0 ]; do
             extraFormat="$2"
             shift; shift
 	    ;;
+    "--output-dir"|"-o")
+            outputDir="$2"
+            shift; shift
+        ;;
 	"--dryrun"|"-D")
             dryrun="true"
             shift
@@ -111,7 +118,13 @@ fi
 . /usr/local/bin/wikibasedumps-shared.sh
 . /usr/local/bin/${projectName}rdf_functions.sh
 
-targetDir=${targetDirDefault}
+# Determine target directory based on whether outputDir was specified
+if [ -z "$outputDir" ]; then
+	targetDir="${targetDirDefault}"
+else
+	targetDir="${targetDirBase}/${outputDir}"
+fi
+
 makeTargetDir "$targetDir"
 
 if [ $continue -gt 0 ]; then
