@@ -110,6 +110,8 @@ fi
 . /usr/local/bin/wikibasedumps-shared.sh
 . /usr/local/bin/${projectName}rdf_functions.sh
 
+targetDir=${targetDirDefault}
+
 if [ $continue -gt 0 ]; then
 	# Remove old leftovers, as we start from scratch.
 	rm -f $tempDir/$projectName$dumpFormat-$dumpName.*-batch*.gz

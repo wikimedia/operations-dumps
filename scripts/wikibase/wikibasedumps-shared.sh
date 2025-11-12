@@ -22,12 +22,12 @@ for settingname in "multiversion" "tempDir" "shards" "fileSizes" "pagesPerBatch"
 done
 
 targetDirBase=${systemdjobsdir}/wikibase/${projectName}wiki
-targetDir=$targetDirBase/$today
+targetDirDefault=$targetDirBase/$today
 
 multiversionscript="${multiversion}/MWScript.php"
 
 # Create the dir for the day: This may or may not already exist, we don't care
-mkdir -p $targetDir
+mkdir -p $targetDirDefault
 
 function runDcat {
 	if [[ -n "$dcatConfig" ]]; then
@@ -38,10 +38,10 @@ function runDcat {
 # Add the checksums for $1 to today's checksum files
 function putDumpChecksums {
 	md5=`md5sum "$1" | awk '{print $1}'`
-	echo "$md5  `basename $1`" >> $targetDir/${projectName}-$today-md5sums.txt
+	echo "$md5  `basename $1`" >> $targetDirDefault/${projectName}-$today-md5sums.txt
 
 	sha1=`sha1sum "$1" | awk '{print $1}'`
-	echo "$sha1  `basename $1`" >> $targetDir/${projectName}-$today-sha1sums.txt
+	echo "$sha1  `basename $1`" >> $targetDirDefault/${projectName}-$today-sha1sums.txt
 }
 
 # Get the number of batches needed to dump all of the particular project, stored in $numberOfBatchesNeeded.
@@ -111,9 +111,9 @@ function moveLinkFile {
 	tempFile=$1
 	targetFile=$2
 	latestFile=$3
-	mv "$tempDir/$tempFile" "$targetDir/$targetFile"
+	mv "$tempDir/$tempFile" "$targetDirDefault/$targetFile"
 	ln -fs "$today/$targetFile" "$targetDirBase/$latestFile"
-	putDumpChecksums "$targetDir/$targetFile"
+	putDumpChecksums "$targetDirDefault/$targetFile"
 }
 
 setDumpNameToMinSize() {

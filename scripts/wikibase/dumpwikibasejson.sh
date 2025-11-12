@@ -111,6 +111,8 @@ done
 . /usr/local/bin/wikibasedumps-shared.sh
 . /usr/local/bin/${projectName}json_functions.sh
 
+targetDir=${targetDirDefault}
+
 if [ $continue -eq 0 ]; then
 	# Remove old leftovers, as we start from scratch.
 	rm -f "${tempDir}/${projectName}-${dumpName}."*-batch*.json.gz
