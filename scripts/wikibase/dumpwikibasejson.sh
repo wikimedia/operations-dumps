@@ -238,14 +238,20 @@ while [ $i -lt $shards ]; do
 	i=$((i+1))
 done
 
-moveLinkFile "${projectName}-${dumpName}.json.gz" "${filename}.json.gz" "latest-${dumpName}.json.gz"
+moveLinkFile "${tempDir}/${projectName}-${dumpName}.json.gz" \
+	"${targetDir}/${filename}.json.gz" \
+	"${targetDirBase}/latest-${dumpName}.json.gz"
+
 nthreads=$(( $shards / 2))
 if [ $nthreads -lt 1 ]; then
     nthreads=1
 fi
 
 gzip -dc $targetDir/$filename.json.gz | "$lbzip2" -n $nthreads -c > "${tempDir}/${projectName}-${dumpName}.json.bz2"
-moveLinkFile "${projectName}-${dumpName}.json.bz2" "${filename}.json.bz2" "latest-${dumpName}.json.bz2"
+
+moveLinkFile "${tempDir}/${projectName}-${dumpName}.json.bz2" \
+	"${targetDir}/${filename}.json.bz2" \
+	"${targetDirBase}/latest-${dumpName}.json.bz2"
 
 # Legacy directory (with legacy naming scheme)
 legacyDirectory="${systemdjobsdir}/${projectName}"

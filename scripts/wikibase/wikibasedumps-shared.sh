@@ -38,11 +38,14 @@ function runDcat {
 
 # Add the checksums for $1 to today's checksum files
 function putDumpChecksums {
-	md5=`md5sum "$1" | awk '{print $1}'`
-	echo "$md5  `basename $1`" >> $targetDirDefault/${projectName}-$today-md5sums.txt
+	local targetPath=$1
+	local targetDir=`dirname "$targetPath"`
 
-	sha1=`sha1sum "$1" | awk '{print $1}'`
-	echo "$sha1  `basename $1`" >> $targetDirDefault/${projectName}-$today-sha1sums.txt
+	md5=`md5sum "$targetPath" | awk '{print $1}'`
+	echo "$md5  `basename $targetPath`" >> $targetDir/${projectName}-$today-md5sums.txt
+
+	sha1=`sha1sum "$targetPath" | awk '{print $1}'`
+	echo "$sha1  `basename $targetPath`" >> $targetDir/${projectName}-$today-sha1sums.txt
 }
 
 # Get the number of batches needed to dump all of the particular project, stored in $numberOfBatchesNeeded.
@@ -107,14 +110,15 @@ function getContinueBatchNumber {
 	fi
 }
 
-# Move file from temp under name $1 to target under name $2 and then link it as latest under name $3
+# Move the dump file from sourcePath to targetPath, create a symlink at latestPath,
+# and put the checksums for the dump file.
 function moveLinkFile {
-	tempFile=$1
-	targetFile=$2
-	latestFile=$3
-	mv "$tempDir/$tempFile" "$targetDirDefault/$targetFile"
-	ln -fs "$today/$targetFile" "$targetDirBase/$latestFile"
-	putDumpChecksums "$targetDirDefault/$targetFile"
+	local sourcePath=$1
+	local targetPath=$2
+	local latestPath=$3
+	mv "$sourcePath" "$targetPath"
+	ln -fs "$targetPath" "$latestPath"
+	putDumpChecksums "$targetPath"
 }
 
 setDumpNameToMinSize() {

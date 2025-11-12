@@ -262,14 +262,26 @@ if [ $nthreads -lt 1 ]; then
     nthreads=1
 fi
 
-moveLinkFile $projectName$dumpFormat-$dumpName.gz $filename.$dumpFormat.gz latest-$dumpName.$dumpFormat.gz $projectName
+moveLinkFile "${tempDir}/${projectName}${dumpFormat}-${dumpName}.gz" \
+	"${targetDir}/${filename}.${dumpFormat}.gz" \
+	"${targetDirBase}/latest-${dumpName}.${dumpFormat}.gz"
+
 gzip -dc "$targetDir/$filename.$dumpFormat.gz" | "$lbzip2" -n $nthreads -c > $tempDir/$projectName$dumpFormat-$dumpName.bz2
-moveLinkFile $projectName$dumpFormat-$dumpName.bz2 $filename.$dumpFormat.bz2 latest-$dumpName.$dumpFormat.bz2 $projectName
+
+moveLinkFile "${tempDir}/${projectName}${dumpFormat}-${dumpName}.bz2" \
+	"${targetDir}/${filename}.${dumpFormat}.bz2" \
+	"${targetDirBase}/latest-${dumpName}.${dumpFormat}.bz2"
 
 if [ -n "$extraFormat" ]; then
-	moveLinkFile $projectName$extraFormat-$dumpName.gz $filename.$extraFormat.gz latest-$dumpName.$extraFormat.gz $projectName
+	moveLinkFile "${tempDir}/${projectName}${extraFormat}-${dumpName}.gz" \
+		"${targetDir}/${filename}.${extraFormat}.gz" \
+		"${targetDirBase}/latest-${dumpName}.${extraFormat}.gz"
+
 	gzip -dc "$targetDir/$filename.$extraFormat.gz" | "$lbzip2" -n $nthreads -c > $tempDir/$projectName$extraFormat-$dumpName.bz2
-	moveLinkFile $projectName$extraFormat-$dumpName.bz2 $filename.$extraFormat.bz2 latest-$dumpName.$extraFormat.bz2 $projectName
+
+	moveLinkFile "${tempDir}/${projectName}${extraFormat}-${dumpName}.bz2" \
+		"${targetDir}/${filename}.${extraFormat}.bz2" \
+		"${targetDirBase}/latest-${dumpName}.${extraFormat}.bz2"
 fi
 
 setDcatConfig
