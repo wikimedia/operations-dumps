@@ -189,10 +189,10 @@ while [ $i -lt $shards ]; do
 			fi
 
 			retries=0
-			let batch++
+			batch=$((batch+1))
 		done
 	) &
-	let i++
+	i=$((i+1))
 done
 
 wait
@@ -217,7 +217,7 @@ while [ $i -lt $shards ]; do
 		exit 1
 	fi
 	cat $tempFiles >> $tempDir/$projectName$dumpFormat-$dumpName.gz
-	let i++
+	i=$((i+1))
 done
 
 if [ -n "$extraFormat" ]; then
@@ -236,7 +236,7 @@ if [ -n "$extraFormat" ]; then
 				fi
 			done
 		) &
-		let i++
+		i=$((i+1))
 	done
 	wait
 fi
@@ -250,7 +250,7 @@ while [ $i -lt $shards ]; do
 		cat $tempFiles >> $tempDir/$projectName$extraFormat-$dumpName.gz
 		rm -f $tempFiles
 	fi
-	let i++
+	i=$((i+1))
 done
 
 nthreads=$(( $shards / 2))

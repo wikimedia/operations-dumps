@@ -175,10 +175,10 @@ while [ $i -lt $shards ]; do
 			fi
 
 			retries=0
-			let batch++
+			batch=$((batch+1))
 		done
 	) &
-	let i++
+	i=$((i+1))
 done
 
 wait
@@ -219,7 +219,7 @@ while [ $i -lt $shards ]; do
 		sawOutput=1
 		cat "$tempFile" >> "${tempDir}/${projectName}-${dumpName}.json.gz"
 	done
-	let i++
+	i=$((i+1))
 done
 
 # Close the json list
@@ -229,7 +229,7 @@ i=0
 while [ $i -lt $shards ]; do
 	getTempFiles "${tempDir}/${projectName}-${dumpName}.${i}-batch*.json.gz"
 	rm -f $tempFiles
-	let i++
+	i=$((i+1))
 done
 
 moveLinkFile "${projectName}-${dumpName}.json.gz" "${filename}.json.gz" "latest-${dumpName}.json.gz"
