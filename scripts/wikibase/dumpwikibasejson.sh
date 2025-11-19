@@ -2,9 +2,11 @@
 
 # Generate a json dump for wikibase (wikidata or commons) and remove old ones.
 
-# Disable set -e for now. See #T400383
-# set -e
-set -o pipefail
+# Setting a stricter mode for this script, to enable better error
+# handling and avoid subtle bugs. This will exit the script on
+# any error, on use of undefined variables, and will propagate
+# errors in pipelines.
+set -euo pipefail
 
 PROJECTS=("wikidata" "commons")
 
