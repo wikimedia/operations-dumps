@@ -117,7 +117,7 @@ function moveLinkFile {
 	local targetPath=$2
 	local latestPath=$3
 	mv "$sourcePath" "$targetPath"
-	ln -fs "$targetPath" "$latestPath"
+	ln -frs "$targetPath" "$latestPath"
 	putDumpChecksums "$targetPath"
 }
 
