@@ -47,6 +47,9 @@ usage() {
     exit 1
 }
 
+progressFile="/tmp/wikibaserdf-batches-completed.log"
+echo -n "" > "$progressFile"
+
 configfile="${confsdir}/wikidump.conf.other"
 dryrun="false"
 continue=0
@@ -173,6 +176,8 @@ if [[ $numberOfBatchesNeeded -lt 1 ]]; then
 	pagesPerBatch=$(( $maxPageId / $shards ))
 fi
 
+totalBatches=$(( shards * numberOfBatchesNeeded ))
+
 setEntityType
 
 while [ $i -lt $shards ]; do
@@ -189,7 +194,7 @@ while [ $i -lt $shards ]; do
 		while [ $batch -lt $numberOfBatchesNeeded ] && [ ! -f $failureFile ]; do
 			setPerBatchVars
 
-			echo "(`date --iso-8601=minutes`) Starting batch $batch"
+			echo "Starting batch $batch"
 			$php $multiversionscript extensions/Wikibase/repo/maintenance/dumpRdf.php \
 				--wiki ${projectName}wiki \
 				--shard $i \
@@ -211,6 +216,7 @@ while [ $i -lt $shards ]; do
 
 			retries=0
 			batch=$((batch+1))
+			reportProgress $i $batch $totalBatches $progressFile
 		done
 	) &
 	i=$((i+1))

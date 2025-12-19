@@ -130,3 +130,16 @@ setDumpNameToMinSize() {
         dumpNameToMinSize[$key]=$(( $value / $shards ))
     done
 }
+
+reportProgress() {
+	local shard=$1
+	local batch=$2
+	local totalBatches=$3
+	local progressFile=$4
+	local completed percent
+
+	echo "shard $shard batch $batch done" >> "$progressFile"
+	completed=$(wc -l < "$progressFile")
+	percent=$(( completed * 100 / totalBatches ))
+	echo "Progress: $completed/$totalBatches batches done (${percent}%)"
+}

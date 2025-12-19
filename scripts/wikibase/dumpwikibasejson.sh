@@ -41,6 +41,9 @@ usage() {
     exit 1
 }
 
+progressFile="/tmp/wikibasejson-batches-completed.log"
+echo -n "" > "$progressFile"
+
 configfile="${confsdir}/wikidump.conf.other"
 projectName="wikidata"
 dumpName="all"
@@ -143,6 +146,8 @@ if [[ $numberOfBatchesNeeded -lt 1 ]]; then
 	pagesPerBatch=$(( $maxPageId / $shards ))
 fi
 
+totalBatches=$(( shards * numberOfBatchesNeeded ))
+
 function returnWithCode { return $1; }
 
 extraArgs="--dbgroupdefault dump"
@@ -163,7 +168,7 @@ while [ $i -lt $shards ]; do
 		while [ $batch -lt $numberOfBatchesNeeded ] && [ ! -f $failureFile ]; do
 			setPerBatchVars
 
-			echo "(`date --iso-8601=minutes`) Starting batch $batch"
+			echo "Starting batch $batch"
 			$php $multiversionscript extensions/Wikibase/repo/maintenance/dumpJson.php \
 				--wiki ${projectName}wiki \
 				--shard $i \
@@ -186,6 +191,7 @@ while [ $i -lt $shards ]; do
 
 			retries=0
 			batch=$((batch+1))
+			reportProgress $i $batch $totalBatches $progressFile
 		done
 	) &
 	i=$((i+1))
