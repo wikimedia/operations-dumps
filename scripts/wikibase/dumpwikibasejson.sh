@@ -267,13 +267,5 @@ moveLinkFile "${tempDir}/${projectName}-${dumpName}.json.bz2" \
 	"${targetDir}/${filename}.json.bz2" \
 	"${targetDirBase}/latest-${dumpName}.json.bz2"
 
-# Legacy directory (with legacy naming scheme)
-legacyDirectory="${systemdjobsdir}/${projectName}"
-# Clean up any existing symlink for today and create a new one to prevent the
-# script from exiting prematurely
-ln -sf "../wikibase/${projectName}wiki/$today/$filename.json.gz" "$legacyDirectory/$today.json.gz"
-find $legacyDirectory -name '*.json.gz' -mtime +`expr $daysToKeep + 1` -delete
-
-
 setDcatConfig
 runDcat
