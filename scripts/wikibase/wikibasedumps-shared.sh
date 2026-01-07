@@ -143,3 +143,21 @@ reportProgress() {
 	percent=$(( completed * 100 / totalBatches ))
 	echo "Progress: $completed/$totalBatches batches done (${percent}%)"
 }
+
+reportMetrics() {
+	local dump_report=$1
+	local prometheus_url=$2
+	local type=$3
+	local format=$4
+	local skipped_entities curl_output
+
+	# count the number of skipped entities from Exception log tag
+	skipped_entities=$( grep "failed-to-dump" $dump_report | wc -l || true)
+	echo "Number of skipped entities: $skipped_entities"
+	if ! curl_output=$(
+		echo "wikidata_dumps_skipped_entities{type=\"$type\",format=\"$format\"} ${skipped_entities}" \
+		| curl -sS --data-binary @- ${prometheus_url} 2>&1
+	); then
+		echo "Warning: Failed to push metrics to Prometheus: ${curl_output}" >&2
+	fi
+}

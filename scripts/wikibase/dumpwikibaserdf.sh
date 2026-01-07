@@ -268,14 +268,8 @@ if [ -n "$extraFormat" ]; then
 	wait
 fi
 
-# count the number of skipped entities from Exception log tag
-skipped_entities=$( grep "failed-to-dump" $DUMP_REPORT | wc -l || true)
-echo "Number of skipped entities: $skipped_entities"
-if ! curl_output=$(
-	echo "wikidata_dumps_skipped_entities_rdf ${skipped_entities}" \
-	| curl -sS --data-binary @- ${PROMETHEUS_PUSH_URL} 2>&1
-); then
-    echo "Warning: Failed to push metrics to Prometheus: ${curl_output}" >&2
+if [ "$projectName" = "wikidata" ] ; then
+	reportMetrics $DUMP_REPORT $PROMETHEUS_PUSH_URL $dumpName rdf
 fi
 
 i=0
