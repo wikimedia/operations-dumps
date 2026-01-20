@@ -194,7 +194,6 @@ while [ $i -lt $shards ]; do
 		while [ $batch -lt $numberOfBatchesNeeded ] && [ ! -f $failureFile ]; do
 			setPerBatchVars
 
-			echo "Starting batch $batch"
 			$php $multiversionscript extensions/Wikibase/repo/maintenance/dumpRdf.php \
 				--wiki ${projectName}wiki \
 				--shard $i \
