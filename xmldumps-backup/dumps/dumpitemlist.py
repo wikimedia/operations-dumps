@@ -162,14 +162,15 @@ class DumpItemList():
         self.append_job_if_needed(AllTitleDump("allpagetitlesdump",
                                                "List of all page titles"))
 
-        self.append_job_if_needed(XmlStub("xmlstubsdump", "First-pass for page XML data dumps",
+        self.append_job_if_needed(XmlStub("xmlstubsdump",
+                                          "Deprecated: First-pass for page XML data dumps",
                                           self._get_partnum_todo("xmlstubsdump"),
                                           get_int_setting(self.jobsperbatch, "xmlstubsdump"),
                                           self.filepart.get_attr('_pages_per_filepart_history')))
 
         if self.find_item_by_name('xmlstubsdump') is not None:
             self.append_job_if_needed(RecombineXmlStub(
-                "xmlstubsdumprecombine", "Recombine first-pass for page XML data dumps",
+                "xmlstubsdumprecombine", "Deprecated: Recombine first-pass for page XML data dumps",
                 self.find_item_by_name('xmlstubsdump')))
 
         # NOTE that _pages_per_filepart_history passed here should be the same
@@ -203,7 +204,7 @@ class DumpItemList():
             self.append_job_if_needed(
                 XmlDump("meta-current",
                         "metacurrentdump",
-                        "All pages, current versions only.",
+                        "Deprecated: All pages, current versions only.",
                         "Discussion and user pages are included in this complete archive. " +
                         "Most mirrors won't want this extra material.",
                         self.find_item_by_name('xmlstubsdump'),
@@ -217,7 +218,7 @@ class DumpItemList():
             self.append_job_if_needed(
                 RecombineXmlDump(
                     "metacurrentdumprecombine",
-                    "Recombine all pages, current versions only.",
+                    "Deprecated: Recombine all pages, current versions only.",
                     "Discussion and user pages are included in this complete archive. " +
                     "Most mirrors won't want this extra material.",
                     self.find_item_by_name('metacurrentdump')))
@@ -249,7 +250,7 @@ class DumpItemList():
             BigXmlDump(
                 "meta-history",
                 "metahistorybz2dump",
-                "All pages with complete edit history (.bz2)",
+                "Deprecated: All pages with complete edit history (.bz2)",
                 "These dumps can be *very* large, uncompressing up to " +
                 "20 times the archive download size. " +
                 "Suitable for archival and statistical use, " +
@@ -265,7 +266,7 @@ class DumpItemList():
             self.append_job_if_needed(
                 RecombineXmlDump(
                     "metahistorybz2dumprecombine",
-                    "Recombine all pages with complete edit history (.bz2)",
+                    "Deprecated: Recombine all pages with complete edit history (.bz2)",
                     "These dumps can be *very* large, uncompressing up to " +
                     "100 times the archive download size. " +
                     "Suitable for archival and statistical use, " +
@@ -276,7 +277,7 @@ class DumpItemList():
                 XmlRecompressDump(
                     "meta-history",
                     "metahistory7zdump",
-                    "All pages with complete edit history (.7z)",
+                    "Deprecated: All pages with complete edit history (.7z)",
                     "These dumps can be *very* large, uncompressing up to " +
                     "100 times the archive download size. " +
                     "Suitable for archival and statistical use, " +
@@ -289,7 +290,7 @@ class DumpItemList():
             self.append_job_if_needed(
                 RecombineXmlRecompressDump(
                     "metahistory7zdumprecombine",
-                    "Recombine all pages with complete edit history (.7z)",
+                    "Deprecated: Recombine all pages with complete edit history (.7z)",
                     "These dumps can be *very* large, uncompressing " +
                     "up to 100 times the archive download size. " +
                     "Suitable for archival and statistical use, " +
