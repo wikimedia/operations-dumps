@@ -31,6 +31,8 @@ usage() {
     echo "                  'mediainfo' (for commons)" >& 2
     echo "  --extra    (-E) extra args, e.g. '--ignore-missing' for commons" >& 2
     echo "                  (default value: empty)" >& 2
+    echo "  --output-dir (-o) target directory for dumps" >& 2
+    echo "                  (default value: Today's date formatted as YYYYMMDD)" >& 2
     echo >& 2
     echo "Flags: " >& 2
     echo "  --continue (-C) resume the specified dump from where it left off" >& 2
@@ -50,6 +52,7 @@ dumpName="all"
 entities="item|property"
 dryrun="false"
 extra=""
+outputDir=""
 continue=0
 
 while [ $# -gt 0 ]; do
@@ -74,6 +77,10 @@ while [ $# -gt 0 ]; do
             extra="$2"
             shift; shift
 	    ;;
+  "--output-dir"|"-o")
+            outputDir="$2"
+            shift; shift
+      ;;
 	"--dryrun"|"-D")
             dryrun="true"
             shift
@@ -119,7 +126,12 @@ done
 . /usr/local/bin/wikibasedumps-shared.sh
 . /usr/local/bin/${projectName}json_functions.sh
 
-targetDir=${targetDirDefault}
+# Determine target directory based on whether outputDir was specified
+if [ -z "$outputDir" ]; then
+	targetDir="${targetDirDefault}"
+else
+	targetDir="${targetDirBase}/${outputDir}"
+fi
 
 makeTargetDir "$targetDir"
 
