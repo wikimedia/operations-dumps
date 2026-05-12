@@ -37,6 +37,8 @@ usage() {
     echo "  --extra   (-e) convert to this format, one of 'ttl' or 'nt'" >& 2
     echo "  --output-dir (-o) target directory for dumps" >& 2
     echo "                  (default value: Today's date formatted as YYYYMMDD)" >& 2
+    echo "  --max-batches-per-shard (-m) max batches to run on each shard" >& 2
+    echo "                (to truncate the dumped data, for testing)" >& 2
     echo >& 2
     echo "Flags: " >& 2
     echo "  --continue (-C) resume the specified dump from where it left off" >& 2
@@ -55,6 +57,7 @@ dryrun="false"
 continue=0
 extraFormat=""
 outputDir=""
+maxBatchesPerShard=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -80,6 +83,10 @@ while [ $# -gt 0 ]; do
 	    ;;
     "--output-dir"|"-o")
             outputDir="$2"
+            shift; shift
+        ;;
+    "--max-batches-per-shard"|"-m")
+            maxBatchesPerShard="$2"
             shift; shift
         ;;
 	"--dryrun"|"-D")
@@ -174,6 +181,12 @@ if [[ $numberOfBatchesNeeded -lt 1 ]]; then
 	shards=4
 	numberOfBatchesNeeded=1
 	pagesPerBatch=$(( $maxPageId / $shards ))
+fi
+
+# Artificially cap the batches if requested in --max_batches-per-shard, to limit the
+# number of dumpRdf.php calls.
+if [ -n "$maxBatchesPerShard" ] && [ "$numberOfBatchesNeeded" -gt "$maxBatchesPerShard" ]; then
+	numberOfBatchesNeeded = $maxBatchesPerShard
 fi
 
 totalBatches=$(( shards * numberOfBatchesNeeded ))
