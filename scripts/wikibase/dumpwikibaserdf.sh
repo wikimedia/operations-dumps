@@ -186,7 +186,7 @@ fi
 # Artificially cap the batches if requested in --max_batches-per-shard, to limit the
 # number of dumpRdf.php calls.
 if [ -n "$maxBatchesPerShard" ] && [ "$numberOfBatchesNeeded" -gt "$maxBatchesPerShard" ]; then
-	numberOfBatchesNeeded = $maxBatchesPerShard
+	numberOfBatchesNeeded=$maxBatchesPerShard
 fi
 
 totalBatches=$(( shards * numberOfBatchesNeeded ))
