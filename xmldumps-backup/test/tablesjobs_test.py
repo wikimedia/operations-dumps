@@ -25,7 +25,8 @@ class TestTablesJobs(BaseDumpsTestCase):
         known_tables = ['site_stats', 'langlinks', 'page_props',
                         'wb_items_per_site', 'wb_terms',
                         'wb_entity_per_page', 'wb_property_info',
-                        'wb_changes_subscription', 'sites', 'wbc_entity_usage']
+                        'wb_changes_subscription', 'sites', 'wbc_entity_usage',
+                        'change_tag', 'change_tag_def']
 
         mock_get_known_tables.return_value = known_tables
 
@@ -85,3 +86,34 @@ class TestTablesJobs(BaseDumpsTestCase):
                 with self.assertRaises(Exception) as context:
                     item.do_prep(runner)
                 self.assertTrue('Unknown table type' in str(context.exception))
+            elif item.name() == 'changetagstable':
+                # table marked as partially public
+                table_path = os.path.join(
+                    fullpath, '{name}-{date}-change_tag.sql.gz.inprog'.format(
+                        name=self.wd['wiki'].db_name, date=self.today))
+                expected_command_part_for_change_tag = expected_command_part[:]
+                expected_command_part_for_change_tag.insert(
+                    expected_command_part_for_change_tag.index('--skip-lock-tables') + 1,
+                    '--where=EXISTS(SELECT 1 FROM change_tag_def WHERE ctd_id = ct_tag_id ' +
+                    'AND ctd_name NOT LIKE \'mw-private-%\')'
+                )
+                expected_commands = [[
+                    expected_command_part_for_change_tag + ['change_tag'],
+                    ['/usr/bin/gzip', '>', table_path]]]
+                produced_commands = item.do_prep(runner)
+                self.assertEqual(produced_commands, expected_commands)
+            elif item.name() == 'changetagdeftable':
+                # table marked as partially public
+                table_path = os.path.join(
+                    fullpath, '{name}-{date}-change_tag_def.sql.gz.inprog'.format(
+                        name=self.wd['wiki'].db_name, date=self.today))
+                expected_command_part_for_change_tag = expected_command_part[:]
+                expected_command_part_for_change_tag.insert(
+                    expected_command_part_for_change_tag.index('--skip-lock-tables') + 1,
+                    '--where=ctd_name NOT LIKE \'mw-private-%\''
+                )
+                expected_commands = [[
+                    expected_command_part_for_change_tag + ['change_tag_def'],
+                    ['/usr/bin/gzip', '>', table_path]]]
+                produced_commands = item.do_prep(runner)
+                self.assertEqual(produced_commands, expected_commands)

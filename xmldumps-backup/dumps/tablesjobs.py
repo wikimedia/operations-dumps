@@ -13,11 +13,12 @@ from dumps.jobs import Dump
 from dumps.fileutils import DumpFilename
 
 
-class PublicTable(Dump):
+class TableDump(Dump):
     """Dump of a table using MySQL's mysqldump utility."""
 
-    def __init__(self, table, name, desc):
+    def __init__(self, table, name, desc, where):
         self._table = table
+        self._where = where
         self._parts_enabled = False
         self.private = False
         Dump.__init__(self, name, desc)
@@ -32,7 +33,11 @@ class PublicTable(Dump):
         return "gz"
 
     def build_command(self, runner, output_dfname):
-        commands = runner.db_server_info.build_sqldump_command(self._table, runner.wiki.config.gzip)
+        commands = runner.db_server_info.build_sqldump_command(
+            self._table,
+            runner.wiki.config.gzip,
+            self._where
+        )
         if self.private or runner.wiki.is_private():
             command_series = runner.get_save_command_series(
                 commands, DumpFilename.get_inprogress_name(
@@ -91,6 +96,40 @@ class PublicTable(Dump):
             table name (e.g. "site_stats"), path to output file, Runner
         """
         return runner.save_command(command_series, self.command_completion_callback)
+
+
+class PublicTable(TableDump):
+    """Dump of a fully public table using MySQL's mysqldump utility."""
+
+    def __init__(self, table, name, desc):
+        TableDump.__init__(self, table, name, desc, None)
+
+
+class ChangeTagTableDump(TableDump):
+    """Dump of the change_tag table using MySQL's mysqldump utility."""
+
+    def __init__(self):
+        TableDump.__init__(
+            self,
+            "change_tag",
+            "changetagstable",
+            "List of annotations (tags) for revisions and log entries",
+            "EXISTS(SELECT 1 FROM change_tag_def WHERE ctd_id = ct_tag_id " +
+            "AND ctd_name NOT LIKE 'mw-private-%')"
+        )
+
+
+class ChangeTagDefTableDump(TableDump):
+    """Dump of the change_tag_def table using MySQL's mysqldump utility."""
+
+    def __init__(self):
+        TableDump.__init__(
+            self,
+            "change_tag_def",
+            "changetagdeftable",
+            "Annotation (tag) names and ids.",
+            "ctd_name NOT LIKE 'mw-private-%'"
+        )
 
 
 class TitleDump(Dump):

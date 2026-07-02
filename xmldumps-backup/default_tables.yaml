@@ -54,12 +54,6 @@ tables:
     geo_tags:
       job: geotags
       description: List of pages' geographical coordinates
-    change_tag:
-      job: changetags
-      description: List of annotations (tags) for revisions and log entries
-    change_tag_def:
-      job: changetagdef
-      description: Annotation (tag) names and ids.
     flaggedpages:
       job: flaggedpages
       description: This contains a row for each flagged article containing the stable revision ID, if the lastest edit was flagged, and how long edits have been pending.

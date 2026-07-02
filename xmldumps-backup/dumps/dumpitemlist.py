@@ -12,7 +12,8 @@ import traceback
 from dumps.exceptions import BackupError
 
 from dumps.apijobs import SiteInfoDump, SiteInfoV2Dump
-from dumps.tablesjobs import PublicTable, TitleDump, AllTitleDump
+from dumps.tablesjobs import (PublicTable, TitleDump, AllTitleDump,
+                              ChangeTagTableDump, ChangeTagDefTableDump)
 from dumps.recombinejobs import RecombineXmlDump
 from dumps.recombinejobs import RecombineXmlStub, RecombineXmlRecompressDump
 from dumps.recombinejobs import RecombineXmlLoggingDump, RecombineXmlMultiStreamDump
@@ -161,6 +162,8 @@ class DumpItemList():
                                             "List of page titles in main namespace"))
         self.append_job_if_needed(AllTitleDump("allpagetitlesdump",
                                                "List of all page titles"))
+        self.append_job_if_needed(ChangeTagTableDump())
+        self.append_job_if_needed(ChangeTagDefTableDump())
 
         self.append_job_if_needed(XmlStub("xmlstubsdump",
                                           "Deprecated: First-pass for page XML data dumps",

@@ -63,6 +63,8 @@
 <li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-stub-articles2.xml.gz">wikidatawiki-{date}-stub-articles2.xml.gz</a> 5 bytes</li>
 <li class='missing'>wikidatawiki-{date}-stub-articles3.xml.gz</li>
 <li class='missing'>wikidatawiki-{date}-stub-articles4.xml.gz</li></ul></li>
+<li class='waiting'><span class='updates'></span> <span class='status'>waiting</span> <span class='title'>Annotation (tag) names and ids.</span><ul><li class='missing'>wikidatawiki-{date}-change_tag_def.sql.gz</li></ul></li>
+<li class='waiting'><span class='updates'></span> <span class='status'>waiting</span> <span class='title'>List of annotations (tags) for revisions and log entries</span><ul><li class='missing'>wikidatawiki-{date}-change_tag.sql.gz</li></ul></li>
 <li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>List of all page titles</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-all-titles.gz">wikidatawiki-{date}-all-titles.gz</a> 5 bytes</li></ul></li>
 <li class='done'><span class='updates'>2020-02-14 13:44:13</span> <span class='status'>done</span> <span class='title'>List of page titles in main namespace</span><ul><li class='file'><a href="/mydumps/wikidatawiki/{date}/wikidatawiki-{date}-all-titles-in-ns0.gz">wikidatawiki-{date}-all-titles-in-ns0.gz</a> 5 bytes</li></ul></li>
 <li class='waiting'><span class='updates'></span> <span class='status'>waiting</span> <span class='title'>Namespaces, namespace aliases, magic words (formatversion=2).</span><ul><li class='missing'>wikidatawiki-{date}-siteinfo2-namespacesv2.json.gz</li></ul></li>

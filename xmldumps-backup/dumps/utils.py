@@ -196,16 +196,28 @@ class DbServerInfo():
             command.append([pipeto])
         return command
 
-    def build_sqldump_command(self, table, pipeto=None):
+    def build_sqldump_command(self, table, pipeto=None, where=None):
         """Put together a command to dump a table from the current DB with mysqldump
         and save to a gzipped sql file."""
         if not exists(self.wiki.config.mysqldump):
             raise BackupError("mysqldump command %s not found" % self.wiki.config.mysqldump)
-        command = [["%s" % self.wiki.config.mysqldump] + self.mysql_standard_parameters() + [
+        mysqldump_parameters = [
             "--opt", "--quick",
             "--skip-add-locks", "--skip-lock-tables",
+        ]
+        if where:
+            # Quotes are not needed despite what mariadbdump docs says because
+            # the command is not executed using a shell
+            mysqldump_parameters += ["--where=%s" % where]
+        mysqldump_parameters.extend([
             "%s" % self.db_name,
-            "%s" % self.get_attr('db_table_prefix') + table]]
+            "%s" % self.get_attr('db_table_prefix') + table
+        ])
+        command = [
+            ["%s" % self.wiki.config.mysqldump] +
+            self.mysql_standard_parameters() +
+            mysqldump_parameters
+        ]
         if pipeto:
             command.append([pipeto])
         return command
