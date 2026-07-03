@@ -104,8 +104,8 @@ class TestIndexHtml(BaseDumpsTestCase):
         self.setup_dump_jobs_info()
 
         known_tables = [
-            'site_stats', 'wb_items_per_site', 'wb_terms'
-            'wb_entity_per_page', 'wb_property_info'
+            'site_stats', 'wb_items_per_site', 'wb_terms',
+            'wb_entity_per_page', 'wb_property_info',
             'wb_changes_subscription', 'sites', 'wbc_entity_usage']
 
         mock_get_known_tables.return_value = known_tables

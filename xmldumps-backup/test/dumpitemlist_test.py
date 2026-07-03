@@ -20,8 +20,8 @@ class TestDumpItemList(BaseDumpsTestCase):
         on their type (public, None, private)
         '''
         known_tables = ['site_stats', 'langlinks', 'page_props',
-                        'wb_items_per_site', 'wb_terms'
-                        'wb_entity_per_page', 'wb_property_info'
+                        'wb_items_per_site', 'wb_terms',
+                        'wb_entity_per_page', 'wb_property_info',
                         'wb_changes_subscription', 'wbc_entity_usage']
 
         mock_get_known_tables.return_value = known_tables
@@ -33,7 +33,10 @@ class TestDumpItemList(BaseDumpsTestCase):
                                      enabled=[RunSettings.NAME])
 
         expected_item_names = ['sitestatstable', 'langlinkstable', 'pagepropstable',
-                               'wbitemspersitetable', 'wbcentityusagetable', 'namespaces',
+                               'wbitemspersitetable', 'wbtermstable', 'wbentityperpagetable',
+                               'wbpropertyinfotable', 'wbchangessubscriptiontable',
+                               'wbcentityusagetable', 'namespaces',
+                               'namespacesv2',
                                'pagetitlesdump', 'allpagetitlesdump', 'xmlstubsdump',
                                'xmlstubsdumprecombine', 'articlesdump', 'articlesdumprecombine',
                                'metacurrentdump', 'metacurrentdumprecombine', 'xmlpagelogsdump',

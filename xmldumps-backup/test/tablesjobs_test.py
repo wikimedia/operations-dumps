@@ -14,16 +14,17 @@ class TestTablesJobs(BaseDumpsTestCase):
     """
     test methods of tables dumps jobs
     """
+    @patch('dumps.utils.exists', return_value=True)
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    def test_do_prep(self, _mock_get_some_stats, mock_get_known_tables):
+    def test_do_prep(self, _mock_get_some_stats, mock_get_known_tables, _mock_exists):
         '''
         make sure we get the right command list for tables depending
         on their type (public, None, private)
         '''
         known_tables = ['site_stats', 'langlinks', 'page_props',
-                        'wb_items_per_site', 'wb_terms'
-                        'wb_entity_per_page', 'wb_property_info'
+                        'wb_items_per_site', 'wb_terms',
+                        'wb_entity_per_page', 'wb_property_info',
                         'wb_changes_subscription', 'sites', 'wbc_entity_usage']
 
         mock_get_known_tables.return_value = known_tables
@@ -51,7 +52,7 @@ class TestTablesJobs(BaseDumpsTestCase):
         runner.db_server_info.db_table_prefix = ''
 
         expected_command_part = ['/usr/bin/mysqldump',
-                                 '--defaults-extra-file=/etc/dumps/mariadb/my-client.cnf',
+                                 '--defaults-extra-file=/etc/dumps/extra/my-client.conf',
                                  '-h', '127.0.0.1', '--port', '3306',
                                  '--max_allowed_packet=32M',
                                  '--opt', '--quick', '--skip-add-locks', '--skip-lock-tables',

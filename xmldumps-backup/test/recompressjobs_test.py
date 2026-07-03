@@ -4,7 +4,7 @@ test suite for recompression dump jobs
 """
 import os
 from unittest.mock import patch
-from test.basedumpstest import BaseDumpsTestCase
+from test.basedumpstest import BaseDumpsTestCase, binary_exists_else_real
 import dumps.dumpitemlist
 import dumps.wikidump
 import dumps.xmlcontentjobs
@@ -55,9 +55,11 @@ class TestRecompressJobs(BaseDumpsTestCase):
                 decompress=decompress, infile=infilename, compress=compress, outfile=outfilename)]]])
         return expected_todo
 
+    @patch('dumps.recompressjobs.exists', side_effect=binary_exists_else_real)
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    def test_batch_command_generation(self, _mock_get_some_stats, _mock_get_known_tables):
+    def test_batch_command_generation(self, _mock_get_some_stats, _mock_get_known_tables,
+                                      _mock_exists):
         """
         make sure that given page content file, we generate good commands
         for producing 7z recompressed output from those,

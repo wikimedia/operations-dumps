@@ -6,9 +6,19 @@ import os
 import random
 import shutil
 import unittest
+from unittest.mock import patch
 from dumps.wikidump import Wiki, Config
 from dumps.utils import TimeUtils
 from dumps.fileutils import DumpDir, DumpFilename
+
+
+def binary_exists_else_real(path):
+    """
+    exists() stub for command-generation tests: pretend external binaries
+    (absolute paths like /usr/bin/php) are installed, but do a real check for
+    the relative test-output paths so "output already exists" logic still works.
+    """
+    return True if path.startswith('/') else os.path.exists(path)
 
 
 class BaseDumpsTestCase(unittest.TestCase):
@@ -25,6 +35,12 @@ class BaseDumpsTestCase(unittest.TestCase):
         make the output directory, make the directory for today's date
         """
         self.today = TimeUtils.today()
+
+        # Pin the hostname so tests that record socket.getfqdn() (batch/lock
+        # ownership) produce deterministic output on any machine.
+        getfqdn_patcher = patch('socket.getfqdn', return_value='localhost.localdomain')
+        getfqdn_patcher.start()
+        self.addCleanup(getfqdn_patcher.stop)
 
         # make dump output dirs
         for wikiname in ['enwiki', 'wikidatawiki']:

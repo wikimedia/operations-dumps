@@ -1,3 +1,4 @@
 /.tox
 /scap
 /atg_testing
+/xmldumps-backup/test/output/

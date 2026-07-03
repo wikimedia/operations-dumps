@@ -55,6 +55,11 @@ class TestPrefetch(BaseDumpsTestCase):
         make sure we can get a list of the appropriate page
         content files for prefetch
         """
+        # This exercises real .bz2 decompression to read page ids, so it needs
+        # the bzip2 binary, which is not present in the CI image.
+        if not os.path.exists(self.wd['wiki'].config.bzip2):
+            self.skipTest('requires the bzip2 binary to read .bz2 prefetch fixtures')
+
         # any old date will do as long as it's earlier than today
         date = '20200101'
 

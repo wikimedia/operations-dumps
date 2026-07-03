@@ -7,7 +7,7 @@ test suite for page content jobs split into batches and
 import json
 import os
 from unittest.mock import patch
-from test.basedumpstest import BaseDumpsTestCase
+from test.basedumpstest import BaseDumpsTestCase, binary_exists_else_real
 import dumps.dumpitemlist
 from dumps.batch import PageContentBatches, BatchProgressCallback
 from dumps.pagerangeinfo import PageRangeInfo
@@ -23,9 +23,11 @@ class PageContentBatchesTestCase(BaseDumpsTestCase):
     and running of these batches, where the primary worker
     produces and claims batches, no secondary worker
     """
+    @patch('dumps.xmlcontentjobs.exists', side_effect=binary_exists_else_real)
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
-    def test_pagecontent_batch_jobs(self, _mock_get_some_stats, _mock_get_known_tables):
+    def test_pagecontent_batch_jobs(self, _mock_get_some_stats, _mock_get_known_tables,
+                                    _mock_exists):
         """
         check that with pagerangeinfo file used, batches on, we get the commands
         we expect for generating page content files
@@ -131,7 +133,7 @@ class PageContentBatchesTestCase(BaseDumpsTestCase):
                            'test/mediawiki/maintenance/dumpTextPass.php',
                            '--wiki=wikidatawiki',
                            stubpath,
-                           '', '--report=1000', '--spawn=/usr/bin/php',
+                           '', '--dbgroupdefault=dump', '--report=1000', '--spawn=/usr/bin/php',
                            outpath, '--full']
                 thisbatch.append([[command]])
             expected_commands.append([int(batchnum), thisbatch])
@@ -218,10 +220,12 @@ class PageContentBatchesTestCase(BaseDumpsTestCase):
 
         return content_job, runner
 
+    @patch('dumps.xmlcontentjobs.exists', side_effect=binary_exists_else_real)
     @patch('dumps.wikidump.Wiki.get_known_tables')
     @patch('dumps.runner.FilePartInfo.get_some_stats')
     @patch('dumps.runner.Runner.run_command')
-    def test_batch_jobs(self, mock_run_command, _mock_get_some_stats, _mock_get_known_tables):
+    def test_batch_jobs(self, mock_run_command, _mock_get_some_stats, _mock_get_known_tables,
+                        _mock_exists):
         """
         run batches as primary worker and check that batch info file
         looks to have been updated properly, then do the same as
