@@ -8,7 +8,7 @@ import shutil
 import unittest
 from unittest.mock import patch
 from dumps.wikidump import Wiki, Config
-from dumps.utils import TimeUtils
+from dumps.utils import TimeUtils, MiscUtils
 from dumps.fileutils import DumpDir, DumpFilename
 
 
@@ -35,6 +35,13 @@ class BaseDumpsTestCase(unittest.TestCase):
         make the output directory, make the directory for today's date
         """
         self.today = TimeUtils.today()
+
+        # Neutralize cgroup detection so that commands built by the code
+        # under test do not vary with the memory/cpu limits of whatever
+        # container CI happens to run in (T436913)
+        self._cgroup_paths = (MiscUtils.CGROUP_MEM_PATHS, MiscUtils.CGROUP_CPU_PATHS)
+        MiscUtils.CGROUP_MEM_PATHS = []
+        MiscUtils.CGROUP_CPU_PATHS = []
 
         # Pin the hostname so tests that record socket.getfqdn() (batch/lock
         # ownership) produce deterministic output on any machine.
@@ -82,6 +89,7 @@ class BaseDumpsTestCase(unittest.TestCase):
         """
         clean up any crap we wrote for these tests
         """
+        MiscUtils.CGROUP_MEM_PATHS, MiscUtils.CGROUP_CPU_PATHS = self._cgroup_paths
         for wikiname in ['enwiki', 'wikidatawiki']:
             shutil.rmtree(os.path.join(BaseDumpsTestCase.PUBLICDIR, wikiname))
             shutil.rmtree(os.path.join(BaseDumpsTestCase.PRIVATEDIR, wikiname))

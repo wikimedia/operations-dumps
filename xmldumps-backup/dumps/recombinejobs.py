@@ -373,7 +373,9 @@ class RecombineXmlRecompressDump(RecombineDump):
             raise BackupError("No input files for %s found" % self.name())
         if not exists(self.wiki.config.sevenzip):
             raise BackupError("sevenzip command %s not found" % self.wiki.config.sevenzip)
-        compression_command = "%s a -mx=4 -si" % self.wiki.config.sevenzip
+        compression_command = " ".join(filter(None, [
+            self.wiki.config.sevenzip, "a", "-mx=4",
+            MiscUtils.sevenzip_cgroup_flags(), "-si"]))
         uncompression_command = ["%s" % self.wiki.config.sevenzip, "e", "-so"]
 
         recombine_command_string = self.build_recombine_command_string(

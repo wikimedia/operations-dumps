@@ -10,6 +10,7 @@ from dumps.exceptions import BackupError
 from dumps.fileutils import DumpFilename
 from dumps.jobs import Dump, ProgressCallback
 from dumps.outfilelister import OutputFileLister
+from dumps.utils import MiscUtils
 
 
 class RecompressDump(Dump):
@@ -398,8 +399,11 @@ class XmlRecompressDump(RecompressDump):
             else:
                 decompr_command = "{bzip2} -dc {infile}".format(bzip2=self.wiki.config.bzip2,
                                                                 infile=infilepath)
-            command_pipe = [["{decompr} | {sevenzip} a -mx=4 -si {ofile}".format(
-                decompr=decompr_command, sevenzip=self.wiki.config.sevenzip,
+            sevenzip_command = " ".join(filter(None, [
+                self.wiki.config.sevenzip, "a", "-mx=4",
+                MiscUtils.sevenzip_cgroup_flags(), "-si"]))
+            command_pipe = [["{decompr} | {sevenzip} {ofile}".format(
+                decompr=decompr_command, sevenzip=sevenzip_command,
                 ofile=DumpFilename.get_inprogress_name(outfilepath))]]
             command_series.append(command_pipe)
         return command_series

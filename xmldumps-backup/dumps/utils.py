@@ -16,6 +16,89 @@ from dumps.exceptions import BackupError
 
 
 class MiscUtils():
+    # cgroup files consulted to size 7za flags; module-level so tests can
+    # point them elsewhere.
+    CGROUP_MEM_PATHS = [
+        "/sys/fs/cgroup/memory.max",                     # cgroup v2
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes",   # cgroup v1
+    ]
+    CGROUP_CPU_PATHS = [
+        "/sys/fs/cgroup/cpu.max",                        # cgroup v2
+        "/sys/fs/cgroup/cpu/cpu.cfs_quota_us",           # cgroup v1
+    ]
+
+    @staticmethod
+    def _read_first(paths):
+        """Return the stripped content of the first readable path, or None"""
+        for path in paths:
+            try:
+                with open(path) as fhandle:
+                    return fhandle.read().strip()
+            except OSError:
+                continue
+        return None
+
+    @staticmethod
+    def sevenzip_memuse(fraction=0.65):
+        """
+        Return a -mmemuse=<N>g switch for 7za, sized to a fraction of the
+        cgroup memory limit of the current process, or the empty string if
+        there is no such limit (e.g. on bare metal).
+
+        Newer 7-Zip (bookworm's p7zip-full is built from upstream 7-Zip
+        25.x/26.x) sizes its default LZMA2 thread count and dictionary
+        from *host* cpu count and *host* physical RAM (sysconf), both of
+        which ignore cgroup limits. Inside a memory-limited Kubernetes pod
+        it therefore overcommits and is OOM-killed on large inputs.
+        Setting -mmemuse makes 7za plan threads/buffers within the pod's
+        real budget. Only the absolute form is usable: -mmemuse=p<N>
+        (percentage) is a percentage of host RAM. See T436913.
+        """
+        value = MiscUtils._read_first(MiscUtils.CGROUP_MEM_PATHS)
+        # 'max' (v2), an absurdly large number (v1), or nothing => unlimited
+        if value is None or not value.isdigit() or int(value) >= 1 << 48:
+            return ""
+        gigs = int(int(value) * fraction) >> 30
+        return "-mmemuse={0}g".format(max(1, gigs))
+
+    @staticmethod
+    def sevenzip_mmt():
+        """
+        Return a -mmt=<N> switch for 7za matching the cgroup cpu quota of
+        the current process, or the empty string if there is no quota.
+
+        7za's default thread count comes from the *host* processor count
+        (sysconf), which a Kubernetes cpu limit (a cfs quota) does not
+        reduce; without this, 7za on a many-core node starts a thread per
+        host hw thread and is heavily cfs-throttled. See T436913.
+        """
+        value = MiscUtils._read_first(MiscUtils.CGROUP_CPU_PATHS)
+        if value is None:
+            return ""
+        fields = value.split()
+        if fields[0] in ("max", "-1") or not fields[0].lstrip("-").isdigit():
+            return ""
+        quota = int(fields[0])
+        if quota <= 0:
+            return ""
+        if len(fields) > 1 and fields[1].isdigit():
+            period = int(fields[1])          # cgroup v2: "<quota> <period>"
+        else:
+            period = 100000                  # cgroup v1 default cfs period
+        threads = max(1, (quota + period - 1) // period)
+        return "-mmt={0}".format(threads)
+
+    @staticmethod
+    def sevenzip_cgroup_flags():
+        """
+        Return 7za switches ('-mmemuse=<N>g -mmt=<N>', either, or '')
+        sizing its memory and thread planning to the cgroup limits of the
+        current process instead of host RAM / host processor count.
+        """
+        return " ".join(
+            flag for flag in (MiscUtils.sevenzip_memuse(), MiscUtils.sevenzip_mmt())
+            if flag)
+
     @staticmethod
     def db_list(path, nosort=False):
         """Read database list from a file"""
