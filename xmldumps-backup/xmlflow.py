@@ -58,7 +58,7 @@ def do_flowbackup(wikidb, outfile, history,
                   5000, 10000, '</board>\n', verbose=verbose, footer=True)
 
 
-# fixme must take a list of ouput files and a list of
+# fixme must take a list of output files and a list of
 # variants so we can put together the correct command
 
 def usage(message=None):
