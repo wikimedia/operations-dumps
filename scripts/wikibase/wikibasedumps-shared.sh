@@ -3,7 +3,18 @@
 # Shared variable and function declarations for creating Wikibase dumps
 # of any sort
 
-today=`date +'%Y%m%d'`
+# The dump id used in the dump directory, dump file and checksum file names.
+# Callers may set dumpId beforehand (any string without slashes or whitespace,
+# e.g. the date the dump was scheduled for) to give a dump that runs for
+# several days a well-defined id. Defaults to the current date (YYYYMMDD).
+if [ -n "${dumpId:-}" ]; then
+	if [[ "$dumpId" =~ [/[:space:]] ]]; then
+		echo "Invalid dump id '$dumpId': must not contain slashes or whitespace." >& 2
+		exit 1
+	fi
+else
+	dumpId=`date +'%Y%m%d'`
+fi
 daysToKeep=70
 
 args="wiki:multiversion;output:temp;tools:php,lbzip2;${projectName}:shards,fileSizes,pagesPerBatch"
@@ -22,7 +33,7 @@ for settingname in "multiversion" "tempDir" "shards" "fileSizes" "pagesPerBatch"
 done
 
 targetDirBase=${systemdjobsdir}/wikibase/${projectName}wiki
-targetDirDefault=$targetDirBase/$today
+targetDirDefault=$targetDirBase/$dumpId
 
 multiversionscript="${multiversion}/MWScript.php"
 
@@ -36,16 +47,16 @@ function runDcat {
 	fi
 }
 
-# Add the checksums for $1 to today's checksum files
+# Add the checksums for $1 to the checksum files of this dump
 function putDumpChecksums {
 	local targetPath=$1
 	local targetDir=`dirname "$targetPath"`
 
 	md5=`md5sum "$targetPath" | awk '{print $1}'`
-	echo "$md5  `basename $targetPath`" >> $targetDir/${projectName}-$today-md5sums.txt
+	echo "$md5  `basename $targetPath`" >> $targetDir/${projectName}-$dumpId-md5sums.txt
 
 	sha1=`sha1sum "$targetPath" | awk '{print $1}'`
-	echo "$sha1  `basename $targetPath`" >> $targetDir/${projectName}-$today-sha1sums.txt
+	echo "$sha1  `basename $targetPath`" >> $targetDir/${projectName}-$dumpId-sha1sums.txt
 }
 
 # Get the number of batches needed to dump all of the particular project, stored in $numberOfBatchesNeeded.

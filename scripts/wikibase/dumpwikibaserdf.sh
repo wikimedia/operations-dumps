@@ -25,7 +25,7 @@ source /usr/local/etc/dump_functions.sh
 
 usage() {
     echo "Usage: $0 --project <name> --dump <name> --format <name> [--config <path>]" >& 2
-    echo "[--continue] [--dryrun] [--help]" >& 2
+    echo "[--output-dir <dir>] [--dump-id <id>] [--continue] [--dryrun] [--help]" >& 2
     echo >& 2
     echo "Args: " >& 2
     echo "  --config  (-c) path to configuration file for dump generation" >& 2
@@ -36,6 +36,9 @@ usage() {
     echo "  --format  (-f) output format, one of 'ttl' or 'nt'" >& 2
     echo "  --extra   (-e) convert to this format, one of 'ttl' or 'nt'" >& 2
     echo "  --output-dir (-o) target directory for dumps" >& 2
+    echo "                  (default value: the dump id, see --dump-id)" >& 2
+    echo "  --dump-id (-i) id used in dump and checksum file names and" >& 2
+    echo "                  as a default value for the output-dir" >& 2
     echo "                  (default value: Today's date formatted as YYYYMMDD)" >& 2
     echo "  --max-batches-per-shard (-m) max batches to run on each shard" >& 2
     echo "                (to truncate the dumped data, for testing)" >& 2
@@ -58,6 +61,7 @@ continue=0
 extraFormat=""
 outputDir=""
 maxBatchesPerShard=""
+dumpId=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -89,6 +93,10 @@ while [ $# -gt 0 ]; do
             maxBatchesPerShard="$2"
             shift; shift
         ;;
+	"--dump-id"|"-i")
+	        dumpId="$2"
+	        shift; shift
+	    ;;
 	"--dryrun"|"-D")
             dryrun="true"
             shift

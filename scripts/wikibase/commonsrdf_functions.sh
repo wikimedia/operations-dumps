@@ -15,7 +15,7 @@ setDumpFlavor() {
 }
 
 setFilename() {
-    filename=commons-$today-$dumpName
+    filename=commons-$dumpId-$dumpName
 }
 
 setDcatConfig() {

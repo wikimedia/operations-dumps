@@ -17,7 +17,7 @@ source /usr/local/etc/dump_functions.sh
 
 usage() {
     echo "Usage: $0 --project <name> --dump <name> [--entities <name>[|name...]] [--extra <option>]" >& 2
-    echo "[--config <path>] [--continue] [--dryrun] [--help]" >& 2
+    echo "[--config <path>] [--output-dir <dir>] [--dump-id <id>] [--continue] [--dryrun] [--help]" >& 2
     echo >& 2
     echo "Args: " >& 2
     echo "  --config   (-c) path to configuration file for dump generation" >& 2
@@ -32,6 +32,9 @@ usage() {
     echo "  --extra    (-E) extra args, e.g. '--ignore-missing' for commons" >& 2
     echo "                  (default value: empty)" >& 2
     echo "  --output-dir (-o) target directory for dumps" >& 2
+    echo "                  (default value: the dump id, see --dump-id)" >& 2
+    echo "  --dump-id (-i) id used in dump and checksum file names and" >& 2
+    echo "                  as a default value for the output-dir" >& 2
     echo "                  (default value: Today's date formatted as YYYYMMDD)" >& 2
     echo >& 2
     echo "Flags: " >& 2
@@ -54,6 +57,7 @@ dryrun="false"
 extra=""
 outputDir=""
 continue=0
+dumpId=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -81,6 +85,10 @@ while [ $# -gt 0 ]; do
             outputDir="$2"
             shift; shift
       ;;
+	"--dump-id"|"-i")
+	        dumpId="$2"
+	        shift; shift
+	    ;;
 	"--dryrun"|"-D")
             dryrun="true"
             shift
@@ -140,7 +148,7 @@ if [ $continue -eq 0 ]; then
 	rm -f "${tempDir}/${projectName}-${dumpName}."*-batch*.json.gz
 fi
 
-filename=${projectName}-$today-$dumpName
+filename=${projectName}-$dumpId-$dumpName
 failureFile=/tmp/dump${projectName}json-$dumpName-failure
 
 setDumpNameToMinSize

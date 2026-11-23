@@ -26,7 +26,7 @@ setDumpFlavor() {
 }
 
 setFilename() {
-    filename=wikidata-$today-$dumpName-BETA
+    filename=wikidata-$dumpId-$dumpName-BETA
 }
 
 setDcatConfig() {
